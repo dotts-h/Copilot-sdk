@@ -43,12 +43,12 @@ type Instruction struct {
 // Agent is a named persona: a model + reasoning effort + extra system guidance,
 // optionally scoped to a set of skills.
 type Agent struct {
-	ID              string   `json:"id"`
-	Name            string   `json:"name"`
-	Description     string   `json:"description"`
-	Model           string   `json:"model"`
-	ReasoningEffort string   `json:"reasoningEffort"` // low|medium|high|xhigh
-	SystemMessage   string   `json:"systemMessage,omitempty"`
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	Description     string `json:"description"`
+	Model           string `json:"model"`
+	ReasoningEffort string `json:"reasoningEffort"` // low|medium|high|xhigh
+	SystemMessage   string `json:"systemMessage,omitempty"`
 	// Skills lists skill IDs this agent always activates, beyond globally
 	// enabled skills.
 	Skills []string `json:"skills,omitempty"`

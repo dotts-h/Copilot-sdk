@@ -11,8 +11,9 @@ import (
 
 // Forge is the in-memory, file-backed registry of context building blocks.
 type Forge struct {
-	// Dir is the directory the forge persists to (forge.json).
-	Dir string
+	// Dir is the directory the forge persists to (forge.json). It is not
+	// serialized — Load sets it from the load path.
+	Dir string `json:"-"`
 
 	Skills       []Skill       `json:"skills"`
 	Instructions []Instruction `json:"instructions"`
@@ -169,13 +170,13 @@ func (f *Forge) ToggleSkill(id string) (bool, error) {
 
 // SessionSpec is the compiled, ready-to-use context for a Copilot SDK session.
 type SessionSpec struct {
-	Model            string
-	ReasoningEffort  string
-	SystemMessage    string
-	EnabledSkillIDs  []string
-	SlashCommands    []string
-	MCPServers       []MCPServer
-	AgentID          string
+	Model           string
+	ReasoningEffort string
+	SystemMessage   string
+	EnabledSkillIDs []string
+	SlashCommands   []string
+	MCPServers      []MCPServer
+	AgentID         string
 }
 
 // Compile produces a SessionSpec for the given agent ID (empty = no agent

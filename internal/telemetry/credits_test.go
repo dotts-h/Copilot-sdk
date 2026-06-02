@@ -92,9 +92,9 @@ func TestMeterAccumulates(t *testing.T) {
 
 func TestMeterByModelSortedByCreditsDesc(t *testing.T) {
 	m := NewMeter(DefaultPriceBook())
-	m.Record(Usage{Model: "gpt-5-mini", InputTokens: 1_000_000}) // cheap
+	m.Record(Usage{Model: "gpt-5-mini", InputTokens: 1_000_000})      // cheap
 	m.Record(Usage{Model: "claude-opus-4.7", InputTokens: 1_000_000}) // expensive
-	m.Record(Usage{Model: "gpt-5", InputTokens: 1_000_000}) // mid
+	m.Record(Usage{Model: "gpt-5", InputTokens: 1_000_000})           // mid
 	got := m.ByModel()
 	if len(got) != 3 {
 		t.Fatalf("expected 3 models, got %d", len(got))
