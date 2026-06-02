@@ -87,12 +87,41 @@ func respondPermission(c copilot.Client, id string, approve bool) tea.Cmd {
 	}
 }
 
-// sendPrompt returns a command that submits a prompt to the session.
-func sendPrompt(c copilot.Client, sessionID, prompt string) tea.Cmd {
+// sendPrompt returns a command that submits a prompt (with optional attachment
+// paths) to the session.
+func sendPrompt(c copilot.Client, sessionID, prompt string, attachments []string) tea.Cmd {
 	return func() tea.Msg {
-		if err := c.Send(context.Background(), sessionID, prompt); err != nil {
+		if err := c.Send(context.Background(), sessionID, prompt, attachments); err != nil {
 			return errMsg{err: err}
 		}
 		return nil
 	}
 }
+
+// resumeSession returns a command that resumes a session (or the last one when
+// id is empty) and reports it ready.
+func resumeSession(c copilot.Client, id string) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+		if id == "" {
+			last, err := c.LastSessionID(ctx)
+			if err != nil {
+				return errMsg{err: err}
+			}
+			if last == "" {
+				return errMsg{err: errString("no previous session to resume")}
+			}
+			id = last
+		}
+		resumed, err := c.ResumeSession(ctx, id)
+		if err != nil {
+			return errMsg{err: err}
+		}
+		return sessionReadyMsg{sessionID: resumed}
+	}
+}
+
+// errString is a minimal error type for synthesized messages.
+type errString string
+
+func (e errString) Error() string { return string(e) }

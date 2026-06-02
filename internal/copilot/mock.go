@@ -8,13 +8,16 @@ import (
 // MockClient is an in-memory Client for tests and offline use. It records calls
 // and lets the test drive the event stream.
 type MockClient struct {
-	mu        sync.Mutex
-	events    chan Event
-	sessions  int
-	Sent      []string
-	Aborted   []string
-	Responded []PermissionDecision
-	closed    bool
+	mu          sync.Mutex
+	events      chan Event
+	sessions    int
+	Sent        []string
+	LastAttach  []string
+	Aborted     []string
+	Resumed     []string
+	Responded   []PermissionDecision
+	lastSession string
+	closed      bool
 
 	CreateErr error
 	SendErr   error
@@ -33,16 +36,34 @@ func (m *MockClient) CreateSession(context.Context, SessionSpec) (string, error)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.sessions++
+	m.lastSession = "mock-session"
 	return "mock-session", nil
 }
 
+// ResumeSession implements Client.
+func (m *MockClient) ResumeSession(_ context.Context, sessionID string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.Resumed = append(m.Resumed, sessionID)
+	m.lastSession = sessionID
+	return sessionID, nil
+}
+
+// LastSessionID implements Client.
+func (m *MockClient) LastSessionID(_ context.Context) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.lastSession, nil
+}
+
 // Send implements Client.
-func (m *MockClient) Send(_ context.Context, _, prompt string) error {
+func (m *MockClient) Send(_ context.Context, _, prompt string, attachments []string) error {
 	if m.SendErr != nil {
 		return m.SendErr
 	}
 	m.mu.Lock()
 	m.Sent = append(m.Sent, prompt)
+	m.LastAttach = attachments
 	m.mu.Unlock()
 	return nil
 }

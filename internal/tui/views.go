@@ -274,6 +274,8 @@ func (m Model) viewHelp() string {
 		"  /help /clear /cost /skills /agents /settings",
 		"  /model <name>   switch model + restart session",
 		"  /agent <id>     switch agent + restart session",
+		"  /attach <path>  attach a file/image to the next prompt",
+		"  /resume [id]    resume the last (or given) session",
 	}
 	for _, l := range lines {
 		b.WriteString("  " + l + "\n")

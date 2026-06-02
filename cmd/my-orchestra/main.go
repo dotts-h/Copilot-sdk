@@ -28,10 +28,12 @@ func main() {
 		showVersion bool
 		configDir   string
 		seed        bool
+		resume      bool
 	)
 	flag.BoolVar(&showVersion, "version", false, "print version and exit")
 	flag.StringVar(&configDir, "config-dir", defaultConfigDir(), "configuration directory")
 	flag.BoolVar(&seed, "seed", false, "write a starter forge + config to the config dir and exit")
+	flag.BoolVar(&resume, "resume", false, "resume the most recent session on launch")
 	flag.Parse()
 
 	if showVersion {
@@ -39,13 +41,13 @@ func main() {
 		return
 	}
 
-	if err := run(configDir, seed); err != nil {
+	if err := run(configDir, seed, resume); err != nil {
 		fmt.Fprintln(os.Stderr, "my-orchestra: "+err.Error())
 		os.Exit(1)
 	}
 }
 
-func run(configDir string, seed bool) error {
+func run(configDir string, seed, resume bool) error {
 	cfg, err := config.Load(configDir)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -74,7 +76,7 @@ func run(configDir string, seed bool) error {
 	client, closeFn := dialClient(cfg)
 	defer closeFn()
 
-	model := tui.New(tui.Deps{Config: cfg, Forge: forge, Client: client, Meter: meter})
+	model := tui.New(tui.Deps{Config: cfg, Forge: forge, Client: client, Meter: meter, Resume: resume})
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	_, err = p.Run()
 	return err
