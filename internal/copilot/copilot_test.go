@@ -164,6 +164,28 @@ func TestResolveAuthPrefersLoggedInUser(t *testing.T) {
 	}
 }
 
+func TestShouldDropReasoningEffort(t *testing.T) {
+	cases := []struct {
+		name      string
+		effort    string
+		supported []string
+		known     bool
+		drop      bool
+	}{
+		{"no effort requested", "", []string{"low", "high"}, true, false},
+		{"capabilities unknown", "medium", nil, false, false},
+		{"model supports none", "medium", []string{}, true, true},
+		{"effort supported", "medium", []string{"low", "medium", "high"}, true, false},
+		{"effort unsupported", "xhigh", []string{"low", "medium", "high"}, true, true},
+	}
+	for _, tc := range cases {
+		if got := shouldDropReasoningEffort(tc.effort, tc.supported, tc.known); got != tc.drop {
+			t.Errorf("%s: shouldDropReasoningEffort(%q, %v, %v)=%v, want %v",
+				tc.name, tc.effort, tc.supported, tc.known, got, tc.drop)
+		}
+	}
+}
+
 // TestSDKIntegration exercises the real SDK path end to end. It is skipped unless
 // the `copilot` CLI is installed and either a GITHUB_TOKEN is present or
 // COPILOT_SDK_E2E is set (to authenticate via the logged-in CLI session),
@@ -187,12 +209,14 @@ func TestSDKIntegration(t *testing.T) {
 	defer client.Close()
 
 	// "auto" lets the runtime pick an available model for this account, so the
-	// test does not depend on a specific model being entitled.
+	// test does not depend on a specific model being entitled. Pairing it with a
+	// reasoning effort also exercises the guard: "auto" supports no effort, so
+	// CreateSession must drop it rather than fail.
 	model := os.Getenv("COPILOT_SDK_E2E_MODEL")
 	if model == "" {
 		model = "auto"
 	}
-	id, err := client.CreateSession(ctx, SessionSpec{Model: model, Streaming: true})
+	id, err := client.CreateSession(ctx, SessionSpec{Model: model, ReasoningEffort: "medium", Streaming: true})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
