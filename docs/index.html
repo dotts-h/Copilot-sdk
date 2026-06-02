@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>my-orchestra — architecture &amp; internals</title>
+<meta name="description" content="my-orchestra: a cost-aware coding TUI fusing the GitHub Copilot CLI and Claude CLI, powered by the official Copilot Go SDK and the my-ctx forge." />
+<style>
+  :root{
+    --bg:#15171a; --panel:#1e2125; --fg:#e7e9ea; --dim:#9aa3ad; --line:#2c3036;
+    --accent:#d98c5f; --accent2:#6ea8fe; --good:#7ee787;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  a{color:var(--accent2);text-decoration:none}
+  a:hover{text-decoration:underline}
+  header{padding:64px 24px 40px;text-align:center;
+    background:radial-gradient(1200px 400px at 50% -10%, #23272d, var(--bg))}
+  header h1{font-size:2.6rem;margin:0 0 8px;letter-spacing:-.02em}
+  header h1 .glyph{color:var(--accent)}
+  header p{color:var(--dim);max-width:760px;margin:8px auto 0;font-size:1.1rem}
+  .badges{margin-top:20px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+  .badge{font:12px var(--mono);background:var(--panel);border:1px solid var(--line);
+    border-radius:999px;padding:5px 12px;color:var(--dim)}
+  main{max-width:980px;margin:0 auto;padding:24px}
+  section{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:24px 28px;margin:22px 0}
+  h2{margin-top:0;font-size:1.5rem;letter-spacing:-.01em}
+  h2 .n{color:var(--accent);font:14px var(--mono);margin-right:10px}
+  h3{color:var(--accent2);margin:22px 0 6px;font-size:1.05rem}
+  code{font-family:var(--mono);background:#0e1013;border:1px solid var(--line);
+    border-radius:5px;padding:1px 6px;font-size:.88em}
+  pre{background:#0e1013;border:1px solid var(--line);border-radius:10px;
+    padding:16px;overflow:auto;font:13px/1.5 var(--mono)}
+  ul{padding-left:22px}
+  li{margin:6px 0}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:14px}
+  .card{background:#0e1013;border:1px solid var(--line);border-radius:10px;padding:16px}
+  .card h4{margin:0 0 6px;color:var(--accent)}
+  .card p{margin:0;color:var(--dim);font-size:.92rem}
+  .mermaid{background:#0e1013;border:1px solid var(--line);border-radius:10px;padding:18px;text-align:center}
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:.92rem}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left}
+  th{background:#0e1013;color:var(--accent2)}
+  footer{color:var(--dim);text-align:center;padding:40px 24px;font-size:.9rem}
+  .pill{color:var(--good)}
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="glyph">⎈</span> my-orchestra</h1>
+  <p>A cost-aware coding TUI that fuses the <strong>GitHub Copilot CLI</strong> and
+     <strong>Claude CLI</strong> experiences — driven by the official
+     <strong>Copilot Go SDK</strong>, composed with the <strong>my-ctx forge</strong>,
+     and metered against GitHub's <strong>AI-Credit</strong> billing in real time.</p>
+  <div class="badges">
+    <span class="badge">Go 1.24</span>
+    <span class="badge">Bubble Tea TUI</span>
+    <span class="badge">github/copilot-sdk/go</span>
+    <span class="badge">TDD · race · fuzz</span>
+    <span class="badge">CI/CD · Pages</span>
+  </div>
+</header>
+
+<main>
+  <section>
+    <h2><span class="n">01</span>What it is</h2>
+    <p>my-orchestra is a terminal application for building and testing code with
+      Copilot's agent, designed around one principle: <em>you should always know
+      what a turn costs</em>. It borrows Copilot CLI's calm, tool-centric chrome
+      and Claude CLI's conversational warmth, and adds first-class pages for
+      context engineering and live credit telemetry.</p>
+    <div class="grid">
+      <div class="card"><h4>Chat</h4><p>Streaming agent conversation with tool-execution indicators and a live credit footer.</p></div>
+      <div class="card"><h4>Telemetry</h4><p>Per-model token &amp; credit breakdown vs. your monthly budget, plus GitHub's authoritative AIU cost.</p></div>
+      <div class="card"><h4>Forge</h4><p>Toggle skills, instructions, and agents that compile into the session's system message.</p></div>
+      <div class="card"><h4>Settings / Config</h4><p>Every knob — model, effort, theme, budget, price overrides, key bindings.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">02</span>Architecture</h2>
+    <p>A small, testable core in pure Go, a thin SDK adapter at the edge, and a
+      Bubble Tea UI on top. The <code>copilot.Client</code> interface is the seam
+      that keeps the UI hermetically testable with an in-memory mock.</p>
+    <div class="mermaid">
+flowchart TD
+  U([You]) --> TUI
+
+  subgraph APP["my-orchestra (Go)"]
+    TUI["TUI · Bubble Tea<br/>Chat · Telemetry · Forge · Settings"]
+    FORGE["ctxforge<br/>skills · instructions · agents · MCP"]
+    TEL["telemetry<br/>price book · Meter · budget"]
+    CFG["config<br/>settings · key bindings"]
+    IFACE{{"copilot.Client<br/>(interface)"}}
+    TUI --> FORGE
+    TUI --> TEL
+    TUI --> CFG
+    TUI --> IFACE
+    FORGE -->|Compile → SessionSpec| IFACE
+  end
+
+  IFACE -->|production| SDKC["SDKClient<br/>wraps github/copilot-sdk/go"]
+  IFACE -.->|tests / offline| MOCK["MockClient"]
+  SDKC --> CLI["copilot CLI runtime"]
+  CLI --> CAPI["GitHub Copilot API<br/>(models · billing)"]
+  CLI -->|assistant.usage events| TEL
+    </div>
+    <h3>Why an interface, not a direct call?</h3>
+    <p>The TUI never imports the SDK. It depends only on
+      <code>copilot.Client</code>, so the entire update loop is unit-tested
+      against <code>MockClient</code> with deterministic events — no network, no
+      auth, no flake. <code>SDKClient</code> is the one place that touches the
+      runtime, and it is covered by a gated end-to-end test.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">03</span>Credit telemetry</h2>
+    <p>GitHub moved Copilot to usage-based billing on <strong>2026-06-01</strong>:
+      spend is metered on tokens and converted to <strong>AI Credits</strong> at a
+      fixed <code>1 credit = $0.01</code>. my-orchestra meters two ways:</p>
+    <ul>
+      <li><strong>Estimate</strong> — a configurable price book multiplies each
+        token category by its per-model rate. Deterministic, offline, testable.</li>
+      <li><strong>Authoritative</strong> — the SDK's <code>assistant.usage</code>
+        event carries GitHub's own <code>TotalNanoAiu</code> cost, shown next to
+        the estimate so you can trust and calibrate it.</li>
+    </ul>
+    <table>
+      <tr><th>Token category</th><th>Source field</th><th>Billed as</th></tr>
+      <tr><td>Input</td><td><code>inputTokens</code></td><td>input rate</td></tr>
+      <tr><td>Cached input</td><td><code>cacheReadTokens</code></td><td>cached rate</td></tr>
+      <tr><td>Output</td><td><code>outputTokens</code></td><td>output rate</td></tr>
+      <tr><td>Reasoning</td><td><code>reasoningTokens</code></td><td>output rate</td></tr>
+      <tr><td>Authoritative</td><td><code>copilotUsage.totalNanoAiu</code></td><td>GitHub AIU</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2><span class="n">04</span>The my-ctx forge</h2>
+    <p>The forge is a file-backed registry (<code>forge.json</code>) of reusable
+      context. Selected pieces <em>compile</em> into one <code>SessionSpec</code>:
+      the agent persona's system message, then enabled instructions (by priority),
+      then active skill prompts, plus enabled MCP servers. Reproducible, diffable,
+      shareable.</p>
+<pre>forge.json ──▶ Forge.Compile(agentID) ──▶ SessionSpec
+                                          ├─ Model / ReasoningEffort  (from agent)
+                                          ├─ SystemMessage            (agent + instructions + skills)
+                                          ├─ EnabledSkillIDs / SlashCommands
+                                          └─ MCPServers (enabled only)</pre>
+  </section>
+
+  <section>
+    <h2><span class="n">05</span>Engineering &amp; infrastructure</h2>
+    <h3>Test-driven, SDET-hardened</h3>
+    <ul>
+      <li>Every package was written test-first; tests run under the <span class="pill">race detector</span>.</li>
+      <li>Table-driven edge cases, a <span class="pill">fuzz</span> target for the pricing engine, and concurrency tests for the meter.</li>
+      <li>CI enforces a coverage floor and gofmt/vet/golangci-lint cleanliness.</li>
+    </ul>
+    <h3>CI/CD</h3>
+    <ul>
+      <li><strong>CI</strong> — lint, race tests + coverage gate, fuzz smoke, and a 6-target cross-compile matrix (linux/darwin/windows × amd64/arm64).</li>
+      <li><strong>Release</strong> — tagged builds publish stripped binaries + checksums.</li>
+      <li><strong>Pages</strong> — this site deploys from <code>docs/</code> on every push to <code>main</code>.</li>
+    </ul>
+<pre>cmd/my-orchestra        entrypoint &amp; wiring
+internal/tui            Bubble Tea model, views, key handling
+internal/copilot        Client interface · SDKClient · MockClient
+internal/ctxforge       skills · instructions · agents · MCP → SessionSpec
+internal/telemetry      price book · Meter · budget · AIU
+internal/config         settings · key bindings (JSON)</pre>
+  </section>
+
+  <section>
+    <h2><span class="n">06</span>Quickstart</h2>
+<pre># build
+go build -o bin/my-orchestra ./cmd/my-orchestra
+
+# seed a starter forge + config, then run
+./bin/my-orchestra --seed
+GITHUB_TOKEN=*** ./bin/my-orchestra</pre>
+    <p>Without the <code>copilot</code> CLI or a token, my-orchestra launches in an
+      offline mock mode so you can explore every page. Install the
+      <a href="https://github.com/features/copilot/cli">Copilot CLI</a> and export a
+      token to drive a real agent.</p>
+  </section>
+</main>
+
+<footer>
+  Built with the <a href="https://github.com/github/copilot-sdk">GitHub Copilot SDK</a>.
+  Source: <a href="https://github.com/dotts-h/copilot-sdk">dotts-h/copilot-sdk</a> ·
+  See <code>docs/ARCHITECTURE.md</code> for the deep dive.
+</footer>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({
+    startOnLoad:true, theme:"dark",
+    themeVariables:{ primaryColor:"#1e2125", primaryTextColor:"#e7e9ea",
+      lineColor:"#6ea8fe", fontFamily:"monospace" }
+  });
+</script>
+</body>
+</html>

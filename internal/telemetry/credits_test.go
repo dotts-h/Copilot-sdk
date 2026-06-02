@@ -155,6 +155,28 @@ func TestMeterConcurrentSafe(t *testing.T) {
 	}
 }
 
+func TestReportedAIU(t *testing.T) {
+	m := NewMeter(DefaultPriceBook())
+	if m.ReportedAIU() != 0 {
+		t.Fatal("expected zero reported AIU initially")
+	}
+	m.RecordReportedAIU(0) // no-op
+	m.RecordReportedAIU(1.5)
+	m.RecordReportedAIU(0.25)
+	approx(t, m.ReportedAIU(), 1.75)
+}
+
+func TestReportedAIUConcurrent(t *testing.T) {
+	m := NewMeter(nil)
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() { defer wg.Done(); m.RecordReportedAIU(0.01) }()
+	}
+	wg.Wait()
+	approx(t, m.ReportedAIU(), 1.0)
+}
+
 func TestUsageTotalTokens(t *testing.T) {
 	u := Usage{InputTokens: 3, CachedTokens: 5, OutputTokens: 7}
 	if u.TotalTokens() != 15 {
