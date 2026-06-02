@@ -25,6 +25,12 @@ type SDKClient struct {
 	toolNames map[string]string // toolCallID -> toolName, for matching end events
 	closed    bool
 
+	// modelEfforts caches each model's supported reasoning efforts (from
+	// ListModels) so CreateSession can avoid sending an effort to a model that
+	// rejects it. nil until first successfully fetched.
+	modelsMu     sync.Mutex
+	modelEfforts map[string][]string
+
 	events chan Event
 	done   chan struct{}
 	once   sync.Once
@@ -98,6 +104,15 @@ func (c *SDKClient) CreateSession(ctx context.Context, spec SessionSpec) (string
 		ReasoningEffort: spec.ReasoningEffort,
 		Streaming:       sdk.Bool(spec.Streaming),
 	}
+	// Some models (e.g. "auto", claude-haiku-4.5) reject any reasoning-effort
+	// setting; sending one fails session.create. Drop it when the model is known
+	// not to support the requested effort.
+	if cfg.ReasoningEffort != "" {
+		supported, known := c.modelReasoningEfforts(ctx, spec.Model)
+		if shouldDropReasoningEffort(cfg.ReasoningEffort, supported, known) {
+			cfg.ReasoningEffort = ""
+		}
+	}
 	if spec.SystemMessage != "" {
 		cfg.SystemMessage = &sdk.SystemMessageConfig{Mode: "append", Content: spec.SystemMessage}
 	}
@@ -121,6 +136,50 @@ func (c *SDKClient) CreateSession(ctx context.Context, spec SessionSpec) (string
 	}
 	c.register(session)
 	return session.SessionID, nil
+}
+
+// shouldDropReasoningEffort reports whether a requested reasoning effort must be
+// cleared before creating a session. known is whether the model's capabilities
+// were resolved; when false (capabilities unknown), the effort is left untouched
+// so behavior degrades to the runtime's own validation.
+func shouldDropReasoningEffort(effort string, supported []string, known bool) bool {
+	if effort == "" || !known {
+		return false
+	}
+	if len(supported) == 0 {
+		return true // model accepts no reasoning-effort setting at all
+	}
+	for _, e := range supported {
+		if e == effort {
+			return false
+		}
+	}
+	return true // requested effort is not in the model's supported set
+}
+
+// modelReasoningEfforts returns the supported reasoning efforts for a model and
+// whether that was determined. It lazily caches ListModels; on a list failure it
+// reports known=false so callers do not drop the effort.
+func (c *SDKClient) modelReasoningEfforts(ctx context.Context, model string) (efforts []string, known bool) {
+	c.modelsMu.Lock()
+	cache := c.modelEfforts
+	c.modelsMu.Unlock()
+
+	if cache == nil {
+		models, err := c.client.ListModels(ctx)
+		if err != nil {
+			return nil, false
+		}
+		cache = make(map[string][]string, len(models))
+		for _, m := range models {
+			cache[m.ID] = m.SupportedReasoningEfforts
+		}
+		c.modelsMu.Lock()
+		c.modelEfforts = cache
+		c.modelsMu.Unlock()
+	}
+	efforts, known = cache[model]
+	return efforts, known
 }
 
 // ResumeSession implements Client.
