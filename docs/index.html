@@ -75,8 +75,10 @@
     <div class="grid">
       <div class="card"><h4>Chat</h4><p>Streaming agent conversation with tool-execution indicators and a live credit footer.</p></div>
       <div class="card"><h4>Telemetry</h4><p>Per-model token &amp; credit breakdown vs. your monthly budget, plus GitHub's authoritative AIU cost.</p></div>
-      <div class="card"><h4>Forge</h4><p>Toggle skills, instructions, and agents that compile into the session's system message.</p></div>
-      <div class="card"><h4>Settings / Config</h4><p>Every knob — model, effort, theme, budget, price overrides, key bindings.</p></div>
+      <div class="card"><h4>Forge</h4><p>Create, edit, delete, and toggle skills, instructions, and agents — compiled into the session's system message.</p></div>
+      <div class="card"><h4>Permissions</h4><p>Inline approve/reject prompts for the agent's shell/file/tool actions when auto-approve is off.</p></div>
+      <div class="card"><h4>Slash commands</h4><p><code>/model</code>, <code>/agent</code>, <code>/clear</code>, <code>/cost</code> &amp; more, right in the composer.</p></div>
+      <div class="card"><h4>Settings / Config</h4><p>Every knob — model, effort, theme, budget, price overrides, OTLP endpoint, key bindings.</p></div>
     </div>
   </section>
 
@@ -102,7 +104,7 @@ flowchart TD
     FORGE -->|Compile → SessionSpec| IFACE
   end
 
-  IFACE -->|production| SDKC["SDKClient<br/>wraps github/copilot-sdk/go"]
+  IFACE -->|production| SDKC["SDKClient<br/>wraps github/copilot-sdk/go<br/>+ permBridge (sync↔async perms)"]
   IFACE -.->|tests / offline| MOCK["MockClient"]
   SDKC --> CLI["copilot CLI runtime"]
   CLI --> CAPI["GitHub Copilot API<br/>(models · billing)"]
@@ -114,6 +116,14 @@ flowchart TD
       against <code>MockClient</code> with deterministic events — no network, no
       auth, no flake. <code>SDKClient</code> is the one place that touches the
       runtime, and it is covered by a gated end-to-end test.</p>
+    <h3>Interactive permissions: bridging sync ↔ async</h3>
+    <p>The SDK's <code>OnPermissionRequest</code> callback is synchronous — it
+      must return a decision inline — but a TUI answers later. A small
+      <code>permBridge</code> reconciles the two: the callback registers a
+      one-shot channel, emits an <code>EvPermission</code>, and blocks; the UI
+      renders <code>⚠ allow … ? [y]/[n]</code>, and the keypress routes the
+      decision back through <code>Client.Respond</code>. On shutdown the callback
+      returns <em>user-not-available</em> so it never hangs.</p>
   </section>
 
   <section>

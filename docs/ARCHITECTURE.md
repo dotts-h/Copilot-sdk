@@ -69,6 +69,30 @@ The SDK exposes many event types. `SDKClient.makeHandler` collapses them:
 Tool completion events don't carry a name, so `SDKClient` keeps a
 `toolCallID → name` map populated on start and consumed on completion.
 
+### Interactive permissions (sync ↔ async bridge)
+
+When auto-approve is off, the SDK calls `OnPermissionRequest` and expects a
+decision **synchronously**. The TUI answers asynchronously, so `permBridge`
+mediates: the callback `begin()`s a one-shot channel and emits an
+`EvPermission`; the model queues it and renders `⚠ allow … ? [y]/[n]`; the
+keypress calls `Client.Respond`, which `resolve()`s the channel and unblocks the
+callback with `ApproveOnce` or `Reject{Feedback}`. If the client closes first,
+the callback selects `done` and returns `UserNotAvailable`, so it never hangs.
+Requests queue FIFO; decisions match by id, so out-of-order answers are safe.
+
+### Forge CRUD
+
+The Skills/Instructions/Agents pages add (`a`), edit (`e`), and delete (`d`)
+entities through a modal form. Construction goes through pure, validated
+builder functions; saves **roll back** the in-memory forge if validation fails,
+so `forge.json` is never written in a bad state.
+
+### Slash commands
+
+The composer intercepts `/`-prefixed input (never sending it to the agent):
+`/help /clear /cost /skills /agents /settings`, plus `/model <name>` and
+`/agent <id>` which persist the choice and restart the session.
+
 ## Telemetry: estimate + authoritative
 
 GitHub bills tokens → USD → **AI Credits** (`1 credit = $0.01`). Two independent
