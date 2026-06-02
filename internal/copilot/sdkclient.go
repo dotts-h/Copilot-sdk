@@ -32,10 +32,29 @@ type SDKClient struct {
 
 // Options configures the SDK client.
 type Options struct {
+	// GitHubToken, when non-empty, is used as an explicit auth token and takes
+	// priority over the logged-in session. Leave it empty to use the
+	// already-logged-in `copilot` CLI session (see UseLoggedInUser).
 	GitHubToken string
-	LogLevel    string // "error" by default
+	// UseLoggedInUser, when non-nil, controls whether the runtime authenticates
+	// with the logged-in `copilot` CLI session (stored OAuth / gh CLI auth).
+	// It defaults to true unless GitHubToken is set. Use ResolveAuth to derive it.
+	UseLoggedInUser *bool
+	LogLevel        string // "error" by default
 	// OTLPEndpoint, when set, enables OpenTelemetry trace/metric export.
 	OTLPEndpoint string
+}
+
+// ResolveAuth derives the auth-related Options fields for an explicit token.
+// With no explicit token it selects the already-logged-in `copilot` CLI session
+// (UseLoggedInUser=true); a non-empty token is used as an explicit override and
+// the runtime then ignores the logged-in session.
+func ResolveAuth(token string) (githubToken string, useLoggedInUser *bool) {
+	if token == "" {
+		loggedIn := true
+		return "", &loggedIn
+	}
+	return token, nil
 }
 
 // NewSDKClient constructs and starts a real SDK-backed client. It requires the
@@ -46,8 +65,9 @@ func NewSDKClient(ctx context.Context, opts Options) (*SDKClient, error) {
 		logLevel = "error"
 	}
 	clientOpts := &sdk.ClientOptions{
-		LogLevel:    logLevel,
-		GitHubToken: opts.GitHubToken,
+		LogLevel:        logLevel,
+		GitHubToken:     opts.GitHubToken,
+		UseLoggedInUser: opts.UseLoggedInUser,
 	}
 	if opts.OTLPEndpoint != "" {
 		clientOpts.Telemetry = &sdk.TelemetryConfig{

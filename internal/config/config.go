@@ -37,7 +37,9 @@ type Config struct {
 
 	// ForgeDir is where ctxforge persists (defaults under the config dir).
 	ForgeDir string `json:"forgeDir"`
-	// GitHubTokenEnv names the env var holding the GitHub token.
+	// GitHubTokenEnv optionally names an env var holding a GitHub token to use
+	// as an explicit auth override. When empty (the default), the app uses the
+	// already-logged-in `copilot` CLI session instead of requesting a token.
 	GitHubTokenEnv string `json:"githubTokenEnv"`
 
 	// Telemetry configures the credits dashboard.
@@ -73,7 +75,7 @@ func Default(dir string) *Config {
 		Streaming:        true,
 		AutoApproveTools: false,
 		ForgeDir:         filepath.Join(dir, "forge"),
-		GitHubTokenEnv:   "GITHUB_TOKEN",
+		GitHubTokenEnv:   "", // empty: use the logged-in `copilot` CLI session
 		Telemetry: TelemetryConfig{
 			MonthlyCreditAllowance: 1500, // Pro: $15 in credits.
 			WarnFraction:           0.8,
@@ -154,9 +156,8 @@ func (c *Config) normalize() {
 	if c.Theme == "" {
 		c.Theme = ThemeAuto
 	}
-	if c.GitHubTokenEnv == "" {
-		c.GitHubTokenEnv = "GITHUB_TOKEN"
-	}
+	// GitHubTokenEnv is intentionally left empty by default so the app uses the
+	// logged-in `copilot` CLI session; only honor an explicitly configured name.
 	if c.ForgeDir == "" {
 		c.ForgeDir = filepath.Join(c.dir, "forge")
 	}

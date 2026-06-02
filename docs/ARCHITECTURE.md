@@ -157,8 +157,10 @@ synthetic key/event messages — no real terminal required.
 
 ## Failure & offline behavior
 
-- If the `copilot` CLI / token is missing, `dialClient` logs a notice and returns
-  a `MockClient`; the TUI still launches and every page works.
+- `dialClient` authenticates with the logged-in `copilot` CLI session by default
+  (`copilot.ResolveAuth`); an explicit token is used only when `githubTokenEnv`
+  names a set env var. If the `copilot` CLI is missing or not logged in, it logs a
+  notice and returns a `MockClient`; the TUI still launches and every page works.
 - Config and forge **Load** treat a missing file as "empty/defaults", so first
   runs never error. **Save** is atomic (temp file + rename) and validates first.
 
