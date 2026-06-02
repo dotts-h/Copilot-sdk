@@ -1,0 +1,24 @@
+# golangci-lint v2 configuration for my-orchestra.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - unconvert
+  exclusions:
+    rules:
+      # Test helpers intentionally ignore some errors for brevity.
+      - path: _test\.go
+        linters: [errcheck]
+
+formatters:
+  enable:
+    - gofmt

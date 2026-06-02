@@ -1,0 +1,19 @@
+# Go
+/bin/
+*.out
+*.test
+coverage.txt
+coverage.html
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Editor / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# my-orchestra runtime config (user-local)
+/.my-orchestra/
