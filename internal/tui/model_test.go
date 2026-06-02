@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -190,7 +191,7 @@ func TestBuildSpecUsesAgentOverride(t *testing.T) {
 
 func TestErrMsgSurfaces(t *testing.T) {
 	m, _ := testModel(t)
-	mm, _ := m.Update(errMsg{err: errString("boom")})
+	mm, _ := m.Update(errMsg{err: errors.New("boom")})
 	m = mm.(Model)
 	if m.errText != "boom" {
 		t.Fatalf("error not surfaced: %q", m.errText)

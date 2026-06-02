@@ -5,17 +5,16 @@ import (
 	"sync"
 )
 
-// MockClient is an in-memory Client for tests and offline demos. It records
-// calls and lets the test drive the event stream.
+// MockClient is an in-memory Client for tests and offline use. It records calls
+// and lets the test drive the event stream.
 type MockClient struct {
 	mu       sync.Mutex
 	events   chan Event
 	sessions int
-	Sent     []string // prompts seen by Send
-	Aborted  []string // session ids passed to Abort
+	Sent     []string
+	Aborted  []string
 	closed   bool
 
-	// CreateErr / SendErr, if set, are returned by the respective methods.
 	CreateErr error
 	SendErr   error
 }
@@ -26,7 +25,7 @@ func NewMockClient() *MockClient {
 }
 
 // CreateSession implements Client.
-func (m *MockClient) CreateSession(_ context.Context, _ SessionSpec) (string, error) {
+func (m *MockClient) CreateSession(context.Context, SessionSpec) (string, error) {
 	if m.CreateErr != nil {
 		return "", m.CreateErr
 	}
@@ -37,7 +36,7 @@ func (m *MockClient) CreateSession(_ context.Context, _ SessionSpec) (string, er
 }
 
 // Send implements Client.
-func (m *MockClient) Send(_ context.Context, sessionID, prompt string) error {
+func (m *MockClient) Send(_ context.Context, _, prompt string) error {
 	if m.SendErr != nil {
 		return m.SendErr
 	}
@@ -58,7 +57,7 @@ func (m *MockClient) Abort(_ context.Context, sessionID string) error {
 // Events implements Client.
 func (m *MockClient) Events() <-chan Event { return m.events }
 
-// Emit pushes an event onto the stream for the TUI to consume.
+// Emit pushes an event onto the stream.
 func (m *MockClient) Emit(e Event) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

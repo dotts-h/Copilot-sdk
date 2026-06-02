@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"encoding/json"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -18,7 +17,7 @@ type sessionReadyMsg struct{ sessionID string }
 // errMsg carries a recoverable error to display.
 type errMsg struct{ err error }
 
-// copilotEventMsg wraps a decoded sidecar event.
+// copilotEventMsg wraps a normalized client event.
 type copilotEventMsg struct{ ev copilot.Event }
 
 // streamDeltaMsg is a chunk of streamed assistant text.
@@ -48,35 +47,23 @@ func listenForEvents(c copilot.Client) tea.Cmd {
 	}
 }
 
-// decodeEvent translates a raw sidecar event into a specific tea.Msg.
+// decodeEvent translates a normalized client event into a specific tea.Msg.
 func decodeEvent(ev copilot.Event) tea.Msg {
 	switch ev.Type {
-	case copilot.EventMessageDelta:
-		var d copilot.DeltaData
-		_ = json.Unmarshal(ev.Data, &d)
-		return streamDeltaMsg{text: d.DeltaContent}
-	case copilot.EventMessage:
-		var d copilot.MessageData
-		_ = json.Unmarshal(ev.Data, &d)
-		return assistantDoneMsg{content: d.Content}
-	case copilot.EventUsage:
-		var u copilot.UsageData
-		_ = json.Unmarshal(ev.Data, &u)
-		return usageMsg{usage: u}
-	case copilot.EventToolStart:
-		var d copilot.ToolData
-		_ = json.Unmarshal(ev.Data, &d)
-		return toolMsg{name: d.ToolName, start: true}
-	case copilot.EventToolComplete:
-		var d copilot.ToolData
-		_ = json.Unmarshal(ev.Data, &d)
-		return toolMsg{name: d.ToolName, start: false}
-	case copilot.EventIdle:
+	case copilot.EvMessageDelta, copilot.EvReasoningDelta:
+		return streamDeltaMsg{text: ev.Text}
+	case copilot.EvMessage:
+		return assistantDoneMsg{content: ev.Text}
+	case copilot.EvUsage:
+		return usageMsg{usage: ev.Usage}
+	case copilot.EvToolStart:
+		return toolMsg{name: ev.Tool, start: true}
+	case copilot.EvToolEnd:
+		return toolMsg{name: ev.Tool, start: false}
+	case copilot.EvIdle:
 		return assistantDoneMsg{}
-	case copilot.EventError:
-		var d copilot.ErrorData
-		_ = json.Unmarshal(ev.Data, &d)
-		return errMsg{err: errString(d.Message)}
+	case copilot.EvError:
+		return errMsg{err: ev.Err}
 	default:
 		return nil
 	}
@@ -91,8 +78,3 @@ func sendPrompt(c copilot.Client, sessionID, prompt string) tea.Cmd {
 		return nil
 	}
 }
-
-// errString is a tiny error type for decoded error messages.
-type errString string
-
-func (e errString) Error() string { return string(e) }

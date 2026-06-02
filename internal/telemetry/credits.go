@@ -56,11 +56,32 @@ func Price(pb *PriceBook, u Usage) Cost {
 // running totals in tokens, USD, and credits. It is the single source of truth
 // for the telemetry dashboard.
 type Meter struct {
-	mu        sync.RWMutex
-	pb        *PriceBook
-	events    []Usage
-	perModel  map[string]*ModelTotals
-	totalCost Cost
+	mu          sync.RWMutex
+	pb          *PriceBook
+	events      []Usage
+	perModel    map[string]*ModelTotals
+	totalCost   Cost
+	reportedAIU float64 // GitHub-authoritative cost, in AI units
+}
+
+// RecordReportedAIU folds GitHub's own authoritative per-call cost (already
+// converted from nano-AIU to AIU) into the running reported total. This is the
+// ground truth the estimate is validated against.
+func (m *Meter) RecordReportedAIU(aiu float64) {
+	if aiu == 0 {
+		return
+	}
+	m.mu.Lock()
+	m.reportedAIU += aiu
+	m.mu.Unlock()
+}
+
+// ReportedAIU returns the accumulated GitHub-authoritative cost in AI units.
+// It is zero when the runtime never reported usage (e.g. the offline mock).
+func (m *Meter) ReportedAIU() float64 {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.reportedAIU
 }
 
 // ModelTotals aggregates usage and cost for one model.

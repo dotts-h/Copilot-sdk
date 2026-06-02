@@ -199,12 +199,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case usageMsg:
 		u := msg.usage
+		// GitHub bills reasoning tokens at the output rate, so fold them in.
 		m.deps.Meter.Record(telemetry.Usage{
 			Model:        u.Model,
 			InputTokens:  u.InputTokens,
 			CachedTokens: u.CachedTokens,
-			OutputTokens: u.OutputTokens,
+			OutputTokens: u.OutputTokens + u.ReasoningTokens,
 		})
+		// Capture GitHub's authoritative cost (nano-AIU -> AIU) when present.
+		m.deps.Meter.RecordReportedAIU(u.NanoAIU * 1e-9)
 		return m, nil
 
 	case toolMsg:

@@ -5,9 +5,9 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 
@@ -68,8 +68,9 @@ func run(configDir string, seed bool) error {
 	}
 	meter := telemetry.NewMeter(pb)
 
-	// Spawn the Copilot SDK sidecar; if it cannot start, fall back to the mock
-	// so the TUI is still usable for inspection.
+	// Connect to the Copilot runtime via the official Go SDK; if it cannot
+	// start (no `copilot` CLI on PATH, or no auth), fall back to the offline
+	// mock so the TUI remains usable for inspection.
 	client, closeFn := dialClient(cfg)
 	defer closeFn()
 
@@ -79,16 +80,14 @@ func run(configDir string, seed bool) error {
 	return err
 }
 
-// dialClient spawns the sidecar, returning a mock client if spawning fails.
+// dialClient starts the SDK-backed client, returning a mock if the runtime is
+// unavailable so the TUI still launches.
 func dialClient(cfg *config.Config) (copilot.Client, func()) {
-	c, err := copilot.Spawn(copilot.SpawnConfig{
-		Command:     cfg.SidecarCommand,
-		Args:        cfg.SidecarArgs,
+	c, err := copilot.NewSDKClient(context.Background(), copilot.Options{
 		GitHubToken: cfg.GitHubToken(),
-		Stderr:      io.Discard,
 	})
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "my-orchestra: sidecar unavailable ("+err.Error()+"); using offline mock")
+		fmt.Fprintln(os.Stderr, "my-orchestra: copilot runtime unavailable ("+err.Error()+"); using offline mock")
 		mock := copilot.NewMockClient()
 		return mock, func() { _ = mock.Close() }
 	}

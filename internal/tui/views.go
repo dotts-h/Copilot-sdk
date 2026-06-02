@@ -71,8 +71,15 @@ func (m Model) viewTelemetry() string {
 		creditColor(m.styles, budget.Remaining(totals.Credits()))))
 
 	b.WriteString(m.styles.Dim.Render(fmt.Sprintf(
-		"  Tokens  input %d   cached %d   output %d   (every category GitHub meters)\n\n",
+		"  Tokens  input %d   cached %d   output %d   (every category GitHub meters)\n",
 		in, cached, out)))
+	if aiu := m.deps.Meter.ReportedAIU(); aiu > 0 {
+		b.WriteString(fmt.Sprintf("  GitHub-reported cost  %s\n",
+			m.styles.Key.Render(fmt.Sprintf("%.4f AIU", aiu))))
+	} else {
+		b.WriteString(m.styles.Dim.Render("  GitHub-reported cost  (awaiting first metered call)\n"))
+	}
+	b.WriteString("\n")
 
 	b.WriteString(m.styles.Title.Render("  Per-model breakdown") + "\n")
 	b.WriteString(m.styles.Dim.Render(fmt.Sprintf("  %-22s %8s %8s %8s %10s %10s\n",
@@ -162,7 +169,7 @@ func (m Model) viewSettings() string {
 		{"GitHub token env", c.GitHubTokenEnv + tokenState(c)},
 		{"Monthly credit budget", fmt.Sprintf("%.0f cr", c.Telemetry.MonthlyCreditAllowance)},
 		{"Warn at", fmt.Sprintf("%.0f%%", c.Telemetry.WarnFraction*100)},
-		{"Sidecar", c.SidecarCommand + " " + strings.Join(c.SidecarArgs, " ")},
+		{"Runtime", "github/copilot-sdk/go (copilot CLI)"},
 		{"Forge dir", c.ForgeDir},
 	}
 	for _, r := range rows {

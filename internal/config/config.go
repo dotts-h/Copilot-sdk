@@ -37,9 +37,6 @@ type Config struct {
 
 	// ForgeDir is where ctxforge persists (defaults under the config dir).
 	ForgeDir string `json:"forgeDir"`
-	// SidecarCommand launches the Node Copilot SDK sidecar.
-	SidecarCommand string   `json:"sidecarCommand"`
-	SidecarArgs    []string `json:"sidecarArgs,omitempty"`
 	// GitHubTokenEnv names the env var holding the GitHub token.
 	GitHubTokenEnv string `json:"githubTokenEnv"`
 
@@ -76,8 +73,6 @@ func Default(dir string) *Config {
 		Streaming:        true,
 		AutoApproveTools: false,
 		ForgeDir:         filepath.Join(dir, "forge"),
-		SidecarCommand:   "node",
-		SidecarArgs:      []string{filepath.Join(dir, "sidecar", "index.mjs")},
 		GitHubTokenEnv:   "GITHUB_TOKEN",
 		Telemetry: TelemetryConfig{
 			MonthlyCreditAllowance: 1500, // Pro: $15 in credits.
