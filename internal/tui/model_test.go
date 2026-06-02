@@ -379,6 +379,41 @@ func TestSlashUnknown(t *testing.T) {
 	}
 }
 
+func TestFormRendersFields(t *testing.T) {
+	m, _ := testModel(t)
+	m = gotoPage(t, m, PageAgents)
+	mm, _ := m.Update(key("a"))
+	m = mm.(Model)
+	out := m.View()
+	for _, label := range []string{"New agent", "Model", "Reasoning effort", "Pinned skills"} {
+		if !strings.Contains(out, label) {
+			t.Fatalf("form view missing %q:\n%s", label, out)
+		}
+	}
+}
+
+func TestSlashAgentSwitches(t *testing.T) {
+	m, _ := testModel(t)
+	mm, _ := m.Update(sessionReadyMsg{sessionID: "s1"})
+	m = mm.(Model)
+	m.input.SetValue("/agent builder")
+	mm, cmd := m.Update(key("enter"))
+	m = mm.(Model)
+	if m.deps.Config.DefaultAgent != "builder" {
+		t.Fatalf("/agent did not set agent: %q", m.deps.Config.DefaultAgent)
+	}
+	if cmd == nil {
+		t.Fatal("/agent should recreate the session")
+	}
+	// Unknown agent is rejected without changing config.
+	m.input.SetValue("/agent ghost")
+	mm, _ = m.Update(key("enter"))
+	m = mm.(Model)
+	if m.deps.Config.DefaultAgent != "builder" {
+		t.Fatal("/agent with unknown id should not change the agent")
+	}
+}
+
 func TestViewRendersWithoutPanicAllPages(t *testing.T) {
 	m, _ := testModel(t)
 	for p := Page(0); p < numPages; p++ {
