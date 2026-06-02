@@ -84,8 +84,10 @@ func TestLoadPopulatesNewDefaultsOnUpgrade(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.GitHubTokenEnv != "GITHUB_TOKEN" {
-		t.Fatalf("upgrade did not backfill GitHubTokenEnv: %q", c.GitHubTokenEnv)
+	// GitHubTokenEnv stays empty by default: the app uses the logged-in copilot
+	// CLI session rather than auto-binding to an ambient GITHUB_TOKEN.
+	if c.GitHubTokenEnv != "" {
+		t.Fatalf("GitHubTokenEnv should default to empty, got %q", c.GitHubTokenEnv)
 	}
 	if c.Keybindings["quit"] == "" {
 		t.Fatal("upgrade did not backfill keybindings")

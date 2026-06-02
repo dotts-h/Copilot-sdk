@@ -144,27 +144,55 @@ func TestEmitDoesNotBlockAfterClose(t *testing.T) {
 	}
 }
 
-// TestSDKIntegration exercises the real SDK path end to end. It is skipped
-// unless the `copilot` CLI is installed and a GitHub token is present, keeping
-// unit CI hermetic.
+func TestResolveAuthPrefersLoggedInUser(t *testing.T) {
+	// No explicit token: use the logged-in copilot CLI session.
+	token, loggedIn := ResolveAuth("")
+	if token != "" {
+		t.Fatalf("expected empty token, got %q", token)
+	}
+	if loggedIn == nil || !*loggedIn {
+		t.Fatalf("expected UseLoggedInUser=true, got %v", loggedIn)
+	}
+
+	// Explicit token: override and let the SDK disable the logged-in session.
+	token, loggedIn = ResolveAuth("ghp_explicit")
+	if token != "ghp_explicit" {
+		t.Fatalf("expected explicit token passthrough, got %q", token)
+	}
+	if loggedIn != nil {
+		t.Fatalf("expected UseLoggedInUser=nil for explicit token, got %v", *loggedIn)
+	}
+}
+
+// TestSDKIntegration exercises the real SDK path end to end. It is skipped unless
+// the `copilot` CLI is installed and either a GITHUB_TOKEN is present or
+// COPILOT_SDK_E2E is set (to authenticate via the logged-in CLI session),
+// keeping unit CI hermetic.
 func TestSDKIntegration(t *testing.T) {
 	if _, err := exec.LookPath("copilot"); err != nil {
 		t.Skip("copilot CLI not installed; skipping SDK integration test")
 	}
 	token := os.Getenv("GITHUB_TOKEN")
-	if token == "" {
-		t.Skip("GITHUB_TOKEN not set; skipping SDK integration test")
+	if token == "" && os.Getenv("COPILOT_SDK_E2E") == "" {
+		t.Skip("no GITHUB_TOKEN and COPILOT_SDK_E2E unset; skipping SDK integration test")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	client, err := NewSDKClient(ctx, Options{GitHubToken: token})
+	githubToken, useLoggedInUser := ResolveAuth(token)
+	client, err := NewSDKClient(ctx, Options{GitHubToken: githubToken, UseLoggedInUser: useLoggedInUser})
 	if err != nil {
 		t.Fatalf("new sdk client: %v", err)
 	}
 	defer client.Close()
 
-	id, err := client.CreateSession(ctx, SessionSpec{Model: "gpt-5", Streaming: true})
+	// "auto" lets the runtime pick an available model for this account, so the
+	// test does not depend on a specific model being entitled.
+	model := os.Getenv("COPILOT_SDK_E2E_MODEL")
+	if model == "" {
+		model = "auto"
+	}
+	id, err := client.CreateSession(ctx, SessionSpec{Model: model, Streaming: true})
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}

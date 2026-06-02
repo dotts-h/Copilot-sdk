@@ -56,14 +56,19 @@ go build -o bin/my-orchestra ./cmd/my-orchestra
 # seed a starter forge + config
 ./bin/my-orchestra --seed
 
-# run (drives a real agent when the copilot CLI + token are available)
-GITHUB_TOKEN=*** ./bin/my-orchestra
+# run (drives a real agent using your logged-in copilot CLI session)
+./bin/my-orchestra
 ```
+
+By default my-orchestra authenticates with the **already-logged-in `copilot` CLI
+session** — run `copilot` once to log in and you're set; no token to manage. To
+override with an explicit token instead, point `githubTokenEnv` in `config.json`
+at an env var holding the token (e.g. `"githubTokenEnv": "GITHUB_TOKEN"`).
 
 Requirements:
 - **Go 1.24+** to build.
 - For a live agent: the [`copilot` CLI](https://github.com/features/copilot/cli) on your
-  `PATH` and a GitHub token. Without them, my-orchestra launches in **offline mock mode**.
+  `PATH`, logged in (`copilot`). Without it, my-orchestra launches in **offline mock mode**.
 
 Configuration lives in `~/.my-orchestra/` (override with `--config-dir` or
 `MY_ORCHESTRA_HOME`):

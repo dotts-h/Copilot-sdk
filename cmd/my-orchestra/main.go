@@ -70,9 +70,10 @@ func run(configDir string, seed, resume bool) error {
 	}
 	meter := telemetry.NewMeter(pb)
 
-	// Connect to the Copilot runtime via the official Go SDK; if it cannot
-	// start (no `copilot` CLI on PATH, or no auth), fall back to the offline
-	// mock so the TUI remains usable for inspection.
+	// Connect to the Copilot runtime via the official Go SDK, authenticating
+	// with the logged-in `copilot` CLI session; if it cannot start (no `copilot`
+	// CLI on PATH, or not logged in), fall back to the offline mock so the TUI
+	// remains usable for inspection.
 	client, closeFn := dialClient(cfg)
 	defer closeFn()
 
@@ -85,9 +86,13 @@ func run(configDir string, seed, resume bool) error {
 // dialClient starts the SDK-backed client, returning a mock if the runtime is
 // unavailable so the TUI still launches.
 func dialClient(cfg *config.Config) (copilot.Client, func()) {
+	// Prefer the already-logged-in `copilot` CLI session; only fall back to an
+	// explicit token when one is configured via GitHubTokenEnv.
+	token, useLoggedInUser := copilot.ResolveAuth(cfg.GitHubToken())
 	c, err := copilot.NewSDKClient(context.Background(), copilot.Options{
-		GitHubToken:  cfg.GitHubToken(),
-		OTLPEndpoint: cfg.Telemetry.OTLPEndpoint,
+		GitHubToken:     token,
+		UseLoggedInUser: useLoggedInUser,
+		OTLPEndpoint:    cfg.Telemetry.OTLPEndpoint,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "my-orchestra: copilot runtime unavailable ("+err.Error()+"); using offline mock")

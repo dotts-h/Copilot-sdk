@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/dotts-h/copilot-sdk/internal/config"
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
 
@@ -207,7 +208,7 @@ func (m Model) viewSettings() string {
 		{"Theme", string(c.Theme)},
 		{"Streaming", yesno(c.Streaming)},
 		{"Auto-approve tools", yesno(c.AutoApproveTools)},
-		{"GitHub token env", c.GitHubTokenEnv + tokenState(c)},
+		{"Auth", authState(c)},
 		{"Monthly credit budget", fmt.Sprintf("%.0f cr", c.Telemetry.MonthlyCreditAllowance)},
 		{"Warn at", fmt.Sprintf("%.0f%%", c.Telemetry.WarnFraction*100)},
 		{"OTLP endpoint", def(c.Telemetry.OTLPEndpoint, "(off)")},
@@ -220,11 +221,16 @@ func (m Model) viewSettings() string {
 	return b.String()
 }
 
-func tokenState(c interface{ GitHubToken() string }) string {
-	if c.GitHubToken() != "" {
-		return "  (set)"
+// authState describes how the runtime will authenticate: an explicit token from
+// the configured env var when set, otherwise the logged-in `copilot` CLI session.
+func authState(c *config.Config) string {
+	if c.GitHubTokenEnv == "" {
+		return "logged-in copilot CLI session"
 	}
-	return "  (unset)"
+	if c.GitHubToken() != "" {
+		return fmt.Sprintf("token from $%s (set)", c.GitHubTokenEnv)
+	}
+	return fmt.Sprintf("token from $%s (unset → logged-in CLI)", c.GitHubTokenEnv)
 }
 
 func (m Model) viewConfig() string {
