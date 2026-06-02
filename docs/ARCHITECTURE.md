@@ -1,7 +1,7 @@
 # my-orchestra — Architecture
 
 This document is the engineering deep dive. The
-[GitHub Pages site](https://dotts-h.github.io/copilot-sdk/) is the friendlier overview.
+[GitHub Pages site](https://dotts-h.github.io/Copilot-sdk/) is the friendlier overview.
 
 ## Design goals
 

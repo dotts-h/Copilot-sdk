@@ -8,7 +8,7 @@ real time so a coding session never surprises you on the bill.
 > Built test-first, hardened with race/fuzz/concurrency tests, shipped with
 > CI/CD and a GitHub Pages architecture site.
 
-[**→ Architecture & internals (GitHub Pages)**](https://dotts-h.github.io/copilot-sdk/) ·
+[**→ Architecture & internals (GitHub Pages)**](https://dotts-h.github.io/Copilot-sdk/) ·
 [Deep dive](docs/ARCHITECTURE.md)
 
 ---
