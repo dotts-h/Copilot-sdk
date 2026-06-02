@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	sdk "github.com/github/copilot-sdk/go"
+	"github.com/github/copilot-sdk/go/rpc"
 )
 
 // SDKClient is the production Client, backed by the official Copilot Go SDK.
@@ -14,6 +15,8 @@ import (
 // them onto a single channel the TUI consumes.
 type SDKClient struct {
 	client *sdk.Client
+
+	perms *permBridge
 
 	mu        sync.Mutex
 	sessions  map[string]*sdk.Session
@@ -58,6 +61,7 @@ func NewSDKClient(ctx context.Context, opts Options) (*SDKClient, error) {
 	}
 	return &SDKClient{
 		client:    c,
+		perms:     newPermBridge(),
 		sessions:  make(map[string]*sdk.Session),
 		unsubs:    make(map[string]func()),
 		toolNames: make(map[string]string),
@@ -78,6 +82,8 @@ func (c *SDKClient) CreateSession(ctx context.Context, spec SessionSpec) (string
 	}
 	if spec.AutoApproveTools {
 		cfg.OnPermissionRequest = sdk.PermissionHandler.ApproveAll
+	} else {
+		cfg.OnPermissionRequest = c.permissionHandler()
 	}
 	if len(spec.MCPServers) > 0 {
 		cfg.MCPServers = make(map[string]sdk.MCPServerConfig, len(spec.MCPServers))
@@ -128,6 +134,47 @@ func (c *SDKClient) makeHandler() func(sdk.SessionEvent) {
 			c.emit(Event{Type: EvIdle})
 		}
 	}
+}
+
+// permissionHandler bridges the SDK's synchronous permission callback to the
+// async TUI: it emits an EvPermission and blocks until Respond() (or shutdown).
+func (c *SDKClient) permissionHandler() sdk.PermissionHandlerFunc {
+	return func(req sdk.PermissionRequest, _ sdk.PermissionInvocation) (rpc.PermissionDecision, error) {
+		id, ch := c.perms.begin()
+		c.emit(Event{Type: EvPermission, Permission: &PermissionRequest{
+			ID: id, Kind: string(req.Kind()), Detail: describePermission(req),
+		}})
+		select {
+		case approve := <-ch:
+			if approve {
+				return &rpc.PermissionDecisionApproveOnce{}, nil
+			}
+			fb := "Rejected by user"
+			return &rpc.PermissionDecisionReject{Feedback: &fb}, nil
+		case <-c.done:
+			return &rpc.PermissionDecisionUserNotAvailable{}, nil
+		}
+	}
+}
+
+// describePermission renders a short, human-readable summary of a request.
+func describePermission(req sdk.PermissionRequest) string {
+	switch r := req.(type) {
+	case sdk.PermissionRequestShell:
+		return "run shell: " + r.FullCommandText
+	case sdk.PermissionRequestWrite:
+		return "write file: " + r.FileName
+	default:
+		return string(req.Kind())
+	}
+}
+
+// Respond implements Client.
+func (c *SDKClient) Respond(id string, approve bool) error {
+	if !c.perms.resolve(id, approve) {
+		return fmt.Errorf("no pending permission %q", id)
+	}
+	return nil
 }
 
 // normalizeUsage maps the SDK's assistant.usage payload onto UsageData,

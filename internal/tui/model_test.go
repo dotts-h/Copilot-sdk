@@ -414,6 +414,70 @@ func TestSlashAgentSwitches(t *testing.T) {
 	}
 }
 
+func TestPermissionApproveFlow(t *testing.T) {
+	m, mock := testModel(t)
+	mm, _ := m.Update(sessionReadyMsg{sessionID: "s1"})
+	m = mm.(Model)
+	// A permission request arrives.
+	mm, _ = m.Update(permMsg{req: copilot.PermissionRequest{ID: "perm-1", Kind: "shell", Detail: "run shell: ls"}})
+	m = mm.(Model)
+	if len(m.permQueue) != 1 {
+		t.Fatalf("permission not queued: %v", m.permQueue)
+	}
+	if !strings.Contains(m.View(), "[y]es") {
+		t.Fatalf("permission prompt not rendered:\n%s", m.View())
+	}
+	// Approve with 'y'.
+	mm, cmd := m.Update(key("y"))
+	m = mm.(Model)
+	if len(m.permQueue) != 0 {
+		t.Fatal("queue should be empty after deciding")
+	}
+	if cmd == nil {
+		t.Fatal("expected a Respond command")
+	}
+	cmd()
+	if len(mock.Responded) != 1 || mock.Responded[0].ID != "perm-1" || !mock.Responded[0].Approve {
+		t.Fatalf("Respond not invoked correctly: %+v", mock.Responded)
+	}
+}
+
+func TestPermissionRejectAndQueue(t *testing.T) {
+	m, mock := testModel(t)
+	mm, _ := m.Update(sessionReadyMsg{sessionID: "s1"})
+	m = mm.(Model)
+	mm, _ = m.Update(permMsg{req: copilot.PermissionRequest{ID: "p1", Detail: "write file: a"}})
+	mm, _ = mm.(Model).Update(permMsg{req: copilot.PermissionRequest{ID: "p2", Detail: "write file: b"}})
+	m = mm.(Model)
+	if len(m.permQueue) != 2 {
+		t.Fatalf("expected 2 queued, got %d", len(m.permQueue))
+	}
+	// Reject the head; the second should remain.
+	mm, cmd := m.Update(key("n"))
+	m = mm.(Model)
+	if len(m.permQueue) != 1 || m.permQueue[0].ID != "p2" {
+		t.Fatalf("queue not advanced correctly: %+v", m.permQueue)
+	}
+	cmd()
+	if len(mock.Responded) != 1 || mock.Responded[0].Approve {
+		t.Fatalf("expected one reject for p1: %+v", mock.Responded)
+	}
+}
+
+func TestPermissionPendingBlocksTyping(t *testing.T) {
+	// While a permission is pending, 'y' decides rather than typing into input.
+	m, _ := testModel(t)
+	mm, _ := m.Update(sessionReadyMsg{sessionID: "s1"})
+	m = mm.(Model)
+	mm, _ = m.Update(permMsg{req: copilot.PermissionRequest{ID: "p1", Detail: "x"}})
+	m = mm.(Model)
+	mm, _ = m.Update(key("y"))
+	m = mm.(Model)
+	if m.input.Value() != "" {
+		t.Fatalf("'y' should decide, not type; input=%q", m.input.Value())
+	}
+}
+
 func TestViewRendersWithoutPanicAllPages(t *testing.T) {
 	m, _ := testModel(t)
 	for p := Page(0); p < numPages; p++ {

@@ -83,6 +83,9 @@ type Model struct {
 	// form is the active modal editor (nil when not editing).
 	form *forgeForm
 
+	// permQueue holds pending tool-permission prompts (FIFO); the head is shown.
+	permQueue []copilot.PermissionRequest
+
 	status   string
 	errText  string
 	quitting bool
@@ -216,6 +219,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.deps.Meter.RecordReportedAIU(u.NanoAIU * 1e-9)
 		return m, nil
 
+	case permMsg:
+		m.permQueue = append(m.permQueue, msg.req)
+		m.page = PageChat
+		m.status = "permission requested"
+		m.chat.addSystem("⚠ permission: " + msg.req.Detail)
+		m.refreshViewport()
+		return m, nil
+
 	case toolMsg:
 		if msg.start {
 			m.chat.toolStart(msg.name)
@@ -283,6 +294,16 @@ func (m Model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// A pending permission prompt captures y/n decisions on the chat page.
+	if len(m.permQueue) > 0 && m.page == PageChat {
+		switch msg.String() {
+		case "y", "Y", "enter":
+			return m.decidePermission(true)
+		case "n", "N", "esc":
+			return m.decidePermission(false)
+		}
+	}
+
 	switch m.page {
 	case PageChat:
 		return m.onChatKey(msg)
@@ -291,6 +312,20 @@ func (m Model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	default:
 		return m, nil
 	}
+}
+
+// decidePermission answers the head-of-queue permission request and advances.
+func (m Model) decidePermission(approve bool) (tea.Model, tea.Cmd) {
+	req := m.permQueue[0]
+	m.permQueue = m.permQueue[1:]
+	verb := "approved"
+	if !approve {
+		verb = "rejected"
+	}
+	m.chat.addSystem("permission " + verb + ": " + req.Detail)
+	m.status = verb
+	m.refreshViewport()
+	return m, respondPermission(m.deps.Client, req.ID, approve)
 }
 
 // onFormKey drives the modal forge editor.

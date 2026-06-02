@@ -8,12 +8,13 @@ import (
 // MockClient is an in-memory Client for tests and offline use. It records calls
 // and lets the test drive the event stream.
 type MockClient struct {
-	mu       sync.Mutex
-	events   chan Event
-	sessions int
-	Sent     []string
-	Aborted  []string
-	closed   bool
+	mu        sync.Mutex
+	events    chan Event
+	sessions  int
+	Sent      []string
+	Aborted   []string
+	Responded []PermissionDecision
+	closed    bool
 
 	CreateErr error
 	SendErr   error
@@ -50,6 +51,20 @@ func (m *MockClient) Send(_ context.Context, _, prompt string) error {
 func (m *MockClient) Abort(_ context.Context, sessionID string) error {
 	m.mu.Lock()
 	m.Aborted = append(m.Aborted, sessionID)
+	m.mu.Unlock()
+	return nil
+}
+
+// PermissionDecision records a Respond call for assertions.
+type PermissionDecision struct {
+	ID      string
+	Approve bool
+}
+
+// Respond implements Client.
+func (m *MockClient) Respond(id string, approve bool) error {
+	m.mu.Lock()
+	m.Responded = append(m.Responded, PermissionDecision{ID: id, Approve: approve})
 	m.mu.Unlock()
 	return nil
 }
