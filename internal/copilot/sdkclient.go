@@ -196,9 +196,13 @@ func (c *SDKClient) Close() error {
 		for _, s := range sessions {
 			_ = s.Disconnect()
 		}
+		// Close done first so any in-flight callback's emit() unblocks via the
+		// done branch. We deliberately do NOT close c.events: an SDK callback
+		// goroutine may still be mid-emit, and closing the channel would risk a
+		// "send on closed channel" panic. The runtime is being torn down and the
+		// consumer (the TUI) is exiting, so leaving events open is harmless.
 		close(c.done)
 		err = c.client.Stop()
-		close(c.events)
 	})
 	return err
 }

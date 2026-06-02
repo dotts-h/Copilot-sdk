@@ -68,7 +68,8 @@ type Model struct {
 
 	width, height int
 	page          Page
-	ready         bool
+	ready         bool // session created
+	sized         bool // first WindowSizeMsg received; viewport constructed
 
 	chat      chatState
 	input     textarea.Model
@@ -199,12 +200,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case usageMsg:
 		u := msg.usage
-		// GitHub bills reasoning tokens at the output rate, so fold them in.
+		// OutputTokens already accounts for billable generation including
+		// reasoning, so it is recorded as-is (ReasoningTokens is reported
+		// separately for visibility, not added, to avoid double-counting).
 		m.deps.Meter.Record(telemetry.Usage{
 			Model:        u.Model,
 			InputTokens:  u.InputTokens,
 			CachedTokens: u.CachedTokens,
-			OutputTokens: u.OutputTokens + u.ReasoningTokens,
+			OutputTokens: u.OutputTokens,
 		})
 		// Capture GitHub's authoritative cost (nano-AIU -> AIU) when present.
 		m.deps.Meter.RecordReportedAIU(u.NanoAIU * 1e-9)
@@ -243,9 +246,9 @@ func (m Model) onResize(msg tea.WindowSizeMsg) Model {
 	if contentH < 3 {
 		contentH = 3
 	}
-	if !m.ready {
+	if !m.sized {
 		m.viewport = viewport.New(msg.Width-2, contentH)
-		m.ready = true
+		m.sized = true
 	} else {
 		m.viewport.Width = msg.Width - 2
 		m.viewport.Height = contentH

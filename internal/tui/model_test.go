@@ -112,6 +112,41 @@ func TestUsageEventRecordsCredits(t *testing.T) {
 	}
 }
 
+func TestSessionReadyBeforeResizeStillRenders(t *testing.T) {
+	// Regression: sessionReadyMsg must not prevent the first WindowSizeMsg from
+	// constructing the viewport.
+	dir := t.TempDir()
+	m := New(Deps{
+		Config: config.Default(dir),
+		Forge:  ctxforge.New(dir),
+		Client: copilot.NewMockClient(),
+		Meter:  telemetry.NewMeter(nil),
+	})
+	mm, _ := m.Update(sessionReadyMsg{sessionID: "s1"}) // arrives first
+	mm, _ = mm.(Model).Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	mm, _ = mm.(Model).Update(streamDeltaMsg{text: "hello-stream"})
+	m = mm.(Model)
+	if !m.sized {
+		t.Fatal("viewport should be marked sized after WindowSizeMsg")
+	}
+	if !strings.Contains(m.View(), "hello-stream") {
+		t.Fatalf("streamed text not rendered after ready-before-resize:\n%s", m.View())
+	}
+}
+
+func TestUsageDoesNotDoubleCountReasoning(t *testing.T) {
+	m, _ := testModel(t)
+	// gpt-5 output rate $10/Mt: 1M output => $10 => 1000 credits. Reasoning
+	// tokens must NOT be added on top.
+	mm, _ := m.Update(usageMsg{usage: copilot.UsageData{
+		Model: "gpt-5", OutputTokens: 1_000_000, ReasoningTokens: 500_000,
+	}})
+	m = mm.(Model)
+	if got := m.deps.Meter.Totals().Credits(); got < 999 || got > 1001 {
+		t.Fatalf("reasoning tokens double-counted: credits=%v (want ~1000)", got)
+	}
+}
+
 func TestStreamingDeltaAccumulates(t *testing.T) {
 	m, _ := testModel(t)
 	for _, chunk := range []string{"Hel", "lo ", "world"} {
