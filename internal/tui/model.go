@@ -80,6 +80,9 @@ type Model struct {
 	// list cursors per page
 	cursor map[Page]int
 
+	// form is the active modal editor (nil when not editing).
+	form *forgeForm
+
 	status   string
 	errText  string
 	quitting bool
@@ -258,12 +261,18 @@ func (m Model) onResize(msg tea.WindowSizeMsg) Model {
 	return m
 }
 
-// onKey routes key presses: global navigation first, then page-specific.
+// onKey routes key presses: an open form captures everything; otherwise global
+// navigation first, then page-specific.
 func (m Model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "ctrl+c":
+	if msg.String() == "ctrl+c" {
 		m.quitting = true
 		return m, tea.Quit
+	}
+	if m.form != nil {
+		return m.onFormKey(msg), nil
+	}
+
+	switch msg.String() {
 	case "tab":
 		m.page = (m.page + 1) % numPages
 		m.syncFocus()
@@ -284,11 +293,97 @@ func (m Model) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
+// onFormKey drives the modal forge editor.
+func (m Model) onFormKey(msg tea.KeyMsg) Model {
+	switch msg.String() {
+	case "esc":
+		m.form = nil
+		m.status = "edit cancelled"
+		return m
+	case "tab", "down":
+		m.form.moveFocus(1)
+		return m
+	case "shift+tab", "up":
+		m.form.moveFocus(-1)
+		return m
+	case "enter":
+		if err := m.applyForm(); err != nil {
+			m.errText = err.Error()
+		} else {
+			m.form = nil
+		}
+		return m
+	}
+	// Forward to the focused text input.
+	var cmd tea.Cmd
+	f := &m.form.fields[m.form.focus]
+	f.input, cmd = f.input.Update(msg)
+	_ = cmd
+	return m
+}
+
+// applyForm builds the entity from the form and commits it to the forge,
+// restoring prior state if the save fails validation.
+func (m *Model) applyForm() error {
+	entity, err := m.form.build()
+	if err != nil {
+		return err
+	}
+	f := m.deps.Forge
+	idx := m.form.editIndex
+
+	// Snapshot for rollback.
+	restore := func() {}
+	switch v := entity.(type) {
+	case ctxforge.Skill:
+		if idx < 0 {
+			if err := f.AddSkill(v); err != nil {
+				return err
+			}
+			restore = func() { f.Skills = f.Skills[:len(f.Skills)-1] }
+		} else {
+			old := f.Skills[idx]
+			f.Skills[idx] = v
+			restore = func() { f.Skills[idx] = old }
+		}
+	case ctxforge.Instruction:
+		if idx < 0 {
+			f.Instructions = append(f.Instructions, v)
+			restore = func() { f.Instructions = f.Instructions[:len(f.Instructions)-1] }
+		} else {
+			old := f.Instructions[idx]
+			f.Instructions[idx] = v
+			restore = func() { f.Instructions[idx] = old }
+		}
+	case ctxforge.Agent:
+		if idx < 0 {
+			f.Agents = append(f.Agents, v)
+			restore = func() { f.Agents = f.Agents[:len(f.Agents)-1] }
+		} else {
+			old := f.Agents[idx]
+			f.Agents[idx] = v
+			restore = func() { f.Agents[idx] = old }
+		}
+	}
+	if err := f.Save(); err != nil {
+		restore()
+		return err
+	}
+	m.status = "saved"
+	return nil
+}
+
 func (m Model) onChatKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		text := strings.TrimSpace(m.input.Value())
-		if text == "" || !m.ready || m.sessionID == "" {
+		if text == "" {
+			return m, nil
+		}
+		if strings.HasPrefix(text, "/") {
+			return m.handleSlash(text)
+		}
+		if !m.ready || m.sessionID == "" {
 			return m, nil
 		}
 		m.chat.addUser(text)
@@ -314,7 +409,62 @@ func (m Model) onChatKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// onListKey handles selection + toggling on the list pages.
+// handleSlash interprets a /command typed in the chat composer. It always
+// resets the input and never sends the literal text to the agent.
+func (m Model) handleSlash(text string) (tea.Model, tea.Cmd) {
+	m.input.Reset()
+	m.errText = ""
+	parts := strings.Fields(text)
+	cmd := strings.ToLower(parts[0])
+	arg := strings.TrimSpace(strings.TrimPrefix(text, parts[0]))
+
+	switch cmd {
+	case "/help":
+		m.page = PageHelp
+	case "/clear":
+		m.chat = chatState{}
+		m.refreshViewport()
+		m.status = "transcript cleared"
+	case "/cost", "/telemetry":
+		m.page = PageTelemetry
+	case "/skills":
+		m.page = PageSkills
+	case "/agents":
+		m.page = PageAgents
+	case "/settings":
+		m.page = PageSettings
+	case "/model":
+		if arg == "" {
+			m.chat.addSystem("usage: /model <name>")
+		} else {
+			m.deps.Config.DefaultModel = arg
+			_ = m.deps.Config.Save()
+			m.chat.addSystem("model set to " + arg + " — starting a new session")
+			m.refreshViewport()
+			return m, m.createSessionCmd()
+		}
+	case "/agent":
+		if arg == "" {
+			m.deps.Config.DefaultAgent = ""
+		} else if m.deps.Forge.Agent(arg) == nil {
+			m.chat.addSystem("unknown agent " + arg)
+			m.refreshViewport()
+			return m, nil
+		} else {
+			m.deps.Config.DefaultAgent = arg
+		}
+		_ = m.deps.Config.Save()
+		m.chat.addSystem("agent set to " + def(m.deps.Config.DefaultAgent, "none") + " — starting a new session")
+		m.refreshViewport()
+		return m, m.createSessionCmd()
+	default:
+		m.chat.addSystem("unknown command " + cmd + " (try /help)")
+		m.refreshViewport()
+	}
+	return m, nil
+}
+
+// onListKey handles selection, toggling, and CRUD on the list pages.
 func (m Model) onListKey(msg tea.KeyMsg) Model {
 	n := m.listLen()
 	cur := m.cursor[m.page]
@@ -325,6 +475,19 @@ func (m Model) onListKey(msg tea.KeyMsg) Model {
 		cur++
 	case " ", "x", "enter":
 		m.toggleCurrent()
+	case "a":
+		m.openForm(-1)
+		return m
+	case "e":
+		if n > 0 {
+			m.openForm(cur)
+		}
+		return m
+	case "d":
+		m.deleteCurrent()
+		if n > 0 {
+			n--
+		}
 	}
 	if n == 0 {
 		cur = 0
@@ -379,6 +542,60 @@ func (m *Model) toggleCurrent() {
 			m.status = "default agent: " + def(m.deps.Config.DefaultAgent, "none")
 		}
 	}
+}
+
+// openForm opens the add (index < 0) or edit form for the current page.
+func (m *Model) openForm(index int) {
+	f := m.deps.Forge
+	switch m.page {
+	case PageSkills:
+		if index >= 0 && index < len(f.Skills) {
+			m.form = newSkillForm(&f.Skills[index], index)
+		} else {
+			m.form = newSkillForm(nil, -1)
+		}
+	case PageInstructions:
+		if index >= 0 && index < len(f.Instructions) {
+			m.form = newInstructionForm(&f.Instructions[index], index)
+		} else {
+			m.form = newInstructionForm(nil, -1)
+		}
+	case PageAgents:
+		if index >= 0 && index < len(f.Agents) {
+			m.form = newAgentForm(&f.Agents[index], index)
+		} else {
+			m.form = newAgentForm(nil, -1)
+		}
+	}
+	m.errText = ""
+}
+
+// deleteCurrent removes the selected entity and persists.
+func (m *Model) deleteCurrent() {
+	f := m.deps.Forge
+	cur := m.cursor[m.page]
+	switch m.page {
+	case PageSkills:
+		if cur >= 0 && cur < len(f.Skills) {
+			f.Skills = append(f.Skills[:cur], f.Skills[cur+1:]...)
+		}
+	case PageInstructions:
+		if cur >= 0 && cur < len(f.Instructions) {
+			f.Instructions = append(f.Instructions[:cur], f.Instructions[cur+1:]...)
+		}
+	case PageAgents:
+		if cur >= 0 && cur < len(f.Agents) {
+			removed := f.Agents[cur].ID
+			f.Agents = append(f.Agents[:cur], f.Agents[cur+1:]...)
+			if m.deps.Config.DefaultAgent == removed {
+				m.deps.Config.DefaultAgent = ""
+				_ = m.deps.Config.Save()
+			}
+		}
+	default:
+		return
+	}
+	m.persistForge()
 }
 
 func (m *Model) persistForge() {
@@ -445,6 +662,9 @@ func (m Model) renderTabs() string {
 }
 
 func (m Model) renderBody() string {
+	if m.form != nil {
+		return m.viewForm()
+	}
 	switch m.page {
 	case PageChat:
 		return m.viewChat()

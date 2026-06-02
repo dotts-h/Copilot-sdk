@@ -110,7 +110,7 @@ func (m Model) viewList() string {
 	switch m.page {
 	case PageSkills:
 		b.WriteString(m.styles.Title.Render("Skills") +
-			m.styles.Dim.Render("   space/enter: toggle • ↑/↓: move") + "\n\n")
+			m.styles.Dim.Render("   space: toggle • a: add • e: edit • d: delete") + "\n\n")
 		if len(m.deps.Forge.Skills) == 0 {
 			b.WriteString(m.styles.Dim.Render("  no skills yet — add them to the forge (forge.json)\n"))
 		}
@@ -119,7 +119,7 @@ func (m Model) viewList() string {
 		}
 	case PageInstructions:
 		b.WriteString(m.styles.Title.Render("Instructions") +
-			m.styles.Dim.Render("   space/enter: toggle • ↑/↓: move") + "\n\n")
+			m.styles.Dim.Render("   space: toggle • a: add • e: edit • d: delete") + "\n\n")
 		if len(m.deps.Forge.Instructions) == 0 {
 			b.WriteString(m.styles.Dim.Render("  no instructions yet\n"))
 		}
@@ -129,7 +129,7 @@ func (m Model) viewList() string {
 		}
 	case PageAgents:
 		b.WriteString(m.styles.Title.Render("Agents") +
-			m.styles.Dim.Render("   enter: set as default • ↑/↓: move") + "\n\n")
+			m.styles.Dim.Render("   enter: set default • a: add • e: edit • d: delete") + "\n\n")
 		if len(m.deps.Forge.Agents) == 0 {
 			b.WriteString(m.styles.Dim.Render("  no agents yet\n"))
 		}
@@ -138,6 +138,36 @@ func (m Model) viewList() string {
 			desc := fmt.Sprintf("%s · %s · %s", a.Model, def(a.ReasoningEffort, "medium"), a.Description)
 			b.WriteString(rowToggle(m.styles, i == cur, active, a.Name, desc))
 		}
+	}
+	return b.String()
+}
+
+func (m Model) viewForm() string {
+	f := m.form
+	var b strings.Builder
+	b.WriteString(m.styles.Title.Render(f.title()) +
+		m.styles.Dim.Render("   tab/↑↓: move • enter: save • esc: cancel") + "\n\n")
+	for i := range f.fields {
+		fld := &f.fields[i]
+		marker := "  "
+		labelStyle := m.styles.Dim
+		if i == f.focus {
+			marker = m.styles.Selected.Render("›") + " "
+			labelStyle = m.styles.Key
+		}
+		req := ""
+		if fld.required {
+			req = m.styles.Bad.Render("*")
+		}
+		b.WriteString(fmt.Sprintf("%s%s%s\n", marker, labelStyle.Render(fld.label), req))
+		b.WriteString("    " + fld.input.View() + "\n")
+		if fld.help != "" {
+			b.WriteString("    " + m.styles.Dim.Render(fld.help) + "\n")
+		}
+		b.WriteString("\n")
+	}
+	if m.errText != "" {
+		b.WriteString("  " + m.styles.Bad.Render("⚠ "+m.errText) + "\n")
 	}
 	return b.String()
 }
@@ -169,6 +199,7 @@ func (m Model) viewSettings() string {
 		{"GitHub token env", c.GitHubTokenEnv + tokenState(c)},
 		{"Monthly credit budget", fmt.Sprintf("%.0f cr", c.Telemetry.MonthlyCreditAllowance)},
 		{"Warn at", fmt.Sprintf("%.0f%%", c.Telemetry.WarnFraction*100)},
+		{"OTLP endpoint", def(c.Telemetry.OTLPEndpoint, "(off)")},
 		{"Runtime", "github/copilot-sdk/go (copilot CLI)"},
 		{"Forge dir", c.ForgeDir},
 	}
@@ -214,7 +245,8 @@ func (m Model) viewHelp() string {
 		m.styles.Key.Render("1..8") + "           jump (when not typing)",
 		m.styles.Key.Render("enter") + "          send prompt (Chat) / toggle (lists)",
 		m.styles.Key.Render("ctrl+j") + "         newline in the composer",
-		m.styles.Key.Render("esc") + "            abort the current turn",
+		m.styles.Key.Render("esc") + "            abort the current turn / cancel a form",
+		m.styles.Key.Render("a / e / d") + "      add / edit / delete (Skills·Instructions·Agents)",
 		m.styles.Key.Render("ctrl+c") + "         quit",
 		"",
 		"Pages:",
@@ -225,6 +257,11 @@ func (m Model) viewHelp() string {
 		"  Agents       pick the active agent persona",
 		"  Settings     view effective settings",
 		"  Config       key bindings & paths",
+		"",
+		"Slash commands (type in the composer):",
+		"  /help /clear /cost /skills /agents /settings",
+		"  /model <name>   switch model + restart session",
+		"  /agent <id>     switch agent + restart session",
 	}
 	for _, l := range lines {
 		b.WriteString("  " + l + "\n")

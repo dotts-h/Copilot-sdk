@@ -30,6 +30,8 @@ type SDKClient struct {
 type Options struct {
 	GitHubToken string
 	LogLevel    string // "error" by default
+	// OTLPEndpoint, when set, enables OpenTelemetry trace/metric export.
+	OTLPEndpoint string
 }
 
 // NewSDKClient constructs and starts a real SDK-backed client. It requires the
@@ -39,10 +41,18 @@ func NewSDKClient(ctx context.Context, opts Options) (*SDKClient, error) {
 	if logLevel == "" {
 		logLevel = "error"
 	}
-	c := sdk.NewClient(&sdk.ClientOptions{
+	clientOpts := &sdk.ClientOptions{
 		LogLevel:    logLevel,
 		GitHubToken: opts.GitHubToken,
-	})
+	}
+	if opts.OTLPEndpoint != "" {
+		clientOpts.Telemetry = &sdk.TelemetryConfig{
+			OTLPEndpoint: opts.OTLPEndpoint,
+			ExporterType: "otlp-http",
+			SourceName:   "my-orchestra",
+		}
+	}
+	c := sdk.NewClient(clientOpts)
 	if err := c.Start(ctx); err != nil {
 		return nil, fmt.Errorf("start copilot runtime: %w", err)
 	}

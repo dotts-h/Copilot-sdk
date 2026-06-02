@@ -204,6 +204,181 @@ func TestSetDefaultAgent(t *testing.T) {
 	}
 }
 
+func gotoPage(t *testing.T, m Model, target Page) Model {
+	t.Helper()
+	for i := 0; i < int(numPages); i++ {
+		if m.page == target {
+			return m
+		}
+		mm, _ := m.Update(key("tab"))
+		m = mm.(Model)
+	}
+	t.Fatalf("could not reach page %v", target)
+	return m
+}
+
+func TestAddSkillViaForm(t *testing.T) {
+	m, _ := testModel(t)
+	m = gotoPage(t, m, PageSkills)
+	before := len(m.deps.Forge.Skills)
+
+	mm, _ := m.Update(key("a")) // open add form
+	m = mm.(Model)
+	if m.form == nil {
+		t.Fatal("expected a form to open")
+	}
+	// Fill required fields: id, name, (skip desc), prompt.
+	setField(&m, "id", "newskill")
+	setField(&m, "name", "New Skill")
+	setField(&m, "prompt", "do the thing")
+
+	mm, _ = m.Update(key("enter")) // submit
+	m = mm.(Model)
+	if m.form != nil {
+		t.Fatalf("form should close on success; errText=%q", m.errText)
+	}
+	if len(m.deps.Forge.Skills) != before+1 {
+		t.Fatalf("skill not added: have %d want %d", len(m.deps.Forge.Skills), before+1)
+	}
+	reloaded, _ := ctxforge.Load(m.deps.Forge.Dir)
+	if reloaded.Skill("newskill") == nil {
+		t.Fatal("new skill not persisted")
+	}
+}
+
+func TestAddSkillValidationKeepsFormOpen(t *testing.T) {
+	m, _ := testModel(t)
+	m = gotoPage(t, m, PageSkills)
+	mm, _ := m.Update(key("a"))
+	m = mm.(Model)
+	setField(&m, "id", "okid") // missing required name/prompt
+	mm, _ = m.Update(key("enter"))
+	m = mm.(Model)
+	if m.form == nil {
+		t.Fatal("form should stay open on validation error")
+	}
+	if m.errText == "" {
+		t.Fatal("expected an error message")
+	}
+}
+
+func TestEditSkillViaForm(t *testing.T) {
+	m, _ := testModel(t)
+	m = gotoPage(t, m, PageSkills)
+	// cursor at 0 == "tdd"
+	mm, _ := m.Update(key("e"))
+	m = mm.(Model)
+	if m.form == nil || m.form.editIndex != 0 {
+		t.Fatalf("expected edit form for index 0, got %+v", m.form)
+	}
+	setField(&m, "name", "Renamed TDD")
+	mm, _ = m.Update(key("enter"))
+	m = mm.(Model)
+	if m.deps.Forge.Skills[0].Name != "Renamed TDD" {
+		t.Fatalf("edit not applied: %q", m.deps.Forge.Skills[0].Name)
+	}
+}
+
+func TestDeleteSkill(t *testing.T) {
+	m, _ := testModel(t)
+	m = gotoPage(t, m, PageSkills)
+	before := len(m.deps.Forge.Skills)
+	mm, _ := m.Update(key("d"))
+	m = mm.(Model)
+	if len(m.deps.Forge.Skills) != before-1 {
+		t.Fatalf("delete failed: have %d want %d", len(m.deps.Forge.Skills), before-1)
+	}
+}
+
+func TestFormCancel(t *testing.T) {
+	m, _ := testModel(t)
+	m = gotoPage(t, m, PageSkills)
+	before := len(m.deps.Forge.Skills)
+	mm, _ := m.Update(key("a"))
+	m = mm.(Model)
+	mm, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = mm.(Model)
+	if m.form != nil {
+		t.Fatal("esc should close the form")
+	}
+	if len(m.deps.Forge.Skills) != before {
+		t.Fatal("cancel should not add a skill")
+	}
+}
+
+func setField(m *Model, key, val string) {
+	for i := range m.form.fields {
+		if m.form.fields[i].key == key {
+			m.form.fields[i].input.SetValue(val)
+			return
+		}
+	}
+}
+
+func TestSlashClear(t *testing.T) {
+	m, _ := testModel(t)
+	mm, _ := m.Update(sessionReadyMsg{sessionID: "s1"})
+	m = mm.(Model)
+	m.chat.addUser("something")
+	m.input.SetValue("/clear")
+	mm, _ = m.Update(key("enter"))
+	m = mm.(Model)
+	if len(m.chat.turns) != 0 {
+		t.Fatalf("/clear should empty the transcript, have %d turns", len(m.chat.turns))
+	}
+	if m.input.Value() != "" {
+		t.Fatal("/clear should reset the input")
+	}
+}
+
+func TestSlashNavigatesAndDoesNotSend(t *testing.T) {
+	m, mock := testModel(t)
+	mm, _ := m.Update(sessionReadyMsg{sessionID: "s1"})
+	m = mm.(Model)
+	m.input.SetValue("/cost")
+	mm, cmd := m.Update(key("enter"))
+	m = mm.(Model)
+	if m.page != PageTelemetry {
+		t.Fatalf("/cost should open Telemetry, got %v", m.page)
+	}
+	if cmd != nil {
+		cmd()
+	}
+	if len(mock.Sent) != 0 {
+		t.Fatalf("slash command must not be sent to the agent: %v", mock.Sent)
+	}
+}
+
+func TestSlashModelRecreatesSession(t *testing.T) {
+	m, _ := testModel(t)
+	mm, _ := m.Update(sessionReadyMsg{sessionID: "s1"})
+	m = mm.(Model)
+	m.input.SetValue("/model claude-opus-4.7")
+	mm, cmd := m.Update(key("enter"))
+	m = mm.(Model)
+	if m.deps.Config.DefaultModel != "claude-opus-4.7" {
+		t.Fatalf("/model did not update config: %q", m.deps.Config.DefaultModel)
+	}
+	if cmd == nil {
+		t.Fatal("/model should trigger a new session command")
+	}
+	msg := cmd()
+	if _, ok := msg.(sessionReadyMsg); !ok {
+		t.Fatalf("expected sessionReadyMsg from recreated session, got %T", msg)
+	}
+}
+
+func TestSlashUnknown(t *testing.T) {
+	m, _ := testModel(t)
+	m.input.SetValue("/bogus")
+	mm, _ := m.Update(key("enter"))
+	m = mm.(Model)
+	last := m.chat.turns[len(m.chat.turns)-1]
+	if last.Role != RoleSystem || !strings.Contains(last.Text, "unknown command") {
+		t.Fatalf("unknown command not reported: %+v", last)
+	}
+}
+
 func TestViewRendersWithoutPanicAllPages(t *testing.T) {
 	m, _ := testModel(t)
 	for p := Page(0); p < numPages; p++ {

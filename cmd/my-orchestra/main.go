@@ -84,7 +84,8 @@ func run(configDir string, seed bool) error {
 // unavailable so the TUI still launches.
 func dialClient(cfg *config.Config) (copilot.Client, func()) {
 	c, err := copilot.NewSDKClient(context.Background(), copilot.Options{
-		GitHubToken: cfg.GitHubToken(),
+		GitHubToken:  cfg.GitHubToken(),
+		OTLPEndpoint: cfg.Telemetry.OTLPEndpoint,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "my-orchestra: copilot runtime unavailable ("+err.Error()+"); using offline mock")

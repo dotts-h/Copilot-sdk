@@ -83,7 +83,18 @@ Configuration lives in `~/.my-orchestra/` (override with `--config-dir` or
 | `ctrl+j` | newline in the composer |
 | `esc` | abort the current turn |
 | `↑` / `↓` (`k`/`j`) | move selection on list pages |
+| `a` / `e` / `d` | add / edit / delete on Skills·Instructions·Agents |
 | `ctrl+c` | quit |
+
+### Slash commands
+
+Typed in the chat composer (never sent to the agent):
+
+| Command | Effect |
+|---------|--------|
+| `/help` `/clear` `/cost` `/skills` `/agents` `/settings` | navigate / clear transcript |
+| `/model <name>` | switch model and restart the session |
+| `/agent <id>` | switch agent persona and restart the session |
 
 ## Development
 
