@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textarea"
@@ -59,6 +60,9 @@ type Deps struct {
 	Forge  *ctxforge.Forge
 	Client copilot.Client
 	Meter  *telemetry.Meter
+	// Resume, when true, resumes the last session on launch instead of creating
+	// a fresh one.
+	Resume bool
 }
 
 // Model is the root Bubble Tea model.
@@ -85,6 +89,9 @@ type Model struct {
 
 	// permQueue holds pending tool-permission prompts (FIFO); the head is shown.
 	permQueue []copilot.PermissionRequest
+
+	// pendingAttachments are file/image paths attached to the next prompt.
+	pendingAttachments []string
 
 	status   string
 	errText  string
@@ -113,8 +120,12 @@ func New(d Deps) Model {
 
 // Init starts the session and the event pump.
 func (m Model) Init() tea.Cmd {
+	start := m.createSessionCmd()
+	if m.deps.Resume {
+		start = resumeSession(m.deps.Client, "")
+	}
 	return tea.Batch(
-		m.createSessionCmd(),
+		start,
 		listenForEvents(m.deps.Client),
 		textarea.Blink,
 	)
@@ -421,13 +432,19 @@ func (m Model) onChatKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if !m.ready || m.sessionID == "" {
 			return m, nil
 		}
-		m.chat.addUser(text)
+		att := m.pendingAttachments
+		shown := text
+		if len(att) > 0 {
+			shown = text + "  " + m.styles.Dim.Render(fmt.Sprintf("[+%d attachment(s)]", len(att)))
+		}
+		m.chat.addUser(shown)
 		m.input.Reset()
+		m.pendingAttachments = nil
 		m.thinking = true
 		m.status = "thinking…"
 		m.errText = ""
 		m.refreshViewport()
-		return m, sendPrompt(m.deps.Client, m.sessionID, text)
+		return m, sendPrompt(m.deps.Client, m.sessionID, text, att)
 	case "ctrl+j":
 		m.input.InsertString("\n")
 		return m, nil
@@ -468,6 +485,20 @@ func (m Model) handleSlash(text string) (tea.Model, tea.Cmd) {
 		m.page = PageAgents
 	case "/settings":
 		m.page = PageSettings
+	case "/attach":
+		if arg == "" {
+			m.chat.addSystem("usage: /attach <path>")
+		} else if info, err := os.Stat(arg); err != nil || info.IsDir() {
+			m.chat.addSystem("cannot attach " + arg + " (not a readable file)")
+		} else {
+			m.pendingAttachments = append(m.pendingAttachments, arg)
+			m.chat.addSystem(fmt.Sprintf("attached %s (%d pending)", arg, len(m.pendingAttachments)))
+		}
+		m.refreshViewport()
+	case "/resume":
+		m.chat.addSystem("resuming session…")
+		m.refreshViewport()
+		return m, resumeSession(m.deps.Client, arg)
 	case "/model":
 		if arg == "" {
 			m.chat.addSystem("usage: /model <name>")

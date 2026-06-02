@@ -48,11 +48,20 @@ func TestMockClient(t *testing.T) {
 	if _, err := m.CreateSession(context.Background(), SessionSpec{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.Send(context.Background(), "mock-session", "hello"); err != nil {
+	if err := m.Send(context.Background(), "mock-session", "hello", []string{"/tmp/a.png"}); err != nil {
 		t.Fatal(err)
 	}
 	if len(m.Sent) != 1 || m.Sent[0] != "hello" {
 		t.Fatalf("Send not recorded: %v", m.Sent)
+	}
+	if len(m.LastAttach) != 1 || m.LastAttach[0] != "/tmp/a.png" {
+		t.Fatalf("attachments not recorded: %v", m.LastAttach)
+	}
+	if id, _ := m.LastSessionID(context.Background()); id != "mock-session" {
+		t.Fatalf("LastSessionID = %q", id)
+	}
+	if rid, err := m.ResumeSession(context.Background(), "sess-9"); err != nil || rid != "sess-9" {
+		t.Fatalf("ResumeSession = %q, %v", rid, err)
 	}
 	if err := m.Abort(context.Background(), "mock-session"); err != nil {
 		t.Fatal(err)
@@ -159,7 +168,7 @@ func TestSDKIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	if err := client.Send(ctx, id, "Reply with the single word: pong"); err != nil {
+	if err := client.Send(ctx, id, "Reply with the single word: pong", nil); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 

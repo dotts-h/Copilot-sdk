@@ -76,8 +76,13 @@ type MCPServer struct {
 type Client interface {
 	// CreateSession opens a session and returns its id.
 	CreateSession(ctx context.Context, spec SessionSpec) (string, error)
-	// Send submits a prompt; output arrives as events.
-	Send(ctx context.Context, sessionID, prompt string) error
+	// ResumeSession reopens a previously-created session by id.
+	ResumeSession(ctx context.Context, sessionID string) (string, error)
+	// LastSessionID returns the most recent session id, or "" if none.
+	LastSessionID(ctx context.Context) (string, error)
+	// Send submits a prompt (with optional file/image attachment paths); output
+	// arrives as events.
+	Send(ctx context.Context, sessionID, prompt string, attachments []string) error
 	// Abort cancels the in-flight turn for a session.
 	Abort(ctx context.Context, sessionID string) error
 	// Respond answers a pending tool-permission request (EvPermission).

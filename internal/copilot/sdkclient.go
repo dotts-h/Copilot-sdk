@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"sync"
 
 	sdk "github.com/github/copilot-sdk/go"
@@ -98,13 +99,42 @@ func (c *SDKClient) CreateSession(ctx context.Context, spec SessionSpec) (string
 	if err != nil {
 		return "", fmt.Errorf("create session: %w", err)
 	}
-	unsub := session.On(c.makeHandler())
+	c.register(session)
+	return session.SessionID, nil
+}
 
+// ResumeSession implements Client.
+func (c *SDKClient) ResumeSession(ctx context.Context, sessionID string) (string, error) {
+	session, err := c.client.ResumeSession(ctx, sessionID, &sdk.ResumeSessionConfig{
+		Streaming:           sdk.Bool(true),
+		OnPermissionRequest: c.permissionHandler(),
+	})
+	if err != nil {
+		return "", fmt.Errorf("resume session %q: %w", sessionID, err)
+	}
+	c.register(session)
+	return session.SessionID, nil
+}
+
+// LastSessionID implements Client.
+func (c *SDKClient) LastSessionID(ctx context.Context) (string, error) {
+	id, err := c.client.GetLastSessionID(ctx)
+	if err != nil {
+		return "", err
+	}
+	if id == nil {
+		return "", nil
+	}
+	return *id, nil
+}
+
+// register wires a session's event handler and tracks it for Send/Abort/Close.
+func (c *SDKClient) register(session *sdk.Session) {
+	unsub := session.On(c.makeHandler())
 	c.mu.Lock()
 	c.sessions[session.SessionID] = session
 	c.unsubs[session.SessionID] = unsub
 	c.mu.Unlock()
-	return session.SessionID, nil
 }
 
 // makeHandler returns a session event handler that normalizes and forwards.
@@ -201,14 +231,20 @@ func deref(p *int64) int64 {
 }
 
 // Send implements Client.
-func (c *SDKClient) Send(ctx context.Context, sessionID, prompt string) error {
+func (c *SDKClient) Send(ctx context.Context, sessionID, prompt string, attachments []string) error {
 	c.mu.Lock()
 	session := c.sessions[sessionID]
 	c.mu.Unlock()
 	if session == nil {
 		return fmt.Errorf("unknown session %q", sessionID)
 	}
-	_, err := session.Send(ctx, sdk.MessageOptions{Prompt: prompt})
+	opts := sdk.MessageOptions{Prompt: prompt}
+	for _, p := range attachments {
+		opts.Attachments = append(opts.Attachments, &sdk.AttachmentFile{
+			Path: p, DisplayName: filepath.Base(p),
+		})
+	}
+	_, err := session.Send(ctx, opts)
 	return err
 }
 

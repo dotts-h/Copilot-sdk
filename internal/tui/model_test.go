@@ -1,7 +1,10 @@
 package tui
 
 import (
+	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -475,6 +478,83 @@ func TestPermissionPendingBlocksTyping(t *testing.T) {
 	m = mm.(Model)
 	if m.input.Value() != "" {
 		t.Fatalf("'y' should decide, not type; input=%q", m.input.Value())
+	}
+}
+
+func TestSlashAttachAndSend(t *testing.T) {
+	m, mock := testModel(t)
+	mm, _ := m.Update(sessionReadyMsg{sessionID: "s1"})
+	m = mm.(Model)
+
+	f := filepath.Join(t.TempDir(), "pic.png")
+	if err := os.WriteFile(f, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m.input.SetValue("/attach " + f)
+	mm, _ = m.Update(key("enter"))
+	m = mm.(Model)
+	if len(m.pendingAttachments) != 1 || m.pendingAttachments[0] != f {
+		t.Fatalf("attachment not pending: %v", m.pendingAttachments)
+	}
+
+	m.input.SetValue("describe this")
+	mm, cmd := m.Update(key("enter"))
+	m = mm.(Model)
+	if len(m.pendingAttachments) != 0 {
+		t.Fatal("attachments should clear after send")
+	}
+	cmd()
+	if len(mock.LastAttach) != 1 || mock.LastAttach[0] != f {
+		t.Fatalf("attachment not sent: %v", mock.LastAttach)
+	}
+}
+
+func TestSlashAttachRejectsMissingFile(t *testing.T) {
+	m, _ := testModel(t)
+	mm, _ := m.Update(sessionReadyMsg{sessionID: "s1"})
+	m = mm.(Model)
+	m.input.SetValue("/attach /no/such/file.png")
+	mm, _ = m.Update(key("enter"))
+	m = mm.(Model)
+	if len(m.pendingAttachments) != 0 {
+		t.Fatal("nonexistent file should not be attached")
+	}
+}
+
+func TestSlashResume(t *testing.T) {
+	m, mock := testModel(t)
+	m.input.SetValue("/resume sess-42")
+	mm, cmd := m.Update(key("enter"))
+	m = mm.(Model)
+	if cmd == nil {
+		t.Fatal("/resume should return a command")
+	}
+	msg := cmd()
+	rr, ok := msg.(sessionReadyMsg)
+	if !ok || rr.sessionID != "sess-42" {
+		t.Fatalf("resume did not yield the session: %#v", msg)
+	}
+	if len(mock.Resumed) != 1 || mock.Resumed[0] != "sess-42" {
+		t.Fatalf("ResumeSession not called: %v", mock.Resumed)
+	}
+}
+
+func TestResumeLastSessionHelper(t *testing.T) {
+	mock := copilot.NewMockClient()
+	if _, err := mock.CreateSession(context.Background(), copilot.SessionSpec{}); err != nil {
+		t.Fatal(err)
+	}
+	msg := resumeSession(mock, "")()
+	if rr, ok := msg.(sessionReadyMsg); !ok || rr.sessionID != "mock-session" {
+		t.Fatalf("resume of last session wrong: %#v", msg)
+	}
+}
+
+func TestResumeNoPreviousSessionErrors(t *testing.T) {
+	mock := copilot.NewMockClient() // no session created
+	msg := resumeSession(mock, "")()
+	if _, ok := msg.(errMsg); !ok {
+		t.Fatalf("expected errMsg when no session to resume, got %#v", msg)
 	}
 }
 

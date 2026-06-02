@@ -100,6 +100,10 @@ Typed in the chat composer (never sent to the agent):
 | `/help` `/clear` `/cost` `/skills` `/agents` `/settings` | navigate / clear transcript |
 | `/model <name>` | switch model and restart the session |
 | `/agent <id>` | switch agent persona and restart the session |
+| `/attach <path>` | attach a file/image to the next prompt |
+| `/resume [id]` | resume the last (or a specific) session |
+
+Launch with `--resume` to reopen the most recent session on startup.
 
 ## Development
 
