@@ -84,7 +84,12 @@ Configuration lives in `~/.my-orchestra/` (override with `--config-dir` or
 | `esc` | abort the current turn |
 | `↑` / `↓` (`k`/`j`) | move selection on list pages |
 | `a` / `e` / `d` | add / edit / delete on Skills·Instructions·Agents |
+| `y` / `n` | approve / reject a tool-permission prompt |
 | `ctrl+c` | quit |
+
+When **auto-approve tools** is off (the default), the agent's shell/file/tool
+actions surface an inline **`⚠ allow … ? [y]es / [n]o`** prompt in the Chat page;
+requests queue if several arrive.
 
 ### Slash commands
 

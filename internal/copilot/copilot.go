@@ -21,7 +21,15 @@ const (
 	EvToolEnd
 	EvIdle
 	EvError
+	EvPermission
 )
+
+// PermissionRequest describes a tool-permission prompt awaiting a decision.
+type PermissionRequest struct {
+	ID     string
+	Kind   string
+	Detail string
+}
 
 // UsageData is normalized token accounting derived from the SDK's
 // assistant.usage event. It captures every token category GitHub meters.
@@ -38,11 +46,12 @@ type UsageData struct {
 
 // Event is a normalized, already-decoded notification from a session.
 type Event struct {
-	Type  EventType
-	Text  string // delta or full message/reasoning text
-	Tool  string // tool name for tool events
-	Usage UsageData
-	Err   error
+	Type       EventType
+	Text       string // delta or full message/reasoning text
+	Tool       string // tool name for tool events
+	Usage      UsageData
+	Permission *PermissionRequest // set for EvPermission
+	Err        error
 }
 
 // SessionSpec is the subset of SDK session options my-orchestra drives.
@@ -71,6 +80,8 @@ type Client interface {
 	Send(ctx context.Context, sessionID, prompt string) error
 	// Abort cancels the in-flight turn for a session.
 	Abort(ctx context.Context, sessionID string) error
+	// Respond answers a pending tool-permission request (EvPermission).
+	Respond(id string, approve bool) error
 	// Events streams normalized events until Close.
 	Events() <-chan Event
 	// Close releases all resources (stops the runtime).

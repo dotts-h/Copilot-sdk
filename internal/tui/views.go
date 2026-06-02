@@ -46,6 +46,17 @@ func (m Model) renderTranscript() string {
 
 func (m Model) viewChat() string {
 	body := m.viewport.View()
+	if len(m.permQueue) > 0 {
+		req := m.permQueue[0]
+		extra := ""
+		if n := len(m.permQueue) - 1; n > 0 {
+			extra = m.styles.Dim.Render(fmt.Sprintf("  (+%d more)", n))
+		}
+		prompt := m.styles.Warn.Render("⚠ allow ") + m.styles.Key.Render(req.Detail) +
+			m.styles.Warn.Render("?  ") + m.styles.Good.Render("[y]es") + " / " +
+			m.styles.Bad.Render("[n]o") + extra
+		return body + "\n" + prompt + "\n" + m.input.View()
+	}
 	thinking := ""
 	if m.thinking {
 		thinking = m.styles.Dim.Render("  ● orchestra is working…")
@@ -247,6 +258,7 @@ func (m Model) viewHelp() string {
 		m.styles.Key.Render("ctrl+j") + "         newline in the composer",
 		m.styles.Key.Render("esc") + "            abort the current turn / cancel a form",
 		m.styles.Key.Render("a / e / d") + "      add / edit / delete (Skills·Instructions·Agents)",
+		m.styles.Key.Render("y / n") + "          approve / reject a tool-permission prompt",
 		m.styles.Key.Render("ctrl+c") + "         quit",
 		"",
 		"Pages:",

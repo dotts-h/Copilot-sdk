@@ -29,6 +29,9 @@ type assistantDoneMsg struct{ content string }
 // usageMsg carries token accounting for the telemetry meter.
 type usageMsg struct{ usage copilot.UsageData }
 
+// permMsg carries a tool-permission request awaiting a decision.
+type permMsg struct{ req copilot.PermissionRequest }
+
 // toolMsg reports a tool execution boundary.
 type toolMsg struct {
 	name  string
@@ -62,9 +65,24 @@ func decodeEvent(ev copilot.Event) tea.Msg {
 		return toolMsg{name: ev.Tool, start: false}
 	case copilot.EvIdle:
 		return assistantDoneMsg{}
+	case copilot.EvPermission:
+		if ev.Permission != nil {
+			return permMsg{req: *ev.Permission}
+		}
+		return nil
 	case copilot.EvError:
 		return errMsg{err: ev.Err}
 	default:
+		return nil
+	}
+}
+
+// respondPermission returns a command that answers a permission request.
+func respondPermission(c copilot.Client, id string, approve bool) tea.Cmd {
+	return func() tea.Msg {
+		if err := c.Respond(id, approve); err != nil {
+			return errMsg{err: err}
+		}
 		return nil
 	}
 }
