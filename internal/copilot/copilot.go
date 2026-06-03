@@ -28,6 +28,8 @@ const (
 	EvCompactionStart // conversation compaction began
 	EvCompactionEnd   // conversation compaction finished (Text carries a summary)
 	EvUserInput       // the agent is asking the user a question (ask_user tool)
+	EvPlanReview      // the agent finished a plan and is asking to exit plan mode
+	EvPlanChanged     // the plan file was created/updated/deleted (notification)
 )
 
 // PermissionRequest describes a tool-permission prompt awaiting a decision.
@@ -45,6 +47,18 @@ type InputRequest struct {
 	Question      string
 	Choices       []string
 	AllowFreeform bool
+}
+
+// PlanRequest describes an exit-plan-mode prompt awaiting a decision: the
+// agent's plan summary and full content, the actions the user may pick to
+// proceed, and the action the agent recommends. It reuses the elicitation
+// request/response plumbing (a synchronous SDK callback resolved via RespondPlan).
+type PlanRequest struct {
+	ID          string
+	Summary     string
+	Plan        string
+	Actions     []string
+	Recommended string
 }
 
 // UsageData is normalized token accounting derived from the SDK's
@@ -74,6 +88,7 @@ type Event struct {
 	Context    ContextInfo        // set for EvContextWindow
 	Permission *PermissionRequest // set for EvPermission
 	Input      *InputRequest      // set for EvUserInput
+	Plan       *PlanRequest       // set for EvPlanReview
 	Err        error
 }
 
@@ -148,6 +163,9 @@ type Client interface {
 	// RespondInput answers a pending ask_user request (EvUserInput) with the
 	// user's chosen or freeform answer.
 	RespondInput(id, answer string) error
+	// RespondPlan answers a pending exit-plan-mode request (EvPlanReview): either
+	// approve and proceed with action, or decline with feedback requesting changes.
+	RespondPlan(id string, approved bool, action, feedback string) error
 	// ListModels returns the models available to the account.
 	ListModels(ctx context.Context) ([]ModelInfo, error)
 	// Events streams normalized events until Close.

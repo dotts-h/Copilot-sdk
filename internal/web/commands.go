@@ -68,6 +68,7 @@ func (s *Server) cmdClear() string {
 	s.state = convo.State{}
 	s.perms = nil
 	s.inputs = nil
+	s.plans = nil
 	s.pending = nil
 	s.queue = nil
 	s.busy = false
@@ -80,6 +81,7 @@ func (s *Server) cmdClear() string {
 	return s.oobTimeline() +
 		`<div id="perms" hx-swap-oob="innerHTML"></div>` +
 		`<div id="asks" hx-swap-oob="innerHTML"></div>` +
+		`<div id="plans" hx-swap-oob="innerHTML"></div>` +
 		`<div id="status" hx-swap-oob="innerHTML"></div>` +
 		`<div id="ctx" hx-swap-oob="innerHTML"></div>`
 }
