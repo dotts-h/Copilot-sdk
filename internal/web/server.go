@@ -35,6 +35,7 @@ type Server struct {
 	perms     []copilot.PermissionRequest
 	live      liveKind
 	sessionID string
+	pending   []string // file paths queued via /attach for the next prompt
 }
 
 // Options configures a Server.
@@ -163,6 +164,12 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A leading "/" routes to a composer command instead of the model.
+	if strings.HasPrefix(prompt, "/") {
+		_, _ = w.Write([]byte(s.runCommand(prompt)))
+		return
+	}
+
 	sessionID, err := s.ensureSession(r.Context())
 	if err != nil {
 		s.logger.Printf("create session: %v", err)
@@ -172,11 +179,13 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 
 	s.mu.Lock()
 	s.state.AddUser(prompt)
+	attachments := s.pending
+	s.pending = nil
 	s.live = liveNone
 	oob := s.oobTimeline() + `<div id="status" hx-swap-oob="innerHTML">` + renderStatus("thinking…", true) + `</div>`
 	s.mu.Unlock()
 
-	if err := s.client.Send(r.Context(), sessionID, prompt, nil); err != nil {
+	if err := s.client.Send(r.Context(), sessionID, prompt, attachments); err != nil {
 		s.logger.Printf("send: %v", err)
 		http.Error(w, "send failed", http.StatusBadGateway)
 		return
