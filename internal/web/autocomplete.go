@@ -67,22 +67,12 @@ func (s *Server) handleCommands(w http.ResponseWriter, r *http.Request) {
 }
 
 // renderCommandMenu renders the autocomplete dropdown. An empty match list
-// returns an empty string, which clears #cmd-menu.
+// returns an empty string, which clears #cmd-menu. The command name is dropped
+// into the onclick handler in a JS-string context, where html/template applies
+// JavaScript escaping.
 func renderCommandMenu(matches []commandSpec) string {
 	if len(matches) == 0 {
 		return ""
 	}
-	var b strings.Builder
-	b.WriteString(`<div class="cmd-menu" role="listbox">`)
-	for _, c := range matches {
-		b.WriteString(`<button type="button" class="cmd-item" onclick="fillCmd('` + esc(c.Name) + `')">`)
-		b.WriteString(`<span class="cmd-name">/` + esc(c.Name) + `</span>`)
-		if c.Args != "" {
-			b.WriteString(` <span class="cmd-args">` + esc(c.Args) + `</span>`)
-		}
-		b.WriteString(`<span class="cmd-desc">` + esc(c.Desc) + `</span>`)
-		b.WriteString(`</button>`)
-	}
-	b.WriteString(`</div>`)
-	return b.String()
+	return frag("cmdMenu", matches)
 }

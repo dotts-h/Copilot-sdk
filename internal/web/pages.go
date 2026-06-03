@@ -90,24 +90,23 @@ func helpPartial() string {
 	return b.String()
 }
 
-// chatPartial renders the chat page: timeline (from state), pending permission
-// forms, status line, and the composer.
+// chatPartial renders the chat page. The dynamic regions (timeline, pending
+// request forms, sub-agent strip, context meter) are rendered by their own
+// renderers and injected into the chatPage template as trusted HTML — they are
+// already escaped at the source (renderTurn/renderPermForm/… via richtext/esc).
 func (s *Server) chatPartial() string {
 	s.mu.Lock()
 	timeline := renderTimelineInner(&s.state)
-	var perms strings.Builder
+	var perms, asks, plans, elicits strings.Builder
 	for _, p := range s.perms {
 		perms.WriteString(renderPermForm(p.ID, p.Detail))
 	}
-	var asks strings.Builder
 	for _, q := range s.inputs {
 		asks.WriteString(renderAskForm(q))
 	}
-	var plans strings.Builder
 	for _, p := range s.plans {
 		plans.WriteString(renderPlanForm(p))
 	}
-	var elicits strings.Builder
 	for _, e := range s.elicits {
 		elicits.WriteString(renderElicitForm(e))
 	}
@@ -115,25 +114,12 @@ func (s *Server) chatPartial() string {
 	subagents := renderSubagents(s.subagents)
 	s.mu.Unlock()
 
-	return `<section class="chat">` +
-		`<div id="timeline" class="timeline">` + timeline + `</div>` +
-		`<div id="perms" class="perms">` + perms.String() + `</div>` +
-		`<div id="asks" class="asks">` + asks.String() + `</div>` +
-		`<div id="plans" class="plans">` + plans.String() + `</div>` +
-		`<div id="elicits" class="elicits">` + elicits.String() + `</div>` +
-		`<div class="composer-bar">` +
-		`<div id="subagents" class="subagents">` + subagents + `</div>` +
-		`<div class="status-row">` +
-		`<div id="status" class="status"></div>` +
-		`<div id="ctx" class="ctx">` + ctx + `</div>` +
-		`</div>` +
-		`<div id="cmd-menu" class="cmd-menu-wrap"></div>` +
-		`<form id="composer" hx-post="/send" hx-swap="none" ` +
-		`hx-on::after-request="this.reset(); document.getElementById('cmd-menu').innerHTML=''; this.querySelector('input').focus()">` +
-		`<input type="text" name="prompt" autocomplete="off" autofocus placeholder="Ask my-orchestra…  (/help for commands)" ` +
-		`hx-get="/commands" hx-trigger="keyup changed delay:40ms" hx-target="#cmd-menu" hx-swap="innerHTML">` +
-		`<button type="submit">Send</button>` +
-		`</form></div></section>`
+	return frag("chatPage", map[string]any{
+		"Timeline": trusted(timeline), "Perms": trusted(perms.String()),
+		"Asks": trusted(asks.String()), "Plans": trusted(plans.String()),
+		"Elicits": trusted(elicits.String()), "Subagents": trusted(subagents),
+		"Ctx": trusted(ctx),
+	})
 }
 
 func (s *Server) telemetryPartial() string {
@@ -142,96 +128,72 @@ func (s *Server) telemetryPartial() string {
 	budget := telemetry.Budget{AllowanceCredits: s.allowance}
 	frac := budget.FractionUsed(totals.Credits())
 
-	var b strings.Builder
-	b.WriteString(`<section class="page"><h2>Credits &amp; Token Telemetry</h2>`)
-	b.WriteString(`<table class="kv">`)
-	row := func(k, v string) { fmt.Fprintf(&b, `<tr><th>%s</th><td>%s</td></tr>`, k, v) }
-	row("Total cost", fmt.Sprintf("%s (%s)", esc(telemetry.FormatCredits(totals.Credits())), esc(telemetry.FormatUSD(totals.USD()))))
-	row("Monthly budget", fmt.Sprintf("%.2f of %.0f cr", totals.Credits(), budget.AllowanceCredits))
-	row("Remaining", esc(telemetry.FormatCredits(budget.Remaining(totals.Credits()))))
-	if aiu := s.meter.ReportedAIU(); aiu > 0 {
-		row("GitHub-reported cost", fmt.Sprintf("%.4f AIU", aiu))
+	rows := [][2]string{
+		{"Total cost", fmt.Sprintf("%s (%s)", telemetry.FormatCredits(totals.Credits()), telemetry.FormatUSD(totals.USD()))},
+		{"Monthly budget", fmt.Sprintf("%.2f of %.0f cr", totals.Credits(), budget.AllowanceCredits)},
+		{"Remaining", telemetry.FormatCredits(budget.Remaining(totals.Credits()))},
 	}
-	row("Tokens", fmt.Sprintf("input %d · cached %d · output %d", in, cached, out))
-	b.WriteString(`</table>`)
+	if aiu := s.meter.ReportedAIU(); aiu > 0 {
+		rows = append(rows, [2]string{"GitHub-reported cost", fmt.Sprintf("%.4f AIU", aiu)})
+	}
+	rows = append(rows, [2]string{"Tokens", fmt.Sprintf("input %d · cached %d · output %d", in, cached, out)})
+
 	pct := frac * 100
 	if pct > 100 {
 		pct = 100
 	}
-	fmt.Fprintf(&b, `<div class="meter wide"><span class="meter-fill" style="width:%.1f%%"></span></div>`, pct)
-
-	b.WriteString(`<h3>Per-model breakdown</h3><table class="grid">`)
-	b.WriteString(`<tr><th>model</th><th>in</th><th>cached</th><th>out</th><th>credits</th><th>usd</th></tr>`)
-	rows := s.meter.ByModel()
-	if len(rows) == 0 {
-		b.WriteString(`<tr><td colspan="6" class="dim">no usage yet — send a prompt on the Chat page</td></tr>`)
+	models := make([]map[string]any, 0)
+	for _, r := range s.meter.ByModel() {
+		models = append(models, map[string]any{
+			"Model": r.Model, "In": r.InputTokens, "Cached": r.CachedTokens, "Out": r.OutputTokens,
+			"Credits": fmt.Sprintf("%.2f", r.Credits()), "USD": telemetry.FormatUSD(r.USD()),
+		})
 	}
-	for _, r := range rows {
-		fmt.Fprintf(&b, `<tr><td>%s</td><td>%d</td><td>%d</td><td>%d</td><td>%.2f</td><td>%s</td></tr>`,
-			esc(r.Model), r.InputTokens, r.CachedTokens, r.OutputTokens, r.Credits(), esc(telemetry.FormatUSD(r.USD())))
-	}
-	b.WriteString(`</table></section>`)
-	return b.String()
+	return frag("telemetryPage", map[string]any{
+		"Rows": rows, "Width": fmt.Sprintf("%.1f%%", pct), "Models": models,
+	})
 }
 
 func (s *Server) skillsPartial() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var b strings.Builder
-	b.WriteString(`<section class="page"><h2>Skills</h2>`)
-	b.WriteString(addButton("skills", "skill"))
-	if len(s.forge.Skills) == 0 {
-		b.WriteString(`<p class="dim">no skills yet — add them to the forge (forge.json)</p>`)
-	}
-	b.WriteString(`<ul class="rows">`)
+	rows := make([]map[string]any, 0, len(s.forge.Skills))
 	for _, sk := range s.forge.Skills {
-		b.WriteString(toggleRow("skills", sk.ID, sk.Enabled, sk.Name, sk.Description))
+		rows = append(rows, map[string]any{
+			"Kind": "skills", "ID": sk.ID, "On": sk.Enabled, "Name": sk.Name, "Desc": truncate(sk.Description, 80),
+		})
 	}
-	b.WriteString(`</ul></section>`)
-	return b.String()
+	return frag("skillsPage", map[string]any{"Add": addData("skills", "skill"), "Rows": rows})
 }
 
 func (s *Server) instructionsPartial() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var b strings.Builder
-	b.WriteString(`<section class="page"><h2>Instructions</h2>`)
-	b.WriteString(addButton("instructions", "instruction"))
-	if len(s.forge.Instructions) == 0 {
-		b.WriteString(`<p class="dim">no instructions yet</p>`)
-	}
-	b.WriteString(`<ul class="rows">`)
+	rows := make([]map[string]any, 0, len(s.forge.Instructions))
 	for _, ins := range s.forge.Instructions {
-		label := fmt.Sprintf("%s (p%d)", ins.Title, ins.Priority)
-		b.WriteString(toggleRow("instructions", ins.ID, ins.Enabled, label, ins.Body))
+		rows = append(rows, map[string]any{
+			"Kind": "instructions", "ID": ins.ID, "On": ins.Enabled,
+			"Name": fmt.Sprintf("%s (p%d)", ins.Title, ins.Priority), "Desc": truncate(ins.Body, 80),
+		})
 	}
-	b.WriteString(`</ul></section>`)
-	return b.String()
+	return frag("instructionsPage", map[string]any{"Add": addData("instructions", "instruction"), "Rows": rows})
 }
 
 func (s *Server) agentsPartial() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var b strings.Builder
-	b.WriteString(`<section class="page"><h2>Agents</h2>`)
-	b.WriteString(addButton("agents", "agent"))
-	if len(s.forge.Agents) == 0 {
-		b.WriteString(`<p class="dim">no agents yet</p>`)
-	}
-	b.WriteString(`<ul class="rows">`)
+	rows := make([]map[string]any, 0, len(s.forge.Agents))
 	for _, a := range s.forge.Agents {
-		active := a.ID == s.config.DefaultAgent
 		desc := fmt.Sprintf("%s · %s · %s", a.Model, def(a.ReasoningEffort, "medium"), a.Description)
-		mark := `<button class="toggle" hx-post="/agents/` + esc(a.ID) + `/select" hx-target="#main" hx-swap="innerHTML">` +
-			markGlyph(active) + `</button>`
-		edit := `<button class="edit" hx-get="/agents/` + esc(a.ID) + `/edit" hx-target="#main" hx-swap="innerHTML">edit</button>`
-		del := `<button class="del" hx-post="/agents/` + esc(a.ID) + `/delete" hx-target="#main" hx-swap="innerHTML" hx-confirm="Delete agent ` + esc(a.Name) + `?">✕</button>`
-		fmt.Fprintf(&b, `<li class="row %s">%s<div class="row-text"><span class="row-name">%s</span><span class="row-desc">%s</span></div>%s%s</li>`,
-			activeClass(active), mark, esc(a.Name), esc(desc), edit, del)
+		rows = append(rows, map[string]any{
+			"ID": a.ID, "Active": a.ID == s.config.DefaultAgent, "Name": a.Name, "Desc": desc,
+		})
 	}
-	b.WriteString(`</ul></section>`)
-	return b.String()
+	return frag("agentsPage", map[string]any{"Add": addData("agents", "agent"), "Rows": rows})
 }
+
+// addData is the "+ Add" button's template data (route slug + singular noun).
+func addData(kind, noun string) map[string]any { return map[string]any{"Kind": kind, "Noun": noun} }
 
 // modelsPartial renders the model picker: every model the account can use, with
 // the current one marked and the rest offering a one-click switch (POST
@@ -239,40 +201,25 @@ func (s *Server) agentsPartial() string {
 // to a notice when the runtime can't list models.
 func (s *Server) modelsPartial() string {
 	models, err := s.client.ListModels(context.Background())
+	if err != nil {
+		return frag("modelsPage", map[string]any{"Err": err.Error()})
+	}
 
 	s.mu.Lock()
 	current := s.spec.Model
 	s.mu.Unlock()
 
-	var b strings.Builder
-	b.WriteString(`<section class="page"><h2>Models</h2>`)
-	if err != nil {
-		b.WriteString(`<p class="dim">models unavailable: ` + esc(err.Error()) + `</p></section>`)
-		return b.String()
-	}
-	if len(models) == 0 {
-		b.WriteString(`<p class="dim">no models available</p></section>`)
-		return b.String()
-	}
-	b.WriteString(`<p class="dim">selecting a model sets it as default and restarts the session on your next prompt</p>`)
-	b.WriteString(`<ul class="rows">`)
+	rows := make([]map[string]any, 0, len(models))
 	for _, m := range models {
-		active := m.ID == current
 		desc := m.ID
 		if efforts := strings.Join(m.SupportedReasoningEfforts, ", "); efforts != "" {
 			desc += " · reasoning: " + efforts
 		}
-		var action string
-		if active {
-			action = `<button class="toggle" disabled>` + markGlyph(true) + `</button>`
-		} else {
-			action = `<button class="toggle" hx-post="/models/` + esc(m.ID) + `/select" hx-target="#main" hx-swap="innerHTML">use</button>`
-		}
-		fmt.Fprintf(&b, `<li class="row %s">%s<div class="row-text"><span class="row-name">%s</span><span class="row-desc">%s</span></div></li>`,
-			activeClass(active), action, esc(def(m.Name, m.ID)), esc(desc))
+		rows = append(rows, map[string]any{
+			"ID": m.ID, "Active": m.ID == current, "Name": def(m.Name, m.ID), "Desc": desc,
+		})
 	}
-	b.WriteString(`</ul></section>`)
-	return b.String()
+	return frag("modelsPage", map[string]any{"Rows": rows})
 }
 
 func (s *Server) settingsPartial() string {
@@ -292,46 +239,7 @@ func (s *Server) settingsPartial() string {
 		{"Runtime", "github/copilot-sdk/go (copilot CLI)"},
 		{"Forge dir", c.ForgeDir},
 	}
-	var b strings.Builder
-	b.WriteString(`<section class="page"><h2>Settings</h2>`)
-	b.WriteString(`<p class="dim">edit forge.json / config.json; live-applied on next session</p>`)
-	b.WriteString(`<table class="kv">`)
-	for _, r := range rows {
-		fmt.Fprintf(&b, `<tr><th>%s</th><td>%s</td></tr>`, esc(r[0]), esc(r[1]))
-	}
-	b.WriteString(`</table></section>`)
-	return b.String()
-}
-
-// toggleRow renders a list row with an enable/disable toggle and a delete button
-// for the skills/instructions pages.
-func toggleRow(kind, id string, on bool, name, desc string) string {
-	eid := esc(id)
-	toggle := `<button class="toggle" hx-post="/` + kind + `/` + eid + `/toggle" hx-target="#main" hx-swap="innerHTML">` + markGlyph(on) + `</button>`
-	edit := `<button class="edit" hx-get="/` + kind + `/` + eid + `/edit" hx-target="#main" hx-swap="innerHTML">edit</button>`
-	del := `<button class="del" hx-post="/` + kind + `/` + eid + `/delete" hx-target="#main" hx-swap="innerHTML" hx-confirm="Delete ` + esc(name) + `?">✕</button>`
-	return fmt.Sprintf(`<li class="row %s">%s<div class="row-text"><span class="row-name">%s</span><span class="row-desc">%s</span></div>%s%s</li>`,
-		activeClass(on), toggle, esc(name), esc(truncate(desc, 80)), edit, del)
-}
-
-// addButton renders the "+ Add" control that loads a blank create form for the
-// given list page into #main. kind is the route slug, noun the singular label.
-func addButton(kind, noun string) string {
-	return `<button class="add" hx-get="/` + kind + `/new" hx-target="#main" hx-swap="innerHTML">+ Add ` + esc(noun) + `</button>`
-}
-
-func markGlyph(on bool) string {
-	if on {
-		return `<span class="on">[x]</span>`
-	}
-	return `<span class="off">[ ]</span>`
-}
-
-func activeClass(on bool) string {
-	if on {
-		return "on"
-	}
-	return ""
+	return frag("settingsPage", map[string]any{"Rows": rows})
 }
 
 func onoff(b bool) string {

@@ -1,0 +1,70 @@
+{{/* HTML fragments executed by the renderers via frag(). Structural markup is
+     auto-escaped by html/template; multi-line transcript text uses richtext
+     (escape + newline→<br>). */}}
+
+{{define "deltaSpan"}}<span>{{richtext .}}</span>{{end}}
+
+{{define "turnUser"}}<div class="turn user"><div class="role">you</div><div class="body">{{richtext .}}</div></div>{{end}}
+{{define "turnAgent"}}<div class="turn assistant"><div class="role">orchestra</div><div class="body">{{richtext .}}</div></div>{{end}}
+{{define "turnReasoning"}}<details class="turn reasoning"><summary>✻ thinking</summary><div class="body">{{richtext .}}</div></details>{{end}}
+{{define "turnSystem"}}<div class="turn system">· {{richtext .}}</div>{{end}}
+
+{{define "toolCard"}}<div{{if .ID}} id="tool-{{.ID}}"{{end}} class="turn tool {{.State}}"><div class="tool-head"><span class="glyph">{{.Glyph}}</span> <span class="tool-name">{{.Name}}</span>{{if .Args}} <span class="tool-args">{{richtext .Args}}</span>{{end}}</div>{{if .ShowProgress}}<div class="tool-progress">… {{richtext .Progress}}</div>{{end}}{{if .ShowResult}}<pre class="tool-result">{{richtext .Result}}</pre>{{end}}</div>{{end}}
+
+{{define "cur"}}<div id="cur" class="{{.Class}}">{{if .Has}}<span>{{richtext .Text}}</span>{{end}}</div>{{end}}
+
+{{define "permForm"}}<form class="perm" id="perm-{{.ID}}" hx-post="/perm/{{.ID}}" hx-target="#perm-{{.ID}}" hx-swap="outerHTML"><span class="perm-q">⚠ allow <b>{{richtext .Detail}}</b>?</span><button class="ok" name="approve" value="1">approve</button><button class="no" name="approve" value="0" formnovalidate>reject</button></form>{{end}}
+
+{{define "askForm"}}<form class="ask" id="ask-{{.ID}}" hx-post="/ask/{{.ID}}" hx-target="#ask-{{.ID}}" hx-swap="outerHTML"><span class="ask-q">❓ <b>{{richtext .Question}}</b></span>{{if .Choices}}<div class="ask-choices">{{range .Choices}}<button class="ask-choice" name="answer" value="{{.}}">{{.}}</button>{{end}}</div>{{end}}{{if .ShowFreeform}}<div class="ask-freeform"><input type="text" name="answer" autocomplete="off" placeholder="type an answer…"><button class="ask-send" type="submit">send</button></div>{{end}}</form>{{end}}
+
+{{define "planForm"}}<form class="plan" id="plan-{{.ID}}" hx-post="/plan/{{.ID}}" hx-target="#plan-{{.ID}}" hx-swap="outerHTML"><div class="plan-summary">📋 <b>{{richtext .Summary}}</b></div>{{if .Plan}}<details class="plan-detail"><summary>view plan</summary><pre>{{richtext .Plan}}</pre></details>{{end}}{{if .Actions}}<div class="plan-actions">{{range .Actions}}<button class="plan-action{{if eq . $.Recommended}} recommended{{end}}" name="action" value="{{.}}">{{.}}{{if eq . $.Recommended}} ★{{end}}</button>{{end}}</div>{{end}}<div class="plan-feedback"><input type="text" name="feedback" autocomplete="off" placeholder="request changes…"><button class="plan-reject" type="submit">request changes</button></div></form>{{end}}
+
+{{define "elicitForm"}}<form class="elicit" id="elicit-{{.ID}}" hx-post="/elicit/{{.ID}}" hx-target="#elicit-{{.ID}}" hx-swap="outerHTML"><div class="elicit-msg">📝 <b>{{richtext .Message}}</b>{{if .Source}} <span class="elicit-source">{{.Source}}</span>{{end}}</div>{{range .Fields}}{{template "elicitField" .}}{{end}}<div class="elicit-actions"><button class="elicit-ok" name="action" value="accept" type="submit">submit</button><button class="elicit-no" name="action" value="decline" type="submit" formnovalidate>decline</button></div></form>{{end}}
+
+{{define "elicitField"}}<label class="elicit-field"><span class="elicit-label">{{.Label}}{{if .Required}} <span class="req">*</span>{{end}}</span>{{if eq .Type "boolean"}}<input type="checkbox" name="{{.Key}}" value="true"{{if .Checked}} checked{{end}}>{{else if .HasEnum}}<select name="{{.Key}}">{{range .Options}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{end}}</select>{{else if .Numeric}}<input type="number"{{if .Step}} step="any"{{end}} name="{{.Key}}" value="{{.Default}}" autocomplete="off">{{else}}<input type="text" name="{{.Key}}" value="{{.Default}}" autocomplete="off">{{end}}{{if .Description}}<span class="elicit-desc">{{richtext .Description}}</span>{{end}}</label>{{end}}
+
+{{define "status"}}<span class="status-text">{{richtext .Text}}</span>{{if .Active}}{{if .HasTimer}} <span class="elapsed" data-start="{{.StartMs}}">0s</span>{{end}} <button class="abort" hx-post="/abort" hx-target="#status" hx-swap="innerHTML">⏹ stop</button>{{end}}{{end}}
+
+{{define "ctx"}}{{if .Compacting}}<span class="ctx-compacting">✻ compacting…</span>{{else if .ShowMeter}}<span class="{{.Class}}">ctx {{.Cur}}/{{.Limit}} · {{.Pct}}%</span>{{else if .ShowTokens}}<span class="ctx-tokens">{{.Cur}} tok</span>{{end}}{{end}}
+
+{{define "costFooter"}}<span class="credits">{{.Credits}}</span><span class="meter"><span class="meter-fill" style="width:{{.Width}}"></span></span><span class="pct">{{.PctWhole}}%</span>{{end}}
+
+{{define "subagentChip"}}<span class="subagent-chip"><span class="spin">◐</span> {{.Label}}{{if .Model}} <span class="subagent-model">{{.Model}}</span>{{end}}</span>{{end}}
+
+{{/* ---- page partials (swapped into #main) ---- */}}
+
+{{define "chatPage"}}<section class="chat"><div id="timeline" class="timeline">{{.Timeline}}</div><div id="perms" class="perms">{{.Perms}}</div><div id="asks" class="asks">{{.Asks}}</div><div id="plans" class="plans">{{.Plans}}</div><div id="elicits" class="elicits">{{.Elicits}}</div><div class="composer-bar"><div id="subagents" class="subagents">{{.Subagents}}</div><div class="status-row"><div id="status" class="status"></div><div id="ctx" class="ctx">{{.Ctx}}</div></div><div id="cmd-menu" class="cmd-menu-wrap"></div><form id="composer" hx-post="/send" hx-swap="none" hx-on::after-request="this.reset(); document.getElementById('cmd-menu').innerHTML=''; this.querySelector('input').focus()"><input type="text" name="prompt" autocomplete="off" autofocus placeholder="Ask my-orchestra…  (/help for commands)" hx-get="/commands" hx-trigger="keyup changed delay:40ms" hx-target="#cmd-menu" hx-swap="innerHTML"><button type="submit">Send</button></form></section>{{end}}
+
+{{define "addButton"}}<button class="add" hx-get="/{{.Kind}}/new" hx-target="#main" hx-swap="innerHTML">+ Add {{.Noun}}</button>{{end}}
+
+{{define "toggleRow"}}<li class="row{{if .On}} on{{end}}"><button class="toggle" hx-post="/{{.Kind}}/{{.ID}}/toggle" hx-target="#main" hx-swap="innerHTML">{{markGlyph .On}}</button><div class="row-text"><span class="row-name">{{.Name}}</span><span class="row-desc">{{.Desc}}</span></div><button class="edit" hx-get="/{{.Kind}}/{{.ID}}/edit" hx-target="#main" hx-swap="innerHTML">edit</button><button class="del" hx-post="/{{.Kind}}/{{.ID}}/delete" hx-target="#main" hx-swap="innerHTML" hx-confirm="Delete {{.Name}}?">✕</button></li>{{end}}
+
+{{define "skillsPage"}}<section class="page"><h2>Skills</h2>{{template "addButton" .Add}}{{if not .Rows}}<p class="dim">no skills yet — add them to the forge (forge.json)</p>{{end}}<ul class="rows">{{range .Rows}}{{template "toggleRow" .}}{{end}}</ul></section>{{end}}
+
+{{define "instructionsPage"}}<section class="page"><h2>Instructions</h2>{{template "addButton" .Add}}{{if not .Rows}}<p class="dim">no instructions yet</p>{{end}}<ul class="rows">{{range .Rows}}{{template "toggleRow" .}}{{end}}</ul></section>{{end}}
+
+{{define "agentRow"}}<li class="row{{if .Active}} on{{end}}"><button class="toggle" hx-post="/agents/{{.ID}}/select" hx-target="#main" hx-swap="innerHTML">{{markGlyph .Active}}</button><div class="row-text"><span class="row-name">{{.Name}}</span><span class="row-desc">{{.Desc}}</span></div><button class="edit" hx-get="/agents/{{.ID}}/edit" hx-target="#main" hx-swap="innerHTML">edit</button><button class="del" hx-post="/agents/{{.ID}}/delete" hx-target="#main" hx-swap="innerHTML" hx-confirm="Delete agent {{.Name}}?">✕</button></li>{{end}}
+
+{{define "agentsPage"}}<section class="page"><h2>Agents</h2>{{template "addButton" .Add}}{{if not .Rows}}<p class="dim">no agents yet</p>{{end}}<ul class="rows">{{range .Rows}}{{template "agentRow" .}}{{end}}</ul></section>{{end}}
+
+{{define "modelsPage"}}<section class="page"><h2>Models</h2>{{if .Err}}<p class="dim">models unavailable: {{.Err}}</p>{{else if not .Rows}}<p class="dim">no models available</p>{{else}}<p class="dim">selecting a model sets it as default and restarts the session on your next prompt</p><ul class="rows">{{range .Rows}}<li class="row{{if .Active}} on{{end}}">{{if .Active}}<button class="toggle" disabled>{{markGlyph true}}</button>{{else}}<button class="toggle" hx-post="/models/{{.ID}}/select" hx-target="#main" hx-swap="innerHTML">use</button>{{end}}<div class="row-text"><span class="row-name">{{.Name}}</span><span class="row-desc">{{.Desc}}</span></div></li>{{end}}</ul>{{end}}</section>{{end}}
+
+{{define "settingsPage"}}<section class="page"><h2>Settings</h2><p class="dim">edit forge.json / config.json; live-applied on next session</p><table class="kv">{{range .Rows}}<tr><th>{{index . 0}}</th><td>{{index . 1}}</td></tr>{{end}}</table></section>{{end}}
+
+{{define "telemetryPage"}}<section class="page"><h2>Credits &amp; Token Telemetry</h2><table class="kv">{{range .Rows}}<tr><th>{{index . 0}}</th><td>{{index . 1}}</td></tr>{{end}}</table><div class="meter wide"><span class="meter-fill" style="width:{{.Width}}"></span></div><h3>Per-model breakdown</h3><table class="grid"><tr><th>model</th><th>in</th><th>cached</th><th>out</th><th>credits</th><th>usd</th></tr>{{if not .Models}}<tr><td colspan="6" class="dim">no usage yet — send a prompt on the Chat page</td></tr>{{end}}{{range .Models}}<tr><td>{{.Model}}</td><td>{{.In}}</td><td>{{.Cached}}</td><td>{{.Out}}</td><td>{{.Credits}}</td><td>{{.USD}}</td></tr>{{end}}</table></section>{{end}}
+
+{{/* ---- forge add/edit forms ---- */}}
+
+{{define "field"}}<label class="field"><span>{{.Label}}</span><input type="text" name="{{.Name}}" value="{{.Value}}" autocomplete="off"{{if .Required}} required{{end}}{{if .Readonly}} readonly{{end}}></label>{{end}}
+
+{{define "textArea"}}<label class="field"><span>{{.Label}}</span><textarea name="{{.Name}}" rows="4"{{if .Required}} required{{end}}>{{.Value}}</textarea></label>{{end}}
+
+{{define "numberField"}}<label class="field"><span>{{.Label}}</span><input type="number" name="{{.Name}}" value="{{.Value}}"></label>{{end}}
+
+{{define "checkboxField"}}<label class="field check"><input type="checkbox" name="{{.Name}}"{{if .On}} checked{{end}}><span>{{.Label}}</span></label>{{end}}
+
+{{define "selectField"}}<label class="field"><span>{{.Label}}</span><select name="{{.Name}}">{{range .Options}}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Value}}</option>{{end}}</select></label>{{end}}
+
+{{define "forgeForm"}}<section class="page"><h2>{{.Title}}</h2>{{if .Err}}<p class="error">⚠ {{.Err}}</p>{{end}}<form class="forge-form" hx-post="{{.Action}}" hx-target="#main" hx-swap="innerHTML">{{.Fields}}<div class="form-actions"><button type="submit">Save</button><button type="button" class="cancel" hx-get="/page/{{.Kind}}" hx-target="#main" hx-swap="innerHTML">Cancel</button></div></form></section>{{end}}
+
+{{define "cmdMenu"}}<div class="cmd-menu" role="listbox">{{range .}}<button type="button" class="cmd-item" onclick="fillCmd('{{.Name}}')"><span class="cmd-name">/{{.Name}}</span>{{if .Args}} <span class="cmd-args">{{.Args}}</span>{{end}}<span class="cmd-desc">{{.Desc}}</span></button>{{end}}</div>{{end}}

@@ -16,5 +16,9 @@ var templateFS embed.FS
 //go:embed static/*
 var staticFS embed.FS
 
-// pageTemplates holds the parsed page/layout templates.
-var pageTemplates = template.Must(template.ParseFS(templateFS, "templates/*.html"))
+// pageTemplates holds the parsed page/layout templates plus every named HTML
+// fragment (templates/*.html), sharing funcMap so the renderers can execute them
+// by name via frag().
+var pageTemplates = template.Must(
+	template.New("web").Funcs(funcMap).ParseFS(templateFS, "templates/*.html"),
+)
