@@ -173,7 +173,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	s.state.AddUser(prompt)
 	s.live = liveNone
-	oob := s.oobTimeline()
+	oob := s.oobTimeline() + `<div id="status" hx-swap-oob="innerHTML">` + renderStatus("thinking…", true) + `</div>`
 	s.mu.Unlock()
 
 	if err := s.client.Send(r.Context(), sessionID, prompt, nil); err != nil {
@@ -198,7 +198,10 @@ func (s *Server) handleAbort(w http.ResponseWriter, r *http.Request) {
 			s.logger.Printf("abort: %v", err)
 		}
 	}
-	w.WriteHeader(http.StatusNoContent)
+	// Clear the status line immediately; the client's turn-end event over /events
+	// will also settle it. hx-target on the button swaps this into #status.
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(renderStatus("aborted", false)))
 }
 
 // handlePerm resolves a pending tool-permission request via the client's
