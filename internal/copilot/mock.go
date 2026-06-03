@@ -90,6 +90,20 @@ func (m *MockClient) Respond(id string, approve bool) error {
 	return nil
 }
 
+// SentCount returns the number of prompts sent so far, safe for concurrent reads.
+func (m *MockClient) SentCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.Sent)
+}
+
+// SentAt returns the i-th sent prompt, safe for concurrent reads.
+func (m *MockClient) SentAt(i int) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.Sent[i]
+}
+
 // Events implements Client.
 func (m *MockClient) Events() <-chan Event { return m.events }
 

@@ -68,6 +68,8 @@ func (s *Server) cmdClear() string {
 	s.state = convo.State{}
 	s.perms = nil
 	s.pending = nil
+	s.queue = nil
+	s.busy = false
 	s.sessionID = ""
 	s.live = liveNone
 	s.state.AddSystem("conversation cleared")

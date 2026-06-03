@@ -69,7 +69,8 @@ func helpPartial() string {
 
 	b.WriteString(`<h3>Panels</h3><table class="kv">`)
 	rows := [][2]string{
-		{"Chat", "Stream prompts and replies; approve tool permissions inline; abort an in-flight turn with ⏹ stop."},
+		{"Chat", "Stream prompts and replies; approve tool permissions inline; abort an in-flight turn with ⏹ stop. " +
+			"Type ahead while a turn runs — extra prompts queue and send automatically when the turn ends."},
 		{"Telemetry", "Live credit/token spend, per-model breakdown, and your monthly budget."},
 		{"Skills", "Reusable prompt fragments; toggle which are active for the session."},
 		{"Instructions", "Always-on guidance, ordered by priority."},
