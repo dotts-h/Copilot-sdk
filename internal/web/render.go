@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/dotts-h/copilot-sdk/internal/convo"
+	"github.com/dotts-h/copilot-sdk/internal/copilot"
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
 
@@ -112,6 +113,35 @@ func renderPermForm(id, detail string) string {
 		`<button class="ok" name="approve" value="1">approve</button>` +
 		`<button class="no" name="approve" value="0" formnovalidate>reject</button>` +
 		`</form>`
+}
+
+// renderAskForm renders an inline ask_user prompt: the question, one submit
+// button per suggested choice, and (when freeform is allowed or no choices are
+// offered) a text field for a custom answer. It posts to /ask/{id}, mirroring
+// renderPermForm. Choice buttons and the freeform field share the name "answer";
+// the handler picks the first non-empty value, so an empty freeform field next
+// to a clicked choice is harmless.
+func renderAskForm(req copilot.InputRequest) string {
+	eid := esc(req.ID)
+	var b strings.Builder
+	b.WriteString(`<form class="ask" id="ask-` + eid + `" hx-post="/ask/` + eid +
+		`" hx-target="#ask-` + eid + `" hx-swap="outerHTML">`)
+	b.WriteString(`<span class="ask-q">❓ <b>` + esc(req.Question) + `</b></span>`)
+	if len(req.Choices) > 0 {
+		b.WriteString(`<div class="ask-choices">`)
+		for _, c := range req.Choices {
+			b.WriteString(`<button class="ask-choice" name="answer" value="` + esc(c) + `">` + esc(c) + `</button>`)
+		}
+		b.WriteString(`</div>`)
+	}
+	if req.AllowFreeform || len(req.Choices) == 0 {
+		b.WriteString(`<div class="ask-freeform">` +
+			`<input type="text" name="answer" autocomplete="off" placeholder="type an answer…">` +
+			`<button class="ask-send" type="submit">send</button>` +
+			`</div>`)
+	}
+	b.WriteString(`</form>`)
+	return b.String()
 }
 
 // renderStatus renders the status-line content swapped into #status. While a

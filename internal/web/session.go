@@ -126,6 +126,16 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 			s.statusFrag("permission requested", true),
 		}
 
+	case copilot.EvUserInput:
+		if e.Input == nil {
+			return nil
+		}
+		s.inputs = append(s.inputs, *e.Input)
+		return []fragment{
+			{Event: "ask", HTML: renderAskForm(*e.Input)},
+			s.statusFrag("input requested", true),
+		}
+
 	case copilot.EvContextWindow:
 		s.ctxCurrent = e.Context.CurrentTokens
 		s.ctxLimit = e.Context.TokenLimit

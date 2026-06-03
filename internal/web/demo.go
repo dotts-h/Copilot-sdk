@@ -34,13 +34,21 @@ func streamDemoReply(m *copilot.MockClient, prompt string) {
 	m.Emit(copilot.Event{Type: copilot.EvToolEnd,
 		ToolCall: &copilot.ToolCall{ID: "demo-1", Result: "hello", Success: true}})
 
-	// 3. The streamed answer.
+	// 3. An ask_user prompt (elicitation), rendered as an inline form. In demo
+	// mode nothing blocks on the answer; submitting it just exercises the route.
+	m.Emit(copilot.Event{Type: copilot.EvUserInput, Input: &copilot.InputRequest{
+		ID: "demo-ask-1", Question: "Want a short or detailed summary?",
+		Choices: []string{"short", "detailed"}, AllowFreeform: true,
+	}})
+	time.Sleep(120 * time.Millisecond)
+
+	// 4. The streamed answer.
 	reply := "Streaming skeleton is live. You said: " + strings.TrimSpace(prompt) +
 		". Reasoning, tools, the cost meter, and inline permissions all render over SSE."
 	stream(reply, copilot.EvMessageDelta)
 	m.Emit(copilot.Event{Type: copilot.EvMessage, Text: reply})
 
-	// 4. Usage → cost footer, and a context-window reading → live ctx meter.
+	// 5. Usage → cost footer, and a context-window reading → live ctx meter.
 	m.Emit(copilot.Event{Type: copilot.EvUsage, Usage: copilot.UsageData{
 		Model: "gpt-5", InputTokens: 1200, CachedTokens: 200, OutputTokens: 340,
 	}})
@@ -48,7 +56,7 @@ func streamDemoReply(m *copilot.MockClient, prompt string) {
 		CurrentTokens: 18400, TokenLimit: 128000,
 	}})
 
-	// 5. End of turn.
+	// 6. End of turn.
 	m.Emit(copilot.Event{Type: copilot.EvIdle})
 }
 

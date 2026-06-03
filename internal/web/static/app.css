@@ -91,6 +91,20 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
 .perm .ok { background: var(--good); color: #1b1d1e; }
 .perm .no { background: var(--bad); color: #fff; }
 
+/* ask_user (elicitation) */
+.asks { max-width: 56rem; width: 100%; margin: 0 auto; padding: 0 1rem; }
+.ask { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: .4rem 0;
+  padding: .5rem .75rem; border-radius: 8px;
+  background: rgba(110,168,254,.10); border-left: 3px solid var(--accent2, #6ea8fe); }
+.ask .ask-q { flex: 1 1 100%; }
+.ask .ask-choices { display: flex; flex-wrap: wrap; gap: .4rem; }
+.ask .ask-choice { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer;
+  font: inherit; background: var(--accent2, #6ea8fe); color: #1b1d1e; }
+.ask .ask-freeform { display: flex; gap: .4rem; flex: 1 1 auto; }
+.ask .ask-freeform input { flex: 1 1 auto; min-width: 8rem; border-radius: 6px;
+  border: 1px solid var(--panel); padding: .3rem .5rem; font: inherit; background: var(--bg, #1b1d1e); color: inherit; }
+.ask .ask-send { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--good); color: #1b1d1e; }
+
 /* composer */
 .composer-bar { border-top: 1px solid var(--panel); background: var(--panel); padding: .6rem 1rem; }
 .status-row { display: flex; align-items: center; gap: .75rem; max-width: 56rem; margin: 0 auto; min-height: 1.1rem; }
