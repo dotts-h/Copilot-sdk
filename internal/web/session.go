@@ -54,7 +54,7 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 	case copilot.EvMessage:
 		s.state.Finish(e.Text)
 		s.live = liveNone
-		return append(s.timelineFragments(), fragment{Event: "status", HTML: "ready"})
+		return append(s.timelineFragments(), statusFragment("ready", false))
 
 	case copilot.EvToolStart:
 		args := ""
@@ -63,7 +63,7 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		}
 		s.state.ToolStart(toolID(e), e.Tool, args)
 		s.live = liveNone
-		return append(s.timelineFragments(), fragment{Event: "status", HTML: "running " + esc(e.Tool)})
+		return append(s.timelineFragments(), statusFragment("running "+e.Tool, true))
 
 	case copilot.EvToolProgress:
 		if e.ToolCall != nil {
@@ -80,12 +80,12 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		if active := s.state.ActiveTools(); len(active) > 0 {
 			st = "running " + active[len(active)-1]
 		}
-		return append(s.timelineFragments(), fragment{Event: "status", HTML: esc(st)})
+		return append(s.timelineFragments(), statusFragment(st, true))
 
 	case copilot.EvIdle:
 		s.state.Finish("")
 		s.live = liveNone
-		return append(s.timelineFragments(), fragment{Event: "status", HTML: ""})
+		return append(s.timelineFragments(), statusFragment("", false))
 
 	case copilot.EvUsage:
 		s.meter.Record(telemetry.Usage{
@@ -104,7 +104,7 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		s.perms = append(s.perms, *e.Permission)
 		return []fragment{
 			{Event: "perm", HTML: renderPermForm(e.Permission.ID, e.Permission.Detail)},
-			{Event: "status", HTML: "permission requested"},
+			statusFragment("permission requested", true),
 		}
 
 	case copilot.EvError:

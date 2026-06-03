@@ -113,6 +113,22 @@ func renderPermForm(id, detail string) string {
 		`</form>`
 }
 
+// renderStatus renders the status-line content swapped into #status. While a
+// turn is active it appends an inline abort control (POST /abort); when idle it
+// is just the (possibly empty) status text, so the button disappears on its own.
+func renderStatus(text string, active bool) string {
+	html := `<span class="status-text">` + esc(text) + `</span>`
+	if active {
+		html += ` <button class="abort" hx-post="/abort" hx-target="#status" hx-swap="innerHTML">⏹ stop</button>`
+	}
+	return html
+}
+
+// statusFragment is the SSE/OOB fragment carrying renderStatus output.
+func statusFragment(text string, active bool) fragment {
+	return fragment{Event: "status", HTML: renderStatus(text, active)}
+}
+
 // renderCostFooter renders the ambient credit/budget meter.
 func renderCostFooter(meter *telemetry.Meter, allowance float64) string {
 	totals := meter.Totals()
