@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"html/template"
 	"io/fs"
 	"log"
@@ -36,6 +37,8 @@ type Server struct {
 	live      liveKind
 	sessionID string
 	pending   []string // file paths queued via /attach for the next prompt
+	busy      bool     // a turn is in flight; further prompts are queued
+	queue     []string // prompts typed while busy, drained in order on turn end
 }
 
 // Options configures a Server.
@@ -171,8 +174,29 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A turn is already running: queue the prompt instead of dispatching it.
+	// The user bubble shows immediately (Claude-CLI-style type-ahead); the reply
+	// streams once the in-flight turn ends and the queue drains (handleEvent
+	// EvIdle). The composer is never disabled — POST and SSE stay decoupled.
+	s.mu.Lock()
+	if s.busy {
+		s.state.AddUser(prompt)
+		s.queue = append(s.queue, prompt)
+		n := len(s.queue)
+		oob := s.oobTimeline() +
+			`<div id="status" hx-swap-oob="innerHTML">` + renderStatus(queuedStatus(n), true) + `</div>`
+		s.mu.Unlock()
+		_, _ = w.Write([]byte(oob))
+		return
+	}
+	s.busy = true
+	s.mu.Unlock()
+
 	sessionID, err := s.ensureSession(r.Context())
 	if err != nil {
+		s.mu.Lock()
+		s.busy = false
+		s.mu.Unlock()
 		s.logger.Printf("create session: %v", err)
 		http.Error(w, "session unavailable", http.StatusBadGateway)
 		return
@@ -186,9 +210,15 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	oob := s.oobTimeline() + `<div id="status" hx-swap-oob="innerHTML">` + renderStatus("thinking…", true) + `</div>`
 	s.mu.Unlock()
 
-	if err := s.client.Send(r.Context(), sessionID, prompt, attachments); err != nil {
+	s.dispatch(r.Context(), sessionID, prompt, attachments)
+	_, _ = w.Write([]byte(oob))
+}
+
+// dispatch sends a prompt to the backing session and, in demo mode, kicks the
+// scripted reply. Shared by handleSend and the queue drain (handleEvent EvIdle).
+func (s *Server) dispatch(ctx context.Context, sessionID, prompt string, attachments []string) {
+	if err := s.client.Send(ctx, sessionID, prompt, attachments); err != nil {
 		s.logger.Printf("send: %v", err)
-		http.Error(w, "send failed", http.StatusBadGateway)
 		return
 	}
 	if s.demo {
@@ -196,12 +226,22 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 			go streamDemoReply(mock, prompt)
 		}
 	}
-	_, _ = w.Write([]byte(oob))
+}
+
+// queuedStatus renders the status text shown while prompts are queued behind an
+// in-flight turn.
+func queuedStatus(n int) string {
+	if n == 1 {
+		return "thinking… · 1 queued"
+	}
+	return fmt.Sprintf("thinking… · %d queued", n)
 }
 
 func (s *Server) handleAbort(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	id := s.sessionID
+	s.queue = nil // abort cancels the turn and any prompts queued behind it
+	s.busy = false
 	s.mu.Unlock()
 	if id != "" {
 		if err := s.client.Abort(r.Context(), id); err != nil {

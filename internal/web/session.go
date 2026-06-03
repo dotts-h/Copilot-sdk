@@ -1,6 +1,8 @@
 package web
 
 import (
+	"context"
+
 	"github.com/dotts-h/copilot-sdk/internal/convo"
 	"github.com/dotts-h/copilot-sdk/internal/copilot"
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
@@ -85,6 +87,20 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 	case copilot.EvIdle:
 		s.state.Finish("")
 		s.live = liveNone
+		// Drain the next queued prompt, if any (its user bubble is already in the
+		// transcript — see handleSend). The session stays busy across the drain.
+		if len(s.queue) > 0 && s.sessionID != "" {
+			next := s.queue[0]
+			s.queue = s.queue[1:]
+			sid := s.sessionID
+			go s.dispatch(context.Background(), sid, next, nil)
+			st := "thinking…"
+			if rem := len(s.queue); rem > 0 {
+				st = queuedStatus(rem)
+			}
+			return append(s.timelineFragments(), statusFragment(st, true))
+		}
+		s.busy = false
 		return append(s.timelineFragments(), statusFragment("", false))
 
 	case copilot.EvUsage:
