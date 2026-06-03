@@ -93,13 +93,17 @@ func (s *Server) chatPartial() string {
 	for _, p := range s.perms {
 		perms.WriteString(renderPermForm(p.ID, p.Detail))
 	}
+	ctx := renderCtx(s.ctxCurrent, s.ctxLimit, s.compacting)
 	s.mu.Unlock()
 
 	return `<section class="chat">` +
 		`<div id="timeline" class="timeline">` + timeline + `</div>` +
 		`<div id="perms" class="perms">` + perms.String() + `</div>` +
 		`<div class="composer-bar">` +
+		`<div class="status-row">` +
 		`<div id="status" class="status"></div>` +
+		`<div id="ctx" class="ctx">` + ctx + `</div>` +
+		`</div>` +
 		`<div id="cmd-menu" class="cmd-menu-wrap"></div>` +
 		`<form id="composer" hx-post="/send" hx-swap="none" ` +
 		`hx-on::after-request="this.reset(); document.getElementById('cmd-menu').innerHTML=''; this.querySelector('input').focus()">` +

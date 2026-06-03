@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/dotts-h/copilot-sdk/internal/config"
 	"github.com/dotts-h/copilot-sdk/internal/convo"
@@ -31,14 +32,18 @@ type Server struct {
 	logger    *log.Logger
 	demo      bool
 
-	mu        sync.Mutex
-	state     convo.State
-	perms     []copilot.PermissionRequest
-	live      liveKind
-	sessionID string
-	pending   []string // file paths queued via /attach for the next prompt
-	busy      bool     // a turn is in flight; further prompts are queued
-	queue     []string // prompts typed while busy, drained in order on turn end
+	mu          sync.Mutex
+	state       convo.State
+	perms       []copilot.PermissionRequest
+	live        liveKind
+	sessionID   string
+	pending     []string // file paths queued via /attach for the next prompt
+	busy        bool     // a turn is in flight; further prompts are queued
+	queue       []string // prompts typed while busy, drained in order on turn end
+	turnStartMs int64    // epoch ms the active turn began (drives the elapsed timer); 0 when idle
+	ctxCurrent  int64    // last context-window token reading (EvContextWindow)
+	ctxLimit    int64    // context-window size from the last reading
+	compacting  bool     // conversation compaction is in progress
 }
 
 // Options configures a Server.
@@ -184,12 +189,13 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		s.queue = append(s.queue, prompt)
 		n := len(s.queue)
 		oob := s.oobTimeline() +
-			`<div id="status" hx-swap-oob="innerHTML">` + renderStatus(queuedStatus(n), true) + `</div>`
+			`<div id="status" hx-swap-oob="innerHTML">` + renderStatus(queuedStatus(n), true, s.turnStartMs) + `</div>`
 		s.mu.Unlock()
 		_, _ = w.Write([]byte(oob))
 		return
 	}
 	s.busy = true
+	s.turnStartMs = nowMs()
 	s.mu.Unlock()
 
 	sessionID, err := s.ensureSession(r.Context())
@@ -207,7 +213,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	attachments := s.pending
 	s.pending = nil
 	s.live = liveNone
-	oob := s.oobTimeline() + `<div id="status" hx-swap-oob="innerHTML">` + renderStatus("thinking…", true) + `</div>`
+	oob := s.oobTimeline() + `<div id="status" hx-swap-oob="innerHTML">` + renderStatus("thinking…", true, s.turnStartMs) + `</div>`
 	s.mu.Unlock()
 
 	s.dispatch(r.Context(), sessionID, prompt, attachments)
@@ -242,6 +248,7 @@ func (s *Server) handleAbort(w http.ResponseWriter, r *http.Request) {
 	id := s.sessionID
 	s.queue = nil // abort cancels the turn and any prompts queued behind it
 	s.busy = false
+	s.turnStartMs = 0
 	s.mu.Unlock()
 	if id != "" {
 		if err := s.client.Abort(r.Context(), id); err != nil {
@@ -251,7 +258,7 @@ func (s *Server) handleAbort(w http.ResponseWriter, r *http.Request) {
 	// Clear the status line immediately; the client's turn-end event over /events
 	// will also settle it. hx-target on the button swaps this into #status.
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte(renderStatus("aborted", false)))
+	_, _ = w.Write([]byte(renderStatus("aborted", false, 0)))
 }
 
 // handlePerm resolves a pending tool-permission request via the client's
@@ -368,6 +375,25 @@ func (s *Server) handleAgentDelete(w http.ResponseWriter, r *http.Request) {
 func (s *Server) oobTimeline() string {
 	return `<div id="timeline" hx-swap-oob="innerHTML">` + renderTimelineInner(&s.state) + `</div>`
 }
+
+// statusFrag builds the status SSE fragment, attaching the live elapsed-timer
+// start when a turn is active. Caller must hold s.mu.
+func (s *Server) statusFrag(text string, active bool) fragment {
+	start := int64(0)
+	if active {
+		start = s.turnStartMs
+	}
+	return fragment{Event: "status", HTML: renderStatus(text, active, start)}
+}
+
+// ctxFrag builds the context-meter SSE fragment from the latest reading.
+// Caller must hold s.mu.
+func (s *Server) ctxFrag() fragment {
+	return fragment{Event: "ctx", HTML: renderCtx(s.ctxCurrent, s.ctxLimit, s.compacting)}
+}
+
+// nowMs returns the current time in epoch milliseconds.
+func nowMs() int64 { return time.Now().UnixMilli() }
 
 // dropPerm removes a resolved permission from the queue. Caller must hold s.mu.
 func (s *Server) dropPerm(id string) {

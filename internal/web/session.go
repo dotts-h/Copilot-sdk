@@ -56,7 +56,7 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 	case copilot.EvMessage:
 		s.state.Finish(e.Text)
 		s.live = liveNone
-		return append(s.timelineFragments(), statusFragment("ready", false))
+		return append(s.timelineFragments(), s.statusFrag("ready", false))
 
 	case copilot.EvToolStart:
 		args := ""
@@ -65,7 +65,7 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		}
 		s.state.ToolStart(toolID(e), e.Tool, args)
 		s.live = liveNone
-		return append(s.timelineFragments(), statusFragment("running "+e.Tool, true))
+		return append(s.timelineFragments(), s.statusFrag("running "+e.Tool, true))
 
 	case copilot.EvToolProgress:
 		if e.ToolCall != nil {
@@ -82,26 +82,29 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		if active := s.state.ActiveTools(); len(active) > 0 {
 			st = "running " + active[len(active)-1]
 		}
-		return append(s.timelineFragments(), statusFragment(st, true))
+		return append(s.timelineFragments(), s.statusFrag(st, true))
 
 	case copilot.EvIdle:
 		s.state.Finish("")
 		s.live = liveNone
 		// Drain the next queued prompt, if any (its user bubble is already in the
-		// transcript — see handleSend). The session stays busy across the drain.
+		// transcript — see handleSend). The session stays busy across the drain,
+		// and the drained prompt starts a fresh turn for the elapsed timer.
 		if len(s.queue) > 0 && s.sessionID != "" {
 			next := s.queue[0]
 			s.queue = s.queue[1:]
 			sid := s.sessionID
+			s.turnStartMs = nowMs()
 			go s.dispatch(context.Background(), sid, next, nil)
 			st := "thinking…"
 			if rem := len(s.queue); rem > 0 {
 				st = queuedStatus(rem)
 			}
-			return append(s.timelineFragments(), statusFragment(st, true))
+			return append(s.timelineFragments(), s.statusFrag(st, true))
 		}
 		s.busy = false
-		return append(s.timelineFragments(), statusFragment("", false))
+		s.turnStartMs = 0
+		return append(s.timelineFragments(), s.statusFrag("", false))
 
 	case copilot.EvUsage:
 		s.meter.Record(telemetry.Usage{
@@ -120,8 +123,27 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		s.perms = append(s.perms, *e.Permission)
 		return []fragment{
 			{Event: "perm", HTML: renderPermForm(e.Permission.ID, e.Permission.Detail)},
-			statusFragment("permission requested", true),
+			s.statusFrag("permission requested", true),
 		}
+
+	case copilot.EvContextWindow:
+		s.ctxCurrent = e.Context.CurrentTokens
+		s.ctxLimit = e.Context.TokenLimit
+		return []fragment{s.ctxFrag()}
+
+	case copilot.EvCompactionStart:
+		s.compacting = true
+		s.state.AddSystem("✻ compacting conversation…")
+		return append(s.timelineFragments(), s.ctxFrag())
+
+	case copilot.EvCompactionEnd:
+		s.compacting = false
+		note := e.Text
+		if note == "" {
+			note = "compacted context"
+		}
+		s.state.AddSystem("✻ " + note)
+		return append(s.timelineFragments(), s.ctxFrag())
 
 	case copilot.EvError:
 		msg := "unknown error"

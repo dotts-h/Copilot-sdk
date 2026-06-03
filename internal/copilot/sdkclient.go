@@ -253,6 +253,14 @@ func (c *SDKClient) makeHandler() func(sdk.SessionEvent) {
 			c.emit(Event{Type: EvToolEnd, Tool: name, ToolCall: &ToolCall{
 				ID: d.ToolCallID, Name: name, Success: d.Success, Result: toolResultText(d),
 			}})
+		case *sdk.SessionUsageInfoData:
+			c.emit(Event{Type: EvContextWindow, Context: ContextInfo{
+				CurrentTokens: d.CurrentTokens, TokenLimit: d.TokenLimit,
+			}})
+		case *sdk.SessionCompactionStartData:
+			c.emit(Event{Type: EvCompactionStart})
+		case *sdk.SessionCompactionCompleteData:
+			c.emit(Event{Type: EvCompactionEnd, Text: compactionSummary(d)})
 		case *sdk.SessionIdleData:
 			c.emit(Event{Type: EvIdle})
 		}
@@ -278,6 +286,21 @@ func (c *SDKClient) permissionHandler() sdk.PermissionHandlerFunc {
 			return &rpc.PermissionDecisionUserNotAvailable{}, nil
 		}
 	}
+}
+
+// compactionSummary renders a one-line, human-readable result of a conversation
+// compaction for display as a system note.
+func compactionSummary(d *sdk.SessionCompactionCompleteData) string {
+	if !d.Success {
+		if d.Error != nil && *d.Error != "" {
+			return "compaction failed: " + *d.Error
+		}
+		return "compaction failed"
+	}
+	if d.TokensRemoved != nil && *d.TokensRemoved > 0 {
+		return fmt.Sprintf("compacted context (freed %d tokens)", *d.TokensRemoved)
+	}
+	return "compacted context"
 }
 
 // describePermission renders a short, human-readable summary of a request.

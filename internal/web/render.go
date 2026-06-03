@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"html"
+	"strconv"
 	"strings"
 
 	"github.com/dotts-h/copilot-sdk/internal/convo"
@@ -114,19 +115,55 @@ func renderPermForm(id, detail string) string {
 }
 
 // renderStatus renders the status-line content swapped into #status. While a
-// turn is active it appends an inline abort control (POST /abort); when idle it
-// is just the (possibly empty) status text, so the button disappears on its own.
-func renderStatus(text string, active bool) string {
-	html := `<span class="status-text">` + esc(text) + `</span>`
+// turn is active it appends a live elapsed-time timer (ticked client-side from
+// the data-start epoch) and an inline abort control (POST /abort); when idle it
+// is just the (possibly empty) status text, so both disappear on their own.
+func renderStatus(text string, active bool, startMs int64) string {
+	var b strings.Builder
+	b.WriteString(`<span class="status-text">` + esc(text) + `</span>`)
 	if active {
-		html += ` <button class="abort" hx-post="/abort" hx-target="#status" hx-swap="innerHTML">⏹ stop</button>`
+		if startMs > 0 {
+			fmt.Fprintf(&b, ` <span class="elapsed" data-start="%d">0s</span>`, startMs)
+		}
+		b.WriteString(` <button class="abort" hx-post="/abort" hx-target="#status" hx-swap="innerHTML">⏹ stop</button>`)
 	}
-	return html
+	return b.String()
 }
 
-// statusFragment is the SSE/OOB fragment carrying renderStatus output.
-func statusFragment(text string, active bool) fragment {
-	return fragment{Event: "status", HTML: renderStatus(text, active)}
+// renderCtx renders the live context-window meter (#ctx): a token count and
+// fill percentage of the model's context window, or a compaction indicator while
+// the conversation is being compacted. Empty until the first usage reading.
+func renderCtx(cur, limit int64, compacting bool) string {
+	if compacting {
+		return `<span class="ctx-compacting">✻ compacting…</span>`
+	}
+	if limit <= 0 {
+		if cur <= 0 {
+			return ""
+		}
+		return `<span class="ctx-tokens">` + humanTokens(cur) + ` tok</span>`
+	}
+	pct := int(float64(cur)/float64(limit)*100 + 0.5)
+	if pct > 100 {
+		pct = 100
+	}
+	cls := "ctx-meter"
+	if pct >= 80 {
+		cls += " warn"
+	}
+	return fmt.Sprintf(`<span class="%s">ctx %s/%s · %d%%</span>`, cls, humanTokens(cur), humanTokens(limit), pct)
+}
+
+// humanTokens renders a token count compactly (1.5k, 128.0k, 2.5M).
+func humanTokens(n int64) string {
+	switch {
+	case n >= 1_000_000:
+		return fmt.Sprintf("%.1fM", float64(n)/1e6)
+	case n >= 1000:
+		return fmt.Sprintf("%.1fk", float64(n)/1e3)
+	default:
+		return strconv.FormatInt(n, 10)
+	}
 }
 
 // renderCostFooter renders the ambient credit/budget meter.

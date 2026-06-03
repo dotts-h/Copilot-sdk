@@ -40,9 +40,12 @@ func streamDemoReply(m *copilot.MockClient, prompt string) {
 	stream(reply, copilot.EvMessageDelta)
 	m.Emit(copilot.Event{Type: copilot.EvMessage, Text: reply})
 
-	// 4. Usage → cost footer.
+	// 4. Usage → cost footer, and a context-window reading → live ctx meter.
 	m.Emit(copilot.Event{Type: copilot.EvUsage, Usage: copilot.UsageData{
 		Model: "gpt-5", InputTokens: 1200, CachedTokens: 200, OutputTokens: 340,
+	}})
+	m.Emit(copilot.Event{Type: copilot.EvContextWindow, Context: copilot.ContextInfo{
+		CurrentTokens: 18400, TokenLimit: 128000,
 	}})
 
 	// 5. End of turn.

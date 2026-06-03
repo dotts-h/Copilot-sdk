@@ -70,12 +70,16 @@ func (s *Server) cmdClear() string {
 	s.pending = nil
 	s.queue = nil
 	s.busy = false
+	s.turnStartMs = 0
+	s.ctxCurrent, s.ctxLimit = 0, 0
+	s.compacting = false
 	s.sessionID = ""
 	s.live = liveNone
 	s.state.AddSystem("conversation cleared")
 	return s.oobTimeline() +
 		`<div id="perms" hx-swap-oob="innerHTML"></div>` +
-		`<div id="status" hx-swap-oob="innerHTML"></div>`
+		`<div id="status" hx-swap-oob="innerHTML"></div>` +
+		`<div id="ctx" hx-swap-oob="innerHTML"></div>`
 }
 
 // cmdModel switches the session model in place (restarting the session) and

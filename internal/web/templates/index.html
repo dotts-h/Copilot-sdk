@@ -27,6 +27,7 @@
     <div sse-swap="timeline" hx-target="#timeline"    hx-swap="innerHTML"></div>
     <div sse-swap="perm"     hx-target="#perms"       hx-swap="beforeend"></div>
     <div sse-swap="status"   hx-target="#status"      hx-swap="innerHTML"></div>
+    <div sse-swap="ctx"      hx-target="#ctx"         hx-swap="innerHTML"></div>
     <div sse-swap="cost"     hx-target="#cost-footer" hx-swap="innerHTML"></div>
   </div>
 
@@ -41,6 +42,18 @@
       if (menu) menu.innerHTML = '';
       input.focus();
     }
+
+    // Tick every live elapsed-time timer in the status line once a second. The
+    // server stamps each active status with data-start (epoch ms); when the turn
+    // ends the element disappears, so the loop self-clears.
+    setInterval(function () {
+      var now = Date.now();
+      document.querySelectorAll('.elapsed[data-start]').forEach(function (el) {
+        var secs = Math.floor((now - parseInt(el.getAttribute('data-start'), 10)) / 1000);
+        if (!(secs >= 0)) secs = 0;
+        el.textContent = secs < 60 ? secs + 's' : Math.floor(secs / 60) + 'm' + (secs % 60) + 's';
+      });
+    }, 1000);
   </script>
 </body>
 </html>{{end}}
