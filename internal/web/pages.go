@@ -104,6 +104,7 @@ func (s *Server) telemetryPartial() string {
 func (s *Server) skillsPartial() string {
 	var b strings.Builder
 	b.WriteString(`<section class="page"><h2>Skills</h2>`)
+	b.WriteString(addButton("skills", "skill"))
 	if len(s.forge.Skills) == 0 {
 		b.WriteString(`<p class="dim">no skills yet — add them to the forge (forge.json)</p>`)
 	}
@@ -118,6 +119,7 @@ func (s *Server) skillsPartial() string {
 func (s *Server) instructionsPartial() string {
 	var b strings.Builder
 	b.WriteString(`<section class="page"><h2>Instructions</h2>`)
+	b.WriteString(addButton("instructions", "instruction"))
 	if len(s.forge.Instructions) == 0 {
 		b.WriteString(`<p class="dim">no instructions yet</p>`)
 	}
@@ -133,6 +135,7 @@ func (s *Server) instructionsPartial() string {
 func (s *Server) agentsPartial() string {
 	var b strings.Builder
 	b.WriteString(`<section class="page"><h2>Agents</h2>`)
+	b.WriteString(addButton("agents", "agent"))
 	if len(s.forge.Agents) == 0 {
 		b.WriteString(`<p class="dim">no agents yet</p>`)
 	}
@@ -142,9 +145,10 @@ func (s *Server) agentsPartial() string {
 		desc := fmt.Sprintf("%s · %s · %s", a.Model, def(a.ReasoningEffort, "medium"), a.Description)
 		mark := `<button class="toggle" hx-post="/agents/` + esc(a.ID) + `/select" hx-target="#main" hx-swap="innerHTML">` +
 			markGlyph(active) + `</button>`
+		edit := `<button class="edit" hx-get="/agents/` + esc(a.ID) + `/edit" hx-target="#main" hx-swap="innerHTML">edit</button>`
 		del := `<button class="del" hx-post="/agents/` + esc(a.ID) + `/delete" hx-target="#main" hx-swap="innerHTML" hx-confirm="Delete agent ` + esc(a.Name) + `?">✕</button>`
-		fmt.Fprintf(&b, `<li class="row %s">%s<div class="row-text"><span class="row-name">%s</span><span class="row-desc">%s</span></div>%s</li>`,
-			activeClass(active), mark, esc(a.Name), esc(desc), del)
+		fmt.Fprintf(&b, `<li class="row %s">%s<div class="row-text"><span class="row-name">%s</span><span class="row-desc">%s</span></div>%s%s</li>`,
+			activeClass(active), mark, esc(a.Name), esc(desc), edit, del)
 	}
 	b.WriteString(`</ul></section>`)
 	return b.String()
@@ -182,9 +186,16 @@ func (s *Server) settingsPartial() string {
 func toggleRow(kind, id string, on bool, name, desc string) string {
 	eid := esc(id)
 	toggle := `<button class="toggle" hx-post="/` + kind + `/` + eid + `/toggle" hx-target="#main" hx-swap="innerHTML">` + markGlyph(on) + `</button>`
+	edit := `<button class="edit" hx-get="/` + kind + `/` + eid + `/edit" hx-target="#main" hx-swap="innerHTML">edit</button>`
 	del := `<button class="del" hx-post="/` + kind + `/` + eid + `/delete" hx-target="#main" hx-swap="innerHTML" hx-confirm="Delete ` + esc(name) + `?">✕</button>`
-	return fmt.Sprintf(`<li class="row %s">%s<div class="row-text"><span class="row-name">%s</span><span class="row-desc">%s</span></div>%s</li>`,
-		activeClass(on), toggle, esc(name), esc(truncate(desc, 80)), del)
+	return fmt.Sprintf(`<li class="row %s">%s<div class="row-text"><span class="row-name">%s</span><span class="row-desc">%s</span></div>%s%s</li>`,
+		activeClass(on), toggle, esc(name), esc(truncate(desc, 80)), edit, del)
+}
+
+// addButton renders the "+ Add" control that loads a blank create form for the
+// given list page into #main. kind is the route slug, noun the singular label.
+func addButton(kind, noun string) string {
+	return `<button class="add" hx-get="/` + kind + `/new" hx-target="#main" hx-swap="innerHTML">+ Add ` + esc(noun) + `</button>`
 }
 
 func markGlyph(on bool) string {

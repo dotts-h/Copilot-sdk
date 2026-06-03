@@ -85,10 +85,25 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /abort", s.handleAbort)
 	mux.HandleFunc("POST /perm/{id}", s.handlePerm)
 	mux.HandleFunc("GET /page/{name}", s.handlePage)
+
+	mux.HandleFunc("GET /skills/new", s.handleSkillNew)
+	mux.HandleFunc("GET /skills/{id}/edit", s.handleSkillEdit)
+	mux.HandleFunc("POST /skills", s.handleSkillCreate)
+	mux.HandleFunc("POST /skills/{id}", s.handleSkillUpdate)
 	mux.HandleFunc("POST /skills/{id}/toggle", s.handleSkillToggle)
 	mux.HandleFunc("POST /skills/{id}/delete", s.handleSkillDelete)
+
+	mux.HandleFunc("GET /instructions/new", s.handleInstructionNew)
+	mux.HandleFunc("GET /instructions/{id}/edit", s.handleInstructionEdit)
+	mux.HandleFunc("POST /instructions", s.handleInstructionCreate)
+	mux.HandleFunc("POST /instructions/{id}", s.handleInstructionUpdate)
 	mux.HandleFunc("POST /instructions/{id}/toggle", s.handleInstructionToggle)
 	mux.HandleFunc("POST /instructions/{id}/delete", s.handleInstructionDelete)
+
+	mux.HandleFunc("GET /agents/new", s.handleAgentNew)
+	mux.HandleFunc("GET /agents/{id}/edit", s.handleAgentEdit)
+	mux.HandleFunc("POST /agents", s.handleAgentCreate)
+	mux.HandleFunc("POST /agents/{id}", s.handleAgentUpdate)
 	mux.HandleFunc("POST /agents/{id}/select", s.handleAgentSelect)
 	mux.HandleFunc("POST /agents/{id}/delete", s.handleAgentDelete)
 	return mux
