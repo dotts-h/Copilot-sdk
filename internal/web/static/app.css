@@ -122,6 +122,25 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
   border: 1px solid var(--panel); padding: .3rem .5rem; font: inherit; background: var(--bg, #1b1d1e); color: inherit; }
 .plan .plan-reject { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--bad); color: #fff; }
 
+/* elicitation (schema-driven MCP form dialog) */
+.elicits { max-width: 56rem; width: 100%; margin: 0 auto; padding: 0 1rem; }
+.elicit { display: flex; flex-direction: column; gap: .5rem; margin: .4rem 0;
+  padding: .6rem .75rem; border-radius: 8px;
+  background: rgba(110,168,254,.10); border-left: 3px solid var(--accent2, #6ea8fe); }
+.elicit .elicit-msg { font-size: 1.02em; }
+.elicit .elicit-source { font-size: .8em; opacity: .65; }
+.elicit-field { display: flex; flex-direction: column; gap: .2rem; }
+.elicit-field .elicit-label { font-size: .85em; opacity: .85; }
+.elicit-field .elicit-label .req { color: var(--bad); }
+.elicit-field .elicit-desc { font-size: .78em; opacity: .6; }
+.elicit-field input[type=text], .elicit-field input[type=number], .elicit-field select {
+  border-radius: 6px; border: 1px solid var(--panel); padding: .3rem .5rem; font: inherit;
+  background: var(--bg, #1b1d1e); color: inherit; max-width: 24rem; }
+.elicit-field input[type=checkbox] { align-self: flex-start; }
+.elicit .elicit-actions { display: flex; gap: .4rem; }
+.elicit .elicit-ok { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--good); color: #1b1d1e; }
+.elicit .elicit-no { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--bad); color: #fff; }
+
 /* sub-agent background-activity strip */
 .subagents { display: flex; flex-wrap: wrap; gap: .4rem; max-width: 56rem; margin: 0 auto .35rem;
   min-height: 0; }

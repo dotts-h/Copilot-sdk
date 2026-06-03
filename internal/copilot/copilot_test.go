@@ -88,6 +88,7 @@ func newTestSDKClient() *SDKClient {
 		perms:     newPermBridge(),
 		inputs:    newInputBridge(),
 		plans:     newPlanBridge(),
+		elicits:   newElicitBridge(),
 		sessions:  map[string]*sdk.Session{},
 		unsubs:    map[string]func(){},
 		toolNames: map[string]string{},

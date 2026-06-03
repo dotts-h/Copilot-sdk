@@ -74,7 +74,7 @@ func helpPartial() string {
 
 	b.WriteString(`<h3>Panels</h3><table class="kv">`)
 	rows := [][2]string{
-		{"Chat", "Stream prompts and replies; approve tool permissions, answer the agent's questions (ask_user), and review its plans (approve or request changes) — all inline; abort an in-flight turn with ⏹ stop. " +
+		{"Chat", "Stream prompts and replies; approve tool permissions, answer the agent's questions (ask_user), fill schema-driven forms from MCP servers (elicitation), and review its plans (approve or request changes) — all inline; abort an in-flight turn with ⏹ stop. " +
 			"Type ahead while a turn runs — extra prompts queue and send automatically when the turn ends."},
 		{"Telemetry", "Live credit/token spend, per-model breakdown, and your monthly budget."},
 		{"Skills", "Reusable prompt fragments; toggle which are active for the session."},
@@ -107,6 +107,10 @@ func (s *Server) chatPartial() string {
 	for _, p := range s.plans {
 		plans.WriteString(renderPlanForm(p))
 	}
+	var elicits strings.Builder
+	for _, e := range s.elicits {
+		elicits.WriteString(renderElicitForm(e))
+	}
 	ctx := renderCtx(s.ctxCurrent, s.ctxLimit, s.compacting)
 	subagents := renderSubagents(s.subagents)
 	s.mu.Unlock()
@@ -116,6 +120,7 @@ func (s *Server) chatPartial() string {
 		`<div id="perms" class="perms">` + perms.String() + `</div>` +
 		`<div id="asks" class="asks">` + asks.String() + `</div>` +
 		`<div id="plans" class="plans">` + plans.String() + `</div>` +
+		`<div id="elicits" class="elicits">` + elicits.String() + `</div>` +
 		`<div class="composer-bar">` +
 		`<div id="subagents" class="subagents">` + subagents + `</div>` +
 		`<div class="status-row">` +

@@ -146,6 +146,16 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 			s.statusFrag("plan ready for review", true),
 		}
 
+	case copilot.EvElicitation:
+		if e.Elicit == nil {
+			return nil
+		}
+		s.elicits = append(s.elicits, *e.Elicit)
+		return []fragment{
+			{Event: "elicit", HTML: renderElicitForm(*e.Elicit)},
+			s.statusFrag("input requested", true),
+		}
+
 	case copilot.EvPlanChanged:
 		note := e.Text
 		if note == "" {

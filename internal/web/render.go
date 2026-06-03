@@ -179,6 +179,84 @@ func renderPlanForm(req copilot.PlanRequest) string {
 	return b.String()
 }
 
+// elicitFieldKey returns the form-input name for an elicitation field. The
+// "f." prefix keeps field inputs from colliding with the form's "action" button
+// and lets handleElicit read each field's value by reconstructing the key.
+func elicitFieldKey(name string) string { return "f." + name }
+
+// renderElicitForm renders a schema-driven elicitation dialog from an MCP server:
+// the message (and source), one control per field chosen by the field's type
+// (checkbox for boolean, select for an enum, number/text input otherwise), and
+// submit/decline buttons. It posts to /elicit/{id}, mirroring renderAskForm. The
+// "action" button value ("accept"/"decline") tells the handler what to do; field
+// inputs carry the submitted values.
+func renderElicitForm(req copilot.ElicitRequest) string {
+	eid := esc(req.ID)
+	var b strings.Builder
+	b.WriteString(`<form class="elicit" id="elicit-` + eid + `" hx-post="/elicit/` + eid +
+		`" hx-target="#elicit-` + eid + `" hx-swap="outerHTML">`)
+	b.WriteString(`<div class="elicit-msg">📝 <b>` + esc(req.Message) + `</b>`)
+	if req.Source != "" {
+		b.WriteString(` <span class="elicit-source">` + esc(req.Source) + `</span>`)
+	}
+	b.WriteString(`</div>`)
+	for _, f := range req.Fields {
+		b.WriteString(renderElicitField(f))
+	}
+	b.WriteString(`<div class="elicit-actions">` +
+		`<button class="elicit-ok" name="action" value="accept" type="submit">submit</button>` +
+		`<button class="elicit-no" name="action" value="decline" type="submit" formnovalidate>decline</button>` +
+		`</div></form>`)
+	return b.String()
+}
+
+// renderElicitField renders one labelled form control for an elicitation field,
+// pre-filled from its default and switched on its type.
+func renderElicitField(f copilot.ElicitField) string {
+	key := esc(elicitFieldKey(f.Name))
+	label := esc(f.Label)
+	if f.Required {
+		label += ` <span class="req">*</span>`
+	}
+	var b strings.Builder
+	b.WriteString(`<label class="elicit-field"><span class="elicit-label">` + label + `</span>`)
+	switch {
+	case f.Type == "boolean":
+		checked := ""
+		if f.Default == "true" {
+			checked = " checked"
+		}
+		b.WriteString(`<input type="checkbox" name="` + key + `" value="true"` + checked + `>`)
+	case len(f.Enum) > 0:
+		b.WriteString(`<select name="` + key + `">`)
+		for i, opt := range f.Enum {
+			text := opt
+			if i < len(f.EnumLabels) && f.EnumLabels[i] != "" {
+				text = f.EnumLabels[i]
+			}
+			sel := ""
+			if opt == f.Default {
+				sel = " selected"
+			}
+			b.WriteString(`<option value="` + esc(opt) + `"` + sel + `>` + esc(text) + `</option>`)
+		}
+		b.WriteString(`</select>`)
+	case f.Type == "number" || f.Type == "integer":
+		step := ""
+		if f.Type == "number" {
+			step = ` step="any"`
+		}
+		b.WriteString(`<input type="number"` + step + ` name="` + key + `" value="` + esc(f.Default) + `" autocomplete="off">`)
+	default:
+		b.WriteString(`<input type="text" name="` + key + `" value="` + esc(f.Default) + `" autocomplete="off">`)
+	}
+	if f.Description != "" {
+		b.WriteString(`<span class="elicit-desc">` + esc(f.Description) + `</span>`)
+	}
+	b.WriteString(`</label>`)
+	return b.String()
+}
+
 // subagentLabel returns a sub-agent's display name, falling back to its internal
 // name, then to a generic label.
 func subagentLabel(sa copilot.SubagentInfo) string {

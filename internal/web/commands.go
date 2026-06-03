@@ -71,6 +71,7 @@ func (s *Server) cmdClear() string {
 	s.perms = nil
 	s.inputs = nil
 	s.plans = nil
+	s.elicits = nil
 	s.subagents = nil
 	s.planMode = false
 	s.pending = nil
@@ -86,6 +87,7 @@ func (s *Server) cmdClear() string {
 		`<div id="perms" hx-swap-oob="innerHTML"></div>` +
 		`<div id="asks" hx-swap-oob="innerHTML"></div>` +
 		`<div id="plans" hx-swap-oob="innerHTML"></div>` +
+		`<div id="elicits" hx-swap-oob="innerHTML"></div>` +
 		`<div id="subagents" hx-swap-oob="innerHTML"></div>` +
 		`<div id="status" hx-swap-oob="innerHTML"></div>` +
 		`<div id="ctx" hx-swap-oob="innerHTML"></div>`
