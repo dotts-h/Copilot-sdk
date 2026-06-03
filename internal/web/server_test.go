@@ -18,17 +18,19 @@ import (
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
 
-// newTestServer builds a Server wired with a mock client and minimal deps.
+// newTestServer builds a Hub wired with a mock client and minimal deps, and
+// returns its single default session (the lone-session fallback routes
+// cookieless test requests to it).
 func newTestServer() (*Server, *copilot.MockClient) {
 	mock := copilot.NewMockClient()
-	s := New(Options{
+	hub := New(Options{
 		Client: mock,
 		Forge:  &ctxforge.Forge{},
 		Config: &config.Config{DefaultModel: "gpt-5"},
 		Meter:  telemetry.NewMeter(telemetry.DefaultPriceBook()),
 		Logger: log.New(io.Discard, "", 0),
 	})
-	return s, mock
+	return hub.newSession("test"), mock
 }
 
 func TestWriteSSE(t *testing.T) {

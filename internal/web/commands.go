@@ -124,25 +124,26 @@ func (s *Server) cmdModel(name string) string {
 		s.mu.Unlock()
 		return s.systemNote("model: " + def(cur, "(default)"))
 	}
-	s.mu.Lock()
 	s.setModel(name)
-	s.state.AddSystem("model → " + name + " (new session)")
-	oob := s.oobTimeline()
-	s.mu.Unlock()
-	return oob
+	return s.systemNote("model → " + name + " (new session)")
 }
 
-// setModel switches the active model in place: it updates the session spec,
-// clears the session id so the next prompt opens a fresh session with the new
-// model, and persists it as the default. Caller must hold s.mu.
+// setModel switches this session's model in place (clearing the session id so
+// the next prompt opens a fresh copilot session) and persists it as the shared
+// default. It locks the per-session and shared state separately, so callers must
+// hold neither lock.
 func (s *Server) setModel(name string) {
+	s.mu.Lock()
 	s.spec.Model = name
 	s.sessionID = "" // restart on next send
+	s.mu.Unlock()
 	if s.config != nil {
+		s.hub.forgeMu.Lock()
 		s.config.DefaultModel = name
 		if err := s.config.Save(); err != nil {
 			s.logger.Printf("save config: %v", err)
 		}
+		s.hub.forgeMu.Unlock()
 	}
 }
 
@@ -156,52 +157,62 @@ func (s *Server) cmdAgent(arg string) string {
 	}
 	switch arg {
 	case "":
-		s.mu.Lock()
+		s.hub.forgeMu.Lock()
 		cur := def(s.config.DefaultAgent, "(none)")
 		ids := make([]string, len(s.forge.Agents))
 		for i, a := range s.forge.Agents {
 			ids[i] = a.ID
 		}
-		s.mu.Unlock()
+		s.hub.forgeMu.Unlock()
 		note := "agent: " + cur
 		if len(ids) > 0 {
 			note += " — available: " + strings.Join(ids, ", ")
 		}
 		return s.systemNote(note)
 	case "none", "off":
-		s.mu.Lock()
+		s.hub.forgeMu.Lock()
 		s.config.DefaultAgent = ""
-		s.spec.Model = s.config.DefaultModel
-		s.spec.ReasoningEffort = s.config.ReasoningEffort
-		s.sessionID = ""
+		model, effort := s.config.DefaultModel, s.config.ReasoningEffort
 		if err := s.config.Save(); err != nil {
 			s.logger.Printf("save config: %v", err)
 		}
-		s.state.AddSystem("agent cleared (new session)")
-		oob := s.oobTimeline()
-		s.mu.Unlock()
-		return oob
+		s.hub.forgeMu.Unlock()
+		s.applyAgentSpec(model, effort)
+		return s.systemNote("agent cleared (new session)")
 	}
 
-	s.mu.Lock()
+	s.hub.forgeMu.Lock()
 	agent := s.forge.Agent(arg)
 	if agent == nil {
-		s.mu.Unlock()
+		s.hub.forgeMu.Unlock()
 		return s.systemNote("unknown agent: " + arg + " — see the Agents page")
 	}
+	name, model, effort := agent.Name, agent.Model, agent.ReasoningEffort
 	s.config.DefaultAgent = agent.ID
-	if agent.Model != "" {
-		s.spec.Model = agent.Model
-	}
-	s.spec.ReasoningEffort = agent.ReasoningEffort
-	s.sessionID = ""
 	if err := s.config.Save(); err != nil {
 		s.logger.Printf("save config: %v", err)
 	}
-	s.state.AddSystem("agent → " + agent.Name + " (" + def(agent.Model, s.spec.Model) + ", new session)")
-	oob := s.oobTimeline()
+	s.hub.forgeMu.Unlock()
+
+	s.mu.Lock()
+	if model != "" {
+		s.spec.Model = model
+	}
+	s.spec.ReasoningEffort = effort
+	s.sessionID = ""
+	shown := def(model, s.spec.Model)
 	s.mu.Unlock()
-	return oob
+	return s.systemNote("agent → " + name + " (" + shown + ", new session)")
+}
+
+// applyAgentSpec resets this session's model/effort to the given defaults and
+// restarts the session (used when clearing the active agent).
+func (s *Server) applyAgentSpec(model, effort string) {
+	s.mu.Lock()
+	s.spec.Model = model
+	s.spec.ReasoningEffort = effort
+	s.sessionID = ""
+	s.mu.Unlock()
 }
 
 // cmdCost appends a one-line credit summary and refreshes the ambient cost meter.

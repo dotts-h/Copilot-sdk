@@ -86,13 +86,13 @@ func (s *Server) handleSkillNew(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSkillEdit(w http.ResponseWriter, r *http.Request) {
-	s.mu.Lock()
+	s.hub.forgeMu.Lock()
 	sk := s.forge.Skill(r.PathValue("id"))
 	var form string
 	if sk != nil {
 		form = renderSkillForm(*sk, false, "")
 	}
-	s.mu.Unlock()
+	s.hub.forgeMu.Unlock()
 	if form == "" {
 		s.writePartial(w, s.skillsPartial())
 		return
@@ -151,13 +151,13 @@ func (s *Server) handleInstructionNew(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleInstructionEdit(w http.ResponseWriter, r *http.Request) {
-	s.mu.Lock()
+	s.hub.forgeMu.Lock()
 	in := s.forge.Instruction(r.PathValue("id"))
 	var form string
 	if in != nil {
 		form = renderInstructionForm(*in, false, "")
 	}
-	s.mu.Unlock()
+	s.hub.forgeMu.Unlock()
 	if form == "" {
 		s.writePartial(w, s.instructionsPartial())
 		return
@@ -224,13 +224,13 @@ func (s *Server) handleAgentNew(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAgentEdit(w http.ResponseWriter, r *http.Request) {
-	s.mu.Lock()
+	s.hub.forgeMu.Lock()
 	a := s.forge.Agent(r.PathValue("id"))
 	var form string
 	if a != nil {
 		form = renderAgentForm(*a, false, "")
 	}
-	s.mu.Unlock()
+	s.hub.forgeMu.Unlock()
 	if form == "" {
 		s.writePartial(w, s.agentsPartial())
 		return

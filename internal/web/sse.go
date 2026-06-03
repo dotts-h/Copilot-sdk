@@ -13,10 +13,11 @@ type fragment struct {
 	HTML  string
 }
 
-// serveEvents is the long-lived SSE stream. It ranges the client's normalized
-// Event channel and writes one SSE message per renderable event until the client
-// disconnects or the event channel closes. SSE is unidirectional and the right
-// fit for one-way token streaming (see docs/WEB_UI_PLAN.md).
+// serveEvents is the long-lived SSE stream for one browser session. It
+// subscribes to the session's fragment broadcast (fed by the Hub's event pump
+// and by self-injected errors) and writes one SSE message per fragment until the
+// client disconnects. SSE is unidirectional and the right fit for one-way token
+// streaming (see docs/WEB_UI_PLAN.md).
 func (s *Server) serveEvents(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -31,28 +32,25 @@ func (s *Server) serveEvents(w http.ResponseWriter, r *http.Request) {
 	h.Set("Connection", "keep-alive")
 	h.Set("X-Accel-Buffering", "no")
 
+	// Subscribe before greeting so no event slips through between the greeting
+	// and the subscription.
+	ch := s.subscribe()
+	defer s.unsubscribe(ch)
+
 	// Greet the client so the connection opens immediately.
 	writeSSE(w, "ready", "")
 	flusher.Flush()
 
-	events := s.client.Events()
 	ctx := r.Context()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case e := <-s.inject:
-			for _, frag := range s.handleEvent(e) {
-				writeSSE(w, frag.Event, frag.HTML)
-			}
-			flusher.Flush()
-		case e, open := <-events:
+		case frag, open := <-ch:
 			if !open {
 				return
 			}
-			for _, frag := range s.handleEvent(e) {
-				writeSSE(w, frag.Event, frag.HTML)
-			}
+			writeSSE(w, frag.Event, frag.HTML)
 			flusher.Flush()
 		}
 	}
