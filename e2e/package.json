@@ -1,0 +1,23 @@
+{
+  "name": "my-orchestra-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Playwright e2e / API / a11y / ux / performance suite for the my-orchestra web UI",
+  "type": "module",
+  "scripts": {
+    "build:app": "cd .. && go build -o bin/my-orchestra ./cmd/my-orchestra",
+    "test": "playwright test",
+    "test:e2e": "playwright test tests/e2e.spec.ts",
+    "test:api": "playwright test tests/api.spec.ts",
+    "test:a11y": "playwright test tests/a11y.spec.ts",
+    "test:ux": "playwright test tests/ux.spec.ts",
+    "test:perf": "playwright test tests/perf.spec.ts",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report",
+    "install:browsers": "playwright install --with-deps chromium"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.1",
+    "@playwright/test": "^1.60.0"
+  }
+}

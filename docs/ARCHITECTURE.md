@@ -209,3 +209,21 @@ Each package was written test-first. Beyond happy paths we assert on:
 edge cases (unknown models, empty forge, upgrade-time config backfill),
 invariants (pricing totality via fuzz), concurrency (meter under 16×100 writers),
 and translation correctness (every SDK event → expected normalized event).
+
+The web layer adds a consolidated HTTP **contract** suite (`api_test.go`:
+content-types, output escaping/XSS, cookie hardening, per-session isolation, SSE
+greeting, malformed-payload tolerance), **benchmarks** for the render/reducer
+hot paths, and a **concurrent multi-session load** test (`bench_test.go`) that
+drives the full mux from many goroutines under `-race` to catch data races and
+lock-ordering deadlocks.
+
+### Browser suite (`e2e/`)
+
+A Playwright suite runs against the offline demo server and covers what the Go
+tests can't: real htmx swaps, the live SSE transport, focus/keyboard behaviour,
+responsive layout, and WCAG 2.1 A/AA conformance (`axe-core`) — split into
+**e2e · api · a11y · ux · perf** layers. Writing it surfaced two real defects
+since fixed (the composer wiped input on each keystroke because the form's
+`hx-on::after-request` caught the autocomplete GET's bubbled event; the topbar
+overflowed at tablet width), plus a documented contrast baseline. See
+[`e2e/README.md`](../e2e/README.md).
