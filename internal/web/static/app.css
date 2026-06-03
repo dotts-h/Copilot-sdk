@@ -26,9 +26,10 @@ body { display: flex; flex-direction: column; }
   display: flex; align-items: center; gap: 1rem;
   padding: .55rem 1rem;
   border-bottom: 1px solid var(--panel); background: var(--panel);
+  flex-wrap: wrap; /* narrow widths: wrap the cost meter below rather than overflow */
 }
 .topbar .brand { color: var(--accent); font-weight: 600; letter-spacing: .02em; }
-.nav { display: flex; gap: .25rem; flex: 1 1 auto; }
+.nav { display: flex; gap: .25rem; flex: 1 1 auto; flex-wrap: wrap; }
 .nav a {
   color: var(--dim); text-decoration: none; cursor: pointer;
   padding: .25rem .6rem; border-radius: 6px; font-size: .9rem;
@@ -188,7 +189,7 @@ ul.rows { list-style: none; margin: 0; padding: 0; }
 .row.on .row-name { color: var(--good); }
 .row button { background: none; border: none; cursor: pointer; font: inherit; color: var(--dim); }
 .row .toggle .on { color: var(--good); }
-.row .toggle .off { color: var(--subtle); }
+.row .toggle .off { color: var(--dim); } /* a11y: --subtle fails WCAG AA contrast on --bg */
 .row .edit:hover { color: var(--accent); }
 .row .del:hover { color: var(--bad); }
 

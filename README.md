@@ -110,11 +110,20 @@ requests queue if several arrive.
 
 ```bash
 make test       # race + coverage
+make bench      # web render/reducer benchmarks + concurrent load
 make lint       # gofmt + vet (+ golangci-lint if installed)
 make fuzz       # short fuzz of the pricing engine
 make build      # local binary
 make run        # build + run
+
+# Browser suite (e2e · api · a11y · ux · perf) against the offline demo server
+make e2e-install   # one-time: npm ci + Playwright Chromium
+make e2e           # build + drive Chromium via Playwright
 ```
+
+The browser suite lives in [`e2e/`](e2e/README.md) and runs against
+`my-orchestra -demo`; it covers what the Go tests can't (real htmx swaps, the SSE
+transport, keyboard/focus behaviour, responsive layout, and WCAG conformance).
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design, the
 `copilot.Client` seam, and how the forge compiles a session.
@@ -129,6 +138,7 @@ internal/copilot     Client interface · SDKClient (Go SDK) · MockClient
 internal/ctxforge    skills · instructions · agents · MCP → SessionSpec
 internal/telemetry   price book · Meter · budget · AIU
 internal/config      settings · key bindings (JSON)
+e2e/                 Playwright browser suite (e2e · api · a11y · ux · perf)
 docs/                GitHub Pages site + architecture
 ```
 

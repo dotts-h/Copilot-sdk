@@ -55,7 +55,7 @@ func helpPartial() string {
 		return `<tr><th><code>` + esc(name) + `</code></th><td>` + esc(desc) + `</td></tr>`
 	}
 	var b strings.Builder
-	b.WriteString(`<section class="page help"><h2>Help</h2>`)
+	b.WriteString(`<section class="page help" tabindex="0"><h2>Help</h2>`)
 	b.WriteString(`<p class="dim">my-orchestra is a cost-aware coding companion. Chat streams live; ` +
 		`every tool call, the reasoning, and the credit spend are shown as they happen.</p>`)
 
