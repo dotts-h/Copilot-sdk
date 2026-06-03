@@ -292,6 +292,8 @@ func (c *SDKClient) makeHandler() func(sdk.SessionEvent) {
 				ToolCallID: d.ToolCallID, Name: d.AgentName, DisplayName: d.AgentDisplayName,
 				Model: derefStr(d.Model), Success: false, Detail: d.Error,
 			}})
+		case *sdk.SessionErrorData:
+			c.emit(Event{Type: EvError, Err: sessionError(d)})
 		case *sdk.SessionIdleData:
 			c.emit(Event{Type: EvIdle})
 		}
@@ -482,6 +484,20 @@ func elicitDefault(v any) string {
 	default:
 		return fmt.Sprint(d)
 	}
+}
+
+// sessionError turns a runtime session.error event into a displayable error,
+// prefixing the human-readable message with its category (e.g. "rate_limit:
+// …") so the UI can surface it instead of silently dropping the turn.
+func sessionError(d *sdk.SessionErrorData) error {
+	msg := strings.TrimSpace(d.Message)
+	if msg == "" {
+		msg = "session error"
+	}
+	if d.ErrorType != "" {
+		return fmt.Errorf("%s: %s", d.ErrorType, msg)
+	}
+	return errors.New(msg)
 }
 
 // planChangeText renders a one-line note for a plan-file change operation.

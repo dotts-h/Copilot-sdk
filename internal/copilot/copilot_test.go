@@ -362,3 +362,22 @@ func TestSDKIntegration(t *testing.T) {
 		t.Fatal("no assistant text received")
 	}
 }
+
+func TestHandlerMapsSessionError(t *testing.T) {
+	c := newTestSDKClient()
+	h := c.makeHandler()
+	h(sdk.SessionEvent{Data: &sdk.SessionErrorData{ErrorType: "rate_limit", Message: "slow down"}})
+	ev := <-c.events
+	if ev.Type != EvError || ev.Err == nil {
+		t.Fatalf("expected EvError with Err, got %+v", ev)
+	}
+	if ev.Err.Error() != "rate_limit: slow down" {
+		t.Fatalf("error text = %q, want category-prefixed message", ev.Err.Error())
+	}
+}
+
+func TestSessionErrorFallback(t *testing.T) {
+	if got := sessionError(&sdk.SessionErrorData{}).Error(); got != "session error" {
+		t.Fatalf("empty session error = %q", got)
+	}
+}
