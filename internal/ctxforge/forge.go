@@ -257,6 +257,61 @@ func (f *Forge) ToggleSkill(id string) (bool, error) {
 	return s.Enabled, nil
 }
 
+// ToggleInstruction flips an instruction's Enabled flag, returning the new state.
+func (f *Forge) ToggleInstruction(id string) (bool, error) {
+	in := f.Instruction(id)
+	if in == nil {
+		return false, fmt.Errorf("unknown instruction %q", id)
+	}
+	in.Enabled = !in.Enabled
+	return in.Enabled, nil
+}
+
+// RemoveSkill deletes the skill with the given id. It re-validates the whole
+// forge and rolls back if the removal would orphan a reference (an agent that
+// pins the skill), so the caller gets a clear error instead of a forge that
+// later fails to save.
+func (f *Forge) RemoveSkill(id string) error {
+	for i := range f.Skills {
+		if f.Skills[i].ID == id {
+			removed := f.Skills[i]
+			f.Skills = append(f.Skills[:i], f.Skills[i+1:]...)
+			if err := f.Validate(); err != nil {
+				f.Skills = append(f.Skills, Skill{})
+				copy(f.Skills[i+1:], f.Skills[i:])
+				f.Skills[i] = removed
+				return err
+			}
+			return nil
+		}
+	}
+	return fmt.Errorf("unknown skill %q", id)
+}
+
+// RemoveInstruction deletes the instruction with the given id.
+func (f *Forge) RemoveInstruction(id string) error {
+	for i := range f.Instructions {
+		if f.Instructions[i].ID == id {
+			f.Instructions = append(f.Instructions[:i], f.Instructions[i+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("unknown instruction %q", id)
+}
+
+// RemoveAgent deletes the agent with the given id. Nothing references an agent
+// within the forge (the active-agent pointer lives in config), so no rollback
+// is needed.
+func (f *Forge) RemoveAgent(id string) error {
+	for i := range f.Agents {
+		if f.Agents[i].ID == id {
+			f.Agents = append(f.Agents[:i], f.Agents[i+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("unknown agent %q", id)
+}
+
 // SessionSpec is the compiled, ready-to-use context for a Copilot SDK session.
 type SessionSpec struct {
 	Model           string

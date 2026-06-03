@@ -175,6 +175,8 @@ func (s *Server) telemetryPartial() string {
 }
 
 func (s *Server) skillsPartial() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	var b strings.Builder
 	b.WriteString(`<section class="page"><h2>Skills</h2>`)
 	b.WriteString(addButton("skills", "skill"))
@@ -190,6 +192,8 @@ func (s *Server) skillsPartial() string {
 }
 
 func (s *Server) instructionsPartial() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	var b strings.Builder
 	b.WriteString(`<section class="page"><h2>Instructions</h2>`)
 	b.WriteString(addButton("instructions", "instruction"))
@@ -206,6 +210,8 @@ func (s *Server) instructionsPartial() string {
 }
 
 func (s *Server) agentsPartial() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	var b strings.Builder
 	b.WriteString(`<section class="page"><h2>Agents</h2>`)
 	b.WriteString(addButton("agents", "agent"))
@@ -270,6 +276,8 @@ func (s *Server) modelsPartial() string {
 }
 
 func (s *Server) settingsPartial() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	c := s.config
 	rows := [][2]string{
 		{"Default model", c.DefaultModel},

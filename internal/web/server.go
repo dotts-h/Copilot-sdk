@@ -468,57 +468,40 @@ func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- forge mutators (list pages) ---
+//
+// All forge/config mutation goes through editForge (or an explicit s.mu section)
+// so it is serialized against the readers in pages.go, and through the validated
+// ctxforge methods so an invalid edit is rolled back rather than half-applied.
 
 func (s *Server) handleSkillToggle(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	for i := range s.forge.Skills {
-		if s.forge.Skills[i].ID == id {
-			s.forge.Skills[i].Enabled = !s.forge.Skills[i].Enabled
-			break
-		}
-	}
-	s.persist()
+	_ = s.editForge(func() error { _, err := s.forge.ToggleSkill(id); return err })
 	s.writePartial(w, s.skillsPartial())
 }
 
 func (s *Server) handleSkillDelete(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	for i := range s.forge.Skills {
-		if s.forge.Skills[i].ID == id {
-			s.forge.Skills = append(s.forge.Skills[:i], s.forge.Skills[i+1:]...)
-			break
-		}
+	if err := s.editForge(func() error { return s.forge.RemoveSkill(r.PathValue("id")) }); err != nil {
+		s.logger.Printf("remove skill: %v", err) // e.g. an agent still pins it
 	}
-	s.persist()
 	s.writePartial(w, s.skillsPartial())
 }
 
 func (s *Server) handleInstructionToggle(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	for i := range s.forge.Instructions {
-		if s.forge.Instructions[i].ID == id {
-			s.forge.Instructions[i].Enabled = !s.forge.Instructions[i].Enabled
-			break
-		}
-	}
-	s.persist()
+	_ = s.editForge(func() error { _, err := s.forge.ToggleInstruction(id); return err })
 	s.writePartial(w, s.instructionsPartial())
 }
 
 func (s *Server) handleInstructionDelete(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	for i := range s.forge.Instructions {
-		if s.forge.Instructions[i].ID == id {
-			s.forge.Instructions = append(s.forge.Instructions[:i], s.forge.Instructions[i+1:]...)
-			break
-		}
+	if err := s.editForge(func() error { return s.forge.RemoveInstruction(r.PathValue("id")) }); err != nil {
+		s.logger.Printf("remove instruction: %v", err)
 	}
-	s.persist()
 	s.writePartial(w, s.instructionsPartial())
 }
 
 func (s *Server) handleAgentSelect(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	s.mu.Lock()
 	if s.config.DefaultAgent == id {
 		s.config.DefaultAgent = "" // toggle off
 	} else {
@@ -527,6 +510,7 @@ func (s *Server) handleAgentSelect(w http.ResponseWriter, r *http.Request) {
 	if err := s.config.Save(); err != nil {
 		s.logger.Printf("save config: %v", err)
 	}
+	s.mu.Unlock()
 	s.writePartial(w, s.agentsPartial())
 }
 
@@ -542,17 +526,20 @@ func (s *Server) handleModelSelect(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAgentDelete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	for i := range s.forge.Agents {
-		if s.forge.Agents[i].ID == id {
-			s.forge.Agents = append(s.forge.Agents[:i], s.forge.Agents[i+1:]...)
-			if s.config.DefaultAgent == id {
-				s.config.DefaultAgent = ""
-				_ = s.config.Save()
-			}
-			break
+	if err := s.editForge(func() error { return s.forge.RemoveAgent(id) }); err != nil {
+		s.logger.Printf("remove agent: %v", err)
+		s.writePartial(w, s.agentsPartial())
+		return
+	}
+	// Deleting the active agent clears the config pointer to it.
+	s.mu.Lock()
+	if s.config.DefaultAgent == id {
+		s.config.DefaultAgent = ""
+		if err := s.config.Save(); err != nil {
+			s.logger.Printf("save config: %v", err)
 		}
 	}
-	s.persist()
+	s.mu.Unlock()
 	s.writePartial(w, s.agentsPartial())
 }
 
@@ -661,13 +648,22 @@ func firstNonEmpty(vals []string) string {
 	return ""
 }
 
-func (s *Server) persist() {
-	if s.forge == nil {
-		return
+// editForge applies a forge mutation under s.mu (serializing it against the
+// readers in pages.go) and persists it on success. It returns fn's error — e.g.
+// a validation failure the ctxforge method already rolled back — so callers can
+// surface it; a persistence (disk) failure is logged, not returned.
+func (s *Server) editForge(fn func() error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := fn(); err != nil {
+		return err
 	}
-	if err := s.forge.Save(); err != nil {
-		s.logger.Printf("save forge: %v", err)
+	if s.forge != nil {
+		if err := s.forge.Save(); err != nil {
+			s.logger.Printf("save forge: %v", err)
+		}
 	}
+	return nil
 }
 
 func (s *Server) writePartial(w http.ResponseWriter, html string) {
