@@ -21,10 +21,10 @@ import (
 type SDKClient struct {
 	client *sdk.Client
 
-	perms   *permBridge
-	inputs  *inputBridge
-	plans   *planBridge
-	elicits *elicitBridge
+	perms   *bridge[bool]
+	inputs  *bridge[string]
+	plans   *bridge[planDecision]
+	elicits *bridge[elicitDecision]
 
 	mu        sync.Mutex
 	sessions  map[string]*sdk.Session
