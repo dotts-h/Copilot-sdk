@@ -186,6 +186,36 @@ func TestHelpCommand(t *testing.T) {
 	}
 }
 
+func TestHelpPageServed(t *testing.T) {
+	s, _ := newTestServer()
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/page/help")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	for _, sub := range []string{"Composer commands", "/model", "Panels", "Telemetry"} {
+		if !strings.Contains(string(body), sub) {
+			t.Errorf("help page missing %q", sub)
+		}
+	}
+}
+
+// TestNavCommandReachesHelp checks the /help-adjacent nav slug routes too.
+func TestNavCommandReachesHelp(t *testing.T) {
+	s, _ := newTestServer()
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+	body := postSend(t, srv, "/help")
+	// /help is a command (timeline note), not a nav swap.
+	if !strings.Contains(body, "id=\"timeline\"") {
+		t.Errorf("/help should be a timeline note: %q", body)
+	}
+}
+
 func TestUnknownCommand(t *testing.T) {
 	s, _ := newTestServer()
 	srv := httptest.NewServer(s.Handler())

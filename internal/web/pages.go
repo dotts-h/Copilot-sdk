@@ -20,6 +20,7 @@ var pageNames = []struct{ slug, label string }{
 	{"instructions", "Instructions"},
 	{"agents", "Agents"},
 	{"settings", "Settings"},
+	{"help", "Help"},
 }
 
 // renderPage returns the partial for a nav slug, or chat for unknown slugs.
@@ -35,9 +36,51 @@ func (s *Server) renderPage(slug string) string {
 		return s.agentsPartial()
 	case "settings":
 		return s.settingsPartial()
+	case "help":
+		return helpPartial()
 	default:
 		return s.chatPartial()
 	}
+}
+
+// helpPartial renders the static Help/reference page: how the panels work and
+// the full set of composer slash commands. It is the discoverability surface
+// behind /help in the composer.
+func helpPartial() string {
+	cmd := func(name, desc string) string {
+		return `<tr><th><code>` + esc(name) + `</code></th><td>` + esc(desc) + `</td></tr>`
+	}
+	var b strings.Builder
+	b.WriteString(`<section class="page help"><h2>Help</h2>`)
+	b.WriteString(`<p class="dim">my-orchestra is a cost-aware coding companion. Chat streams live; ` +
+		`every tool call, the reasoning, and the credit spend are shown as they happen.</p>`)
+
+	b.WriteString(`<h3>Composer commands</h3>`)
+	b.WriteString(`<p class="dim">Type these in the chat composer instead of a prompt.</p>`)
+	b.WriteString(`<table class="kv">`)
+	b.WriteString(cmd("/model [name]", "Switch the model in place (restarts the session); no name shows the current one."))
+	b.WriteString(cmd("/agent [id|none]", "Activate a forge agent (applies its model + reasoning) or clear it."))
+	b.WriteString(cmd("/clear", "Reset the conversation and start a fresh session."))
+	b.WriteString(cmd("/cost", "Show credit usage and refresh the cost meter."))
+	b.WriteString(cmd("/attach <path>", "Queue a file to send with your next message."))
+	b.WriteString(cmd("/chat … /settings", "Jump to a page (chat, telemetry, skills, instructions, agents, settings)."))
+	b.WriteString(cmd("/help", "List the commands in the timeline."))
+	b.WriteString(`</table>`)
+
+	b.WriteString(`<h3>Panels</h3><table class="kv">`)
+	rows := [][2]string{
+		{"Chat", "Stream prompts and replies; approve tool permissions inline; abort an in-flight turn with ⏹ stop."},
+		{"Telemetry", "Live credit/token spend, per-model breakdown, and your monthly budget."},
+		{"Skills", "Reusable prompt fragments; toggle which are active for the session."},
+		{"Instructions", "Always-on guidance, ordered by priority."},
+		{"Agents", "Named model + reasoning + skill presets; select one as the default."},
+		{"Settings", "Read-only view of config.json / forge.json; edit those files to change them."},
+	}
+	for _, r := range rows {
+		fmt.Fprintf(&b, `<tr><th>%s</th><td>%s</td></tr>`, esc(r[0]), esc(r[1]))
+	}
+	b.WriteString(`</table></section>`)
+	return b.String()
 }
 
 // chatPartial renders the chat page: timeline (from state), pending permission
