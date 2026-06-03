@@ -59,10 +59,20 @@ test.describe("streaming a turn", () => {
     const costBefore = await page.locator(sel.cost).innerText();
     await send(page, "spend some credits");
     // Usage + context-window events arrive late in the scripted turn.
-    await expect(page.locator(sel.ctx)).toContainText(/tok|ctx/, { timeout: 15_000 });
+    await expect(page.locator(sel.ctx)).toContainText(/tok|context/, { timeout: 15_000 });
     await expect
       .poll(async () => page.locator(sel.cost).innerText(), { timeout: 15_000 })
       .not.toBe(costBefore);
+  });
+
+  test("the statusline shows the model and counts the message sent", async ({ page }) => {
+    await gotoApp(page);
+    // The demo pins the model to gpt-5, so the statusline names it from the start.
+    await expect(page.locator(sel.statline)).toContainText("gpt-5");
+    await expect(page.locator(sel.statline)).toContainText("✉ 0");
+    await send(page, "spend some credits");
+    // Sending a prompt bumps the messages-sent counter immediately (OOB refresh).
+    await expect(page.locator(sel.statline)).toContainText("✉ 1", { timeout: 15_000 });
   });
 
   test("the sub-agent activity strip does not leak a chip after the turn settles", async ({ page }) => {

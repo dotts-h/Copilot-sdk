@@ -14,6 +14,7 @@ export const sel = {
   abort: ".abort",
   cost: "#cost-footer",
   ctx: "#ctx",
+  statline: "#statline",
   nav: "header nav a",
   perms: "#perms",
   asks: "#asks",
