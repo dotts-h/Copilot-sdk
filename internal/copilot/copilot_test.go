@@ -93,7 +93,7 @@ func newTestSDKClient() *SDKClient {
 
 func TestHandlerTranslatesEvents(t *testing.T) {
 	c := newTestSDKClient()
-	h := c.makeHandler()
+	h := c.makeHandler("")
 
 	h(sdk.SessionEvent{Data: &sdk.AssistantMessageDeltaData{DeltaContent: "Hel"}})
 	h(sdk.SessionEvent{Data: &sdk.AssistantReasoningDeltaData{DeltaContent: "(thinking)"}})
@@ -133,7 +133,7 @@ func TestHandlerTranslatesEvents(t *testing.T) {
 
 func TestHandlerCarriesToolDetail(t *testing.T) {
 	c := newTestSDKClient()
-	h := c.makeHandler()
+	h := c.makeHandler("")
 
 	mcp := "filesystem"
 	h(sdk.SessionEvent{Data: &sdk.ToolExecutionStartData{
@@ -170,7 +170,7 @@ func TestHandlerCarriesToolDetail(t *testing.T) {
 
 func TestHandlerEmitsFullReasoning(t *testing.T) {
 	c := newTestSDKClient()
-	c.makeHandler()(sdk.SessionEvent{Data: &sdk.AssistantReasoningData{Content: "step by step"}})
+	c.makeHandler("")(sdk.SessionEvent{Data: &sdk.AssistantReasoningData{Content: "step by step"}})
 	ev := <-c.events
 	if ev.Type != EvReasoning || ev.Text != "step by step" {
 		t.Fatalf("reasoning event = %+v", ev)
@@ -179,7 +179,7 @@ func TestHandlerEmitsFullReasoning(t *testing.T) {
 
 func TestHandlerNormalizesContextAndCompaction(t *testing.T) {
 	c := newTestSDKClient()
-	h := c.makeHandler()
+	h := c.makeHandler("")
 
 	h(sdk.SessionEvent{Data: &sdk.SessionUsageInfoData{CurrentTokens: 1234, TokenLimit: 128000}})
 	h(sdk.SessionEvent{Data: &sdk.SessionCompactionStartData{}})
@@ -359,7 +359,7 @@ func TestSDKIntegration(t *testing.T) {
 
 func TestHandlerMapsSessionError(t *testing.T) {
 	c := newTestSDKClient()
-	h := c.makeHandler()
+	h := c.makeHandler("")
 	h(sdk.SessionEvent{Data: &sdk.SessionErrorData{ErrorType: "rate_limit", Message: "slow down"}})
 	ev := <-c.events
 	if ev.Type != EvError || ev.Err == nil {

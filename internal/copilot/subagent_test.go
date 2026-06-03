@@ -8,7 +8,7 @@ import (
 
 func TestHandlerMapsSubagentLifecycle(t *testing.T) {
 	c := newTestSDKClient()
-	h := c.makeHandler()
+	h := c.makeHandler("")
 	model := "claude-sonnet-4-6"
 	dur := int64(1200)
 	tok := int64(3400)
@@ -40,7 +40,7 @@ func TestHandlerMapsSubagentLifecycle(t *testing.T) {
 
 func TestHandlerMapsSubagentFailure(t *testing.T) {
 	c := newTestSDKClient()
-	h := c.makeHandler()
+	h := c.makeHandler("")
 	h(sdk.SessionEvent{Data: &sdk.SubagentFailedData{
 		ToolCallID: "tc-2", AgentName: "builder", AgentDisplayName: "Build", Error: "boom",
 	}})

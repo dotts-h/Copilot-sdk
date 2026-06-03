@@ -197,7 +197,7 @@ func (c *SDKClient) modelReasoningEfforts(ctx context.Context, model string) (ef
 
 // register wires a session's event handler and tracks it for Send/Abort/Close.
 func (c *SDKClient) register(session *sdk.Session) {
-	unsub := session.On(c.makeHandler())
+	unsub := session.On(c.makeHandler(session.SessionID))
 	c.mu.Lock()
 	c.sessions[session.SessionID] = session
 	c.unsubs[session.SessionID] = unsub
@@ -205,19 +205,25 @@ func (c *SDKClient) register(session *sdk.Session) {
 }
 
 // makeHandler returns a session event handler that normalizes and forwards.
-func (c *SDKClient) makeHandler() func(sdk.SessionEvent) {
+// Every emitted event is stamped with sid so a multi-session consumer can route
+// it to the originating conversation.
+func (c *SDKClient) makeHandler(sid string) func(sdk.SessionEvent) {
+	emit := func(e Event) {
+		e.SessionID = sid
+		c.emit(e)
+	}
 	return func(ev sdk.SessionEvent) {
 		switch d := ev.Data.(type) {
 		case *sdk.AssistantMessageDeltaData:
-			c.emit(Event{Type: EvMessageDelta, Text: d.DeltaContent})
+			emit(Event{Type: EvMessageDelta, Text: d.DeltaContent})
 		case *sdk.AssistantReasoningDeltaData:
-			c.emit(Event{Type: EvReasoningDelta, Text: d.DeltaContent})
+			emit(Event{Type: EvReasoningDelta, Text: d.DeltaContent})
 		case *sdk.AssistantReasoningData:
-			c.emit(Event{Type: EvReasoning, Text: d.Content})
+			emit(Event{Type: EvReasoning, Text: d.Content})
 		case *sdk.AssistantMessageData:
-			c.emit(Event{Type: EvMessage, Text: d.Content})
+			emit(Event{Type: EvMessage, Text: d.Content})
 		case *sdk.AssistantUsageData:
-			c.emit(Event{Type: EvUsage, Usage: normalizeUsage(d)})
+			emit(Event{Type: EvUsage, Usage: normalizeUsage(d)})
 		case *sdk.ToolExecutionStartData:
 			c.mu.Lock()
 			c.toolNames[d.ToolCallID] = d.ToolName
@@ -226,9 +232,9 @@ func (c *SDKClient) makeHandler() func(sdk.SessionEvent) {
 			if d.MCPServerName != nil {
 				tc.MCPServer = *d.MCPServerName
 			}
-			c.emit(Event{Type: EvToolStart, Tool: d.ToolName, ToolCall: tc})
+			emit(Event{Type: EvToolStart, Tool: d.ToolName, ToolCall: tc})
 		case *sdk.ToolExecutionProgressData:
-			c.emit(Event{Type: EvToolProgress, ToolCall: &ToolCall{
+			emit(Event{Type: EvToolProgress, ToolCall: &ToolCall{
 				ID: d.ToolCallID, Progress: d.ProgressMessage,
 			}})
 		case *sdk.ToolExecutionCompleteData:
@@ -236,38 +242,38 @@ func (c *SDKClient) makeHandler() func(sdk.SessionEvent) {
 			name := c.toolNames[d.ToolCallID]
 			delete(c.toolNames, d.ToolCallID)
 			c.mu.Unlock()
-			c.emit(Event{Type: EvToolEnd, Tool: name, ToolCall: &ToolCall{
+			emit(Event{Type: EvToolEnd, Tool: name, ToolCall: &ToolCall{
 				ID: d.ToolCallID, Name: name, Success: d.Success, Result: toolResultText(d),
 			}})
 		case *sdk.SessionUsageInfoData:
-			c.emit(Event{Type: EvContextWindow, Context: ContextInfo{
+			emit(Event{Type: EvContextWindow, Context: ContextInfo{
 				CurrentTokens: d.CurrentTokens, TokenLimit: d.TokenLimit,
 			}})
 		case *sdk.SessionCompactionStartData:
-			c.emit(Event{Type: EvCompactionStart})
+			emit(Event{Type: EvCompactionStart})
 		case *sdk.SessionCompactionCompleteData:
-			c.emit(Event{Type: EvCompactionEnd, Text: compactionSummary(d)})
+			emit(Event{Type: EvCompactionEnd, Text: compactionSummary(d)})
 		case *sdk.SessionPlanChangedData:
-			c.emit(Event{Type: EvPlanChanged, Text: planChangeText(d.Operation)})
+			emit(Event{Type: EvPlanChanged, Text: planChangeText(d.Operation)})
 		case *sdk.SubagentStartedData:
-			c.emit(Event{Type: EvSubagentStart, Subagent: &SubagentInfo{
+			emit(Event{Type: EvSubagentStart, Subagent: &SubagentInfo{
 				ToolCallID: d.ToolCallID, Name: d.AgentName, DisplayName: d.AgentDisplayName,
 				Description: d.AgentDescription, Model: derefStr(d.Model),
 			}})
 		case *sdk.SubagentCompletedData:
-			c.emit(Event{Type: EvSubagentEnd, Subagent: &SubagentInfo{
+			emit(Event{Type: EvSubagentEnd, Subagent: &SubagentInfo{
 				ToolCallID: d.ToolCallID, Name: d.AgentName, DisplayName: d.AgentDisplayName,
 				Model: derefStr(d.Model), Success: true, Detail: subagentSummary(d.DurationMs, d.TotalTokens),
 			}})
 		case *sdk.SubagentFailedData:
-			c.emit(Event{Type: EvSubagentEnd, Subagent: &SubagentInfo{
+			emit(Event{Type: EvSubagentEnd, Subagent: &SubagentInfo{
 				ToolCallID: d.ToolCallID, Name: d.AgentName, DisplayName: d.AgentDisplayName,
 				Model: derefStr(d.Model), Success: false, Detail: d.Error,
 			}})
 		case *sdk.SessionErrorData:
-			c.emit(Event{Type: EvError, Err: sessionError(d)})
+			emit(Event{Type: EvError, Err: sessionError(d)})
 		case *sdk.SessionIdleData:
-			c.emit(Event{Type: EvIdle})
+			emit(Event{Type: EvIdle})
 		}
 	}
 }
@@ -275,9 +281,9 @@ func (c *SDKClient) makeHandler() func(sdk.SessionEvent) {
 // permissionHandler bridges the SDK's synchronous permission callback to the
 // async TUI: it emits an EvPermission and blocks until Respond() (or shutdown).
 func (c *SDKClient) permissionHandler() sdk.PermissionHandlerFunc {
-	return func(req sdk.PermissionRequest, _ sdk.PermissionInvocation) (rpc.PermissionDecision, error) {
+	return func(req sdk.PermissionRequest, inv sdk.PermissionInvocation) (rpc.PermissionDecision, error) {
 		id, ch := c.perms.begin()
-		c.emit(Event{Type: EvPermission, Permission: &PermissionRequest{
+		c.emit(Event{Type: EvPermission, SessionID: inv.SessionID, Permission: &PermissionRequest{
 			ID: id, Kind: string(req.Kind()), Detail: describePermission(req),
 		}})
 		select {
@@ -298,10 +304,10 @@ func (c *SDKClient) permissionHandler() sdk.PermissionHandlerFunc {
 // RespondInput() (or shutdown). WasFreeform is derived by checking whether the
 // answer matches one of the offered choices.
 func (c *SDKClient) userInputHandler() sdk.UserInputHandler {
-	return func(req sdk.UserInputRequest, _ sdk.UserInputInvocation) (sdk.UserInputResponse, error) {
+	return func(req sdk.UserInputRequest, inv sdk.UserInputInvocation) (sdk.UserInputResponse, error) {
 		id, ch := c.inputs.begin()
 		allow := req.AllowFreeform != nil && *req.AllowFreeform
-		c.emit(Event{Type: EvUserInput, Input: &InputRequest{
+		c.emit(Event{Type: EvUserInput, SessionID: inv.SessionID, Input: &InputRequest{
 			ID: id, Question: req.Question, Choices: req.Choices, AllowFreeform: allow,
 		}})
 		select {
@@ -325,9 +331,9 @@ func (c *SDKClient) userInputHandler() sdk.UserInputHandler {
 // blocks until RespondPlan() (or shutdown). An approval proceeds with the chosen
 // (or recommended) action; a decline returns the user's feedback.
 func (c *SDKClient) exitPlanModeHandler() sdk.ExitPlanModeRequestHandler {
-	return func(req sdk.ExitPlanModeRequest, _ sdk.ExitPlanModeInvocation) (sdk.ExitPlanModeResult, error) {
+	return func(req sdk.ExitPlanModeRequest, inv sdk.ExitPlanModeInvocation) (sdk.ExitPlanModeResult, error) {
 		id, ch := c.plans.begin()
-		c.emit(Event{Type: EvPlanReview, Plan: &PlanRequest{
+		c.emit(Event{Type: EvPlanReview, SessionID: inv.SessionID, Plan: &PlanRequest{
 			ID: id, Summary: req.Summary, Plan: req.PlanContent,
 			Actions: req.Actions, Recommended: req.RecommendedAction,
 		}})
@@ -350,7 +356,7 @@ func (c *SDKClient) exitPlanModeHandler() sdk.ExitPlanModeRequestHandler {
 func (c *SDKClient) elicitationHandler() sdk.ElicitationHandler {
 	return func(ec sdk.ElicitationContext) (sdk.ElicitationResult, error) {
 		id, ch := c.elicits.begin()
-		c.emit(Event{Type: EvElicitation, Elicit: &ElicitRequest{
+		c.emit(Event{Type: EvElicitation, SessionID: ec.SessionID, Elicit: &ElicitRequest{
 			ID: id, Message: ec.Message, Source: derefStr(ec.ElicitationSource),
 			Fields: normalizeElicitFields(ec.RequestedSchema),
 		}})

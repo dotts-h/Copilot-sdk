@@ -125,8 +125,12 @@ type UsageData struct {
 // Event is a normalized, already-decoded notification from a session.
 type Event struct {
 	Type EventType
-	Text string // delta or full message/reasoning text
-	Tool string // tool name for tool events
+	// SessionID is the copilot session the event came from, so a multi-session
+	// frontend can route it to the right conversation. Empty for events from a
+	// MockClient (demo/tests), which a single-session consumer can ignore.
+	SessionID string
+	Text      string // delta or full message/reasoning text
+	Tool      string // tool name for tool events
 
 	// ToolCall carries the timeline detail for tool events (EvToolStart,
 	// EvToolProgress, EvToolEnd). Nil for non-tool events.

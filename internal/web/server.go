@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"html/template"
-	"io/fs"
 	"log"
 	"net/http"
 	"net/url"
@@ -20,21 +19,28 @@ import (
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
 
-// Server is the htmx web frontend. It owns the per-process session state (single
-// local user assumed) and bridges browser actions to the copilot.Client seam.
-// The fields under mu are the web analogue of the TUI's Model minus rendering:
-// the live transcript, the permission queue, and the streaming kind.
+// Server is one conversation: a single browser session's live transcript,
+// pending request queues, streaming state, and SSE subscribers. The Hub owns the
+// shared dependencies and routes each cookie to its Server. Conversation state
+// is guarded by s.mu; the shared forge/config is guarded by the Hub's forgeMu
+// (see editForge), so edits on one session are visible and serialized across all.
 type Server struct {
+	hub *Hub
+	id  string // session id; also the cookie value
+
+	// Shared dependencies, copied from the Hub for convenient access. The forge
+	// and config pointers are shared across all sessions and must only be mutated
+	// under hub.forgeMu.
 	client    copilot.Client
 	forge     *ctxforge.Forge
 	config    *config.Config
 	meter     *telemetry.Meter
 	allowance float64
-	spec      copilot.SessionSpec
 	logger    *log.Logger
 	demo      bool
 
 	mu          sync.Mutex
+	spec        copilot.SessionSpec // per-session model/effort (mutable via /model, /agent)
 	state       convo.State
 	perms       []copilot.PermissionRequest
 	inputs      []copilot.InputRequest  // pending ask_user questions (EvUserInput)
@@ -52,99 +58,52 @@ type Server struct {
 	ctxLimit    int64    // context-window size from the last reading
 	compacting  bool     // conversation compaction is in progress
 
-	// inject carries server-synthesized events (e.g. a queued-prompt Send failure
-	// that produces no runtime events) into the SSE stream, so serveEvents renders
-	// them through the same handleEvent path as live events.
-	inject chan copilot.Event
+	subsMu sync.Mutex
+	subs   map[chan fragment]struct{} // active /events listeners for this session
 }
 
-// Options configures a Server.
-type Options struct {
-	Client copilot.Client
-	Forge  *ctxforge.Forge
-	Config *config.Config
-	Meter  *telemetry.Meter
-	Spec   copilot.SessionSpec
-	Logger *log.Logger
-	// Demo drives a scripted streaming reply through a MockClient so the UI can
-	// be exercised offline (WEB_UI_PLAN.md step 1).
-	Demo bool
+// subscribe registers an SSE listener and returns its channel.
+func (s *Server) subscribe() chan fragment {
+	ch := make(chan fragment, 128)
+	s.subsMu.Lock()
+	s.subs[ch] = struct{}{}
+	s.subsMu.Unlock()
+	return ch
 }
 
-// New builds a Server.
-func New(opts Options) *Server {
-	lg := opts.Logger
-	if lg == nil {
-		lg = log.Default()
+// unsubscribe removes and closes a listener channel.
+func (s *Server) unsubscribe(ch chan fragment) {
+	s.subsMu.Lock()
+	if _, ok := s.subs[ch]; ok {
+		delete(s.subs, ch)
+		close(ch)
 	}
-	var allowance float64
-	if opts.Config != nil {
-		allowance = opts.Config.Telemetry.MonthlyCreditAllowance
+	s.subsMu.Unlock()
+}
+
+// broadcast fans rendered fragments out to every listener on this session. A
+// slow listener's fragments are dropped rather than blocking the pump.
+func (s *Server) broadcast(frags []fragment) {
+	if len(frags) == 0 {
+		return
 	}
-	return &Server{
-		client:    opts.Client,
-		forge:     opts.Forge,
-		config:    opts.Config,
-		meter:     opts.Meter,
-		allowance: allowance,
-		spec:      opts.Spec,
-		logger:    lg,
-		demo:      opts.Demo,
-		inject:    make(chan copilot.Event, 8),
+	s.subsMu.Lock()
+	defer s.subsMu.Unlock()
+	for ch := range s.subs {
+		for _, f := range frags {
+			select {
+			case ch <- f:
+			default:
+			}
+		}
 	}
 }
 
-// broadcastSendFailure injects an error event into the SSE stream so a Send
-// failure on the queue-drain path (which produces no runtime events) still ends
-// the turn and tells the user. Non-blocking: dropped if no client is listening.
+// broadcastSendFailure renders a Send failure (which produces no runtime events)
+// as an EvError and pushes it to this session's listeners, so a failed
+// queue-drain still ends the turn and tells the user.
 func (s *Server) broadcastSendFailure(err error) {
-	select {
-	case s.inject <- copilot.Event{Type: copilot.EvError, Err: err}:
-	default:
-	}
-}
-
-// Handler returns the configured HTTP mux.
-func (s *Server) Handler() http.Handler {
-	mux := http.NewServeMux()
-
-	staticSub, _ := fs.Sub(staticFS, "static")
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticSub)))
-
-	mux.HandleFunc("GET /", s.handleIndex)
-	mux.HandleFunc("GET /events", s.serveEvents)
-	mux.HandleFunc("POST /send", s.handleSend)
-	mux.HandleFunc("POST /abort", s.handleAbort)
-	mux.HandleFunc("POST /perm/{id}", s.handlePerm)
-	mux.HandleFunc("POST /ask/{id}", s.handleAsk)
-	mux.HandleFunc("POST /plan/{id}", s.handlePlanReview)
-	mux.HandleFunc("POST /elicit/{id}", s.handleElicit)
-	mux.HandleFunc("GET /page/{name}", s.handlePage)
-	mux.HandleFunc("GET /commands", s.handleCommands)
-
-	mux.HandleFunc("GET /skills/new", s.handleSkillNew)
-	mux.HandleFunc("GET /skills/{id}/edit", s.handleSkillEdit)
-	mux.HandleFunc("POST /skills", s.handleSkillCreate)
-	mux.HandleFunc("POST /skills/{id}", s.handleSkillUpdate)
-	mux.HandleFunc("POST /skills/{id}/toggle", s.handleSkillToggle)
-	mux.HandleFunc("POST /skills/{id}/delete", s.handleSkillDelete)
-
-	mux.HandleFunc("GET /instructions/new", s.handleInstructionNew)
-	mux.HandleFunc("GET /instructions/{id}/edit", s.handleInstructionEdit)
-	mux.HandleFunc("POST /instructions", s.handleInstructionCreate)
-	mux.HandleFunc("POST /instructions/{id}", s.handleInstructionUpdate)
-	mux.HandleFunc("POST /instructions/{id}/toggle", s.handleInstructionToggle)
-	mux.HandleFunc("POST /instructions/{id}/delete", s.handleInstructionDelete)
-
-	mux.HandleFunc("GET /agents/new", s.handleAgentNew)
-	mux.HandleFunc("GET /agents/{id}/edit", s.handleAgentEdit)
-	mux.HandleFunc("POST /agents", s.handleAgentCreate)
-	mux.HandleFunc("POST /agents/{id}", s.handleAgentUpdate)
-	mux.HandleFunc("POST /agents/{id}/select", s.handleAgentSelect)
-	mux.HandleFunc("POST /agents/{id}/delete", s.handleAgentDelete)
-
-	mux.HandleFunc("POST /models/{id}/select", s.handleModelSelect)
-	return mux
+	s.broadcast(s.handleEvent(copilot.Event{Type: copilot.EvError, Err: err}))
 }
 
 // indexData is the data for the page shell.
@@ -186,6 +145,7 @@ func (s *Server) ensureSession(ctx context.Context) (string, error) {
 		return "", err
 	}
 	s.sessionID = id
+	s.hub.bind(id, s) // route this copilot session's events back to us
 	return id, nil
 }
 
@@ -501,7 +461,7 @@ func (s *Server) handleInstructionDelete(w http.ResponseWriter, r *http.Request)
 
 func (s *Server) handleAgentSelect(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	s.mu.Lock()
+	s.hub.forgeMu.Lock()
 	if s.config.DefaultAgent == id {
 		s.config.DefaultAgent = "" // toggle off
 	} else {
@@ -510,17 +470,14 @@ func (s *Server) handleAgentSelect(w http.ResponseWriter, r *http.Request) {
 	if err := s.config.Save(); err != nil {
 		s.logger.Printf("save config: %v", err)
 	}
-	s.mu.Unlock()
+	s.hub.forgeMu.Unlock()
 	s.writePartial(w, s.agentsPartial())
 }
 
 // handleModelSelect switches the active model from the model picker and
 // re-renders the page with the new current marked.
 func (s *Server) handleModelSelect(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	s.mu.Lock()
-	s.setModel(id)
-	s.mu.Unlock()
+	s.setModel(r.PathValue("id")) // self-locks per-session + shared state
 	s.writePartial(w, s.modelsPartial())
 }
 
@@ -532,14 +489,14 @@ func (s *Server) handleAgentDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Deleting the active agent clears the config pointer to it.
-	s.mu.Lock()
+	s.hub.forgeMu.Lock()
 	if s.config.DefaultAgent == id {
 		s.config.DefaultAgent = ""
 		if err := s.config.Save(); err != nil {
 			s.logger.Printf("save config: %v", err)
 		}
 	}
-	s.mu.Unlock()
+	s.hub.forgeMu.Unlock()
 	s.writePartial(w, s.agentsPartial())
 }
 
@@ -653,8 +610,8 @@ func firstNonEmpty(vals []string) string {
 // a validation failure the ctxforge method already rolled back — so callers can
 // surface it; a persistence (disk) failure is logged, not returned.
 func (s *Server) editForge(fn func() error) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.hub.forgeMu.Lock()
+	defer s.hub.forgeMu.Unlock()
 	if err := fn(); err != nil {
 		return err
 	}

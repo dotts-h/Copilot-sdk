@@ -155,8 +155,8 @@ func (s *Server) telemetryPartial() string {
 }
 
 func (s *Server) skillsPartial() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.hub.forgeMu.Lock()
+	defer s.hub.forgeMu.Unlock()
 	rows := make([]map[string]any, 0, len(s.forge.Skills))
 	for _, sk := range s.forge.Skills {
 		rows = append(rows, map[string]any{
@@ -167,8 +167,8 @@ func (s *Server) skillsPartial() string {
 }
 
 func (s *Server) instructionsPartial() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.hub.forgeMu.Lock()
+	defer s.hub.forgeMu.Unlock()
 	rows := make([]map[string]any, 0, len(s.forge.Instructions))
 	for _, ins := range s.forge.Instructions {
 		rows = append(rows, map[string]any{
@@ -180,8 +180,8 @@ func (s *Server) instructionsPartial() string {
 }
 
 func (s *Server) agentsPartial() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.hub.forgeMu.Lock()
+	defer s.hub.forgeMu.Unlock()
 	rows := make([]map[string]any, 0, len(s.forge.Agents))
 	for _, a := range s.forge.Agents {
 		desc := fmt.Sprintf("%s · %s · %s", a.Model, def(a.ReasoningEffort, "medium"), a.Description)
@@ -223,8 +223,8 @@ func (s *Server) modelsPartial() string {
 }
 
 func (s *Server) settingsPartial() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.hub.forgeMu.Lock()
+	defer s.hub.forgeMu.Unlock()
 	c := s.config
 	rows := [][2]string{
 		{"Default model", c.DefaultModel},

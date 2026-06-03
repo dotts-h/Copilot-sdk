@@ -105,7 +105,7 @@ func TestRespondPlanUnknownID(t *testing.T) {
 
 func TestHandlerMapsPlanChanged(t *testing.T) {
 	c := newTestSDKClient()
-	h := c.makeHandler()
+	h := c.makeHandler("")
 	h(sdk.SessionEvent{Data: &sdk.SessionPlanChangedData{Operation: sdk.PlanChangedOperationCreate}})
 	ev := <-c.events
 	if ev.Type != EvPlanChanged || ev.Text != "plan created" {
