@@ -69,10 +69,16 @@ test.describe("streaming a turn", () => {
     await gotoApp(page);
     // The demo pins the model to gpt-5, so the statusline names it from the start.
     await expect(page.locator(sel.statline)).toContainText("gpt-5");
-    await expect(page.locator(sel.statline)).toContainText("✉ 0");
+    // The demo is one shared session, so the counter carries prior tests' sends;
+    // assert it increments rather than a fixed value.
+    const msgs = async () => {
+      const m = (await page.locator(sel.statline).innerText()).match(/✉\s*(\d+)/);
+      return m ? Number(m[1]) : -1;
+    };
+    const before = await msgs();
     await send(page, "spend some credits");
     // Sending a prompt bumps the messages-sent counter immediately (OOB refresh).
-    await expect(page.locator(sel.statline)).toContainText("✉ 1", { timeout: 15_000 });
+    await expect.poll(msgs, { timeout: 15_000 }).toBeGreaterThan(before);
   });
 
   test("the sub-agent activity strip does not leak a chip after the turn settles", async ({ page }) => {
