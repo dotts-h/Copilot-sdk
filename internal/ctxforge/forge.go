@@ -158,6 +158,95 @@ func (f *Forge) AddSkill(s Skill) error {
 	return nil
 }
 
+// Instruction returns the instruction with the given ID, or nil.
+func (f *Forge) Instruction(id string) *Instruction {
+	for i := range f.Instructions {
+		if f.Instructions[i].ID == id {
+			return &f.Instructions[i]
+		}
+	}
+	return nil
+}
+
+// AddInstruction validates and appends an instruction, rejecting duplicate IDs.
+func (f *Forge) AddInstruction(in Instruction) error {
+	if err := in.Validate(); err != nil {
+		return err
+	}
+	if f.Instruction(in.ID) != nil {
+		return fmt.Errorf("instruction %q already exists", in.ID)
+	}
+	f.Instructions = append(f.Instructions, in)
+	return nil
+}
+
+// AddAgent validates and appends an agent, rejecting duplicate IDs. Referential
+// integrity (skill references) is enforced by a whole-forge validate, with the
+// append rolled back if it leaves the forge invalid.
+func (f *Forge) AddAgent(a Agent) error {
+	if err := a.Validate(); err != nil {
+		return err
+	}
+	if f.Agent(a.ID) != nil {
+		return fmt.Errorf("agent %q already exists", a.ID)
+	}
+	f.Agents = append(f.Agents, a)
+	if err := f.Validate(); err != nil {
+		f.Agents = f.Agents[:len(f.Agents)-1]
+		return err
+	}
+	return nil
+}
+
+// UpdateSkill replaces the skill identified by id with s, then validates the
+// whole forge and rolls back to the prior value if the result is invalid (e.g. a
+// rename collides with another id, or a referenced field becomes invalid).
+func (f *Forge) UpdateSkill(id string, s Skill) error {
+	cur := f.Skill(id)
+	if cur == nil {
+		return fmt.Errorf("unknown skill %q", id)
+	}
+	old := *cur
+	*cur = s
+	if err := f.Validate(); err != nil {
+		*cur = old
+		return err
+	}
+	return nil
+}
+
+// UpdateInstruction replaces the instruction identified by id, rolling back on
+// an invalid result.
+func (f *Forge) UpdateInstruction(id string, in Instruction) error {
+	cur := f.Instruction(id)
+	if cur == nil {
+		return fmt.Errorf("unknown instruction %q", id)
+	}
+	old := *cur
+	*cur = in
+	if err := f.Validate(); err != nil {
+		*cur = old
+		return err
+	}
+	return nil
+}
+
+// UpdateAgent replaces the agent identified by id, rolling back on an invalid
+// result (e.g. a skill reference that does not resolve).
+func (f *Forge) UpdateAgent(id string, a Agent) error {
+	cur := f.Agent(id)
+	if cur == nil {
+		return fmt.Errorf("unknown agent %q", id)
+	}
+	old := *cur
+	*cur = a
+	if err := f.Validate(); err != nil {
+		*cur = old
+		return err
+	}
+	return nil
+}
+
 // ToggleSkill flips a skill's Enabled flag, returning the new state.
 func (f *Forge) ToggleSkill(id string) (bool, error) {
 	s := f.Skill(id)
