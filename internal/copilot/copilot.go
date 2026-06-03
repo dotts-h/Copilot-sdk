@@ -73,6 +73,14 @@ type ContextInfo struct {
 	TokenLimit    int64
 }
 
+// ModelInfo is a normalized, selectable model from ListModels: its id (passed
+// to SessionSpec.Model), display name, and the reasoning efforts it accepts.
+type ModelInfo struct {
+	ID                        string
+	Name                      string
+	SupportedReasoningEfforts []string
+}
+
 // ToolCall is the normalized, displayable view of a single tool execution as it
 // moves through start → progress → completion. The same ID threads all three
 // phases so the UI can update one timeline entry in place.
@@ -125,6 +133,8 @@ type Client interface {
 	Abort(ctx context.Context, sessionID string) error
 	// Respond answers a pending tool-permission request (EvPermission).
 	Respond(id string, approve bool) error
+	// ListModels returns the models available to the account.
+	ListModels(ctx context.Context) ([]ModelInfo, error)
 	// Events streams normalized events until Close.
 	Events() <-chan Event
 	// Close releases all resources (stops the runtime).

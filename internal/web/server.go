@@ -116,6 +116,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /agents/{id}", s.handleAgentUpdate)
 	mux.HandleFunc("POST /agents/{id}/select", s.handleAgentSelect)
 	mux.HandleFunc("POST /agents/{id}/delete", s.handleAgentDelete)
+
+	mux.HandleFunc("POST /models/{id}/select", s.handleModelSelect)
 	return mux
 }
 
@@ -350,6 +352,16 @@ func (s *Server) handleAgentSelect(w http.ResponseWriter, r *http.Request) {
 		s.logger.Printf("save config: %v", err)
 	}
 	s.writePartial(w, s.agentsPartial())
+}
+
+// handleModelSelect switches the active model from the model picker and
+// re-renders the page with the new current marked.
+func (s *Server) handleModelSelect(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	s.mu.Lock()
+	s.setModel(id)
+	s.mu.Unlock()
+	s.writePartial(w, s.modelsPartial())
 }
 
 func (s *Server) handleAgentDelete(w http.ResponseWriter, r *http.Request) {

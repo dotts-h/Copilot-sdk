@@ -15,7 +15,7 @@ func TestMatchCommands(t *testing.T) {
 		wantLen int      // -1 means "don't care about exact count"
 	}{
 		{"/", nil, -1},                           // bare slash → all commands
-		{"/mo", []string{"model"}, 1},            // prefix match
+		{"/mo", []string{"model", "models"}, 2},  // prefix match (command + nav slug)
 		{"/c", []string{"clear", "cost"}, -1},    // multiple prefix matches
 		{"/model gpt-5", nil, 0},                 // space → typing args, no menu
 		{"hello", nil, 0},                        // not a command

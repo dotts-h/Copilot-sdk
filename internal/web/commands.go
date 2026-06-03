@@ -85,25 +85,32 @@ func (s *Server) cmdClear() string {
 // cmdModel switches the session model in place (restarting the session) and
 // records it as the default. With no argument it reports the current model.
 func (s *Server) cmdModel(name string) string {
-	s.mu.Lock()
 	if name == "" {
+		s.mu.Lock()
 		cur := s.spec.Model
 		s.mu.Unlock()
 		return s.systemNote("model: " + def(cur, "(default)"))
 	}
-	s.spec.Model = name
-	s.sessionID = "" // restart on next send
+	s.mu.Lock()
+	s.setModel(name)
 	s.state.AddSystem("model → " + name + " (new session)")
 	oob := s.oobTimeline()
 	s.mu.Unlock()
+	return oob
+}
 
+// setModel switches the active model in place: it updates the session spec,
+// clears the session id so the next prompt opens a fresh session with the new
+// model, and persists it as the default. Caller must hold s.mu.
+func (s *Server) setModel(name string) {
+	s.spec.Model = name
+	s.sessionID = "" // restart on next send
 	if s.config != nil {
 		s.config.DefaultModel = name
 		if err := s.config.Save(); err != nil {
 			s.logger.Printf("save config: %v", err)
 		}
 	}
-	return oob
 }
 
 // cmdAgent activates a forge agent (applying its model + reasoning effort to the

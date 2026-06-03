@@ -70,6 +70,10 @@ func TestMockClient(t *testing.T) {
 	if len(m.Aborted) != 1 {
 		t.Fatalf("Abort not recorded: %v", m.Aborted)
 	}
+	m.Models = []ModelInfo{{ID: "gpt-5", Name: "GPT-5"}}
+	if got, err := m.ListModels(context.Background()); err != nil || len(got) != 1 || got[0].ID != "gpt-5" {
+		t.Fatalf("ListModels = %v, %v", got, err)
+	}
 	m.Emit(Event{Type: EvMessage, Text: "hi"})
 	ev := <-m.Events()
 	if ev.Type != EvMessage || ev.Text != "hi" {

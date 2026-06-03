@@ -83,6 +83,11 @@ func run(configDir, addr string, seed, demo bool) error {
 	var closeFn func()
 	if demo {
 		mock := copilot.NewMockClient()
+		mock.Models = []copilot.ModelInfo{
+			{ID: "gpt-5", Name: "GPT-5", SupportedReasoningEfforts: []string{"low", "medium", "high"}},
+			{ID: "claude-sonnet-4-6", Name: "Claude Sonnet 4.6", SupportedReasoningEfforts: []string{"medium", "high"}},
+			{ID: "claude-haiku-4-5", Name: "Claude Haiku 4.5"},
+		}
 		client, closeFn = mock, func() { _ = mock.Close() }
 	} else {
 		client, closeFn = dialClient(cfg)
