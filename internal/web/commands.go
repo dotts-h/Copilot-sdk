@@ -156,11 +156,13 @@ func (s *Server) cmdAgent(arg string) string {
 	}
 	switch arg {
 	case "":
+		s.mu.Lock()
 		cur := def(s.config.DefaultAgent, "(none)")
 		ids := make([]string, len(s.forge.Agents))
 		for i, a := range s.forge.Agents {
 			ids[i] = a.ID
 		}
+		s.mu.Unlock()
 		note := "agent: " + cur
 		if len(ids) > 0 {
 			note += " — available: " + strings.Join(ids, ", ")
@@ -172,28 +174,33 @@ func (s *Server) cmdAgent(arg string) string {
 		s.spec.Model = s.config.DefaultModel
 		s.spec.ReasoningEffort = s.config.ReasoningEffort
 		s.sessionID = ""
+		if err := s.config.Save(); err != nil {
+			s.logger.Printf("save config: %v", err)
+		}
 		s.state.AddSystem("agent cleared (new session)")
 		oob := s.oobTimeline()
 		s.mu.Unlock()
-		_ = s.config.Save()
 		return oob
 	}
 
+	s.mu.Lock()
 	agent := s.forge.Agent(arg)
 	if agent == nil {
+		s.mu.Unlock()
 		return s.systemNote("unknown agent: " + arg + " — see the Agents page")
 	}
-	s.mu.Lock()
 	s.config.DefaultAgent = agent.ID
 	if agent.Model != "" {
 		s.spec.Model = agent.Model
 	}
 	s.spec.ReasoningEffort = agent.ReasoningEffort
 	s.sessionID = ""
+	if err := s.config.Save(); err != nil {
+		s.logger.Printf("save config: %v", err)
+	}
 	s.state.AddSystem("agent → " + agent.Name + " (" + def(agent.Model, s.spec.Model) + ", new session)")
 	oob := s.oobTimeline()
 	s.mu.Unlock()
-	_ = s.config.Save()
 	return oob
 }
 

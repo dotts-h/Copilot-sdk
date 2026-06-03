@@ -123,12 +123,18 @@ func (s *Server) handleSkillNew(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSkillEdit(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
 	sk := s.forge.Skill(r.PathValue("id"))
-	if sk == nil {
+	var form string
+	if sk != nil {
+		form = renderSkillForm(*sk, false, "")
+	}
+	s.mu.Unlock()
+	if form == "" {
 		s.writePartial(w, s.skillsPartial())
 		return
 	}
-	s.writePartial(w, renderSkillForm(*sk, false, ""))
+	s.writePartial(w, form)
 }
 
 func skillFromForm(r *http.Request, id string) ctxforge.Skill {
@@ -144,22 +150,20 @@ func skillFromForm(r *http.Request, id string) ctxforge.Skill {
 
 func (s *Server) handleSkillCreate(w http.ResponseWriter, r *http.Request) {
 	sk := skillFromForm(r, strings.TrimSpace(r.FormValue("id")))
-	if err := s.forge.AddSkill(sk); err != nil {
+	if err := s.editForge(func() error { return s.forge.AddSkill(sk) }); err != nil {
 		s.writePartial(w, renderSkillForm(sk, true, err.Error()))
 		return
 	}
-	s.persist()
 	s.writePartial(w, s.skillsPartial())
 }
 
 func (s *Server) handleSkillUpdate(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	sk := skillFromForm(r, id)
-	if err := s.forge.UpdateSkill(id, sk); err != nil {
+	if err := s.editForge(func() error { return s.forge.UpdateSkill(id, sk) }); err != nil {
 		s.writePartial(w, renderSkillForm(sk, false, err.Error()))
 		return
 	}
-	s.persist()
 	s.writePartial(w, s.skillsPartial())
 }
 
@@ -184,12 +188,18 @@ func (s *Server) handleInstructionNew(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleInstructionEdit(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
 	in := s.forge.Instruction(r.PathValue("id"))
-	if in == nil {
+	var form string
+	if in != nil {
+		form = renderInstructionForm(*in, false, "")
+	}
+	s.mu.Unlock()
+	if form == "" {
 		s.writePartial(w, s.instructionsPartial())
 		return
 	}
-	s.writePartial(w, renderInstructionForm(*in, false, ""))
+	s.writePartial(w, form)
 }
 
 func instructionFromForm(r *http.Request, id string) ctxforge.Instruction {
@@ -205,22 +215,20 @@ func instructionFromForm(r *http.Request, id string) ctxforge.Instruction {
 
 func (s *Server) handleInstructionCreate(w http.ResponseWriter, r *http.Request) {
 	in := instructionFromForm(r, strings.TrimSpace(r.FormValue("id")))
-	if err := s.forge.AddInstruction(in); err != nil {
+	if err := s.editForge(func() error { return s.forge.AddInstruction(in) }); err != nil {
 		s.writePartial(w, renderInstructionForm(in, true, err.Error()))
 		return
 	}
-	s.persist()
 	s.writePartial(w, s.instructionsPartial())
 }
 
 func (s *Server) handleInstructionUpdate(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	in := instructionFromForm(r, id)
-	if err := s.forge.UpdateInstruction(id, in); err != nil {
+	if err := s.editForge(func() error { return s.forge.UpdateInstruction(id, in) }); err != nil {
 		s.writePartial(w, renderInstructionForm(in, false, err.Error()))
 		return
 	}
-	s.persist()
 	s.writePartial(w, s.instructionsPartial())
 }
 
@@ -253,12 +261,18 @@ func (s *Server) handleAgentNew(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAgentEdit(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
 	a := s.forge.Agent(r.PathValue("id"))
-	if a == nil {
+	var form string
+	if a != nil {
+		form = renderAgentForm(*a, false, "")
+	}
+	s.mu.Unlock()
+	if form == "" {
 		s.writePartial(w, s.agentsPartial())
 		return
 	}
-	s.writePartial(w, renderAgentForm(*a, false, ""))
+	s.writePartial(w, form)
 }
 
 func agentFromForm(r *http.Request, id string) ctxforge.Agent {
@@ -275,22 +289,20 @@ func agentFromForm(r *http.Request, id string) ctxforge.Agent {
 
 func (s *Server) handleAgentCreate(w http.ResponseWriter, r *http.Request) {
 	a := agentFromForm(r, strings.TrimSpace(r.FormValue("id")))
-	if err := s.forge.AddAgent(a); err != nil {
+	if err := s.editForge(func() error { return s.forge.AddAgent(a) }); err != nil {
 		s.writePartial(w, renderAgentForm(a, true, err.Error()))
 		return
 	}
-	s.persist()
 	s.writePartial(w, s.agentsPartial())
 }
 
 func (s *Server) handleAgentUpdate(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	a := agentFromForm(r, id)
-	if err := s.forge.UpdateAgent(id, a); err != nil {
+	if err := s.editForge(func() error { return s.forge.UpdateAgent(id, a) }); err != nil {
 		s.writePartial(w, renderAgentForm(a, false, err.Error()))
 		return
 	}
-	s.persist()
 	s.writePartial(w, s.agentsPartial())
 }
 

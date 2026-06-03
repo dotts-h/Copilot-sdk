@@ -189,3 +189,70 @@ func TestCompileExcludesDisabledMCP(t *testing.T) {
 		t.Fatalf("disabled MCP server not excluded: %+v", spec.MCPServers)
 	}
 }
+
+func TestForgeRemoveSkillRollsBackOnDanglingRef(t *testing.T) {
+	f := New(t.TempDir())
+	if err := f.AddSkill(sampleSkill()); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.AddAgent(Agent{ID: "b", Name: "B", Model: "gpt-5", ReasoningEffort: "high", Skills: []string{"tdd"}}); err != nil {
+		t.Fatal(err)
+	}
+	// Removing a skill an agent pins must fail and leave the skill in place.
+	if err := f.RemoveSkill("tdd"); err == nil {
+		t.Fatal("expected dangling-reference error removing a pinned skill")
+	}
+	if f.Skill("tdd") == nil {
+		t.Fatal("rolled-back skill should still be present")
+	}
+	if err := f.Validate(); err != nil {
+		t.Fatalf("forge should remain valid after rollback: %v", err)
+	}
+}
+
+func TestForgeRemoveSkillOK(t *testing.T) {
+	f := New(t.TempDir())
+	_ = f.AddSkill(sampleSkill())
+	if err := f.RemoveSkill("tdd"); err != nil {
+		t.Fatalf("remove unreferenced skill: %v", err)
+	}
+	if f.Skill("tdd") != nil {
+		t.Fatal("skill should be gone")
+	}
+	if err := f.RemoveSkill("tdd"); err == nil {
+		t.Fatal("removing a missing skill should error")
+	}
+}
+
+func TestForgeRemoveInstructionAndAgent(t *testing.T) {
+	f := New(t.TempDir())
+	_ = f.AddInstruction(Instruction{ID: "i1", Title: "T", Body: "b", Enabled: true})
+	_ = f.AddAgent(Agent{ID: "a1", Name: "A", Model: "gpt-5", ReasoningEffort: "high"})
+	if err := f.RemoveInstruction("i1"); err != nil {
+		t.Fatal(err)
+	}
+	if f.Instruction("i1") != nil {
+		t.Fatal("instruction should be gone")
+	}
+	if err := f.RemoveAgent("a1"); err != nil {
+		t.Fatal(err)
+	}
+	if f.Agent("a1") != nil {
+		t.Fatal("agent should be gone")
+	}
+	if err := f.RemoveAgent("a1"); err == nil {
+		t.Fatal("removing a missing agent should error")
+	}
+}
+
+func TestForgeToggleInstruction(t *testing.T) {
+	f := New(t.TempDir())
+	_ = f.AddInstruction(Instruction{ID: "i1", Title: "T", Body: "b", Enabled: true})
+	state, err := f.ToggleInstruction("i1")
+	if err != nil || state {
+		t.Fatalf("toggle from enabled should be disabled: state=%v err=%v", state, err)
+	}
+	if _, err := f.ToggleInstruction("missing"); err == nil {
+		t.Fatal("expected error toggling unknown instruction")
+	}
+}
