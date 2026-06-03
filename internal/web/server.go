@@ -36,6 +36,7 @@ type Server struct {
 	state       convo.State
 	perms       []copilot.PermissionRequest
 	inputs      []copilot.InputRequest // pending ask_user questions (EvUserInput)
+	plans       []copilot.PlanRequest  // pending exit-plan-mode reviews (EvPlanReview)
 	live        liveKind
 	sessionID   string
 	pending     []string // file paths queued via /attach for the next prompt
@@ -95,6 +96,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /abort", s.handleAbort)
 	mux.HandleFunc("POST /perm/{id}", s.handlePerm)
 	mux.HandleFunc("POST /ask/{id}", s.handleAsk)
+	mux.HandleFunc("POST /plan/{id}", s.handlePlanReview)
 	mux.HandleFunc("GET /page/{name}", s.handlePage)
 	mux.HandleFunc("GET /commands", s.handleCommands)
 
@@ -310,6 +312,35 @@ func (s *Server) handleAsk(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(oob))
 }
 
+// handlePlanReview resolves a pending exit-plan-mode request via the client's
+// planBridge. A non-empty "action" approves and proceeds with that action; an
+// empty action with "feedback" declines and requests changes. Mirrors handleAsk.
+func (s *Server) handlePlanReview(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	_ = r.ParseForm()
+	action := firstNonEmpty(r.Form["action"])
+	feedback := firstNonEmpty(r.Form["feedback"])
+	approved := action != ""
+	if err := s.client.RespondPlan(id, approved, action, feedback); err != nil {
+		s.logger.Printf("respond plan: %v", err)
+	}
+	note := "plan approved: " + action
+	if !approved {
+		note = "plan changes requested"
+		if feedback != "" {
+			note += ": " + feedback
+		}
+	}
+	s.mu.Lock()
+	s.dropPlan(id)
+	s.state.AddSystem(note)
+	oob := s.oobTimeline()
+	s.mu.Unlock()
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(oob))
+}
+
 func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write([]byte(s.renderPage(r.PathValue("name"))))
@@ -446,6 +477,16 @@ func (s *Server) dropInput(id string) {
 	for i := range s.inputs {
 		if s.inputs[i].ID == id {
 			s.inputs = append(s.inputs[:i], s.inputs[i+1:]...)
+			return
+		}
+	}
+}
+
+// dropPlan removes a resolved plan review. Caller must hold s.mu.
+func (s *Server) dropPlan(id string) {
+	for i := range s.plans {
+		if s.plans[i].ID == id {
+			s.plans = append(s.plans[:i], s.plans[i+1:]...)
 			return
 		}
 	}

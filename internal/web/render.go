@@ -144,6 +144,41 @@ func renderAskForm(req copilot.InputRequest) string {
 	return b.String()
 }
 
+// renderPlanForm renders an inline exit-plan-mode review: the agent's summary,
+// the full plan (collapsible), one approve button per offered action (the
+// recommended one marked), and a freeform field to decline and request changes.
+// It posts to /plan/{id}, reusing the elicitation form pattern. Approve buttons
+// share name "action"; the request-changes field is name "feedback".
+func renderPlanForm(req copilot.PlanRequest) string {
+	eid := esc(req.ID)
+	var b strings.Builder
+	b.WriteString(`<form class="plan" id="plan-` + eid + `" hx-post="/plan/` + eid +
+		`" hx-target="#plan-` + eid + `" hx-swap="outerHTML">`)
+	b.WriteString(`<div class="plan-summary">📋 <b>` + esc(req.Summary) + `</b></div>`)
+	if req.Plan != "" {
+		b.WriteString(`<details class="plan-detail"><summary>view plan</summary><pre>` + esc(req.Plan) + `</pre></details>`)
+	}
+	if len(req.Actions) > 0 {
+		b.WriteString(`<div class="plan-actions">`)
+		for _, a := range req.Actions {
+			cls := "plan-action"
+			label := esc(a)
+			if a == req.Recommended {
+				cls += " recommended"
+				label += " ★"
+			}
+			b.WriteString(`<button class="` + cls + `" name="action" value="` + esc(a) + `">` + label + `</button>`)
+		}
+		b.WriteString(`</div>`)
+	}
+	b.WriteString(`<div class="plan-feedback">` +
+		`<input type="text" name="feedback" autocomplete="off" placeholder="request changes…">` +
+		`<button class="plan-reject" type="submit">request changes</button>` +
+		`</div>`)
+	b.WriteString(`</form>`)
+	return b.String()
+}
+
 // renderStatus renders the status-line content swapped into #status. While a
 // turn is active it appends a live elapsed-time timer (ticked client-side from
 // the data-start epoch) and an inline abort control (POST /abort); when idle it

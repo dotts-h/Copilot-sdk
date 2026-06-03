@@ -136,6 +136,24 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 			s.statusFrag("input requested", true),
 		}
 
+	case copilot.EvPlanReview:
+		if e.Plan == nil {
+			return nil
+		}
+		s.plans = append(s.plans, *e.Plan)
+		return []fragment{
+			{Event: "plan", HTML: renderPlanForm(*e.Plan)},
+			s.statusFrag("plan ready for review", true),
+		}
+
+	case copilot.EvPlanChanged:
+		note := e.Text
+		if note == "" {
+			note = "plan changed"
+		}
+		s.state.AddSystem("◷ " + note)
+		return s.timelineFragments()
+
 	case copilot.EvContextWindow:
 		s.ctxCurrent = e.Context.CurrentTokens
 		s.ctxLimit = e.Context.TokenLimit

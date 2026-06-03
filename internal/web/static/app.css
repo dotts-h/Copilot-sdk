@@ -105,6 +105,23 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
   border: 1px solid var(--panel); padding: .3rem .5rem; font: inherit; background: var(--bg, #1b1d1e); color: inherit; }
 .ask .ask-send { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--good); color: #1b1d1e; }
 
+/* plan mode (exit-plan-mode review) */
+.plans { max-width: 56rem; width: 100%; margin: 0 auto; padding: 0 1rem; }
+.plan { display: flex; flex-direction: column; gap: .5rem; margin: .4rem 0;
+  padding: .6rem .75rem; border-radius: 8px;
+  background: rgba(217,140,95,.10); border-left: 3px solid var(--accent, #d98c5f); }
+.plan .plan-summary { font-size: 1.02em; }
+.plan .plan-detail pre { margin: .3rem 0 0; padding: .5rem; border-radius: 6px;
+  background: rgba(0,0,0,.25); overflow-x: auto; white-space: pre-wrap; }
+.plan .plan-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+.plan .plan-action { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer;
+  font: inherit; background: var(--panel); color: inherit; }
+.plan .plan-action.recommended { background: var(--good); color: #1b1d1e; }
+.plan .plan-feedback { display: flex; gap: .4rem; }
+.plan .plan-feedback input { flex: 1 1 auto; min-width: 8rem; border-radius: 6px;
+  border: 1px solid var(--panel); padding: .3rem .5rem; font: inherit; background: var(--bg, #1b1d1e); color: inherit; }
+.plan .plan-reject { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--bad); color: #fff; }
+
 /* composer */
 .composer-bar { border-top: 1px solid var(--panel); background: var(--panel); padding: .6rem 1rem; }
 .status-row { display: flex; align-items: center; gap: .75rem; max-width: 56rem; margin: 0 auto; min-height: 1.1rem; }

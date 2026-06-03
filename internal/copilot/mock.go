@@ -17,6 +17,7 @@ type MockClient struct {
 	Resumed        []string
 	Responded      []PermissionDecision
 	RespondedInput []InputDecision
+	RespondedPlan  []PlanDecision
 	lastSession    string
 	closed         bool
 
@@ -104,6 +105,22 @@ type InputDecision struct {
 func (m *MockClient) RespondInput(id, answer string) error {
 	m.mu.Lock()
 	m.RespondedInput = append(m.RespondedInput, InputDecision{ID: id, Answer: answer})
+	m.mu.Unlock()
+	return nil
+}
+
+// PlanDecision records a RespondPlan call for assertions.
+type PlanDecision struct {
+	ID       string
+	Approved bool
+	Action   string
+	Feedback string
+}
+
+// RespondPlan implements Client.
+func (m *MockClient) RespondPlan(id string, approved bool, action, feedback string) error {
+	m.mu.Lock()
+	m.RespondedPlan = append(m.RespondedPlan, PlanDecision{ID: id, Approved: approved, Action: action, Feedback: feedback})
 	m.mu.Unlock()
 	return nil
 }

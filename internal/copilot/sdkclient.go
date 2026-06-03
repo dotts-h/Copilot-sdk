@@ -21,6 +21,7 @@ type SDKClient struct {
 
 	perms  *permBridge
 	inputs *inputBridge
+	plans  *planBridge
 
 	mu        sync.Mutex
 	sessions  map[string]*sdk.Session
@@ -93,6 +94,7 @@ func NewSDKClient(ctx context.Context, opts Options) (*SDKClient, error) {
 		client:    c,
 		perms:     newPermBridge(),
 		inputs:    newInputBridge(),
+		plans:     newPlanBridge(),
 		sessions:  make(map[string]*sdk.Session),
 		unsubs:    make(map[string]func()),
 		toolNames: make(map[string]string),
@@ -126,6 +128,7 @@ func (c *SDKClient) CreateSession(ctx context.Context, spec SessionSpec) (string
 		cfg.OnPermissionRequest = c.permissionHandler()
 	}
 	cfg.OnUserInputRequest = c.userInputHandler()
+	cfg.OnExitPlanModeRequest = c.exitPlanModeHandler()
 	if len(spec.MCPServers) > 0 {
 		cfg.MCPServers = make(map[string]sdk.MCPServerConfig, len(spec.MCPServers))
 		for _, s := range spec.MCPServers {
@@ -190,9 +193,10 @@ func (c *SDKClient) modelReasoningEfforts(ctx context.Context, model string) (ef
 // ResumeSession implements Client.
 func (c *SDKClient) ResumeSession(ctx context.Context, sessionID string) (string, error) {
 	session, err := c.client.ResumeSession(ctx, sessionID, &sdk.ResumeSessionConfig{
-		Streaming:           sdk.Bool(true),
-		OnPermissionRequest: c.permissionHandler(),
-		OnUserInputRequest:  c.userInputHandler(),
+		Streaming:             sdk.Bool(true),
+		OnPermissionRequest:   c.permissionHandler(),
+		OnUserInputRequest:    c.userInputHandler(),
+		OnExitPlanModeRequest: c.exitPlanModeHandler(),
 	})
 	if err != nil {
 		return "", fmt.Errorf("resume session %q: %w", sessionID, err)
@@ -265,6 +269,8 @@ func (c *SDKClient) makeHandler() func(sdk.SessionEvent) {
 			c.emit(Event{Type: EvCompactionStart})
 		case *sdk.SessionCompactionCompleteData:
 			c.emit(Event{Type: EvCompactionEnd, Text: compactionSummary(d)})
+		case *sdk.SessionPlanChangedData:
+			c.emit(Event{Type: EvPlanChanged, Text: planChangeText(d.Operation)})
 		case *sdk.SessionIdleData:
 			c.emit(Event{Type: EvIdle})
 		}
@@ -316,6 +322,42 @@ func (c *SDKClient) userInputHandler() sdk.UserInputHandler {
 		case <-c.done:
 			return sdk.UserInputResponse{}, ErrClosed
 		}
+	}
+}
+
+// exitPlanModeHandler bridges the SDK's synchronous exit-plan-mode callback to
+// the async web UI, mirroring userInputHandler: it emits an EvPlanReview and
+// blocks until RespondPlan() (or shutdown). An approval proceeds with the chosen
+// (or recommended) action; a decline returns the user's feedback.
+func (c *SDKClient) exitPlanModeHandler() sdk.ExitPlanModeRequestHandler {
+	return func(req sdk.ExitPlanModeRequest, _ sdk.ExitPlanModeInvocation) (sdk.ExitPlanModeResult, error) {
+		id, ch := c.plans.begin()
+		c.emit(Event{Type: EvPlanReview, Plan: &PlanRequest{
+			ID: id, Summary: req.Summary, Plan: req.PlanContent,
+			Actions: req.Actions, Recommended: req.RecommendedAction,
+		}})
+		select {
+		case d := <-ch:
+			return sdk.ExitPlanModeResult{
+				Approved: d.Approved, SelectedAction: d.Action, Feedback: d.Feedback,
+			}, nil
+		case <-c.done:
+			return sdk.ExitPlanModeResult{}, ErrClosed
+		}
+	}
+}
+
+// planChangeText renders a one-line note for a plan-file change operation.
+func planChangeText(op sdk.PlanChangedOperation) string {
+	switch op {
+	case sdk.PlanChangedOperationCreate:
+		return "plan created"
+	case sdk.PlanChangedOperationUpdate:
+		return "plan updated"
+	case sdk.PlanChangedOperationDelete:
+		return "plan deleted"
+	default:
+		return "plan changed"
 	}
 }
 
@@ -445,6 +487,14 @@ func (c *SDKClient) Respond(id string, approve bool) error {
 func (c *SDKClient) RespondInput(id, answer string) error {
 	if !c.inputs.resolve(id, answer) {
 		return fmt.Errorf("no pending input %q", id)
+	}
+	return nil
+}
+
+// RespondPlan implements Client.
+func (c *SDKClient) RespondPlan(id string, approved bool, action, feedback string) error {
+	if !c.plans.resolve(id, planDecision{Approved: approved, Action: action, Feedback: feedback}) {
+		return fmt.Errorf("no pending plan review %q", id)
 	}
 	return nil
 }

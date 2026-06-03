@@ -87,6 +87,7 @@ func newTestSDKClient() *SDKClient {
 	return &SDKClient{
 		perms:     newPermBridge(),
 		inputs:    newInputBridge(),
+		plans:     newPlanBridge(),
 		sessions:  map[string]*sdk.Session{},
 		unsubs:    map[string]func(){},
 		toolNames: map[string]string{},
