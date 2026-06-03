@@ -7,18 +7,21 @@ func TestStreamThenFinish(t *testing.T) {
 	c.AddUser("hello")
 	c.AppendDelta("Hi ")
 	c.AppendDelta("there")
-	// Mid-stream, transcript should include the provisional agent text.
-	tr := c.Transcript()
-	if len(tr) != 2 || tr[1].Role != RoleAgent || tr[1].Text != "Hi there" {
-		t.Fatalf("provisional stream not shown: %+v", tr)
+	// Mid-stream the provisional agent text lives in the pending buffer, above the
+	// single committed user turn.
+	if len(c.Committed()) != 1 {
+		t.Fatalf("only the user turn should be committed mid-stream: %+v", c.Committed())
+	}
+	if r, txt := c.Pending(); r != RoleAgent || txt != "Hi there" {
+		t.Fatalf("provisional stream not shown: %v %q", r, txt)
 	}
 	c.Finish("")
-	if c.Streaming() {
-		t.Fatal("should not be streaming after finish")
+	committed := c.Committed()
+	if len(committed) != 2 || committed[1].Role != RoleAgent || committed[1].Text != "Hi there" {
+		t.Fatalf("finished transcript wrong: %+v", committed)
 	}
-	tr = c.Transcript()
-	if len(tr) != 2 || tr[1].Text != "Hi there" {
-		t.Fatalf("finished transcript wrong: %+v", tr)
+	if _, txt := c.Pending(); txt != "" {
+		t.Fatalf("nothing should be pending after finish, got %q", txt)
 	}
 }
 
@@ -26,9 +29,9 @@ func TestFinishPrefersFinalContent(t *testing.T) {
 	var c State
 	c.AppendDelta("partial")
 	c.Finish("authoritative final")
-	tr := c.Transcript()
-	if tr[len(tr)-1].Text != "authoritative final" {
-		t.Fatalf("final content should win: %+v", tr)
+	committed := c.Committed()
+	if committed[len(committed)-1].Text != "authoritative final" {
+		t.Fatalf("final content should win: %+v", committed)
 	}
 }
 

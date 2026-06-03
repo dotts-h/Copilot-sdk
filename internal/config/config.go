@@ -11,15 +11,6 @@ import (
 	"strings"
 )
 
-// Theme selects the TUI color palette.
-type Theme string
-
-const (
-	ThemeAuto  Theme = "auto"
-	ThemeDark  Theme = "dark"
-	ThemeLight Theme = "light"
-)
-
 // Config is the root persisted configuration.
 type Config struct {
 	// DefaultModel is used when no agent overrides it.
@@ -28,8 +19,6 @@ type Config struct {
 	DefaultAgent string `json:"defaultAgent"`
 	// ReasoningEffort is the default effort when not set by an agent.
 	ReasoningEffort string `json:"reasoningEffort"`
-	// Theme controls the palette.
-	Theme Theme `json:"theme"`
 	// Streaming toggles incremental token rendering.
 	Streaming bool `json:"streaming"`
 	// AutoApproveTools, when true, approves all tool calls without prompting.
@@ -44,8 +33,6 @@ type Config struct {
 
 	// Telemetry configures the credits dashboard.
 	Telemetry TelemetryConfig `json:"telemetry"`
-	// Keybindings maps action names to key strings.
-	Keybindings map[string]string `json:"keybindings,omitempty"`
 
 	// dir is the directory this config loads/saves from (not serialized).
 	dir string
@@ -71,7 +58,6 @@ func Default(dir string) *Config {
 		DefaultModel:     "gpt-5",
 		DefaultAgent:     "",
 		ReasoningEffort:  "medium",
-		Theme:            ThemeAuto,
 		Streaming:        true,
 		AutoApproveTools: false,
 		ForgeDir:         filepath.Join(dir, "forge"),
@@ -80,25 +66,7 @@ func Default(dir string) *Config {
 			MonthlyCreditAllowance: 1500, // Pro: $15 in credits.
 			WarnFraction:           0.8,
 		},
-		Keybindings: DefaultKeybindings(),
-		dir:         dir,
-	}
-}
-
-// DefaultKeybindings returns the baseline action->key map.
-func DefaultKeybindings() map[string]string {
-	return map[string]string{
-		"quit":         "ctrl+c",
-		"help":         "?",
-		"chat":         "1",
-		"telemetry":    "2",
-		"skills":       "3",
-		"instructions": "4",
-		"agents":       "5",
-		"settings":     "6",
-		"config":       "7",
-		"submit":       "enter",
-		"cancel":       "esc",
+		dir: dir,
 	}
 }
 
@@ -153,16 +121,10 @@ func (c *Config) Save() error {
 // normalize fills empty derived fields and trims whitespace.
 func (c *Config) normalize() {
 	c.DefaultModel = strings.TrimSpace(c.DefaultModel)
-	if c.Theme == "" {
-		c.Theme = ThemeAuto
-	}
 	// GitHubTokenEnv is intentionally left empty by default so the app uses the
 	// logged-in `copilot` CLI session; only honor an explicitly configured name.
 	if c.ForgeDir == "" {
 		c.ForgeDir = filepath.Join(c.dir, "forge")
-	}
-	if c.Keybindings == nil {
-		c.Keybindings = DefaultKeybindings()
 	}
 }
 
@@ -170,11 +132,6 @@ func (c *Config) normalize() {
 func (c *Config) Validate() error {
 	if c.DefaultModel == "" {
 		return fmt.Errorf("defaultModel is required")
-	}
-	switch c.Theme {
-	case ThemeAuto, ThemeDark, ThemeLight:
-	default:
-		return fmt.Errorf("invalid theme %q", c.Theme)
 	}
 	switch c.ReasoningEffort {
 	case "", "low", "medium", "high", "xhigh":
@@ -192,6 +149,3 @@ func (c *Config) Validate() error {
 
 // GitHubToken resolves the configured token from the environment.
 func (c *Config) GitHubToken() string { return os.Getenv(c.GitHubTokenEnv) }
-
-// Key returns the key binding for an action, or "" if unbound.
-func (c *Config) Key(action string) string { return c.Keybindings[action] }

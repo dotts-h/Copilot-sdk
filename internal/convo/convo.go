@@ -47,8 +47,7 @@ type State struct {
 	turns   []Turn
 	msgBuf  strings.Builder // current assistant message accumulation
 	reaBuf  strings.Builder // current reasoning accumulation
-	stream  bool
-	toolIdx map[string]int // tool-call ID -> index into turns
+	toolIdx map[string]int  // tool-call ID -> index into turns
 }
 
 // AddUser appends a user turn.
@@ -66,7 +65,6 @@ func (c *State) AddSystem(text string) {
 func (c *State) AppendDelta(text string) {
 	c.commitReasoning()
 	c.msgBuf.WriteString(text)
-	c.stream = true
 }
 
 // AppendReasoning adds a reasoning chunk (streamed delta or a full block). Any
@@ -74,7 +72,6 @@ func (c *State) AppendDelta(text string) {
 func (c *State) AppendReasoning(text string) {
 	c.commitMessage("")
 	c.reaBuf.WriteString(text)
-	c.stream = true
 }
 
 // commitReasoning flushes the reasoning buffer into a committed turn.
@@ -100,15 +97,11 @@ func (c *State) commitMessage(final string) {
 }
 
 // Finish completes the in-flight turn: it commits any pending reasoning and the
-// message (preferring finalContent when provided) and clears the streaming flag.
+// message (preferring finalContent when provided).
 func (c *State) Finish(finalContent string) {
 	c.commitReasoning()
 	c.commitMessage(finalContent)
-	c.stream = false
 }
-
-// Streaming reports whether a turn is in flight.
-func (c *State) Streaming() bool { return c.stream }
 
 // ToolStart records a new tool execution as a timeline entry and remembers its
 // position so progress/completion update it in place. Pending assistant text is
@@ -184,15 +177,4 @@ func (c *State) Pending() (Role, string) {
 		return RoleReasoning, c.reaBuf.String()
 	}
 	return RoleAgent, c.msgBuf.String()
-}
-
-// Transcript returns the committed turns plus any live buffer (reasoning or
-// message) as a provisional trailing turn for rendering. At most one buffer is
-// non-empty at a time, because switching modes commits the other.
-func (c *State) Transcript() []Turn {
-	out := c.Committed()
-	if role, text := c.Pending(); text != "" {
-		out = append(out, Turn{Role: role, Text: text})
-	}
-	return out
 }

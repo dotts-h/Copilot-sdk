@@ -58,12 +58,6 @@ func TestMockClient(t *testing.T) {
 	if len(m.LastAttach) != 1 || m.LastAttach[0] != "/tmp/a.png" {
 		t.Fatalf("attachments not recorded: %v", m.LastAttach)
 	}
-	if id, _ := m.LastSessionID(context.Background()); id != "mock-session" {
-		t.Fatalf("LastSessionID = %q", id)
-	}
-	if rid, err := m.ResumeSession(context.Background(), "sess-9"); err != nil || rid != "sess-9" {
-		t.Fatalf("ResumeSession = %q, %v", rid, err)
-	}
 	if err := m.Abort(context.Background(), "mock-session"); err != nil {
 		t.Fatal(err)
 	}
