@@ -1,7 +1,6 @@
 package web
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -16,89 +15,53 @@ import (
 // error the form is re-rendered in place with the message instead of the list.
 
 // --- field helpers ---
+//
+// Each returns one rendered <label> fragment; formShell joins them into a form.
+// html/template auto-escapes every value, so no manual attribute escaping.
 
 func textField(label, name, value string, required bool) string {
-	req := ""
-	if required {
-		req = " required"
-	}
-	return fmt.Sprintf(
-		`<label class="field"><span>%s</span><input type="text" name="%s" value="%s" autocomplete="off"%s></label>`,
-		esc(label), name, attr(value), req)
+	return frag("field", map[string]any{"Label": label, "Name": name, "Value": value, "Required": required})
 }
 
 func textArea(label, name, value string, required bool) string {
-	req := ""
-	if required {
-		req = " required"
-	}
-	return fmt.Sprintf(
-		`<label class="field"><span>%s</span><textarea name="%s" rows="4"%s>%s</textarea></label>`,
-		esc(label), name, req, esc(value))
+	return frag("textArea", map[string]any{"Label": label, "Name": name, "Value": value, "Required": required})
 }
 
 func numberField(label, name string, value int) string {
-	return fmt.Sprintf(
-		`<label class="field"><span>%s</span><input type="number" name="%s" value="%d"></label>`,
-		esc(label), name, value)
+	return frag("numberField", map[string]any{"Label": label, "Name": name, "Value": value})
 }
 
 func checkboxField(label, name string, on bool) string {
-	ck := ""
-	if on {
-		ck = " checked"
-	}
-	return fmt.Sprintf(
-		`<label class="field check"><input type="checkbox" name="%s"%s><span>%s</span></label>`,
-		name, ck, esc(label))
+	return frag("checkboxField", map[string]any{"Label": label, "Name": name, "On": on})
 }
 
 func selectField(label, name, value string, opts []string) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, `<label class="field"><span>%s</span><select name="%s">`, esc(label), name)
-	for _, o := range opts {
-		sel := ""
-		if o == value {
-			sel = " selected"
-		}
-		fmt.Fprintf(&b, `<option value="%s"%s>%s</option>`, attr(o), sel, esc(o))
+	type option struct {
+		Value    string
+		Selected bool
 	}
-	b.WriteString(`</select></label>`)
-	return b.String()
+	options := make([]option, len(opts))
+	for i, o := range opts {
+		options[i] = option{Value: o, Selected: o == value}
+	}
+	return frag("selectField", map[string]any{"Label": label, "Name": name, "Options": options})
 }
 
 // idField renders the slug input: editable when creating, read-only when editing
 // (renames would orphan references; toggle/delete cover lifecycle instead).
 func idField(value string, isNew bool) string {
-	if isNew {
-		return textField("ID (slug)", "id", value, true)
-	}
-	return fmt.Sprintf(
-		`<label class="field"><span>ID (slug)</span><input type="text" name="id" value="%s" readonly></label>`,
-		attr(value))
+	return frag("field", map[string]any{
+		"Label": "ID (slug)", "Name": "id", "Value": value, "Required": isNew, "Readonly": !isNew,
+	})
 }
 
-// attr escapes a value for an HTML attribute (no <br> conversion, unlike esc).
-func attr(s string) string {
-	return strings.NewReplacer(`&`, "&amp;", `"`, "&quot;", `<`, "&lt;", `>`, "&gt;").Replace(s)
-}
-
-// formShell wraps fields in a <form> posting to action, plus a save/cancel row.
-// kind is the list slug used to cancel back to the list page.
+// formShell wraps the field fragments in a <form> posting to action, plus a
+// save/cancel row. kind is the list slug used to cancel back to the list page.
 func formShell(title, action, kind, errMsg string, fields ...string) string {
-	var b strings.Builder
-	b.WriteString(`<section class="page"><h2>` + esc(title) + `</h2>`)
-	if errMsg != "" {
-		b.WriteString(`<p class="error">⚠ ` + esc(errMsg) + `</p>`)
-	}
-	fmt.Fprintf(&b, `<form class="forge-form" hx-post="%s" hx-target="#main" hx-swap="innerHTML">`, action)
-	for _, f := range fields {
-		b.WriteString(f)
-	}
-	b.WriteString(`<div class="form-actions"><button type="submit">Save</button>`)
-	fmt.Fprintf(&b, `<button type="button" class="cancel" hx-get="/page/%s" hx-target="#main" hx-swap="innerHTML">Cancel</button>`, kind)
-	b.WriteString(`</div></form></section>`)
-	return b.String()
+	return frag("forgeForm", map[string]any{
+		"Title": title, "Action": action, "Kind": kind, "Err": errMsg,
+		"Fields": trusted(strings.Join(fields, "")),
+	})
 }
 
 // --- skill form ---

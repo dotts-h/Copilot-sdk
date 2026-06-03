@@ -11,30 +11,34 @@ import (
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
 
-// This file renders convo state and copilot events into HTML fragments. All
-// model/user text flows through esc(), which HTML-escapes and converts newlines
-// to <br> so multi-line content survives single-line SSE framing.
+// This file renders convo state and copilot events into HTML fragments. The
+// structural markup lives in templates/fragments.html (auto-escaped by
+// html/template); each function here builds the template's data and executes it
+// via frag(). Multi-line transcript text is escaped + newline-converted by the
+// richtext template function — the same transform as esc().
 
-// esc escapes text for safe insertion and converts newlines to <br>.
+// esc escapes text for safe insertion and converts newlines to <br>. It backs
+// the richtext template function and is still used where a plain string (not a
+// fragment) is needed.
 func esc(s string) string {
 	return strings.ReplaceAll(html.EscapeString(s), "\n", "<br>")
 }
 
 // deltaSpan is the incremental fragment appended to #cur for each streamed
 // token. Wrapping in a span preserves whitespace across appends.
-func deltaSpan(text string) string { return "<span>" + esc(text) + "</span>" }
+func deltaSpan(text string) string { return frag("deltaSpan", text) }
 
 // renderTurn renders one committed transcript turn.
 func renderTurn(t convo.Turn) string {
 	switch t.Role {
 	case convo.RoleUser:
-		return `<div class="turn user"><div class="role">you</div><div class="body">` + esc(t.Text) + `</div></div>`
+		return frag("turnUser", t.Text)
 	case convo.RoleAgent:
-		return `<div class="turn assistant"><div class="role">orchestra</div><div class="body">` + esc(t.Text) + `</div></div>`
+		return frag("turnAgent", t.Text)
 	case convo.RoleReasoning:
-		return `<details class="turn reasoning"><summary>✻ thinking</summary><div class="body">` + esc(t.Text) + `</div></details>`
+		return frag("turnReasoning", t.Text)
 	case convo.RoleSystem:
-		return `<div class="turn system">· ` + esc(t.Text) + `</div>`
+		return frag("turnSystem", t.Text)
 	case convo.RoleTool:
 		return renderToolCard(t.Tool)
 	}
@@ -55,40 +59,21 @@ func renderToolCard(tv *convo.ToolView) string {
 	case tv.Done:
 		glyph, state = "✓", "done"
 	}
-	var b strings.Builder
-	id := ""
-	if tv.ID != "" {
-		id = ` id="tool-` + esc(tv.ID) + `"`
-	}
-	fmt.Fprintf(&b, `<div%s class="turn tool %s">`, id, state)
-	b.WriteString(`<div class="tool-head"><span class="glyph">` + glyph + `</span> <span class="tool-name">` + esc(tv.Name) + `</span>`)
-	if tv.Args != "" {
-		b.WriteString(` <span class="tool-args">` + esc(tv.Args) + `</span>`)
-	}
-	b.WriteString(`</div>`)
-	if !tv.Done && tv.Progress != "" {
-		b.WriteString(`<div class="tool-progress">… ` + esc(tv.Progress) + `</div>`)
-	}
-	if tv.Done && tv.Result != "" {
-		b.WriteString(`<pre class="tool-result">` + esc(clampLines(tv.Result, 16)) + `</pre>`)
-	}
-	b.WriteString(`</div>`)
-	return b.String()
+	return frag("toolCard", map[string]any{
+		"ID": tv.ID, "Name": tv.Name, "Args": tv.Args,
+		"Glyph": glyph, "State": state,
+		"Progress": tv.Progress, "ShowProgress": !tv.Done && tv.Progress != "",
+		"Result": clampLines(tv.Result, 16), "ShowResult": tv.Done && tv.Result != "",
+	})
 }
 
 // renderCur renders the trailing live node (#cur) from the in-flight buffer.
-// Streamed deltas append spans directly into it; on the next structural
-// re-render it is rebuilt here (or committed and replaced by an empty one).
 func renderCur(role convo.Role, text string) string {
 	class := "turn assistant"
 	if role == convo.RoleReasoning {
 		class = "turn reasoning live"
 	}
-	inner := ""
-	if text != "" {
-		inner = "<span>" + esc(text) + "</span>"
-	}
-	return `<div id="cur" class="` + class + `">` + inner + `</div>`
+	return frag("cur", map[string]any{"Class": class, "Text": text, "Has": text != ""})
 }
 
 // renderTimelineInner builds the full #timeline contents: every committed turn
@@ -106,156 +91,70 @@ func renderTimelineInner(st *convo.State) string {
 // renderPermForm renders an inline approve/reject control for a pending
 // tool-permission request, posting the decision to /perm/{id}.
 func renderPermForm(id, detail string) string {
-	eid := esc(id)
-	return `<form class="perm" id="perm-` + eid + `" hx-post="/perm/` + eid +
-		`" hx-target="#perm-` + eid + `" hx-swap="outerHTML">` +
-		`<span class="perm-q">⚠ allow <b>` + esc(detail) + `</b>?</span>` +
-		`<button class="ok" name="approve" value="1">approve</button>` +
-		`<button class="no" name="approve" value="0" formnovalidate>reject</button>` +
-		`</form>`
+	return frag("permForm", map[string]any{"ID": id, "Detail": detail})
 }
 
 // renderAskForm renders an inline ask_user prompt: the question, one submit
 // button per suggested choice, and (when freeform is allowed or no choices are
-// offered) a text field for a custom answer. It posts to /ask/{id}, mirroring
-// renderPermForm. Choice buttons and the freeform field share the name "answer";
-// the handler picks the first non-empty value, so an empty freeform field next
-// to a clicked choice is harmless.
+// offered) a text field for a custom answer. It posts to /ask/{id}.
 func renderAskForm(req copilot.InputRequest) string {
-	eid := esc(req.ID)
-	var b strings.Builder
-	b.WriteString(`<form class="ask" id="ask-` + eid + `" hx-post="/ask/` + eid +
-		`" hx-target="#ask-` + eid + `" hx-swap="outerHTML">`)
-	b.WriteString(`<span class="ask-q">❓ <b>` + esc(req.Question) + `</b></span>`)
-	if len(req.Choices) > 0 {
-		b.WriteString(`<div class="ask-choices">`)
-		for _, c := range req.Choices {
-			b.WriteString(`<button class="ask-choice" name="answer" value="` + esc(c) + `">` + esc(c) + `</button>`)
-		}
-		b.WriteString(`</div>`)
-	}
-	if req.AllowFreeform || len(req.Choices) == 0 {
-		b.WriteString(`<div class="ask-freeform">` +
-			`<input type="text" name="answer" autocomplete="off" placeholder="type an answer…">` +
-			`<button class="ask-send" type="submit">send</button>` +
-			`</div>`)
-	}
-	b.WriteString(`</form>`)
-	return b.String()
+	return frag("askForm", map[string]any{
+		"ID": req.ID, "Question": req.Question, "Choices": req.Choices,
+		"ShowFreeform": req.AllowFreeform || len(req.Choices) == 0,
+	})
 }
 
 // renderPlanForm renders an inline exit-plan-mode review: the agent's summary,
 // the full plan (collapsible), one approve button per offered action (the
 // recommended one marked), and a freeform field to decline and request changes.
-// It posts to /plan/{id}, reusing the elicitation form pattern. Approve buttons
-// share name "action"; the request-changes field is name "feedback".
 func renderPlanForm(req copilot.PlanRequest) string {
-	eid := esc(req.ID)
-	var b strings.Builder
-	b.WriteString(`<form class="plan" id="plan-` + eid + `" hx-post="/plan/` + eid +
-		`" hx-target="#plan-` + eid + `" hx-swap="outerHTML">`)
-	b.WriteString(`<div class="plan-summary">📋 <b>` + esc(req.Summary) + `</b></div>`)
-	if req.Plan != "" {
-		b.WriteString(`<details class="plan-detail"><summary>view plan</summary><pre>` + esc(req.Plan) + `</pre></details>`)
-	}
-	if len(req.Actions) > 0 {
-		b.WriteString(`<div class="plan-actions">`)
-		for _, a := range req.Actions {
-			cls := "plan-action"
-			label := esc(a)
-			if a == req.Recommended {
-				cls += " recommended"
-				label += " ★"
-			}
-			b.WriteString(`<button class="` + cls + `" name="action" value="` + esc(a) + `">` + label + `</button>`)
-		}
-		b.WriteString(`</div>`)
-	}
-	b.WriteString(`<div class="plan-feedback">` +
-		`<input type="text" name="feedback" autocomplete="off" placeholder="request changes…">` +
-		`<button class="plan-reject" type="submit">request changes</button>` +
-		`</div>`)
-	b.WriteString(`</form>`)
-	return b.String()
+	return frag("planForm", map[string]any{
+		"ID": req.ID, "Summary": req.Summary, "Plan": req.Plan,
+		"Actions": req.Actions, "Recommended": req.Recommended,
+	})
 }
-
-// elicitFieldKey returns the form-input name for an elicitation field. The
-// "f." prefix keeps field inputs from colliding with the form's "action" button
-// and lets handleElicit read each field's value by reconstructing the key.
-func elicitFieldKey(name string) string { return "f." + name }
 
 // renderElicitForm renders a schema-driven elicitation dialog from an MCP server:
-// the message (and source), one control per field chosen by the field's type
-// (checkbox for boolean, select for an enum, number/text input otherwise), and
-// submit/decline buttons. It posts to /elicit/{id}, mirroring renderAskForm. The
-// "action" button value ("accept"/"decline") tells the handler what to do; field
-// inputs carry the submitted values.
+// the message (and source), one control per field, and submit/decline buttons.
+// It posts to /elicit/{id}.
 func renderElicitForm(req copilot.ElicitRequest) string {
-	eid := esc(req.ID)
-	var b strings.Builder
-	b.WriteString(`<form class="elicit" id="elicit-` + eid + `" hx-post="/elicit/` + eid +
-		`" hx-target="#elicit-` + eid + `" hx-swap="outerHTML">`)
-	b.WriteString(`<div class="elicit-msg">📝 <b>` + esc(req.Message) + `</b>`)
-	if req.Source != "" {
-		b.WriteString(` <span class="elicit-source">` + esc(req.Source) + `</span>`)
+	views := make([]map[string]any, len(req.Fields))
+	for i, f := range req.Fields {
+		views[i] = elicitFieldView(f)
 	}
-	b.WriteString(`</div>`)
-	for _, f := range req.Fields {
-		b.WriteString(renderElicitField(f))
-	}
-	b.WriteString(`<div class="elicit-actions">` +
-		`<button class="elicit-ok" name="action" value="accept" type="submit">submit</button>` +
-		`<button class="elicit-no" name="action" value="decline" type="submit" formnovalidate>decline</button>` +
-		`</div></form>`)
-	return b.String()
+	return frag("elicitForm", map[string]any{
+		"ID": req.ID, "Message": req.Message, "Source": req.Source, "Fields": views,
+	})
 }
 
-// renderElicitField renders one labelled form control for an elicitation field,
-// pre-filled from its default and switched on its type.
-func renderElicitField(f copilot.ElicitField) string {
-	key := esc(elicitFieldKey(f.Name))
-	label := esc(f.Label)
-	if f.Required {
-		label += ` <span class="req">*</span>`
+// elicitFieldView prepares one elicitation field for the elicitField template,
+// choosing the control by type and resolving enum options + the default value.
+func elicitFieldView(f copilot.ElicitField) map[string]any {
+	type opt struct {
+		Value, Label string
+		Selected     bool
 	}
-	var b strings.Builder
-	b.WriteString(`<label class="elicit-field"><span class="elicit-label">` + label + `</span>`)
-	switch {
-	case f.Type == "boolean":
-		checked := ""
-		if f.Default == "true" {
-			checked = " checked"
+	var opts []opt
+	for i, o := range f.Enum {
+		label := o
+		if i < len(f.EnumLabels) && f.EnumLabels[i] != "" {
+			label = f.EnumLabels[i]
 		}
-		b.WriteString(`<input type="checkbox" name="` + key + `" value="true"` + checked + `>`)
-	case len(f.Enum) > 0:
-		b.WriteString(`<select name="` + key + `">`)
-		for i, opt := range f.Enum {
-			text := opt
-			if i < len(f.EnumLabels) && f.EnumLabels[i] != "" {
-				text = f.EnumLabels[i]
-			}
-			sel := ""
-			if opt == f.Default {
-				sel = " selected"
-			}
-			b.WriteString(`<option value="` + esc(opt) + `"` + sel + `>` + esc(text) + `</option>`)
-		}
-		b.WriteString(`</select>`)
-	case f.Type == "number" || f.Type == "integer":
-		step := ""
-		if f.Type == "number" {
-			step = ` step="any"`
-		}
-		b.WriteString(`<input type="number"` + step + ` name="` + key + `" value="` + esc(f.Default) + `" autocomplete="off">`)
-	default:
-		b.WriteString(`<input type="text" name="` + key + `" value="` + esc(f.Default) + `" autocomplete="off">`)
+		opts = append(opts, opt{Value: o, Label: label, Selected: o == f.Default})
 	}
-	if f.Description != "" {
-		b.WriteString(`<span class="elicit-desc">` + esc(f.Description) + `</span>`)
+	return map[string]any{
+		"Key": elicitFieldKey(f.Name), "Label": f.Label, "Required": f.Required,
+		"Type": f.Type, "Default": f.Default, "Description": f.Description,
+		"Checked": f.Type == "boolean" && f.Default == "true",
+		"HasEnum": len(f.Enum) > 0, "Options": opts,
+		"Numeric": f.Type == "number" || f.Type == "integer", "Step": f.Type == "number",
 	}
-	b.WriteString(`</label>`)
-	return b.String()
 }
+
+// elicitFieldKey returns the form-input name for an elicitation field. The "f."
+// prefix keeps field inputs from colliding with the form's "action" button and
+// lets handleElicit read each field's value by reconstructing the key.
+func elicitFieldKey(name string) string { return "f." + name }
 
 // subagentLabel returns a sub-agent's display name, falling back to its internal
 // name, then to a generic label.
@@ -271,51 +170,39 @@ func subagentLabel(sa copilot.SubagentInfo) string {
 }
 
 // renderSubagents renders the background-activity strip: one animated chip per
-// running sub-agent (name + model). It is empty when nothing is running, so the
-// strip is ambient — visible only while sub-agents work.
+// running sub-agent. Empty when nothing is running, so the strip is ambient.
 func renderSubagents(active []copilot.SubagentInfo) string {
 	if len(active) == 0 {
 		return ""
 	}
 	var b strings.Builder
 	for _, sa := range active {
-		b.WriteString(`<span class="subagent-chip"><span class="spin">◐</span> ` + esc(subagentLabel(sa)))
-		if sa.Model != "" {
-			b.WriteString(` <span class="subagent-model">` + esc(sa.Model) + `</span>`)
-		}
-		b.WriteString(`</span>`)
+		b.WriteString(frag("subagentChip", map[string]any{"Label": subagentLabel(sa), "Model": sa.Model}))
 	}
 	return b.String()
 }
 
 // renderStatus renders the status-line content swapped into #status. While a
 // turn is active it appends a live elapsed-time timer (ticked client-side from
-// the data-start epoch) and an inline abort control (POST /abort); when idle it
-// is just the (possibly empty) status text, so both disappear on their own.
+// the data-start epoch) and an inline abort control; when idle it is just the
+// (possibly empty) status text.
 func renderStatus(text string, active bool, startMs int64) string {
-	var b strings.Builder
-	b.WriteString(`<span class="status-text">` + esc(text) + `</span>`)
-	if active {
-		if startMs > 0 {
-			fmt.Fprintf(&b, ` <span class="elapsed" data-start="%d">0s</span>`, startMs)
-		}
-		b.WriteString(` <button class="abort" hx-post="/abort" hx-target="#status" hx-swap="innerHTML">⏹ stop</button>`)
-	}
-	return b.String()
+	return frag("status", map[string]any{
+		"Text": text, "Active": active, "HasTimer": active && startMs > 0, "StartMs": startMs,
+	})
 }
 
 // renderCtx renders the live context-window meter (#ctx): a token count and
-// fill percentage of the model's context window, or a compaction indicator while
-// the conversation is being compacted. Empty until the first usage reading.
+// fill percentage, or a compaction indicator. Empty until the first reading.
 func renderCtx(cur, limit int64, compacting bool) string {
 	if compacting {
-		return `<span class="ctx-compacting">✻ compacting…</span>`
+		return frag("ctx", map[string]any{"Compacting": true})
 	}
 	if limit <= 0 {
 		if cur <= 0 {
 			return ""
 		}
-		return `<span class="ctx-tokens">` + humanTokens(cur) + ` tok</span>`
+		return frag("ctx", map[string]any{"ShowTokens": true, "Cur": humanTokens(cur)})
 	}
 	pct := int(float64(cur)/float64(limit)*100 + 0.5)
 	if pct > 100 {
@@ -325,7 +212,9 @@ func renderCtx(cur, limit int64, compacting bool) string {
 	if pct >= 80 {
 		cls += " warn"
 	}
-	return fmt.Sprintf(`<span class="%s">ctx %s/%s · %d%%</span>`, cls, humanTokens(cur), humanTokens(limit), pct)
+	return frag("ctx", map[string]any{
+		"ShowMeter": true, "Class": cls, "Cur": humanTokens(cur), "Limit": humanTokens(limit), "Pct": pct,
+	})
 }
 
 // humanTokens renders a token count compactly (1.5k, 128.0k, 2.5M).
@@ -349,11 +238,11 @@ func renderCostFooter(meter *telemetry.Meter, allowance float64) string {
 	if pct > 100 {
 		pct = 100
 	}
-	return fmt.Sprintf(
-		`<span class="credits">%s</span>`+
-			`<span class="meter"><span class="meter-fill" style="width:%.1f%%"></span></span>`+
-			`<span class="pct">%.0f%%</span>`,
-		esc(telemetry.FormatCredits(totals.Credits())), pct, frac*100)
+	return frag("costFooter", map[string]any{
+		"Credits":  telemetry.FormatCredits(totals.Credits()),
+		"Width":    fmt.Sprintf("%.1f%%", pct),
+		"PctWhole": fmt.Sprintf("%.0f", frac*100),
+	})
 }
 
 // clampLines limits text to at most n lines, appending an elision note when it
