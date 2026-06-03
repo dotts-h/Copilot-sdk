@@ -388,6 +388,20 @@ func clip(s string, n int) string {
 	return string(r[:n-1]) + "…"
 }
 
+// ListModels implements Client, mapping the SDK's ModelInfo onto the normalized
+// subset the UI needs (id, name, supported reasoning efforts).
+func (c *SDKClient) ListModels(ctx context.Context) ([]ModelInfo, error) {
+	models, err := c.client.ListModels(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ModelInfo, len(models))
+	for i, m := range models {
+		out[i] = ModelInfo{ID: m.ID, Name: m.Name, SupportedReasoningEfforts: m.SupportedReasoningEfforts}
+	}
+	return out, nil
+}
+
 // Respond implements Client.
 func (c *SDKClient) Respond(id string, approve bool) error {
 	if !c.perms.resolve(id, approve) {

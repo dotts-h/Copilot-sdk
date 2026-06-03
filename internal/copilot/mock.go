@@ -21,6 +21,9 @@ type MockClient struct {
 
 	CreateErr error
 	SendErr   error
+	// Models is returned by ListModels; tests set it to drive the model picker.
+	Models        []ModelInfo
+	ListModelsErr error
 }
 
 // NewMockClient returns a ready mock with a buffered event channel.
@@ -102,6 +105,13 @@ func (m *MockClient) SentAt(i int) string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.Sent[i]
+}
+
+// ListModels implements Client.
+func (m *MockClient) ListModels(context.Context) ([]ModelInfo, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.Models, m.ListModelsErr
 }
 
 // Events implements Client.

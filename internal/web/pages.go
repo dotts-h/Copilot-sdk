@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -19,6 +20,7 @@ var pageNames = []struct{ slug, label string }{
 	{"skills", "Skills"},
 	{"instructions", "Instructions"},
 	{"agents", "Agents"},
+	{"models", "Models"},
 	{"settings", "Settings"},
 	{"help", "Help"},
 }
@@ -34,6 +36,8 @@ func (s *Server) renderPage(slug string) string {
 		return s.instructionsPartial()
 	case "agents":
 		return s.agentsPartial()
+	case "models":
+		return s.modelsPartial()
 	case "settings":
 		return s.settingsPartial()
 	case "help":
@@ -75,6 +79,7 @@ func helpPartial() string {
 		{"Skills", "Reusable prompt fragments; toggle which are active for the session."},
 		{"Instructions", "Always-on guidance, ordered by priority."},
 		{"Agents", "Named model + reasoning + skill presets; select one as the default."},
+		{"Models", "Pick the model the session uses; selecting one restarts the session on your next prompt."},
 		{"Settings", "Read-only view of config.json / forge.json; edit those files to change them."},
 	}
 	for _, r := range rows {
@@ -199,6 +204,48 @@ func (s *Server) agentsPartial() string {
 		del := `<button class="del" hx-post="/agents/` + esc(a.ID) + `/delete" hx-target="#main" hx-swap="innerHTML" hx-confirm="Delete agent ` + esc(a.Name) + `?">✕</button>`
 		fmt.Fprintf(&b, `<li class="row %s">%s<div class="row-text"><span class="row-name">%s</span><span class="row-desc">%s</span></div>%s%s</li>`,
 			activeClass(active), mark, esc(a.Name), esc(desc), edit, del)
+	}
+	b.WriteString(`</ul></section>`)
+	return b.String()
+}
+
+// modelsPartial renders the model picker: every model the account can use, with
+// the current one marked and the rest offering a one-click switch (POST
+// /models/{id}/select, which restarts the session — workstream 3). It degrades
+// to a notice when the runtime can't list models.
+func (s *Server) modelsPartial() string {
+	models, err := s.client.ListModels(context.Background())
+
+	s.mu.Lock()
+	current := s.spec.Model
+	s.mu.Unlock()
+
+	var b strings.Builder
+	b.WriteString(`<section class="page"><h2>Models</h2>`)
+	if err != nil {
+		b.WriteString(`<p class="dim">models unavailable: ` + esc(err.Error()) + `</p></section>`)
+		return b.String()
+	}
+	if len(models) == 0 {
+		b.WriteString(`<p class="dim">no models available</p></section>`)
+		return b.String()
+	}
+	b.WriteString(`<p class="dim">selecting a model sets it as default and restarts the session on your next prompt</p>`)
+	b.WriteString(`<ul class="rows">`)
+	for _, m := range models {
+		active := m.ID == current
+		desc := m.ID
+		if efforts := strings.Join(m.SupportedReasoningEfforts, ", "); efforts != "" {
+			desc += " · reasoning: " + efforts
+		}
+		var action string
+		if active {
+			action = `<button class="toggle" disabled>` + markGlyph(true) + `</button>`
+		} else {
+			action = `<button class="toggle" hx-post="/models/` + esc(m.ID) + `/select" hx-target="#main" hx-swap="innerHTML">use</button>`
+		}
+		fmt.Fprintf(&b, `<li class="row %s">%s<div class="row-text"><span class="row-name">%s</span><span class="row-desc">%s</span></div></li>`,
+			activeClass(active), action, esc(def(m.Name, m.ID)), esc(desc))
 	}
 	b.WriteString(`</ul></section>`)
 	return b.String()
