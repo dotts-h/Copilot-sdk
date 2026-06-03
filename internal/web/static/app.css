@@ -1,0 +1,110 @@
+/* Handcrafted stylesheet mirroring the TUI Palette (internal/tui/styles.go):
+   terracotta accent, copilot blue, slate chrome. No build chain. */
+:root {
+  --accent:  #d98c5f; /* warm terracotta (Claude-ish) */
+  --accent2: #6ea8fe; /* copilot blue */
+  --fg:      #e6e6e6;
+  --dim:     #9aa0a6;
+  --subtle:  #5f6368;
+  --bg:      #1b1d1e;
+  --panel:   #26282a;
+  --good:    #7ee787;
+  --warn:    #e3b341;
+  --bad:     #f85149;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  display: flex;
+  align-items: baseline;
+  gap: .75rem;
+  padding: .6rem 1rem;
+  border-bottom: 1px solid var(--panel);
+  background: var(--panel);
+}
+.topbar .brand { color: var(--accent); font-weight: 600; letter-spacing: .02em; }
+.topbar .tag { color: var(--dim); font-size: .8rem; }
+
+main { flex: 1 1 auto; overflow: hidden; display: flex; }
+
+.timeline {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 1rem;
+  max-width: 56rem;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.turn {
+  margin: 0 0 1rem;
+  padding: .6rem .85rem;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.turn.user {
+  background: rgba(110, 168, 254, .10);
+  border-left: 3px solid var(--accent2);
+}
+.turn.assistant {
+  background: rgba(217, 140, 95, .07);
+  border-left: 3px solid var(--accent);
+}
+.turn.assistant:empty { padding: 0; margin: 0; border: none; }
+.turn .role {
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--dim);
+  margin-bottom: .25rem;
+}
+.turn.error {
+  background: rgba(248, 81, 73, .10);
+  border-left: 3px solid var(--bad);
+  color: var(--bad);
+}
+
+.composer-bar {
+  border-top: 1px solid var(--panel);
+  background: var(--panel);
+  padding: .6rem 1rem;
+}
+.status { min-height: 1.1rem; color: var(--dim); font-size: .8rem; }
+#composer { display: flex; gap: .5rem; max-width: 56rem; margin: .25rem auto; }
+#composer input {
+  flex: 1 1 auto;
+  background: var(--bg);
+  border: 1px solid var(--subtle);
+  border-radius: 6px;
+  color: var(--fg);
+  padding: .55rem .7rem;
+  font: inherit;
+}
+#composer input:focus { outline: none; border-color: var(--accent2); }
+#composer button {
+  background: var(--accent);
+  color: #1b1d1e;
+  border: none;
+  border-radius: 6px;
+  padding: .55rem 1.1rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+#composer button:hover { filter: brightness(1.08); }
+.cost { text-align: right; color: var(--dim); font-size: .8rem; max-width: 56rem; margin: 0 auto; }

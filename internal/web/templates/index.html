@@ -1,0 +1,48 @@
+{{define "index"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>my-orchestra</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/htmx-ext-sse.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">my-orchestra</span>
+    <span class="tag">web · htmx</span>
+  </header>
+
+  <main hx-ext="sse" sse-connect="/events">
+    <section id="timeline" class="timeline">
+      {{/* committed turns are inserted before #cur-msg; #cur-msg is always last */}}
+      <div id="cur-msg" class="turn assistant"></div>
+    </section>
+
+    {{/* Hidden SSE listeners. Each subscribes to one event name and routes the
+         fragment to the right place. OOB swaps (tool/cost/perm) are processed
+         from the message body regardless of the (none) main swap. */}}
+    <div class="sse-listeners" hidden>
+      <div sse-swap="msg-delta" hx-target="#cur-msg" hx-swap="beforeend"></div>
+      <div sse-swap="msg-done"  hx-target="#cur-msg" hx-swap="outerHTML"></div>
+      <div sse-swap="turn-end"  hx-target="#status"  hx-swap="innerHTML"></div>
+      <div sse-swap="error"     hx-target="#timeline" hx-swap="beforeend"></div>
+    </div>
+  </main>
+
+  <footer class="composer-bar">
+    <div id="status" class="status"></div>
+    <form id="composer"
+          hx-post="/send"
+          hx-target="#cur-msg"
+          hx-swap="beforebegin"
+          hx-on::after-request="this.reset(); this.querySelector('input').focus()">
+      <input type="text" name="prompt" autocomplete="off" autofocus
+             placeholder="Ask my-orchestra…">
+      <button type="submit">Send</button>
+    </form>
+    <div id="cost-footer" class="cost">—</div>
+  </footer>
+</body>
+</html>{{end}}
