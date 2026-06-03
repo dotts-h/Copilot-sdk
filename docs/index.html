@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>my-orchestra — architecture &amp; internals</title>
-<meta name="description" content="my-orchestra: a cost-aware coding TUI fusing the GitHub Copilot CLI and Claude CLI, powered by the official Copilot Go SDK and the my-ctx forge." />
+<meta name="description" content="my-orchestra: a cost-aware coding web app fusing the GitHub Copilot CLI and Claude CLI, powered by the official Copilot Go SDK and the my-ctx forge." />
 <style>
   :root{
     --bg:#15171a; --panel:#1e2125; --fg:#e7e9ea; --dim:#9aa3ad; --line:#2c3036;
@@ -51,13 +51,13 @@
 <body>
 <header>
   <h1><span class="glyph">⎈</span> my-orchestra</h1>
-  <p>A cost-aware coding TUI that fuses the <strong>GitHub Copilot CLI</strong> and
+  <p>A cost-aware coding web app that fuses the <strong>GitHub Copilot CLI</strong> and
      <strong>Claude CLI</strong> experiences — driven by the official
      <strong>Copilot Go SDK</strong>, composed with the <strong>my-ctx forge</strong>,
      and metered against GitHub's <strong>AI-Credit</strong> billing in real time.</p>
   <div class="badges">
     <span class="badge">Go 1.24</span>
-    <span class="badge">Bubble Tea TUI</span>
+    <span class="badge">htmx + SSE</span>
     <span class="badge">github/copilot-sdk/go</span>
     <span class="badge">TDD · race · fuzz</span>
     <span class="badge">CI/CD · Pages</span>
@@ -67,40 +67,44 @@
 <main>
   <section>
     <h2><span class="n">01</span>What it is</h2>
-    <p>my-orchestra is a terminal application for building and testing code with
+    <p>my-orchestra is a local web app for building and testing code with
       Copilot's agent, designed around one principle: <em>you should always know
       what a turn costs</em>. It borrows Copilot CLI's calm, tool-centric chrome
       and Claude CLI's conversational warmth, and adds first-class pages for
-      context engineering and live credit telemetry.</p>
+      context engineering and live credit telemetry — all server-rendered and
+      streamed over SSE.</p>
     <div class="grid">
-      <div class="card"><h4>Chat</h4><p>Streaming agent conversation with tool-execution indicators and a live credit footer.</p></div>
+      <div class="card"><h4>Chat</h4><p>Streaming agent conversation with a tool timeline, a separate reasoning block, and a live credit footer.</p></div>
       <div class="card"><h4>Telemetry</h4><p>Per-model token &amp; credit breakdown vs. your monthly budget, plus GitHub's authoritative AIU cost.</p></div>
-      <div class="card"><h4>Forge</h4><p>Create, edit, delete, and toggle skills, instructions, and agents — compiled into the session's system message.</p></div>
+      <div class="card"><h4>Forge</h4><p>Toggle skills and instructions and pick the active agent — compiled into the session's system message.</p></div>
       <div class="card"><h4>Permissions</h4><p>Inline approve/reject prompts for the agent's shell/file/tool actions when auto-approve is off.</p></div>
-      <div class="card"><h4>Slash commands</h4><p><code>/model</code>, <code>/agent</code>, <code>/clear</code>, <code>/cost</code> &amp; more, right in the composer.</p></div>
-      <div class="card"><h4>Settings / Config</h4><p>Every knob — model, effort, theme, budget, price overrides, OTLP endpoint, key bindings.</p></div>
+      <div class="card"><h4>htmx + SSE</h4><p>One long-lived event stream renders tokens, tools, and cost live — no JS build chain.</p></div>
+      <div class="card"><h4>Settings</h4><p>The effective configuration — model, effort, budget, price overrides, OTLP endpoint.</p></div>
     </div>
   </section>
 
   <section>
     <h2><span class="n">02</span>Architecture</h2>
-    <p>A small, testable core in pure Go, a thin SDK adapter at the edge, and a
-      Bubble Tea UI on top. The <code>copilot.Client</code> interface is the seam
-      that keeps the UI hermetically testable with an in-memory mock.</p>
+    <p>A small, testable core in pure Go, a thin SDK adapter at the edge, and an
+      htmx web UI streamed over SSE on top. The <code>copilot.Client</code>
+      interface is the seam that keeps the UI hermetically testable with an
+      in-memory mock.</p>
     <div class="mermaid">
 flowchart TD
-  U([You]) --> TUI
+  U([Browser]) <-->|htmx · SSE| WEB
 
   subgraph APP["my-orchestra (Go)"]
-    TUI["TUI · Bubble Tea<br/>Chat · Telemetry · Forge · Settings"]
+    WEB["web · net/http<br/>handlers · SSE hub · html/template"]
+    CONVO["convo<br/>Turn · ToolView · transcript reducer"]
     FORGE["ctxforge<br/>skills · instructions · agents · MCP"]
     TEL["telemetry<br/>price book · Meter · budget"]
     CFG["config<br/>settings · key bindings"]
     IFACE{{"copilot.Client<br/>(interface)"}}
-    TUI --> FORGE
-    TUI --> TEL
-    TUI --> CFG
-    TUI --> IFACE
+    WEB --> CONVO
+    WEB --> FORGE
+    WEB --> TEL
+    WEB --> CFG
+    WEB --> IFACE
     FORGE -->|Compile → SessionSpec| IFACE
   end
 
@@ -111,19 +115,20 @@ flowchart TD
   CLI -->|assistant.usage events| TEL
     </div>
     <h3>Why an interface, not a direct call?</h3>
-    <p>The TUI never imports the SDK. It depends only on
-      <code>copilot.Client</code>, so the entire update loop is unit-tested
-      against <code>MockClient</code> with deterministic events — no network, no
-      auth, no flake. <code>SDKClient</code> is the one place that touches the
-      runtime, and it is covered by a gated end-to-end test.</p>
+    <p>The web layer never imports the SDK. It depends only on
+      <code>copilot.Client</code>, so the handlers and the event→fragment reducer
+      are unit-tested against <code>MockClient</code> with deterministic events —
+      no network, no auth, no flake. <code>SDKClient</code> is the one place that
+      touches the runtime, and it is covered by a gated end-to-end test.</p>
     <h3>Interactive permissions: bridging sync ↔ async</h3>
     <p>The SDK's <code>OnPermissionRequest</code> callback is synchronous — it
-      must return a decision inline — but a TUI answers later. A small
+      must return a decision inline — but a browser answers later. A small
       <code>permBridge</code> reconciles the two: the callback registers a
-      one-shot channel, emits an <code>EvPermission</code>, and blocks; the UI
-      renders <code>⚠ allow … ? [y]/[n]</code>, and the keypress routes the
-      decision back through <code>Client.Respond</code>. On shutdown the callback
-      returns <em>user-not-available</em> so it never hangs.</p>
+      one-shot channel, emits an <code>EvPermission</code>, and blocks; the server
+      streams an inline approve/reject form over SSE, and a
+      <code>POST /perm/{id}</code> routes the decision back through
+      <code>Client.Respond</code>. On shutdown the callback returns
+      <em>user-not-available</em> so it never hangs.</p>
   </section>
 
   <section>
@@ -177,7 +182,8 @@ flowchart TD
       <li><strong>Pages</strong> — this site deploys from <code>docs/</code> on every push to <code>main</code>.</li>
     </ul>
 <pre>cmd/my-orchestra        entrypoint &amp; wiring
-internal/tui            Bubble Tea model, views, key handling
+internal/web            net/http server · SSE hub · html/template · vendored htmx
+internal/convo          transcript model · Turn · ToolView · reducer (pure)
 internal/copilot        Client interface · SDKClient · MockClient
 internal/ctxforge       skills · instructions · agents · MCP → SessionSpec
 internal/telemetry      price book · Meter · budget · AIU
@@ -189,13 +195,17 @@ internal/config         settings · key bindings (JSON)</pre>
 <pre># build
 go build -o bin/my-orchestra ./cmd/my-orchestra
 
-# seed a starter forge + config, then run
+# seed a starter forge + config, then run (opens http://127.0.0.1:8765)
 ./bin/my-orchestra --seed
-GITHUB_TOKEN=*** ./bin/my-orchestra</pre>
-    <p>Without the <code>copilot</code> CLI or a token, my-orchestra launches in an
-      offline mock mode so you can explore every page. Install the
-      <a href="https://github.com/features/copilot/cli">Copilot CLI</a> and export a
-      token to drive a real agent.</p>
+./bin/my-orchestra
+
+# or explore offline with a scripted mock
+./bin/my-orchestra -demo</pre>
+    <p>By default my-orchestra authenticates with the already-logged-in
+      <code>copilot</code> CLI session. Without it (or with <code>-demo</code>) it
+      runs an offline mock so you can explore every page. Install the
+      <a href="https://github.com/features/copilot/cli">Copilot CLI</a> and log in
+      to drive a real agent.</p>
   </section>
 </main>
 

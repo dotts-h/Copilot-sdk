@@ -1,7 +1,7 @@
-// Command my-orchestra is a cost-aware coding TUI that fuses the GitHub Copilot
-// CLI and Claude CLI experiences. It drives the GitHub Copilot SDK (through a
-// Node sidecar), assembles context with the my-ctx forge, and meters AI-Credit
-// spend live.
+// Command my-orchestra is a cost-aware coding web app that fuses the GitHub
+// Copilot CLI and Claude CLI experiences. It drives the GitHub Copilot SDK
+// (through a Node sidecar), assembles context with the my-ctx forge, meters
+// AI-Credit spend live, and serves a server-rendered htmx UI over SSE.
 package main
 
 import (
@@ -13,13 +13,10 @@ import (
 	"os"
 	"path/filepath"
 
-	tea "github.com/charmbracelet/bubbletea"
-
 	"github.com/dotts-h/copilot-sdk/internal/config"
 	"github.com/dotts-h/copilot-sdk/internal/copilot"
 	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
-	"github.com/dotts-h/copilot-sdk/internal/tui"
 	"github.com/dotts-h/copilot-sdk/internal/web"
 )
 
@@ -31,18 +28,14 @@ func main() {
 		showVersion bool
 		configDir   string
 		seed        bool
-		resume      bool
-		webUI       bool
-		webAddr     string
-		webDemo     bool
+		addr        string
+		demo        bool
 	)
 	flag.BoolVar(&showVersion, "version", false, "print version and exit")
 	flag.StringVar(&configDir, "config-dir", defaultConfigDir(), "configuration directory")
 	flag.BoolVar(&seed, "seed", false, "write a starter forge + config to the config dir and exit")
-	flag.BoolVar(&resume, "resume", false, "resume the most recent session on launch")
-	flag.BoolVar(&webUI, "web", false, "serve the htmx web UI instead of the TUI")
-	flag.StringVar(&webAddr, "web-addr", "127.0.0.1:8765", "address for the web UI")
-	flag.BoolVar(&webDemo, "web-demo", false, "drive the web UI with a scripted mock (no Copilot runtime)")
+	flag.StringVar(&addr, "addr", "127.0.0.1:8765", "address for the web UI")
+	flag.BoolVar(&demo, "demo", false, "drive the web UI with a scripted mock (no Copilot runtime)")
 	flag.Parse()
 
 	if showVersion {
@@ -50,21 +43,16 @@ func main() {
 		return
 	}
 
-	if webUI {
-		if err := runWeb(configDir, webAddr, webDemo); err != nil {
-			fmt.Fprintln(os.Stderr, "my-orchestra: "+err.Error())
-			os.Exit(1)
-		}
-		return
-	}
-
-	if err := run(configDir, seed, resume); err != nil {
+	if err := run(configDir, addr, seed, demo); err != nil {
 		fmt.Fprintln(os.Stderr, "my-orchestra: "+err.Error())
 		os.Exit(1)
 	}
 }
 
-func run(configDir string, seed, resume bool) error {
+// run loads config + forge, builds the meter, dials the client, and serves the
+// htmx web UI (WEB_UI_PLAN.md). In demo mode it drives a scripted MockClient so
+// the streaming UI works with no Copilot runtime.
+func run(configDir, addr string, seed, demo bool) error {
 	cfg, err := config.Load(configDir)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -89,37 +77,8 @@ func run(configDir string, seed, resume bool) error {
 
 	// Connect to the Copilot runtime via the official Go SDK, authenticating
 	// with the logged-in `copilot` CLI session; if it cannot start (no `copilot`
-	// CLI on PATH, or not logged in), fall back to the offline mock so the TUI
+	// CLI on PATH, or not logged in), fall back to the offline mock so the app
 	// remains usable for inspection.
-	client, closeFn := dialClient(cfg)
-	defer closeFn()
-
-	model := tui.New(tui.Deps{Config: cfg, Forge: forge, Client: client, Meter: meter, Resume: resume})
-	p := tea.NewProgram(model, tea.WithAltScreen())
-	_, err = p.Run()
-	return err
-}
-
-// runWeb serves the htmx web UI (WEB_UI_PLAN.md). In demo mode it drives a
-// scripted MockClient so the streaming skeleton works with no Copilot runtime.
-func runWeb(configDir, addr string, demo bool) error {
-	cfg, err := config.Load(configDir)
-	if err != nil {
-		return fmt.Errorf("load config: %w", err)
-	}
-	forge, err := ctxforge.Load(cfg.ForgeDir)
-	if err != nil {
-		return fmt.Errorf("load forge: %w", err)
-	}
-
-	pb := telemetry.DefaultPriceBook()
-	for model, r := range cfg.Telemetry.PriceOverrides {
-		pb.Set(telemetry.ModelRate{
-			Model: model, InputPerMTok: r[0], CachedInputPerMTok: r[1], OutputPerMTok: r[2],
-		})
-	}
-	meter := telemetry.NewMeter(pb)
-
 	var client copilot.Client
 	var closeFn func()
 	if demo {
@@ -146,7 +105,7 @@ func runWeb(configDir, addr string, demo bool) error {
 }
 
 // dialClient starts the SDK-backed client, returning a mock if the runtime is
-// unavailable so the TUI still launches.
+// unavailable so the app still launches.
 func dialClient(cfg *config.Config) (copilot.Client, func()) {
 	// Prefer the already-logged-in `copilot` CLI session; only fall back to an
 	// explicit token when one is configured via GitHubTokenEnv.

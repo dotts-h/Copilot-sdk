@@ -7,18 +7,20 @@ This document is the engineering deep dive. The
 
 1. **Cost is a first-class citizen.** Token accounting and credit conversion are
    core domain logic, not an afterthought.
-2. **The UI is testable without a network.** The TUI depends on an interface, so
-   the entire update loop runs against an in-memory mock.
+2. **The UI is testable without a network.** The web layer depends on the
+   `copilot.Client` interface, so handlers and the event→fragment reducer run
+   against an in-memory mock — no browser or runtime required.
 3. **Context is reproducible.** What the agent "knows" is compiled from a
    file-backed forge, so it is diffable and shareable.
 4. **Pure core, thin edges.** Business logic is dependency-free Go; the SDK and
-   terminal are kept at the boundary.
+   the HTTP/SSE transport are kept at the boundary.
 
 ## Module map
 
 ```
-cmd/my-orchestra        entrypoint: load config+forge, build meter, dial client, run TUI
-internal/tui            Bubble Tea Model: pages, key handling, views, event→msg plumbing
+cmd/my-orchestra        entrypoint: load config+forge, build meter, dial client, serve web
+internal/web            net/http server: handlers, SSE hub, html/template partials, vendored htmx
+internal/convo          UI-agnostic transcript model: Turn · ToolView · State reducer (pure)
 internal/copilot        copilot.Client interface · SDKClient (Go SDK) · MockClient
 internal/ctxforge       Skill/Instruction/Agent/MCPServer · Forge.Compile → SessionSpec
 internal/telemetry      PriceBook · Meter (concurrent) · Budget · Cost · AIU
@@ -27,8 +29,8 @@ internal/config         Config (settings + key bindings), JSON, atomic save
 
 ## The `copilot.Client` seam
 
-The single most important boundary. The TUI never imports `github.com/github/copilot-sdk/go`.
-It depends only on:
+The single most important boundary. The web layer never imports
+`github.com/github/copilot-sdk/go`. It depends only on:
 
 ```go
 type Client interface {
@@ -47,10 +49,11 @@ Two implementations:
   event stream into a compact `Event` the UI understands. This is the only file
   that knows the SDK exists.
 - **`MockClient`** — in-memory. Records `Send`/`Abort` calls and lets a test push
-  arbitrary events. Powers the offline mode and every TUI unit test.
+  arbitrary events. Powers the offline mode and every web/convo unit test.
 
-Because the seam emits already-decoded `Event`s, the TUI's `decodeEvent` is a
-trivial, pure mapping to Bubble Tea messages — easy to test, impossible to flake.
+Because the seam emits already-decoded `Event`s, the web layer's `handleEvent`
+reducer is a pure mapping from `Event` to HTML fragments over SSE — easy to test
+against the mock, impossible to flake.
 
 ### Event normalization
 
@@ -85,25 +88,30 @@ concatenated into the answer.
 ### Interactive permissions (sync ↔ async bridge)
 
 When auto-approve is off, the SDK calls `OnPermissionRequest` and expects a
-decision **synchronously**. The TUI answers asynchronously, so `permBridge`
-mediates: the callback `begin()`s a one-shot channel and emits an
-`EvPermission`; the model queues it and renders `⚠ allow … ? [y]/[n]`; the
-keypress calls `Client.Respond`, which `resolve()`s the channel and unblocks the
-callback with `ApproveOnce` or `Reject{Feedback}`. If the client closes first,
-the callback selects `done` and returns `UserNotAvailable`, so it never hangs.
-Requests queue FIFO; decisions match by id, so out-of-order answers are safe.
+decision **synchronously**. The web UI answers asynchronously, so `permBridge`
+mediates: the callback `begin()`s a one-shot channel and emits an `EvPermission`;
+the server queues it and streams an inline **approve / reject** form over SSE; a
+`POST /perm/{id}` calls `Client.Respond`, which `resolve()`s the channel and
+unblocks the callback with `ApproveOnce` or `Reject{Feedback}`. If the client
+closes first, the callback selects `done` and returns `UserNotAvailable`, so it
+never hangs. Requests queue FIFO; decisions match by id, so out-of-order answers
+are safe.
 
 ### Forge CRUD
 
-The Skills/Instructions/Agents pages add (`a`), edit (`e`), and delete (`d`)
-entities through a modal form. Construction goes through pure, validated
-builder functions; saves **roll back** the in-memory forge if validation fails,
-so `forge.json` is never written in a bad state.
+The Skills/Instructions/Agents pages toggle (`POST /skills/{id}/toggle`), select
+(`POST /agents/{id}/select`), and delete (`POST /{kind}/{id}/delete`) entities,
+each swapping the affected fragment back over htmx. Construction goes through
+pure, validated builder functions; saves **roll back** the in-memory forge if
+validation fails, so `forge.json` is never written in a bad state. Add/edit
+forms are a tracked follow-up (see `docs/WEB_UI_PLAN.md`).
 
-### Slash commands
+### Slash commands (planned)
 
-The composer intercepts `/`-prefixed input (never sending it to the agent):
-`/help /clear /cost /skills /agents /settings`, plus `/model <name>` and
+Slash commands (`/model`, `/agent`, `/attach`, …) are not yet wired into the web
+composer — a tracked follow-up. The legacy intent was: intercept `/`-prefixed
+input (never sending it to the agent): `/help /clear /cost /skills /agents
+/settings`, plus `/model <name>` and
 `/agent <id>` which persist the choice and restart the session.
 
 ## Telemetry: estimate + authoritative
@@ -121,7 +129,7 @@ signals:
    is GitHub's own per-call cost in nano-AI units. The meter accumulates it
    (`RecordReportedAIU`) and the Telemetry page shows it beside the estimate.
 
-Reasoning tokens are billed at the output rate, so the TUI folds
+Reasoning tokens are billed at the output rate, so the server folds
 `reasoningTokens` into output when recording usage.
 
 The pricing engine has a **fuzz** target asserting cost is total (never negative
@@ -151,29 +159,39 @@ SessionSpec
 Determinism (stable sort, ordered de-dup) means the same forge always yields the
 same context — important for reproducibility and for snapshotting in tests.
 
-## TUI
+## Web UI (htmx + SSE)
 
-A single Bubble Tea `Model` with a `Page` enum. `Update` is a pure reducer over
-`tea.Msg`:
+The frontend is server-rendered HTML streamed over Server-Sent Events — no JS
+build chain. The design and the full event→fragment contract live in
+[`WEB_UI_PLAN.md`](WEB_UI_PLAN.md). In outline:
 
-- `tea.KeyMsg` → global nav (`tab`/`shift+tab`, `ctrl+c`) then page-specific.
-- `copilotEventMsg` → decode to a specific msg, **and re-arm** `listenForEvents`
-  so the client's event channel becomes an endless stream of messages.
-- `usageMsg` → record into the meter.
-- list pages mutate the forge/config and persist atomically on toggle.
+- **Transport.** `GET /events` opens one long-lived SSE stream that ranges over
+  `Client.Events()`; client→server actions (`POST /send`, `/perm/{id}`, `/abort`,
+  forge toggles, `GET /page/{name}`) are ordinary htmx requests. Decoupling send
+  from receive respects SSE's unidirectionality and keeps the composer live.
+- **Event → fragment reducer.** `session.go:handleEvent` maps each normalized
+  `copilot.Event` to an HTML fragment: message/reasoning deltas append to the
+  current bubble (fast path); structural events (tool start/progress/end, message
+  finalize) re-render `#timeline`; `EvUsage` swaps the cost footer out-of-band;
+  `EvPermission` streams the inline approve/reject form. All model text is routed
+  through `html/template`/`esc()` so output is escaped.
+- **Transcript model.** The append/finalize logic lives in the pure
+  `internal/convo` package (`State`, `Turn`, `ToolView`) — UI-agnostic and
+  unit-tested independently of the HTTP layer.
+- **State.** Single local user → one in-memory session on the `Server` (the old
+  TUI `Model` minus rendering): active `sessionID`, the `convo` transcript, the
+  permission queue, pending attachments.
 
-Rendering is split by page in `views.go`; styling is centralized in `styles.go`
-(palette → precomputed lipgloss styles), making theming a one-struct change.
-
-Everything in `Update` is exercised by `model_test.go` using the mock client and
-synthetic key/event messages — no real terminal required.
+Handlers and the reducer are exercised by `internal/web` tests using the mock
+client and synthetic events — no browser required. Vendored `htmx.org` +
+`htmx-ext-sse` live under `internal/web/static/`.
 
 ## Failure & offline behavior
 
 - `dialClient` authenticates with the logged-in `copilot` CLI session by default
   (`copilot.ResolveAuth`); an explicit token is used only when `githubTokenEnv`
   names a set env var. If the `copilot` CLI is missing or not logged in, it logs a
-  notice and returns a `MockClient`; the TUI still launches and every page works.
+  notice and returns a `MockClient`; the server still starts and every page works.
 - Config and forge **Load** treat a missing file as "empty/defaults", so first
   runs never error. **Save** is atomic (temp file + rename) and validates first.
 
