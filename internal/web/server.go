@@ -86,6 +86,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /abort", s.handleAbort)
 	mux.HandleFunc("POST /perm/{id}", s.handlePerm)
 	mux.HandleFunc("GET /page/{name}", s.handlePage)
+	mux.HandleFunc("GET /commands", s.handleCommands)
 
 	mux.HandleFunc("GET /skills/new", s.handleSkillNew)
 	mux.HandleFunc("GET /skills/{id}/edit", s.handleSkillEdit)
