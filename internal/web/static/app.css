@@ -93,7 +93,12 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
 
 /* composer */
 .composer-bar { border-top: 1px solid var(--panel); background: var(--panel); padding: .6rem 1rem; }
-.status { min-height: 1.1rem; color: var(--dim); font-size: .8rem; max-width: 56rem; margin: 0 auto; }
+.status-row { display: flex; align-items: center; gap: .75rem; max-width: 56rem; margin: 0 auto; min-height: 1.1rem; }
+.status { flex: 1 1 auto; color: var(--dim); font-size: .8rem; }
+.ctx { flex: 0 0 auto; font-size: .78rem; color: var(--dim); font-variant-numeric: tabular-nums; }
+.ctx-meter.warn { color: var(--bad); }
+.ctx-compacting { color: var(--accent); }
+.elapsed { color: var(--accent2); font-variant-numeric: tabular-nums; margin-left: .35rem; }
 #composer { display: flex; gap: .5rem; max-width: 56rem; margin: .25rem auto; }
 #composer input { flex: 1 1 auto; background: var(--bg); border: 1px solid var(--subtle);
   border-radius: 6px; color: var(--fg); padding: .55rem .7rem; font: inherit; }

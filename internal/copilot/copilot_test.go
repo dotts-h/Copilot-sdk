@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
@@ -173,6 +174,37 @@ func TestHandlerEmitsFullReasoning(t *testing.T) {
 		t.Fatalf("reasoning event = %+v", ev)
 	}
 }
+
+func TestHandlerNormalizesContextAndCompaction(t *testing.T) {
+	c := newTestSDKClient()
+	h := c.makeHandler()
+
+	h(sdk.SessionEvent{Data: &sdk.SessionUsageInfoData{CurrentTokens: 1234, TokenLimit: 128000}})
+	h(sdk.SessionEvent{Data: &sdk.SessionCompactionStartData{}})
+	removed := int64(5000)
+	h(sdk.SessionEvent{Data: &sdk.SessionCompactionCompleteData{Success: true, TokensRemoved: &removed}})
+	h(sdk.SessionEvent{Data: &sdk.SessionCompactionCompleteData{Success: false, Error: strptr("oom")}})
+
+	ctx := <-c.events
+	if ctx.Type != EvContextWindow || ctx.Context.CurrentTokens != 1234 || ctx.Context.TokenLimit != 128000 {
+		t.Fatalf("context-window event = %+v", ctx)
+	}
+	if start := <-c.events; start.Type != EvCompactionStart {
+		t.Fatalf("want EvCompactionStart, got %+v", start)
+	}
+	ok := <-c.events
+	if ok.Type != EvCompactionEnd || !contains(ok.Text, "5") {
+		t.Fatalf("compaction-complete (success) event = %+v", ok)
+	}
+	fail := <-c.events
+	if fail.Type != EvCompactionEnd || !contains(fail.Text, "oom") {
+		t.Fatalf("compaction-complete (failure) event = %+v", fail)
+	}
+}
+
+func strptr(s string) *string { return &s }
+
+func contains(s, sub string) bool { return strings.Contains(s, sub) }
 
 func TestSummarizeArgs(t *testing.T) {
 	cases := []struct {

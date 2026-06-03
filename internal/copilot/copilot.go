@@ -24,6 +24,9 @@ const (
 	EvIdle
 	EvError
 	EvPermission
+	EvContextWindow   // context-window usage update (SessionUsageInfoData)
+	EvCompactionStart // conversation compaction began
+	EvCompactionEnd   // conversation compaction finished (Text carries a summary)
 )
 
 // PermissionRequest describes a tool-permission prompt awaiting a decision.
@@ -57,8 +60,17 @@ type Event struct {
 	ToolCall *ToolCall
 
 	Usage      UsageData
+	Context    ContextInfo        // set for EvContextWindow
 	Permission *PermissionRequest // set for EvPermission
 	Err        error
+}
+
+// ContextInfo is normalized context-window accounting from the SDK's
+// session.usage_info event: how many tokens of the model's context window are
+// currently in use, and the window's total size. Drives the live context meter.
+type ContextInfo struct {
+	CurrentTokens int64
+	TokenLimit    int64
 }
 
 // ToolCall is the normalized, displayable view of a single tool execution as it
