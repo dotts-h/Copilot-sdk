@@ -49,7 +49,7 @@ func TestMockClient(t *testing.T) {
 	if _, err := m.CreateSession(context.Background(), SessionSpec{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.Send(context.Background(), "mock-session", "hello", []string{"/tmp/a.png"}); err != nil {
+	if err := m.Send(context.Background(), "mock-session", "hello", []string{"/tmp/a.png"}, ""); err != nil {
 		t.Fatal(err)
 	}
 	if len(m.Sent) != 1 || m.Sent[0] != "hello" {
@@ -337,7 +337,7 @@ func TestSDKIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	if err := client.Send(ctx, id, "Reply with the single word: pong", nil); err != nil {
+	if err := client.Send(ctx, id, "Reply with the single word: pong", nil, ""); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 

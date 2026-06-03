@@ -172,8 +172,9 @@ type Client interface {
 	// LastSessionID returns the most recent session id, or "" if none.
 	LastSessionID(ctx context.Context) (string, error)
 	// Send submits a prompt (with optional file/image attachment paths); output
-	// arrives as events.
-	Send(ctx context.Context, sessionID, prompt string, attachments []string) error
+	// arrives as events. agentMode selects the turn's UI mode ("plan",
+	// "autopilot", "interactive", "shell"); "" uses the session's current mode.
+	Send(ctx context.Context, sessionID, prompt string, attachments []string, agentMode string) error
 	// Abort cancels the in-flight turn for a session.
 	Abort(ctx context.Context, sessionID string) error
 	// Respond answers a pending tool-permission request (EvPermission).

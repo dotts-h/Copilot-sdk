@@ -21,6 +21,7 @@ type commandSpec struct {
 var fixedCommandSpecs = []commandSpec{
 	{"model", "[name]", "Switch the model in place (restarts the session)"},
 	{"agent", "[id|none]", "Activate a forge agent or clear it"},
+	{"plan", "[on|off]", "Toggle plan mode — the agent drafts a plan for your review"},
 	{"clear", "", "Reset the conversation and start a fresh session"},
 	{"cost", "", "Show credit usage and refresh the meter"},
 	{"attach", "<path>", "Queue a file to send with the next message"},

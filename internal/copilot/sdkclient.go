@@ -571,14 +571,14 @@ func humanTokenCount(n int64) string {
 }
 
 // Send implements Client.
-func (c *SDKClient) Send(ctx context.Context, sessionID, prompt string, attachments []string) error {
+func (c *SDKClient) Send(ctx context.Context, sessionID, prompt string, attachments []string, agentMode string) error {
 	c.mu.Lock()
 	session := c.sessions[sessionID]
 	c.mu.Unlock()
 	if session == nil {
 		return fmt.Errorf("unknown session %q", sessionID)
 	}
-	opts := sdk.MessageOptions{Prompt: prompt}
+	opts := sdk.MessageOptions{Prompt: prompt, AgentMode: toAgentMode(agentMode)}
 	for _, p := range attachments {
 		opts.Attachments = append(opts.Attachments, &sdk.AttachmentFile{
 			Path: p, DisplayName: filepath.Base(p),
@@ -586,6 +586,24 @@ func (c *SDKClient) Send(ctx context.Context, sessionID, prompt string, attachme
 	}
 	_, err := session.Send(ctx, opts)
 	return err
+}
+
+// toAgentMode maps a normalized mode string onto the SDK's AgentMode. An unknown
+// or empty value yields the zero AgentMode, which the runtime treats as the
+// session's current mode.
+func toAgentMode(mode string) sdk.AgentMode {
+	switch mode {
+	case "plan":
+		return sdk.AgentModePlan
+	case "autopilot":
+		return sdk.AgentModeAutopilot
+	case "interactive":
+		return sdk.AgentModeInteractive
+	case "shell":
+		return sdk.AgentModeShell
+	default:
+		return ""
+	}
 }
 
 // Abort implements Client.

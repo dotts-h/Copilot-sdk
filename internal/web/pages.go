@@ -64,6 +64,7 @@ func helpPartial() string {
 	b.WriteString(`<table class="kv">`)
 	b.WriteString(cmd("/model [name]", "Switch the model in place (restarts the session); no name shows the current one."))
 	b.WriteString(cmd("/agent [id|none]", "Activate a forge agent (applies its model + reasoning) or clear it."))
+	b.WriteString(cmd("/plan [on|off]", "Toggle plan mode — the agent drafts a plan you approve or revise inline before it acts."))
 	b.WriteString(cmd("/clear", "Reset the conversation and start a fresh session."))
 	b.WriteString(cmd("/cost", "Show credit usage and refresh the cost meter."))
 	b.WriteString(cmd("/attach <path>", "Queue a file to send with your next message."))
