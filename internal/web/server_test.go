@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,24 +12,36 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dotts-h/copilot-sdk/internal/config"
 	"github.com/dotts-h/copilot-sdk/internal/copilot"
+	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
+	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
+
+// newTestServer builds a Server wired with a mock client and minimal deps.
+func newTestServer() (*Server, *copilot.MockClient) {
+	mock := copilot.NewMockClient()
+	s := New(Options{
+		Client: mock,
+		Forge:  &ctxforge.Forge{},
+		Config: &config.Config{DefaultModel: "gpt-5"},
+		Meter:  telemetry.NewMeter(telemetry.DefaultPriceBook()),
+		Logger: log.New(io.Discard, "", 0),
+	})
+	return s, mock
+}
 
 func TestWriteSSE(t *testing.T) {
 	var b strings.Builder
-	writeSSE(&b, "msg-delta", "<span>hi</span>")
-	got := b.String()
-	want := "event: msg-delta\ndata: <span>hi</span>\n\n"
-	if got != want {
-		t.Errorf("writeSSE = %q, want %q", got, want)
+	writeSSE(&b, "delta", "<span>hi</span>")
+	if got := b.String(); got != "event: delta\ndata: <span>hi</span>\n\n" {
+		t.Errorf("writeSSE = %q", got)
 	}
-
 	b.Reset()
-	writeSSE(&b, "turn-end", "")
-	if got := b.String(); got != "event: turn-end\ndata: \n\n" {
+	writeSSE(&b, "status", "")
+	if got := b.String(); got != "event: status\ndata: \n\n" {
 		t.Errorf("empty-data SSE = %q", got)
 	}
-
 	b.Reset()
 	writeSSE(&b, "x", "a\nb")
 	if got := b.String(); got != "event: x\ndata: a\ndata: b\n\n" {
@@ -37,7 +50,7 @@ func TestWriteSSE(t *testing.T) {
 }
 
 func TestIndexServes(t *testing.T) {
-	s := New(Options{Client: copilot.NewMockClient()})
+	s, _ := newTestServer()
 	srv := httptest.NewServer(s.Handler())
 	defer srv.Close()
 
@@ -47,7 +60,8 @@ func TestIndexServes(t *testing.T) {
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
-	for _, sub := range []string{"my-orchestra", `sse-connect="/events"`, "/static/htmx.min.js", `id="cur-msg"`} {
+	for _, sub := range []string{"my-orchestra", `sse-connect="/events"`, "/static/htmx.min.js",
+		`id="cur"`, `id="cost-footer"`, `hx-get="/page/telemetry"`} {
 		if !strings.Contains(string(body), sub) {
 			t.Errorf("index missing %q", sub)
 		}
@@ -55,7 +69,7 @@ func TestIndexServes(t *testing.T) {
 }
 
 func TestStaticAssetsServed(t *testing.T) {
-	s := New(Options{Client: copilot.NewMockClient()})
+	s, _ := newTestServer()
 	srv := httptest.NewServer(s.Handler())
 	defer srv.Close()
 
@@ -69,9 +83,8 @@ func TestStaticAssetsServed(t *testing.T) {
 	}
 }
 
-func TestSendEchoesUserBubble(t *testing.T) {
-	mock := copilot.NewMockClient()
-	s := New(Options{Client: mock})
+func TestSendRecordsAndRefreshesTimeline(t *testing.T) {
+	s, mock := newTestServer()
 	srv := httptest.NewServer(s.Handler())
 	defer srv.Close()
 
@@ -81,17 +94,16 @@ func TestSendEchoesUserBubble(t *testing.T) {
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(body), "hello there") || !strings.Contains(string(body), `class="turn user"`) {
-		t.Errorf("send did not echo user bubble: %q", body)
+	if !strings.Contains(string(body), `hx-swap-oob="innerHTML"`) || !strings.Contains(string(body), "hello there") {
+		t.Errorf("send did not return OOB timeline with the prompt: %q", body)
 	}
 	if len(mock.Sent) != 1 || mock.Sent[0] != "hello there" {
-		t.Errorf("prompt not forwarded to client: %v", mock.Sent)
+		t.Errorf("prompt not forwarded: %v", mock.Sent)
 	}
 }
 
 func TestSendEmptyPromptNoContent(t *testing.T) {
-	mock := copilot.NewMockClient()
-	s := New(Options{Client: mock})
+	s, mock := newTestServer()
 	srv := httptest.NewServer(s.Handler())
 	defer srv.Close()
 
@@ -108,11 +120,90 @@ func TestSendEmptyPromptNoContent(t *testing.T) {
 	}
 }
 
+func TestPermResolves(t *testing.T) {
+	s, mock := newTestServer()
+	// Seed a pending permission.
+	s.handleEvent(copilot.Event{Type: copilot.EvPermission,
+		Permission: &copilot.PermissionRequest{ID: "p1", Detail: "run shell"}})
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	resp, err := http.PostForm(srv.URL+"/perm/p1", url.Values{"approve": {"1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), `hx-swap-oob="innerHTML"`) {
+		t.Errorf("perm response missing OOB timeline: %q", body)
+	}
+	if len(mock.Responded) != 1 || mock.Responded[0].ID != "p1" || !mock.Responded[0].Approve {
+		t.Errorf("permission not resolved: %v", mock.Responded)
+	}
+	if len(s.perms) != 0 {
+		t.Errorf("perm queue not drained: %v", s.perms)
+	}
+}
+
+func TestPageRoutes(t *testing.T) {
+	s, _ := newTestServer()
+	s.forge.Skills = []ctxforge.Skill{{ID: "tdd", Name: "TDD", Enabled: true}}
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	for _, tc := range []struct{ slug, want string }{
+		{"telemetry", "Token Telemetry"},
+		{"skills", "TDD"},
+		{"settings", "Settings"},
+	} {
+		resp, err := http.Get(srv.URL + "/page/" + tc.slug)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if !strings.Contains(string(body), tc.want) {
+			t.Errorf("page %s missing %q: %q", tc.slug, tc.want, body)
+		}
+	}
+}
+
+func TestSkillToggle(t *testing.T) {
+	s, _ := newTestServer()
+	s.forge.Skills = []ctxforge.Skill{{ID: "tdd", Name: "TDD", Prompt: "x", Enabled: false}}
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	resp, err := http.PostForm(srv.URL+"/skills/tdd/toggle", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if !s.forge.Skills[0].Enabled {
+		t.Errorf("skill not toggled on")
+	}
+}
+
+func TestAgentSelectToggles(t *testing.T) {
+	s, _ := newTestServer()
+	s.forge.Agents = []ctxforge.Agent{{ID: "builder", Name: "Builder", Model: "gpt-5"}}
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	_, _ = http.PostForm(srv.URL+"/agents/builder/select", nil)
+	if s.config.DefaultAgent != "builder" {
+		t.Errorf("agent not selected: %q", s.config.DefaultAgent)
+	}
+	_, _ = http.PostForm(srv.URL+"/agents/builder/select", nil)
+	if s.config.DefaultAgent != "" {
+		t.Errorf("agent not deselected: %q", s.config.DefaultAgent)
+	}
+}
+
 // TestEventsStreamsFragments drives the mock event stream and asserts the SSE
 // endpoint renders the message contract end-to-end (the walking skeleton).
 func TestEventsStreamsFragments(t *testing.T) {
-	mock := copilot.NewMockClient()
-	s := New(Options{Client: mock})
+	s, mock := newTestServer()
 	srv := httptest.NewServer(s.Handler())
 	defer srv.Close()
 
@@ -129,17 +220,19 @@ func TestEventsStreamsFragments(t *testing.T) {
 	}
 
 	go func() {
-		mock.Emit(copilot.Event{Type: copilot.EvMessageDelta, Text: "hi "})
+		mock.Emit(copilot.Event{Type: copilot.EvReasoningDelta, Text: "think "})
+		mock.Emit(copilot.Event{Type: copilot.EvMessageDelta, Text: "hi "})   // kind switch → timeline
+		mock.Emit(copilot.Event{Type: copilot.EvMessageDelta, Text: "there"}) // same kind → delta
 		mock.Emit(copilot.Event{Type: copilot.EvMessage, Text: "hi there"})
+		mock.Emit(copilot.Event{Type: copilot.EvUsage, Usage: copilot.UsageData{Model: "gpt-5", OutputTokens: 10}})
 		mock.Emit(copilot.Event{Type: copilot.EvIdle})
 	}()
 
-	want := map[string]bool{"msg-delta": false, "msg-done": false, "turn-end": false}
+	want := map[string]bool{"timeline": false, "delta": false, "cost": false, "status": false}
 	remaining := len(want)
 	sc := bufio.NewScanner(resp.Body)
 	for sc.Scan() {
-		line := sc.Text()
-		name, ok := strings.CutPrefix(line, "event: ")
+		name, ok := strings.CutPrefix(sc.Text(), "event: ")
 		if !ok {
 			continue
 		}
@@ -147,9 +240,29 @@ func TestEventsStreamsFragments(t *testing.T) {
 			want[name] = true
 			remaining--
 			if remaining == 0 {
-				return // got every expected fragment
+				return
 			}
 		}
 	}
 	t.Fatalf("did not observe all SSE fragments: %v (scanner err: %v)", want, sc.Err())
+}
+
+func TestHandleEventReducer(t *testing.T) {
+	s, _ := newTestServer()
+
+	// First message delta with no prior live kind → full timeline re-render.
+	frags := s.handleEvent(copilot.Event{Type: copilot.EvMessageDelta, Text: "a"})
+	if len(frags) != 1 || frags[0].Event != "timeline" {
+		t.Fatalf("first delta should re-render timeline: %+v", frags)
+	}
+	// Subsequent same-kind delta → incremental append.
+	frags = s.handleEvent(copilot.Event{Type: copilot.EvMessageDelta, Text: "b"})
+	if len(frags) != 1 || frags[0].Event != "delta" || !strings.Contains(frags[0].HTML, "b") {
+		t.Fatalf("second delta should append: %+v", frags)
+	}
+	// Switching to reasoning → re-render (kind changed).
+	frags = s.handleEvent(copilot.Event{Type: copilot.EvReasoningDelta, Text: "r"})
+	if frags[0].Event != "timeline" {
+		t.Fatalf("kind switch should re-render: %+v", frags)
+	}
 }

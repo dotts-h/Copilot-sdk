@@ -7,6 +7,12 @@ import (
 	"strings"
 )
 
+// fragment is one rendered SSE message: a named event plus its HTML payload.
+type fragment struct {
+	Event string
+	HTML  string
+}
+
 // serveEvents is the long-lived SSE stream. It ranges the client's normalized
 // Event channel and writes one SSE message per renderable event until the client
 // disconnects or the event channel closes. SSE is unidirectional and the right
@@ -39,11 +45,9 @@ func (s *Server) serveEvents(w http.ResponseWriter, r *http.Request) {
 			if !open {
 				return
 			}
-			frag, ok := renderEvent(e)
-			if !ok {
-				continue
+			for _, frag := range s.handleEvent(e) {
+				writeSSE(w, frag.Event, frag.HTML)
 			}
-			writeSSE(w, frag.Event, frag.HTML)
 			flusher.Flush()
 		}
 	}

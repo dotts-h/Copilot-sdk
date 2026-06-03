@@ -1,90 +1,85 @@
 package web
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
-	"github.com/dotts-h/copilot-sdk/internal/copilot"
+	"github.com/dotts-h/copilot-sdk/internal/convo"
 )
 
-func TestRenderEvent(t *testing.T) {
-	tests := []struct {
-		name      string
-		event     copilot.Event
-		wantOK    bool
-		wantEvent string
-		contains  []string
-	}{
-		{
-			name:      "message delta wraps in span and escapes",
-			event:     copilot.Event{Type: copilot.EvMessageDelta, Text: "a<b "},
-			wantOK:    true,
-			wantEvent: "msg-delta",
-			contains:  []string{"<span>", "a&lt;b ", "</span>"},
-		},
-		{
-			name:      "message done finalizes and reopens cur-msg",
-			event:     copilot.Event{Type: copilot.EvMessage, Text: "done"},
-			wantOK:    true,
-			wantEvent: "msg-done",
-			contains:  []string{`class="turn assistant"`, "done", `id="cur-msg"`},
-		},
-		{
-			name:      "idle clears status",
-			event:     copilot.Event{Type: copilot.EvIdle},
-			wantOK:    true,
-			wantEvent: "turn-end",
-		},
-		{
-			name:      "error renders banner",
-			event:     copilot.Event{Type: copilot.EvError, Err: errors.New("boom")},
-			wantOK:    true,
-			wantEvent: "error",
-			contains:  []string{`class="turn error"`, "boom"},
-		},
-		{
-			name:   "tool events are not rendered yet",
-			event:  copilot.Event{Type: copilot.EvToolStart, Tool: "bash"},
-			wantOK: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			frag, ok := renderEvent(tt.event)
-			if ok != tt.wantOK {
-				t.Fatalf("ok = %v, want %v", ok, tt.wantOK)
-			}
-			if !ok {
-				return
-			}
-			if frag.Event != tt.wantEvent {
-				t.Errorf("event = %q, want %q", frag.Event, tt.wantEvent)
-			}
-			for _, sub := range tt.contains {
-				if !strings.Contains(frag.HTML, sub) {
-					t.Errorf("html %q missing %q", frag.HTML, sub)
-				}
-			}
-		})
-	}
-}
-
-func TestEscapeHTMLNewlines(t *testing.T) {
-	got := escapeHTML("line1\nline2 <x>")
+func TestEscNewlinesAndEscaping(t *testing.T) {
+	got := esc("line1\nline2 <x>")
 	want := "line1<br>line2 &lt;x&gt;"
 	if got != want {
-		t.Errorf("escapeHTML = %q, want %q", got, want)
+		t.Errorf("esc = %q, want %q", got, want)
 	}
 }
 
-func TestUserBubbleEscapes(t *testing.T) {
-	got := userBubble("hi <script>")
-	if strings.Contains(got, "<script>") {
-		t.Errorf("user bubble did not escape: %q", got)
+func TestRenderTurnEscapes(t *testing.T) {
+	cases := map[convo.Role][]string{
+		convo.RoleUser:      {`class="turn user"`, "you"},
+		convo.RoleAgent:     {`class="turn assistant"`, "orchestra"},
+		convo.RoleReasoning: {`<details class="turn reasoning"`, "thinking"},
+		convo.RoleSystem:    {`class="turn system"`},
 	}
-	if !strings.Contains(got, `class="turn user"`) {
-		t.Errorf("user bubble missing class: %q", got)
+	for role, subs := range cases {
+		html := renderTurn(convo.Turn{Role: role, Text: "hi <script>"})
+		if strings.Contains(html, "<script>") {
+			t.Errorf("role %d not escaped: %q", role, html)
+		}
+		for _, sub := range subs {
+			if !strings.Contains(html, sub) {
+				t.Errorf("role %d missing %q in %q", role, sub, html)
+			}
+		}
+	}
+}
+
+func TestRenderToolCardStates(t *testing.T) {
+	running := renderToolCard(&convo.ToolView{ID: "t1", Name: "bash", Args: "ls", Progress: "go"})
+	if !strings.Contains(running, `id="tool-t1"`) || !strings.Contains(running, "running") ||
+		!strings.Contains(running, "tool-progress") {
+		t.Errorf("running card wrong: %q", running)
+	}
+	done := renderToolCard(&convo.ToolView{ID: "t1", Name: "bash", Done: true, Result: "ok"})
+	if !strings.Contains(done, "done") || !strings.Contains(done, "✓") || !strings.Contains(done, "ok") {
+		t.Errorf("done card wrong: %q", done)
+	}
+	failed := renderToolCard(&convo.ToolView{ID: "t1", Name: "bash", Done: true, Failed: true})
+	if !strings.Contains(failed, "failed") || !strings.Contains(failed, "✗") {
+		t.Errorf("failed card wrong: %q", failed)
+	}
+}
+
+func TestRenderTimelineInnerHasCur(t *testing.T) {
+	var st convo.State
+	st.AddUser("hi")
+	st.AppendDelta("partial answer")
+	html := renderTimelineInner(&st)
+	if !strings.Contains(html, `class="turn user"`) {
+		t.Errorf("missing committed user turn: %q", html)
+	}
+	if !strings.Contains(html, `id="cur"`) || !strings.Contains(html, "partial answer") {
+		t.Errorf("missing live #cur: %q", html)
+	}
+}
+
+func TestRenderPermFormEscapes(t *testing.T) {
+	html := renderPermForm("p1", "run shell: rm <x>")
+	if strings.Contains(html, "<x>") {
+		t.Errorf("perm detail not escaped: %q", html)
+	}
+	for _, sub := range []string{`id="perm-p1"`, `hx-post="/perm/p1"`, `value="1"`, `value="0"`} {
+		if !strings.Contains(html, sub) {
+			t.Errorf("perm form missing %q: %q", sub, html)
+		}
+	}
+}
+
+func TestClampLines(t *testing.T) {
+	in := strings.Repeat("x\n", 20)
+	out := clampLines(in, 5)
+	if strings.Count(out, "\n") > 6 || !strings.Contains(out, "more lines") {
+		t.Errorf("clampLines did not bound: %q", out)
 	}
 }

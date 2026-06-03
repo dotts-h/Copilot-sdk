@@ -107,6 +107,18 @@ func runWeb(configDir, addr string, demo bool) error {
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
+	forge, err := ctxforge.Load(cfg.ForgeDir)
+	if err != nil {
+		return fmt.Errorf("load forge: %w", err)
+	}
+
+	pb := telemetry.DefaultPriceBook()
+	for model, r := range cfg.Telemetry.PriceOverrides {
+		pb.Set(telemetry.ModelRate{
+			Model: model, InputPerMTok: r[0], CachedInputPerMTok: r[1], OutputPerMTok: r[2],
+		})
+	}
+	meter := telemetry.NewMeter(pb)
 
 	var client copilot.Client
 	var closeFn func()
@@ -120,6 +132,9 @@ func runWeb(configDir, addr string, demo bool) error {
 
 	srv := web.New(web.Options{
 		Client: client,
+		Forge:  forge,
+		Config: cfg,
+		Meter:  meter,
 		Spec:   copilot.SessionSpec{Model: cfg.DefaultModel, Streaming: true},
 		Demo:   demo,
 		Logger: log.New(os.Stderr, "web: ", log.LstdFlags),
