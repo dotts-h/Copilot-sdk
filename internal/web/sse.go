@@ -57,16 +57,20 @@ func (s *Server) serveEvents(w http.ResponseWriter, r *http.Request) {
 // "data:" lines (one per physical line) terminated by a blank line, per the SSE
 // wire format.
 func writeSSE(w io.Writer, event, data string) {
+	var b strings.Builder
 	if event != "" {
-		fmt.Fprintf(w, "event: %s\n", event)
+		fmt.Fprintf(&b, "event: %s\n", event)
 	}
 	if data == "" {
 		// A data line is required for the browser to dispatch the event.
-		fmt.Fprint(w, "data: \n")
+		b.WriteString("data: \n")
 	} else {
 		for _, line := range strings.Split(data, "\n") {
-			fmt.Fprintf(w, "data: %s\n", line)
+			fmt.Fprintf(&b, "data: %s\n", line)
 		}
 	}
-	fmt.Fprint(w, "\n")
+	b.WriteString("\n")
+	// The error here means the client disconnected; the SSE loop notices via the
+	// request context and returns, so there is nothing useful to do with it.
+	_, _ = io.WriteString(w, b.String())
 }
