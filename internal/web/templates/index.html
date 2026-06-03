@@ -1,0 +1,33 @@
+{{define "index"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>my-orchestra</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/htmx-ext-sse.js" defer></script>
+</head>
+<body hx-ext="sse" sse-connect="/events">
+  <header class="topbar">
+    <span class="brand">my-orchestra</span>
+    <nav class="nav">
+      {{range .Nav}}<a hx-get="/page/{{.Slug}}" hx-target="#main" hx-swap="innerHTML" href="#">{{.Label}}</a>{{end}}
+    </nav>
+    <div id="cost-footer" class="cost">{{.Cost}}</div>
+  </header>
+
+  <main id="main">{{.Main}}</main>
+
+  {{/* Body-level SSE listeners stay connected across page navigation. Each
+       routes its event to a chat-page target; off the chat page the targets are
+       absent and the swap is a harmless no-op (state re-renders on return). */}}
+  <div class="sse-listeners" hidden>
+    <div sse-swap="delta"    hx-target="#cur"         hx-swap="beforeend"></div>
+    <div sse-swap="timeline" hx-target="#timeline"    hx-swap="innerHTML"></div>
+    <div sse-swap="perm"     hx-target="#perms"       hx-swap="beforeend"></div>
+    <div sse-swap="status"   hx-target="#status"      hx-swap="innerHTML"></div>
+    <div sse-swap="cost"     hx-target="#cost-footer" hx-swap="innerHTML"></div>
+  </div>
+</body>
+</html>{{end}}

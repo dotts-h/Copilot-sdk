@@ -8,6 +8,8 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 
@@ -18,6 +20,7 @@ import (
 	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 	"github.com/dotts-h/copilot-sdk/internal/tui"
+	"github.com/dotts-h/copilot-sdk/internal/web"
 )
 
 // version is overridden at build time via -ldflags.
@@ -29,15 +32,29 @@ func main() {
 		configDir   string
 		seed        bool
 		resume      bool
+		webUI       bool
+		webAddr     string
+		webDemo     bool
 	)
 	flag.BoolVar(&showVersion, "version", false, "print version and exit")
 	flag.StringVar(&configDir, "config-dir", defaultConfigDir(), "configuration directory")
 	flag.BoolVar(&seed, "seed", false, "write a starter forge + config to the config dir and exit")
 	flag.BoolVar(&resume, "resume", false, "resume the most recent session on launch")
+	flag.BoolVar(&webUI, "web", false, "serve the htmx web UI instead of the TUI")
+	flag.StringVar(&webAddr, "web-addr", "127.0.0.1:8765", "address for the web UI")
+	flag.BoolVar(&webDemo, "web-demo", false, "drive the web UI with a scripted mock (no Copilot runtime)")
 	flag.Parse()
 
 	if showVersion {
 		fmt.Printf("my-orchestra %s\n", version)
+		return
+	}
+
+	if webUI {
+		if err := runWeb(configDir, webAddr, webDemo); err != nil {
+			fmt.Fprintln(os.Stderr, "my-orchestra: "+err.Error())
+			os.Exit(1)
+		}
 		return
 	}
 
@@ -81,6 +98,51 @@ func run(configDir string, seed, resume bool) error {
 	p := tea.NewProgram(model, tea.WithAltScreen())
 	_, err = p.Run()
 	return err
+}
+
+// runWeb serves the htmx web UI (WEB_UI_PLAN.md). In demo mode it drives a
+// scripted MockClient so the streaming skeleton works with no Copilot runtime.
+func runWeb(configDir, addr string, demo bool) error {
+	cfg, err := config.Load(configDir)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+	forge, err := ctxforge.Load(cfg.ForgeDir)
+	if err != nil {
+		return fmt.Errorf("load forge: %w", err)
+	}
+
+	pb := telemetry.DefaultPriceBook()
+	for model, r := range cfg.Telemetry.PriceOverrides {
+		pb.Set(telemetry.ModelRate{
+			Model: model, InputPerMTok: r[0], CachedInputPerMTok: r[1], OutputPerMTok: r[2],
+		})
+	}
+	meter := telemetry.NewMeter(pb)
+
+	var client copilot.Client
+	var closeFn func()
+	if demo {
+		mock := copilot.NewMockClient()
+		client, closeFn = mock, func() { _ = mock.Close() }
+	} else {
+		client, closeFn = dialClient(cfg)
+	}
+	defer closeFn()
+
+	srv := web.New(web.Options{
+		Client: client,
+		Forge:  forge,
+		Config: cfg,
+		Meter:  meter,
+		Spec:   copilot.SessionSpec{Model: cfg.DefaultModel, Streaming: true},
+		Demo:   demo,
+		Logger: log.New(os.Stderr, "web: ", log.LstdFlags),
+	})
+
+	httpSrv := &http.Server{Addr: addr, Handler: srv.Handler()}
+	fmt.Printf("my-orchestra web UI on http://%s\n", addr)
+	return httpSrv.ListenAndServe()
 }
 
 // dialClient starts the SDK-backed client, returning a mock if the runtime is
