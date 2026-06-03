@@ -1,9 +1,10 @@
 # ⎈ my-orchestra
 
-A **cost-aware coding TUI** that fuses the GitHub **Copilot CLI** and **Claude CLI**
+A **cost-aware coding web app** that fuses the GitHub **Copilot CLI** and **Claude CLI**
 experiences. It drives the official [GitHub Copilot Go SDK](https://github.com/github/copilot-sdk),
 composes context with the **my-ctx forge**, and meters your **AI-Credit** spend in
-real time so a coding session never surprises you on the bill.
+real time so a coding session never surprises you on the bill. The frontend is a
+**server-rendered htmx UI** that streams the agent over Server-Sent Events.
 
 > Built test-first, hardened with race/fuzz/concurrency tests, shipped with
 > CI/CD and a GitHub Pages architecture site.
@@ -24,15 +25,16 @@ cost reported by the runtime.
 
 ## Features
 
-- **Fusion TUI** — Copilot CLI's tool-centric chrome + Claude CLI's conversational feel,
-  built on [Bubble Tea](https://github.com/charmbracelet/bubbletea).
+- **Streaming htmx web UI** — Copilot CLI's tool-centric chrome + Claude CLI's
+  conversational feel, server-rendered over SSE with zero JS build chain (htmx +
+  htmx-ext-sse vendored locally).
 - **Live credit telemetry** — per-model token & credit breakdown vs. a monthly budget,
   plus GitHub-authoritative AIU cost.
-- **my-ctx forge** — toggle **skills**, **instructions**, and **agents** that compile
-  into the session's system message; manage **MCP servers**.
-- **Config & Settings pages** — model, reasoning effort, theme, streaming, auto-approve,
-  budget, per-model price overrides, and key bindings.
-- **Offline mock mode** — explore every page with no CLI or token installed.
+- **my-ctx forge** — toggle **skills** and **instructions** and pick the active
+  **agent** persona; they compile into the session's system message.
+- **Inline tool approvals** — when auto-approve is off, the agent's shell/file/tool
+  actions surface an inline approve/reject control in the chat stream.
+- **Offline mock mode** — explore every page with no CLI or token installed (`-demo`).
 
 ## Pages
 
@@ -44,8 +46,9 @@ cost reported by the runtime.
 | Instructions | Toggle system-message rules (priority-ordered) |
 | Agents | Pick the active agent persona (model + effort + pinned skills) |
 | Settings | View effective settings |
-| Config | Key bindings & paths |
-| Help | Keybindings and page guide |
+
+Pages are `hx-get` partials swapped into the shell; the chat SSE stream stays
+open across navigation.
 
 ## Install & run
 
@@ -57,8 +60,16 @@ go build -o bin/my-orchestra ./cmd/my-orchestra
 ./bin/my-orchestra --seed
 
 # run (drives a real agent using your logged-in copilot CLI session)
+# then open the printed URL (default http://127.0.0.1:8765)
 ./bin/my-orchestra
+
+# explore the UI offline with a scripted mock — no copilot CLI needed
+./bin/my-orchestra -demo
 ```
+
+Flags: `-addr` sets the listen address (default `127.0.0.1:8765`), `-demo` drives
+a scripted mock, `-seed` writes a starter forge then exits, `-config-dir` picks
+the config directory.
 
 By default my-orchestra authenticates with the **already-logged-in `copilot` CLI
 session** — run `copilot` once to log in and you're set; no token to manage. To
@@ -79,36 +90,21 @@ Configuration lives in `~/.my-orchestra/` (override with `--config-dir` or
   forge/forge.json   # skills, instructions, agents, MCP servers
 ```
 
-## Keys
+## Using the UI
 
-| Key | Action |
-|-----|--------|
-| `tab` / `shift+tab` | cycle pages |
-| `enter` | send prompt (Chat) / toggle (lists) |
-| `ctrl+j` | newline in the composer |
-| `esc` | abort the current turn |
-| `↑` / `↓` (`k`/`j`) | move selection on list pages |
-| `a` / `e` / `d` | add / edit / delete on Skills·Instructions·Agents |
-| `y` / `n` | approve / reject a tool-permission prompt |
-| `ctrl+c` | quit |
+The nav bar switches pages (chat, telemetry, skills, instructions, agents,
+settings); the chat stream stays open in the background as you navigate. Type a
+prompt and **Send** to start a turn — assistant tokens, reasoning, and tool calls
+stream in live. On the Skills and Instructions pages, click a row to toggle it
+into context; on Agents, click to make a persona active.
 
 When **auto-approve tools** is off (the default), the agent's shell/file/tool
-actions surface an inline **`⚠ allow … ? [y]es / [n]o`** prompt in the Chat page;
+actions surface an inline **approve / reject** control in the chat stream;
 requests queue if several arrive.
 
-### Slash commands
-
-Typed in the chat composer (never sent to the agent):
-
-| Command | Effect |
-|---------|--------|
-| `/help` `/clear` `/cost` `/skills` `/agents` `/settings` | navigate / clear transcript |
-| `/model <name>` | switch model and restart the session |
-| `/agent <id>` | switch agent persona and restart the session |
-| `/attach <path>` | attach a file/image to the next prompt |
-| `/resume [id]` | resume the last (or a specific) session |
-
-Launch with `--resume` to reopen the most recent session on startup.
+> Add/edit forms for forge entities, a slash-command menu, in-place model/agent
+> switching, and an abort button are tracked as follow-ups (see
+> [docs/WEB_UI_PLAN.md](docs/WEB_UI_PLAN.md)); toggle/select/delete are wired today.
 
 ## Development
 
@@ -127,7 +123,8 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design, the
 
 ```
 cmd/my-orchestra     entrypoint & wiring
-internal/tui         Bubble Tea model, views, key handling
+internal/web         net/http server · html/template partials · SSE hub · vendored htmx
+internal/convo       UI-agnostic transcript model (Turn · ToolView · State reducer)
 internal/copilot     Client interface · SDKClient (Go SDK) · MockClient
 internal/ctxforge    skills · instructions · agents · MCP → SessionSpec
 internal/telemetry   price book · Meter · budget · AIU
