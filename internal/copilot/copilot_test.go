@@ -128,6 +128,84 @@ func TestHandlerTranslatesEvents(t *testing.T) {
 	}
 }
 
+func TestHandlerCarriesToolDetail(t *testing.T) {
+	c := newTestSDKClient()
+	h := c.makeHandler()
+
+	mcp := "filesystem"
+	h(sdk.SessionEvent{Data: &sdk.ToolExecutionStartData{
+		ToolCallID: "t1", ToolName: "bash",
+		Arguments:     map[string]any{"command": "go test ./...", "cwd": "/repo"},
+		MCPServerName: &mcp,
+	}})
+	h(sdk.SessionEvent{Data: &sdk.ToolExecutionProgressData{ToolCallID: "t1", ProgressMessage: "compiling"}})
+	detailed := "PASS\nok  pkg 0.1s"
+	h(sdk.SessionEvent{Data: &sdk.ToolExecutionCompleteData{
+		ToolCallID: "t1", Success: true,
+		Result: &sdk.ToolExecutionCompleteResult{Content: "ok", DetailedContent: &detailed},
+	}})
+
+	start := <-c.events
+	if start.Type != EvToolStart || start.ToolCall == nil {
+		t.Fatalf("start: %+v", start)
+	}
+	if start.ToolCall.Args != "go test ./..." || start.ToolCall.MCPServer != "filesystem" {
+		t.Fatalf("start detail wrong: %+v", start.ToolCall)
+	}
+	prog := <-c.events
+	if prog.Type != EvToolProgress || prog.ToolCall == nil || prog.ToolCall.Progress != "compiling" {
+		t.Fatalf("progress: %+v", prog)
+	}
+	end := <-c.events
+	if end.Type != EvToolEnd || end.ToolCall == nil || !end.ToolCall.Success {
+		t.Fatalf("end: %+v", end)
+	}
+	if end.ToolCall.Result != detailed { // detailed content preferred over Content
+		t.Fatalf("end result = %q, want detailed content", end.ToolCall.Result)
+	}
+}
+
+func TestHandlerEmitsFullReasoning(t *testing.T) {
+	c := newTestSDKClient()
+	c.makeHandler()(sdk.SessionEvent{Data: &sdk.AssistantReasoningData{Content: "step by step"}})
+	ev := <-c.events
+	if ev.Type != EvReasoning || ev.Text != "step by step" {
+		t.Fatalf("reasoning event = %+v", ev)
+	}
+}
+
+func TestSummarizeArgs(t *testing.T) {
+	cases := []struct {
+		name string
+		in   any
+		want string
+	}{
+		{"shell command", map[string]any{"command": "ls -la", "cwd": "/x"}, "ls -la"},
+		{"file path", map[string]any{"path": "internal/main.go"}, "internal/main.go"},
+		{"newlines collapsed", map[string]any{"command": "a\n  b\tc"}, "a b c"},
+		{"fallback json", map[string]any{"foo": "bar"}, `{"foo":"bar"}`},
+	}
+	for _, tc := range cases {
+		if got := summarizeArgs(tc.in); got != tc.want {
+			t.Errorf("%s: summarizeArgs = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestToolResultTextPrefersDetailAndSurfacesError(t *testing.T) {
+	detailed := "full diff"
+	ok := &sdk.ToolExecutionCompleteData{Success: true, Result: &sdk.ToolExecutionCompleteResult{
+		Content: "short", DetailedContent: &detailed,
+	}}
+	if got := toolResultText(ok); got != "full diff" {
+		t.Fatalf("expected detailed content, got %q", got)
+	}
+	fail := &sdk.ToolExecutionCompleteData{Success: false, Error: &sdk.ToolExecutionCompleteError{Message: "boom"}}
+	if got := toolResultText(fail); got != "boom" {
+		t.Fatalf("expected error message, got %q", got)
+	}
+}
+
 func TestEmitDoesNotBlockAfterClose(t *testing.T) {
 	c := newTestSDKClient()
 	close(c.done) // simulate shutdown

@@ -171,7 +171,9 @@ func (m Model) buildSpec() copilot.SessionSpec {
 	return spec
 }
 
-// Update is the central reducer.
+// Update is the central reducer. It routes input and navigation, re-arms the
+// agent event pump, and delegates session/agent-stream reduction to
+// applyAgentMsg (events.go), keeping each concern in one place.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -180,83 +182,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.onKey(msg)
 
-	case sessionReadyMsg:
-		m.sessionID = msg.sessionID
-		m.ready = true
-		m.status = "session " + short(msg.sessionID)
-		m.chat.addSystem("Connected. Session " + short(msg.sessionID) + " ready.")
-		m.refreshViewport()
-		return m, nil
-
 	case copilotEventMsg:
-		// Decode and re-arm the listener.
-		next := decodeEvent(msg.ev)
+		// Decode the normalized event and re-arm the listener so the client's
+		// event channel becomes an endless stream of messages.
 		cmds := []tea.Cmd{listenForEvents(m.deps.Client)}
-		if next != nil {
+		if next := decodeEvent(msg.ev); next != nil {
 			m2, cmd := m.Update(next)
-			mm := m2.(Model)
+			m = m2.(Model)
 			if cmd != nil {
 				cmds = append(cmds, cmd)
 			}
-			return mm, tea.Batch(cmds...)
 		}
 		return m, tea.Batch(cmds...)
-
-	case streamDeltaMsg:
-		m.thinking = true
-		m.chat.appendDelta(msg.text)
-		m.refreshViewport()
-		return m, nil
-
-	case assistantDoneMsg:
-		m.chat.finish(msg.content)
-		m.thinking = false
-		m.status = "ready"
-		m.refreshViewport()
-		return m, nil
-
-	case usageMsg:
-		u := msg.usage
-		// OutputTokens already accounts for billable generation including
-		// reasoning, so it is recorded as-is (ReasoningTokens is reported
-		// separately for visibility, not added, to avoid double-counting).
-		m.deps.Meter.Record(telemetry.Usage{
-			Model:        u.Model,
-			InputTokens:  u.InputTokens,
-			CachedTokens: u.CachedTokens,
-			OutputTokens: u.OutputTokens,
-		})
-		// Capture GitHub's authoritative cost (nano-AIU -> AIU) when present.
-		m.deps.Meter.RecordReportedAIU(u.NanoAIU * 1e-9)
-		return m, nil
-
-	case permMsg:
-		m.permQueue = append(m.permQueue, msg.req)
-		m.page = PageChat
-		m.status = "permission requested"
-		m.chat.addSystem("⚠ permission: " + msg.req.Detail)
-		m.refreshViewport()
-		return m, nil
-
-	case toolMsg:
-		if msg.start {
-			m.chat.toolStart(msg.name)
-			m.status = "running " + msg.name
-		} else {
-			m.chat.toolEnd(msg.name)
-		}
-		return m, nil
-
-	case errMsg:
-		if msg.err != nil {
-			m.errText = msg.err.Error()
-			m.chat.addSystem("⚠ " + msg.err.Error())
-			m.refreshViewport()
-		}
-		return m, nil
 	}
 
-	// Delegate to the focused input on the chat page.
+	// Session-lifecycle and agent-stream messages are reduced in events.go.
+	if mm, cmd, handled := m.applyAgentMsg(msg); handled {
+		return mm, cmd
+	}
+
+	// Anything else: delegate to the focused input on the chat page.
 	if m.page == PageChat {
 		var cmd tea.Cmd
 		m.input, cmd = m.input.Update(msg)

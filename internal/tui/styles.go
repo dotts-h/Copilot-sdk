@@ -48,6 +48,7 @@ type Styles struct {
 	Footer      lipgloss.Style
 	User        lipgloss.Style
 	Agent       lipgloss.Style
+	Reasoning   lipgloss.Style
 	Tool        lipgloss.Style
 	Dim         lipgloss.Style
 	Good        lipgloss.Style
@@ -67,16 +68,17 @@ func NewStyles(p Palette) Styles {
 		TabInactive: lipgloss.NewStyle().Foreground(p.Dim).Padding(0, 1),
 		Panel: lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
 			BorderForeground(p.Subtle).Padding(0, 1),
-		Footer:   lipgloss.NewStyle().Foreground(p.Dim),
-		User:     lipgloss.NewStyle().Bold(true).Foreground(p.UserText),
-		Agent:    lipgloss.NewStyle().Bold(true).Foreground(p.AgentText),
-		Tool:     lipgloss.NewStyle().Foreground(p.Accent2),
-		Dim:      lipgloss.NewStyle().Foreground(p.Dim),
-		Good:     lipgloss.NewStyle().Foreground(p.Good),
-		Warn:     lipgloss.NewStyle().Foreground(p.Warn),
-		Bad:      lipgloss.NewStyle().Foreground(p.Bad),
-		Key:      lipgloss.NewStyle().Bold(true).Foreground(p.Accent2),
-		Selected: lipgloss.NewStyle().Bold(true).Foreground(p.Bg).Background(p.Accent2).Padding(0, 1),
+		Footer:    lipgloss.NewStyle().Foreground(p.Dim),
+		User:      lipgloss.NewStyle().Bold(true).Foreground(p.UserText),
+		Agent:     lipgloss.NewStyle().Bold(true).Foreground(p.AgentText),
+		Reasoning: lipgloss.NewStyle().Italic(true).Foreground(p.Subtle),
+		Tool:      lipgloss.NewStyle().Foreground(p.Accent2),
+		Dim:       lipgloss.NewStyle().Foreground(p.Dim),
+		Good:      lipgloss.NewStyle().Foreground(p.Good),
+		Warn:      lipgloss.NewStyle().Foreground(p.Warn),
+		Bad:       lipgloss.NewStyle().Foreground(p.Bad),
+		Key:       lipgloss.NewStyle().Bold(true).Foreground(p.Accent2),
+		Selected:  lipgloss.NewStyle().Bold(true).Foreground(p.Bg).Background(p.Accent2).Padding(0, 1),
 	}
 }
 

@@ -60,14 +60,27 @@ The SDK exposes many event types. `SDKClient.makeHandler` collapses them:
 |-----------|------------|
 | `AssistantMessageDeltaData` | `EvMessageDelta` (text) |
 | `AssistantReasoningDeltaData` | `EvReasoningDelta` (text) |
+| `AssistantReasoningData` | `EvReasoning` (full thinking block) |
 | `AssistantMessageData` | `EvMessage` (full text) |
 | `AssistantUsageData` | `EvUsage` (normalized tokens + AIU) |
-| `ToolExecutionStartData` | `EvToolStart` (tool name) |
-| `ToolExecutionCompleteData` | `EvToolEnd` (name via `toolCallID` map) |
+| `ToolExecutionStartData` | `EvToolStart` (name + `ToolCall{ID, Args, MCPServer}`) |
+| `ToolExecutionProgressData` | `EvToolProgress` (`ToolCall{ID, Progress}`) |
+| `ToolExecutionCompleteData` | `EvToolEnd` (`ToolCall{ID, Success, Result}`) |
 | `SessionIdleData` | `EvIdle` |
 
 Tool completion events don't carry a name, so `SDKClient` keeps a
 `toolCallID → name` map populated on start and consumed on completion.
+
+**Tool timeline & reasoning split.** Tool events carry a normalized `ToolCall`
+threaded by `ID` across start → progress → completion. `summarizeArgs` reduces
+the raw argument map to a one-line summary (shell command, file path, or compact
+JSON) and `toolResultText` prefers the SDK's `DetailedContent` (full diffs) over
+the model-facing summary, surfacing the error message on failure. The chat state
+renders each tool as a first-class timeline `Turn` (status glyph, args, live
+progress, bounded result) interleaved in execution order. Reasoning is kept in a
+**separate buffer** from assistant message text — switching modes commits the
+other buffer first — so "thinking" renders as its own dim block and is never
+concatenated into the answer.
 
 ### Interactive permissions (sync ↔ async bridge)
 

@@ -20,8 +20,11 @@ type errMsg struct{ err error }
 // copilotEventMsg wraps a normalized client event.
 type copilotEventMsg struct{ ev copilot.Event }
 
-// streamDeltaMsg is a chunk of streamed assistant text.
+// streamDeltaMsg is a chunk of streamed assistant message text.
 type streamDeltaMsg struct{ text string }
+
+// reasoningDeltaMsg is a chunk of streamed (or a full block of) reasoning text.
+type reasoningDeltaMsg struct{ text string }
 
 // assistantDoneMsg marks the assistant turn complete.
 type assistantDoneMsg struct{ content string }
@@ -32,10 +35,17 @@ type usageMsg struct{ usage copilot.UsageData }
 // permMsg carries a tool-permission request awaiting a decision.
 type permMsg struct{ req copilot.PermissionRequest }
 
-// toolMsg reports a tool execution boundary.
-type toolMsg struct {
-	name  string
-	start bool
+// toolStartMsg reports a tool execution beginning, with its summarized args.
+type toolStartMsg struct{ id, name, args string }
+
+// toolProgressMsg carries a running tool's latest progress message.
+type toolProgressMsg struct{ id, text string }
+
+// toolEndMsg reports a tool execution completing with its result and outcome.
+type toolEndMsg struct {
+	id      string
+	result  string
+	success bool
 }
 
 // listenForEvents returns a command that waits for the next event on the client
@@ -53,16 +63,29 @@ func listenForEvents(c copilot.Client) tea.Cmd {
 // decodeEvent translates a normalized client event into a specific tea.Msg.
 func decodeEvent(ev copilot.Event) tea.Msg {
 	switch ev.Type {
-	case copilot.EvMessageDelta, copilot.EvReasoningDelta:
+	case copilot.EvMessageDelta:
 		return streamDeltaMsg{text: ev.Text}
+	case copilot.EvReasoningDelta, copilot.EvReasoning:
+		return reasoningDeltaMsg{text: ev.Text}
 	case copilot.EvMessage:
 		return assistantDoneMsg{content: ev.Text}
 	case copilot.EvUsage:
 		return usageMsg{usage: ev.Usage}
 	case copilot.EvToolStart:
-		return toolMsg{name: ev.Tool, start: true}
+		if ev.ToolCall != nil {
+			return toolStartMsg{id: ev.ToolCall.ID, name: ev.ToolCall.Name, args: ev.ToolCall.Args}
+		}
+		return toolStartMsg{name: ev.Tool}
+	case copilot.EvToolProgress:
+		if ev.ToolCall != nil {
+			return toolProgressMsg{id: ev.ToolCall.ID, text: ev.ToolCall.Progress}
+		}
+		return nil
 	case copilot.EvToolEnd:
-		return toolMsg{name: ev.Tool, start: false}
+		if ev.ToolCall != nil {
+			return toolEndMsg{id: ev.ToolCall.ID, result: ev.ToolCall.Result, success: ev.ToolCall.Success}
+		}
+		return toolEndMsg{success: true}
 	case copilot.EvIdle:
 		return assistantDoneMsg{}
 	case copilot.EvPermission:

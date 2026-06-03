@@ -164,6 +164,58 @@ func TestStreamingDeltaAccumulates(t *testing.T) {
 	}
 }
 
+// A tool event stream should render as a timeline entry showing the tool name,
+// its argument summary, and (on completion) its result — not vanish.
+func TestToolTimelineRendersDetail(t *testing.T) {
+	m, _ := testModel(t)
+	for _, ev := range []copilot.Event{
+		{Type: copilot.EvToolStart, ToolCall: &copilot.ToolCall{ID: "t1", Name: "bash", Args: "go build ./..."}},
+		{Type: copilot.EvToolProgress, ToolCall: &copilot.ToolCall{ID: "t1", Progress: "linking"}},
+	} {
+		mm, _ := m.Update(decodeEvent(ev))
+		m = mm.(Model)
+	}
+	out := m.View()
+	if !strings.Contains(out, "bash") || !strings.Contains(out, "go build ./...") {
+		t.Fatalf("tool header/args not rendered:\n%s", out)
+	}
+	if !strings.Contains(out, "linking") {
+		t.Fatalf("tool progress not rendered:\n%s", out)
+	}
+	mm, _ := m.Update(decodeEvent(copilot.Event{
+		Type: copilot.EvToolEnd, ToolCall: &copilot.ToolCall{ID: "t1", Success: true, Result: "build ok"},
+	}))
+	m = mm.(Model)
+	if out := m.View(); !strings.Contains(out, "build ok") {
+		t.Fatalf("tool result not rendered after completion:\n%s", out)
+	}
+}
+
+// Reasoning deltas must render under a distinct "thinking" heading and never be
+// folded into the assistant's answer text.
+func TestReasoningRendersSeparateFromAnswer(t *testing.T) {
+	m, _ := testModel(t)
+	for _, ev := range []copilot.Event{
+		{Type: copilot.EvReasoningDelta, Text: "weighing options"},
+		{Type: copilot.EvMessageDelta, Text: "final answer"},
+	} {
+		mm, _ := m.Update(decodeEvent(ev))
+		m = mm.(Model)
+	}
+	mm, _ := m.Update(decodeEvent(copilot.Event{Type: copilot.EvIdle}))
+	m = mm.(Model)
+	var roles []Role
+	for _, tr := range m.chat.turns {
+		roles = append(roles, tr.Role)
+	}
+	if len(roles) != 2 || roles[0] != RoleReasoning || roles[1] != RoleAgent {
+		t.Fatalf("expected [reasoning, agent], got %+v", m.chat.turns)
+	}
+	if !strings.Contains(m.View(), "thinking") {
+		t.Fatalf("reasoning heading not shown:\n%s", m.View())
+	}
+}
+
 func TestToggleSkillPersists(t *testing.T) {
 	m, _ := testModel(t)
 	// Navigate to Skills page (Chat=0 -> Skills=2): tab twice.

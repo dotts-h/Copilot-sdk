@@ -33,16 +33,57 @@ func (m Model) renderTranscript() string {
 		case RoleAgent:
 			b.WriteString(m.styles.Agent.Render("orchestra") + "\n")
 			b.WriteString(indent(t.Text, "  ") + "\n\n")
+		case RoleReasoning:
+			b.WriteString(m.styles.Reasoning.Render("✻ thinking") + "\n")
+			b.WriteString(m.styles.Reasoning.Render(indent(t.Text, "  ")) + "\n\n")
 		case RoleSystem:
 			b.WriteString(m.styles.Dim.Render("· "+t.Text) + "\n\n")
 		case RoleTool:
-			b.WriteString(m.styles.Tool.Render("⚙ "+t.Text) + "\n\n")
+			b.WriteString(m.renderTool(t.Tool))
 		}
 	}
-	if len(m.chat.tools) > 0 {
-		b.WriteString(m.styles.Tool.Render("⚙ running: "+strings.Join(m.chat.tools, ", ")) + "\n")
-	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// renderTool renders one tool-execution timeline entry: a status header with the
+// tool name and argument summary, a live progress line while running, and the
+// (bounded) result on completion.
+func (m Model) renderTool(tv *ToolView) string {
+	if tv == nil {
+		return ""
+	}
+	glyph, gstyle := "●", m.styles.Warn // running
+	switch {
+	case tv.Failed:
+		glyph, gstyle = "✗", m.styles.Bad
+	case tv.Done:
+		glyph, gstyle = "✓", m.styles.Good
+	}
+	var b strings.Builder
+	header := gstyle.Render(glyph) + " " + m.styles.Tool.Render(tv.Name)
+	if tv.Args != "" {
+		header += "  " + m.styles.Dim.Render(tv.Args)
+	}
+	b.WriteString(header + "\n")
+	if !tv.Done && tv.Progress != "" {
+		b.WriteString(m.styles.Dim.Render(indent("… "+tv.Progress, "  ")) + "\n")
+	}
+	if tv.Done && tv.Result != "" {
+		b.WriteString(m.styles.Dim.Render(clampLines(indent(tv.Result, "  "), 16)) + "\n")
+	}
+	b.WriteString("\n")
+	return b.String()
+}
+
+// clampLines limits text to at most n lines, appending an elision note when it
+// truncates, so a large tool result never floods the timeline.
+func clampLines(s string, n int) string {
+	lines := strings.Split(s, "\n")
+	if len(lines) <= n {
+		return s
+	}
+	kept := lines[:n]
+	return strings.Join(kept, "\n") + "\n  " + fmt.Sprintf("… (+%d more lines)", len(lines)-n)
 }
 
 func (m Model) viewChat() string {
@@ -304,12 +345,15 @@ func indent(s, pad string) string {
 	return strings.Join(lines, "\n")
 }
 
+// truncate shortens s to at most n runes, appending an ellipsis when it cuts.
+// It counts runes (not bytes) so multibyte text is never split mid-rune.
 func truncate(s string, n int) string {
-	if len(s) <= n {
+	r := []rune(s)
+	if len(r) <= n {
 		return s
 	}
 	if n <= 1 {
-		return s[:n]
+		return string(r[:n])
 	}
-	return s[:n-1] + "…"
+	return string(r[:n-1]) + "…"
 }

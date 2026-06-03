@@ -15,9 +15,11 @@ const (
 	EvUnknown EventType = iota
 	EvMessageDelta
 	EvReasoningDelta
+	EvReasoning // full reasoning text (non-streaming)
 	EvMessage
 	EvUsage
 	EvToolStart
+	EvToolProgress
 	EvToolEnd
 	EvIdle
 	EvError
@@ -46,12 +48,36 @@ type UsageData struct {
 
 // Event is a normalized, already-decoded notification from a session.
 type Event struct {
-	Type       EventType
-	Text       string // delta or full message/reasoning text
-	Tool       string // tool name for tool events
+	Type EventType
+	Text string // delta or full message/reasoning text
+	Tool string // tool name for tool events
+
+	// ToolCall carries the timeline detail for tool events (EvToolStart,
+	// EvToolProgress, EvToolEnd). Nil for non-tool events.
+	ToolCall *ToolCall
+
 	Usage      UsageData
 	Permission *PermissionRequest // set for EvPermission
 	Err        error
+}
+
+// ToolCall is the normalized, displayable view of a single tool execution as it
+// moves through start → progress → completion. The same ID threads all three
+// phases so the UI can update one timeline entry in place.
+type ToolCall struct {
+	ID   string
+	Name string
+	// Args is a short, human-readable summary of the tool's arguments
+	// (e.g. the shell command or the file path), suitable for one line.
+	Args string
+	// Progress is the latest progress message (EvToolProgress), if any.
+	Progress string
+	// Result is the detailed result content for timeline display (EvToolEnd).
+	Result string
+	// Success reports whether the tool completed without error (EvToolEnd).
+	Success bool
+	// MCPServer names the hosting MCP server when the tool is an MCP tool.
+	MCPServer string
 }
 
 // SessionSpec is the subset of SDK session options my-orchestra drives.

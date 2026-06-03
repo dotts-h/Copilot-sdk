@@ -2,9 +2,11 @@ package copilot
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	sdk "github.com/github/copilot-sdk/go"
@@ -224,6 +226,8 @@ func (c *SDKClient) makeHandler() func(sdk.SessionEvent) {
 			c.emit(Event{Type: EvMessageDelta, Text: d.DeltaContent})
 		case *sdk.AssistantReasoningDeltaData:
 			c.emit(Event{Type: EvReasoningDelta, Text: d.DeltaContent})
+		case *sdk.AssistantReasoningData:
+			c.emit(Event{Type: EvReasoning, Text: d.Content})
 		case *sdk.AssistantMessageData:
 			c.emit(Event{Type: EvMessage, Text: d.Content})
 		case *sdk.AssistantUsageData:
@@ -232,13 +236,23 @@ func (c *SDKClient) makeHandler() func(sdk.SessionEvent) {
 			c.mu.Lock()
 			c.toolNames[d.ToolCallID] = d.ToolName
 			c.mu.Unlock()
-			c.emit(Event{Type: EvToolStart, Tool: d.ToolName})
+			tc := &ToolCall{ID: d.ToolCallID, Name: d.ToolName, Args: summarizeArgs(d.Arguments)}
+			if d.MCPServerName != nil {
+				tc.MCPServer = *d.MCPServerName
+			}
+			c.emit(Event{Type: EvToolStart, Tool: d.ToolName, ToolCall: tc})
+		case *sdk.ToolExecutionProgressData:
+			c.emit(Event{Type: EvToolProgress, ToolCall: &ToolCall{
+				ID: d.ToolCallID, Progress: d.ProgressMessage,
+			}})
 		case *sdk.ToolExecutionCompleteData:
 			c.mu.Lock()
 			name := c.toolNames[d.ToolCallID]
 			delete(c.toolNames, d.ToolCallID)
 			c.mu.Unlock()
-			c.emit(Event{Type: EvToolEnd, Tool: name})
+			c.emit(Event{Type: EvToolEnd, Tool: name, ToolCall: &ToolCall{
+				ID: d.ToolCallID, Name: name, Success: d.Success, Result: toolResultText(d),
+			}})
 		case *sdk.SessionIdleData:
 			c.emit(Event{Type: EvIdle})
 		}
@@ -276,6 +290,79 @@ func describePermission(req sdk.PermissionRequest) string {
 	default:
 		return string(req.Kind())
 	}
+}
+
+// summarizeArgs renders a tool's arguments as a single concise line for the
+// timeline. It favors the fields humans care about (shell command, file path)
+// and otherwise falls back to compact JSON, truncated.
+func summarizeArgs(args any) string {
+	m, ok := args.(map[string]any)
+	if !ok {
+		return clip(oneLine(fmt.Sprint(args)), 120)
+	}
+	for _, k := range []string{"command", "commandLine", "fullCommandText", "cmd", "query", "pattern"} {
+		if v, ok := stringField(m, k); ok {
+			return clip(oneLine(v), 160)
+		}
+	}
+	for _, k := range []string{"path", "filePath", "file", "fileName", "filename"} {
+		if v, ok := stringField(m, k); ok {
+			return clip(v, 120)
+		}
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		return ""
+	}
+	return clip(oneLine(string(b)), 120)
+}
+
+func stringField(m map[string]any, key string) (string, bool) {
+	if v, ok := m[key]; ok {
+		if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
+			return s, true
+		}
+	}
+	return "", false
+}
+
+// toolResultText extracts the most detailed displayable result from a completed
+// tool execution, preferring the full UI content over the model-facing summary.
+// On failure it surfaces the error message. Output is capped to keep the
+// timeline bounded.
+func toolResultText(d *sdk.ToolExecutionCompleteData) string {
+	if !d.Success && d.Error != nil && d.Error.Message != "" {
+		return clip(d.Error.Message, 4000)
+	}
+	if d.Result != nil {
+		if d.Result.DetailedContent != nil && *d.Result.DetailedContent != "" {
+			return clip(*d.Result.DetailedContent, 4000)
+		}
+		if d.Result.Content != "" {
+			return clip(d.Result.Content, 4000)
+		}
+	}
+	return ""
+}
+
+func oneLine(s string) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "\t", " ")
+	for strings.Contains(s, "  ") {
+		s = strings.ReplaceAll(s, "  ", " ")
+	}
+	return strings.TrimSpace(s)
+}
+
+func clip(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	if n <= 1 {
+		return string(r[:n])
+	}
+	return string(r[:n-1]) + "…"
 }
 
 // Respond implements Client.

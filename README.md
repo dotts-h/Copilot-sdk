@@ -38,7 +38,7 @@ cost reported by the runtime.
 
 | Page | What it does |
 |------|--------------|
-| Chat | Streaming agent conversation, tool indicators, live credit footer |
+| Chat | Streaming conversation with a Copilot-style tool timeline (args, live progress, results/diffs), reasoning shown as a separate "thinking" block, and a live credit footer |
 | Telemetry | Credits & token breakdown per model vs. budget; authoritative AIU |
 | Skills | Toggle reusable prompt skills into context |
 | Instructions | Toggle system-message rules (priority-ordered) |
