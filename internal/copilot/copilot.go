@@ -112,11 +112,12 @@ type PlanRequest struct {
 // UsageData is normalized token accounting derived from the SDK's
 // assistant.usage event. It captures every token category GitHub meters.
 type UsageData struct {
-	Model           string
-	InputTokens     int64
-	CachedTokens    int64 // prompt-cache reads
-	OutputTokens    int64
-	ReasoningTokens int64
+	Model            string
+	InputTokens      int64
+	CachedTokens     int64 // prompt-cache reads
+	CacheWriteTokens int64 // prompt-cache writes
+	OutputTokens     int64
+	ReasoningTokens  int64
 	// NanoAIU is GitHub's own authoritative cost for the call, in nano-AI units
 	// (1e-9 AIU). Zero when the runtime does not report it.
 	NanoAIU float64

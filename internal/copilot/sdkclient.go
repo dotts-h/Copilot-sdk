@@ -30,6 +30,7 @@ type SDKClient struct {
 	sessions  map[string]*sdk.Session
 	unsubs    map[string]func()
 	toolNames map[string]string // toolCallID -> toolName, for matching end events
+	reasoned  map[string]bool   // sid -> reasoning deltas streamed in the current segment
 	closed    bool
 
 	// modelEfforts caches each model's supported reasoning efforts (from
@@ -102,6 +103,7 @@ func NewSDKClient(ctx context.Context, opts Options) (*SDKClient, error) {
 		sessions:  make(map[string]*sdk.Session),
 		unsubs:    make(map[string]func()),
 		toolNames: make(map[string]string),
+		reasoned:  make(map[string]bool),
 		events:    make(chan Event, 256),
 		done:      make(chan struct{}),
 	}, nil
@@ -217,9 +219,23 @@ func (c *SDKClient) makeHandler(sid string) func(sdk.SessionEvent) {
 		case *sdk.AssistantMessageDeltaData:
 			emit(Event{Type: EvMessageDelta, Text: d.DeltaContent})
 		case *sdk.AssistantReasoningDeltaData:
+			c.mu.Lock()
+			c.reasoned[sid] = true
+			c.mu.Unlock()
 			emit(Event{Type: EvReasoningDelta, Text: d.DeltaContent})
 		case *sdk.AssistantReasoningData:
-			emit(Event{Type: EvReasoning, Text: d.Content})
+			// The runtime emits a full reasoning block at the end of a segment that
+			// already streamed as deltas — emitting it too would render the thinking
+			// twice (once live, once committed below the answer). Only forward it when
+			// no deltas streamed this segment (non-streaming reasoning). Reset either
+			// way so the next segment is judged on its own.
+			c.mu.Lock()
+			streamed := c.reasoned[sid]
+			delete(c.reasoned, sid)
+			c.mu.Unlock()
+			if !streamed {
+				emit(Event{Type: EvReasoning, Text: d.Content})
+			}
 		case *sdk.AssistantMessageData:
 			emit(Event{Type: EvMessage, Text: d.Content})
 		case *sdk.AssistantUsageData:
@@ -273,6 +289,12 @@ func (c *SDKClient) makeHandler(sid string) func(sdk.SessionEvent) {
 		case *sdk.SessionErrorData:
 			emit(Event{Type: EvError, Err: sessionError(d)})
 		case *sdk.SessionIdleData:
+			// A turn ended: clear any lingering reasoning-streamed flag so an
+			// interrupted segment (deltas with no trailing full block) can't suppress
+			// a later non-streaming reasoning block.
+			c.mu.Lock()
+			delete(c.reasoned, sid)
+			c.mu.Unlock()
 			emit(Event{Type: EvIdle})
 		}
 	}
@@ -642,11 +664,12 @@ func (c *SDKClient) RespondElicit(id, action string, content map[string]any) err
 // dereferencing optional pointers safely.
 func normalizeUsage(d *sdk.AssistantUsageData) UsageData {
 	u := UsageData{
-		Model:           d.Model,
-		InputTokens:     deref(d.InputTokens),
-		CachedTokens:    deref(d.CacheReadTokens),
-		OutputTokens:    deref(d.OutputTokens),
-		ReasoningTokens: deref(d.ReasoningTokens),
+		Model:            d.Model,
+		InputTokens:      deref(d.InputTokens),
+		CachedTokens:     deref(d.CacheReadTokens),
+		CacheWriteTokens: deref(d.CacheWriteTokens),
+		OutputTokens:     deref(d.OutputTokens),
+		ReasoningTokens:  deref(d.ReasoningTokens),
 	}
 	if d.CopilotUsage != nil {
 		u.NanoAIU = d.CopilotUsage.TotalNanoAiu

@@ -63,8 +63,11 @@ func helpPartial() string {
 	b.WriteString(`<p class="dim">Type these in the chat composer instead of a prompt.</p>`)
 	b.WriteString(`<table class="kv">`)
 	b.WriteString(cmd("/model [name]", "Switch the model in place (restarts the session); no name shows the current one."))
+	b.WriteString(cmd("/effort [low|medium|high]", "Set the reasoning effort (restarts the session); no value shows the current one."))
 	b.WriteString(cmd("/agent [id|none]", "Activate a forge agent (applies its model + reasoning) or clear it."))
 	b.WriteString(cmd("/plan [on|off]", "Toggle plan mode — the agent drafts a plan you approve or revise inline before it acts."))
+	b.WriteString(cmd("/auto [on|off]", "Toggle autopilot — the agent runs tools without pausing to ask."))
+	b.WriteString(cmd("/ask [on|off]", "Toggle ask mode — the agent checks in before each action."))
 	b.WriteString(cmd("/clear", "Reset the conversation and start a fresh session."))
 	b.WriteString(cmd("/cost", "Show credit usage and refresh the cost meter."))
 	b.WriteString(cmd("/attach <path>", "Queue a file to send with your next message."))
@@ -80,7 +83,7 @@ func helpPartial() string {
 		{"Skills", "Reusable prompt fragments; toggle which are active for the session."},
 		{"Instructions", "Always-on guidance, ordered by priority."},
 		{"Agents", "Named model + reasoning + skill presets; select one as the default."},
-		{"Models", "Pick the model the session uses; selecting one restarts the session on your next prompt."},
+		{"Models", "Pick the model the session uses and its reasoning effort; selecting either restarts the session on your next prompt."},
 		{"Settings", "Read-only view of config.json / forge.json; edit those files to change them."},
 	}
 	for _, r := range rows {
@@ -112,13 +115,14 @@ func (s *Server) chatPartial() string {
 	}
 	ctx := renderCtx(s.ctxCurrent, s.ctxLimit, s.compacting)
 	subagents := renderSubagents(s.subagents)
+	statline := renderStatline(s)
 	s.mu.Unlock()
 
 	return frag("chatPage", map[string]any{
 		"Timeline": trusted(timeline), "Perms": trusted(perms.String()),
 		"Asks": trusted(asks.String()), "Plans": trusted(plans.String()),
 		"Elicits": trusted(elicits.String()), "Subagents": trusted(subagents),
-		"Ctx": trusted(ctx),
+		"Ctx": trusted(ctx), "Statline": trusted(statline),
 	})
 }
 
@@ -207,19 +211,26 @@ func (s *Server) modelsPartial() string {
 
 	s.mu.Lock()
 	current := s.spec.Model
+	curEffort := s.spec.ReasoningEffort
 	s.mu.Unlock()
 
 	rows := make([]map[string]any, 0, len(models))
+	var efforts []map[string]any
 	for _, m := range models {
 		desc := m.ID
-		if efforts := strings.Join(m.SupportedReasoningEfforts, ", "); efforts != "" {
-			desc += " · reasoning: " + efforts
+		if e := strings.Join(m.SupportedReasoningEfforts, ", "); e != "" {
+			desc += " · reasoning: " + e
 		}
 		rows = append(rows, map[string]any{
 			"ID": m.ID, "Active": m.ID == current, "Name": def(m.Name, m.ID), "Desc": desc,
 		})
+		if m.ID == current {
+			for _, e := range m.SupportedReasoningEfforts {
+				efforts = append(efforts, map[string]any{"Value": e, "Active": e == curEffort})
+			}
+		}
 	}
-	return frag("modelsPage", map[string]any{"Rows": rows})
+	return frag("modelsPage", map[string]any{"Rows": rows, "Efforts": efforts})
 }
 
 func (s *Server) settingsPartial() string {

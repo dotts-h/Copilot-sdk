@@ -87,6 +87,41 @@ func TestCompactionSurfacesNotesAndCtx(t *testing.T) {
 	}
 }
 
+func TestUsageEmitsStatlineWithTokenBreakdown(t *testing.T) {
+	s, _ := newTestServer()
+	frags := s.handleEvent(copilot.Event{
+		Type: copilot.EvUsage,
+		Usage: copilot.UsageData{
+			Model: "gpt-5", InputTokens: 1000, CachedTokens: 3000,
+			CacheWriteTokens: 500, OutputTokens: 250, ReasoningTokens: 80,
+		},
+	})
+	stat := ""
+	for _, f := range frags {
+		if f.Event == "stat" {
+			stat = f.HTML
+		}
+	}
+	if stat == "" {
+		t.Fatalf("EvUsage should emit a stat fragment: %+v", frags)
+	}
+	// cache-read 3000 + cache-write 500 surfaced, plus the cache-hit rate
+	// (cached/(input+cached) = 3000/4000 = 75%), reasoning count, and tokens in/out.
+	for _, want := range []string{"↑1.0k ↓250", "3.0k/500", "75%", "✻80"} {
+		if !strings.Contains(stat, want) {
+			t.Errorf("statline missing %q: %s", want, stat)
+		}
+	}
+}
+
+func TestToolStartCountsTowardStatline(t *testing.T) {
+	s, _ := newTestServer()
+	frags := s.handleEvent(copilot.Event{Type: copilot.EvToolStart, Tool: "shell"})
+	if !fragContains(frags, "stat", "⚙ 1") {
+		t.Errorf("a tool start should bump the tools-used count in the statline: %+v", frags)
+	}
+}
+
 func fragContains(frags []fragment, event, sub string) bool {
 	for _, f := range frags {
 		if f.Event == event && strings.Contains(f.HTML, sub) {

@@ -47,7 +47,7 @@ type Server struct {
 	plans       []copilot.PlanRequest   // pending exit-plan-mode reviews (EvPlanReview)
 	elicits     []copilot.ElicitRequest // pending elicitation forms (EvElicitation)
 	subagents   []copilot.SubagentInfo  // sub-agents currently running (activity indicator)
-	planMode    bool                    // when set, prompts are sent in plan mode (AgentMode=plan)
+	mode        string                  // agent mode for outgoing prompts: "" | "plan" | "autopilot" | "interactive"
 	live        liveKind
 	sessionID   string
 	pending     []string // file paths queued via /attach for the next prompt
@@ -57,6 +57,10 @@ type Server struct {
 	ctxCurrent  int64    // last context-window token reading (EvContextWindow)
 	ctxLimit    int64    // context-window size from the last reading
 	compacting  bool     // conversation compaction is in progress
+
+	sessionStartMs int64 // epoch ms this conversation began (drives the session timer)
+	messagesSent   int64 // user prompts dispatched (statusline)
+	toolsUsed      int64 // tool executions started this session (statusline)
 
 	subsMu sync.Mutex
 	subs   map[chan fragment]struct{} // active /events listeners for this session
@@ -174,9 +178,10 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	if s.busy {
 		s.state.AddUser(prompt)
+		s.messagesSent++
 		s.queue = append(s.queue, prompt)
 		n := len(s.queue)
-		oob := s.oobTimeline() +
+		oob := s.oobTimeline() + s.oobStat() +
 			`<div id="status" hx-swap-oob="innerHTML">` + renderStatus(queuedStatus(n), true, s.turnStartMs) + `</div>`
 		s.mu.Unlock()
 		_, _ = w.Write([]byte(oob))
@@ -198,10 +203,11 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 
 	s.mu.Lock()
 	s.state.AddUser(prompt)
+	s.messagesSent++
 	attachments := s.pending
 	s.pending = nil
 	s.live = liveNone
-	oob := s.oobTimeline() + `<div id="status" hx-swap-oob="innerHTML">` + renderStatus("thinking…", true, s.turnStartMs) + `</div>`
+	oob := s.oobTimeline() + s.oobStat() + `<div id="status" hx-swap-oob="innerHTML">` + renderStatus("thinking…", true, s.turnStartMs) + `</div>`
 	s.mu.Unlock()
 
 	if err := s.dispatch(r.Context(), sessionID, prompt, attachments); err != nil {
@@ -216,10 +222,7 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 // otherwise produce no events and leave the UI waiting forever.
 func (s *Server) dispatch(ctx context.Context, sessionID, prompt string, attachments []string) error {
 	s.mu.Lock()
-	mode := ""
-	if s.planMode {
-		mode = "plan"
-	}
+	mode := s.mode
 	s.mu.Unlock()
 	if err := s.client.Send(ctx, sessionID, prompt, attachments, mode); err != nil {
 		s.logger.Printf("send: %v", err)
@@ -339,8 +342,8 @@ func (s *Server) handlePlanReview(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.Lock()
 	s.dropPlan(id)
-	if approved {
-		s.planMode = false // approving the plan exits plan mode
+	if approved && s.mode == "plan" {
+		s.mode = "" // approving the plan exits plan mode
 	}
 	s.state.AddSystem(note)
 	oob := s.oobTimeline()
@@ -481,6 +484,17 @@ func (s *Server) handleModelSelect(w http.ResponseWriter, r *http.Request) {
 	s.writePartial(w, s.modelsPartial())
 }
 
+// handleEffortSelect sets the reasoning effort from the Models page and
+// re-renders it with the new effort marked. "default" clears it.
+func (s *Server) handleEffortSelect(w http.ResponseWriter, r *http.Request) {
+	v := r.PathValue("value")
+	if v == "default" {
+		v = ""
+	}
+	s.setEffort(v) // self-locks per-session + shared state
+	s.writePartial(w, s.modelsPartial())
+}
+
 func (s *Server) handleAgentDelete(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if err := s.editForge(func() error { return s.forge.RemoveAgent(id) }); err != nil {
@@ -522,6 +536,19 @@ func (s *Server) statusFrag(text string, active bool) fragment {
 // Caller must hold s.mu.
 func (s *Server) ctxFrag() fragment {
 	return fragment{Event: "ctx", HTML: renderCtx(s.ctxCurrent, s.ctxLimit, s.compacting)}
+}
+
+// statFrag builds the live statusline SSE fragment (model, mode, context fill,
+// session timer, token/credit accounting). Caller must hold s.mu.
+func (s *Server) statFrag() fragment {
+	return fragment{Event: "stat", HTML: renderStatline(s)}
+}
+
+// oobStat returns an out-of-band statusline refresh for POST responses (the send
+// path updates it immediately rather than waiting for the next SSE event).
+// Caller must hold s.mu.
+func (s *Server) oobStat() string {
+	return `<div id="statline" hx-swap-oob="innerHTML">` + renderStatline(s) + `</div>`
 }
 
 // subagentsFrag builds the background-activity strip from the currently-running

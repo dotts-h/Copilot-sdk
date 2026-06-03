@@ -11,8 +11,14 @@ import (
 type Usage struct {
 	Model        string
 	InputTokens  int64
-	CachedTokens int64
+	CachedTokens int64 // prompt-cache reads
 	OutputTokens int64
+	// CacheWriteTokens and ReasoningTokens are tracked for display only. GitHub's
+	// authoritative AIU already accounts for them, and the estimate prices reads
+	// (CachedTokens) and output (which includes reasoning); surfacing the raw
+	// counts powers the statusline without affecting the credit math.
+	CacheWriteTokens int64
+	ReasoningTokens  int64
 	// At is when the usage was recorded; zero means "now" at insertion time.
 	At time.Time
 }
@@ -62,6 +68,10 @@ type Meter struct {
 	perModel    map[string]*ModelTotals
 	totalCost   Cost
 	reportedAIU float64 // GitHub-authoritative cost, in AI units
+
+	// Display-only running counts (not priced; see Usage).
+	cacheWriteTokens int64
+	reasoningTokens  int64
 }
 
 // RecordReportedAIU folds GitHub's own authoritative per-call cost (already
@@ -139,7 +149,19 @@ func (m *Meter) Record(u Usage) Cost {
 	m.totalCost.InputUSD += cost.InputUSD
 	m.totalCost.CachedUSD += cost.CachedUSD
 	m.totalCost.OutputUSD += cost.OutputUSD
+
+	m.cacheWriteTokens += u.CacheWriteTokens
+	m.reasoningTokens += u.ReasoningTokens
 	return cost
+}
+
+// ExtraTokens returns the display-only running counts that fall outside the
+// priced input/cached/output categories: prompt-cache writes and reasoning
+// ("thinking") tokens.
+func (m *Meter) ExtraTokens() (cacheWrite, reasoning int64) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.cacheWriteTokens, m.reasoningTokens
 }
 
 // Totals returns the aggregate cost across all models.

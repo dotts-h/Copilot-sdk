@@ -13,23 +13,57 @@ func TestPlanCommandTogglesMode(t *testing.T) {
 	if out := s.runCommand("/plan"); !strings.Contains(out, "plan mode on") {
 		t.Fatalf("/plan should turn plan mode on: %s", out)
 	}
-	if !s.planMode {
-		t.Fatal("planMode should be true after /plan")
+	if s.mode != "plan" {
+		t.Fatalf("mode should be plan after /plan, got %q", s.mode)
 	}
 	if out := s.runCommand("/plan"); !strings.Contains(out, "plan mode off") {
 		t.Fatalf("second /plan should toggle off: %s", out)
 	}
-	if s.planMode {
-		t.Fatal("planMode should be false after toggling off")
+	if s.mode != "" {
+		t.Fatalf("mode should be empty after toggling off, got %q", s.mode)
 	}
 	// Explicit on/off.
 	s.runCommand("/plan off")
-	if s.planMode {
+	if s.mode != "" {
 		t.Fatal("/plan off should clear plan mode")
 	}
 	s.runCommand("/plan on")
-	if !s.planMode {
+	if s.mode != "plan" {
 		t.Fatal("/plan on should set plan mode")
+	}
+}
+
+func TestAutoAndAskModesAreExclusive(t *testing.T) {
+	s, _ := newTestServer()
+	if out := s.runCommand("/auto"); !strings.Contains(out, "autopilot on") {
+		t.Fatalf("/auto should turn autopilot on: %s", out)
+	}
+	if s.mode != "autopilot" {
+		t.Fatalf("mode = %q, want autopilot", s.mode)
+	}
+	// Switching to ask mode replaces autopilot (modes are mutually exclusive).
+	if out := s.runCommand("/ask"); !strings.Contains(out, "ask mode on") {
+		t.Fatalf("/ask should turn ask mode on: %s", out)
+	}
+	if s.mode != "interactive" {
+		t.Fatalf("mode = %q, want interactive", s.mode)
+	}
+	s.runCommand("/ask off")
+	if s.mode != "" {
+		t.Fatalf("mode = %q, want empty after /ask off", s.mode)
+	}
+}
+
+func TestEffortCommandSetsSpec(t *testing.T) {
+	s, _ := newTestServer()
+	if out := s.runCommand("/effort high"); !strings.Contains(out, "high") {
+		t.Fatalf("/effort high: %s", out)
+	}
+	if s.spec.ReasoningEffort != "high" {
+		t.Fatalf("ReasoningEffort = %q, want high", s.spec.ReasoningEffort)
+	}
+	if out := s.runCommand("/effort bogus"); !strings.Contains(out, "usage:") {
+		t.Fatalf("/effort bogus should show usage: %s", out)
 	}
 }
 
@@ -78,7 +112,7 @@ func TestPlanApprovalExitsPlanMode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s.planMode {
+	if s.mode != "" {
 		t.Fatal("approving a plan should exit plan mode")
 	}
 }

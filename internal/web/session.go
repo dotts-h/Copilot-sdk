@@ -64,8 +64,9 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 			args = e.ToolCall.Args
 		}
 		s.state.ToolStart(toolID(e), e.Tool, args)
+		s.toolsUsed++
 		s.live = liveNone
-		return append(s.timelineFragments(), s.statusFrag("running "+e.Tool, true))
+		return append(s.timelineFragments(), s.statusFrag("running "+e.Tool, true), s.statFrag())
 
 	case copilot.EvToolProgress:
 		if e.ToolCall != nil {
@@ -115,13 +116,18 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 
 	case copilot.EvUsage:
 		s.meter.Record(telemetry.Usage{
-			Model:        e.Usage.Model,
-			InputTokens:  e.Usage.InputTokens,
-			CachedTokens: e.Usage.CachedTokens,
-			OutputTokens: e.Usage.OutputTokens,
+			Model:            e.Usage.Model,
+			InputTokens:      e.Usage.InputTokens,
+			CachedTokens:     e.Usage.CachedTokens,
+			CacheWriteTokens: e.Usage.CacheWriteTokens,
+			OutputTokens:     e.Usage.OutputTokens,
+			ReasoningTokens:  e.Usage.ReasoningTokens,
 		})
 		s.meter.RecordReportedAIU(e.Usage.NanoAIU * 1e-9)
-		return []fragment{{Event: "cost", HTML: renderCostFooter(s.meter, s.allowance)}}
+		return []fragment{
+			{Event: "cost", HTML: renderCostFooter(s.meter, s.allowance)},
+			s.statFrag(),
+		}
 
 	case copilot.EvPermission:
 		if e.Permission == nil {
@@ -198,7 +204,7 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 	case copilot.EvContextWindow:
 		s.ctxCurrent = e.Context.CurrentTokens
 		s.ctxLimit = e.Context.TokenLimit
-		return []fragment{s.ctxFrag()}
+		return []fragment{s.ctxFrag(), s.statFrag()}
 
 	case copilot.EvCompactionStart:
 		s.compacting = true

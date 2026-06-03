@@ -161,6 +161,25 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
 .ctx-meter.warn { color: var(--bad); }
 .ctx-compacting { color: var(--accent); }
 .elapsed { color: var(--accent2); font-variant-numeric: tabular-nums; margin-left: .35rem; }
+
+/* Live chat statusline: a wrapping row of compact, labelled stat chips. */
+.statline { display: flex; flex-wrap: wrap; align-items: center; gap: .15rem .7rem;
+  max-width: 56rem; margin: 0 auto .35rem; font-size: .74rem; color: var(--dim);
+  font-variant-numeric: tabular-nums; }
+.statline:empty { margin: 0; }
+.stat-item { white-space: nowrap; }
+.stat-item.elapsed { margin-left: 0; }
+.stat-model { color: var(--accent2); font-weight: 600; }
+.stat-mode { color: var(--warn); text-transform: uppercase; letter-spacing: .03em;
+  border: 1px solid var(--warn); border-radius: 4px; padding: 0 .3rem; }
+.stat-cost { color: var(--fg); }
+
+/* Models page: reasoning-effort selector row. */
+.effort-row { display: flex; align-items: center; gap: .4rem; margin: .25rem 0 .75rem; }
+.effort { background: none; border: 1px solid var(--subtle); color: var(--dim);
+  border-radius: 6px; padding: .15rem .6rem; cursor: pointer; font: inherit; font-size: .85rem; }
+.effort:hover { border-color: var(--accent2); color: var(--fg); }
+.effort.on { border-color: var(--good); color: var(--good); }
 #composer { display: flex; gap: .5rem; max-width: 56rem; margin: .25rem auto; }
 #composer input { flex: 1 1 auto; background: var(--bg); border: 1px solid var(--subtle);
   border-radius: 6px; color: var(--fg); padding: .55rem .7rem; font: inherit; }
