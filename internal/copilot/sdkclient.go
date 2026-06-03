@@ -271,6 +271,21 @@ func (c *SDKClient) makeHandler() func(sdk.SessionEvent) {
 			c.emit(Event{Type: EvCompactionEnd, Text: compactionSummary(d)})
 		case *sdk.SessionPlanChangedData:
 			c.emit(Event{Type: EvPlanChanged, Text: planChangeText(d.Operation)})
+		case *sdk.SubagentStartedData:
+			c.emit(Event{Type: EvSubagentStart, Subagent: &SubagentInfo{
+				ToolCallID: d.ToolCallID, Name: d.AgentName, DisplayName: d.AgentDisplayName,
+				Description: d.AgentDescription, Model: derefStr(d.Model),
+			}})
+		case *sdk.SubagentCompletedData:
+			c.emit(Event{Type: EvSubagentEnd, Subagent: &SubagentInfo{
+				ToolCallID: d.ToolCallID, Name: d.AgentName, DisplayName: d.AgentDisplayName,
+				Model: derefStr(d.Model), Success: true, Detail: subagentSummary(d.DurationMs, d.TotalTokens),
+			}})
+		case *sdk.SubagentFailedData:
+			c.emit(Event{Type: EvSubagentEnd, Subagent: &SubagentInfo{
+				ToolCallID: d.ToolCallID, Name: d.AgentName, DisplayName: d.AgentDisplayName,
+				Model: derefStr(d.Model), Success: false, Detail: d.Error,
+			}})
 		case *sdk.SessionIdleData:
 			c.emit(Event{Type: EvIdle})
 		}
@@ -520,6 +535,39 @@ func deref(p *int64) int64 {
 		return 0
 	}
 	return *p
+}
+
+func derefStr(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
+// subagentSummary renders a one-line completion summary for a sub-agent from its
+// optional duration and token totals (e.g. "1.2s · 3.4k tok"). Empty when
+// neither is reported.
+func subagentSummary(durationMs, totalTokens *int64) string {
+	var parts []string
+	if durationMs != nil && *durationMs > 0 {
+		parts = append(parts, fmt.Sprintf("%.1fs", float64(*durationMs)/1000))
+	}
+	if totalTokens != nil && *totalTokens > 0 {
+		parts = append(parts, humanTokenCount(*totalTokens)+" tok")
+	}
+	return strings.Join(parts, " · ")
+}
+
+// humanTokenCount renders a token count compactly (1.5k, 2.5M).
+func humanTokenCount(n int64) string {
+	switch {
+	case n >= 1_000_000:
+		return fmt.Sprintf("%.1fM", float64(n)/1e6)
+	case n >= 1000:
+		return fmt.Sprintf("%.1fk", float64(n)/1e3)
+	default:
+		return fmt.Sprintf("%d", n)
+	}
 }
 
 // Send implements Client.

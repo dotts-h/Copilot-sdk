@@ -107,6 +107,7 @@ func (s *Server) chatPartial() string {
 		plans.WriteString(renderPlanForm(p))
 	}
 	ctx := renderCtx(s.ctxCurrent, s.ctxLimit, s.compacting)
+	subagents := renderSubagents(s.subagents)
 	s.mu.Unlock()
 
 	return `<section class="chat">` +
@@ -115,6 +116,7 @@ func (s *Server) chatPartial() string {
 		`<div id="asks" class="asks">` + asks.String() + `</div>` +
 		`<div id="plans" class="plans">` + plans.String() + `</div>` +
 		`<div class="composer-bar">` +
+		`<div id="subagents" class="subagents">` + subagents + `</div>` +
 		`<div class="status-row">` +
 		`<div id="status" class="status"></div>` +
 		`<div id="ctx" class="ctx">` + ctx + `</div>` +

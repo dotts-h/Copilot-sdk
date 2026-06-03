@@ -154,6 +154,30 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		s.state.AddSystem("◷ " + note)
 		return s.timelineFragments()
 
+	case copilot.EvSubagentStart:
+		if e.Subagent == nil {
+			return nil
+		}
+		s.subagents = append(s.subagents, *e.Subagent)
+		s.state.AddSystem("▸ sub-agent " + subagentLabel(*e.Subagent) + " started")
+		return append(s.timelineFragments(), s.subagentsFrag())
+
+	case copilot.EvSubagentEnd:
+		if e.Subagent == nil {
+			return nil
+		}
+		s.dropSubagent(e.Subagent.ToolCallID)
+		glyph := "✓"
+		if !e.Subagent.Success {
+			glyph = "✗"
+		}
+		note := glyph + " sub-agent " + subagentLabel(*e.Subagent) + " finished"
+		if e.Subagent.Detail != "" {
+			note += " · " + e.Subagent.Detail
+		}
+		s.state.AddSystem(note)
+		return append(s.timelineFragments(), s.subagentsFrag())
+
 	case copilot.EvContextWindow:
 		s.ctxCurrent = e.Context.CurrentTokens
 		s.ctxLimit = e.Context.TokenLimit

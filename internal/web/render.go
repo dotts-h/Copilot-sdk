@@ -179,6 +179,37 @@ func renderPlanForm(req copilot.PlanRequest) string {
 	return b.String()
 }
 
+// subagentLabel returns a sub-agent's display name, falling back to its internal
+// name, then to a generic label.
+func subagentLabel(sa copilot.SubagentInfo) string {
+	switch {
+	case sa.DisplayName != "":
+		return sa.DisplayName
+	case sa.Name != "":
+		return sa.Name
+	default:
+		return "sub-agent"
+	}
+}
+
+// renderSubagents renders the background-activity strip: one animated chip per
+// running sub-agent (name + model). It is empty when nothing is running, so the
+// strip is ambient — visible only while sub-agents work.
+func renderSubagents(active []copilot.SubagentInfo) string {
+	if len(active) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for _, sa := range active {
+		b.WriteString(`<span class="subagent-chip"><span class="spin">◐</span> ` + esc(subagentLabel(sa)))
+		if sa.Model != "" {
+			b.WriteString(` <span class="subagent-model">` + esc(sa.Model) + `</span>`)
+		}
+		b.WriteString(`</span>`)
+	}
+	return b.String()
+}
+
 // renderStatus renders the status-line content swapped into #status. While a
 // turn is active it appends a live elapsed-time timer (ticked client-side from
 // the data-start epoch) and an inline abort control (POST /abort); when idle it
