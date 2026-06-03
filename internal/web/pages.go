@@ -99,9 +99,11 @@ func (s *Server) chatPartial() string {
 		`<div id="perms" class="perms">` + perms.String() + `</div>` +
 		`<div class="composer-bar">` +
 		`<div id="status" class="status"></div>` +
+		`<div id="cmd-menu" class="cmd-menu-wrap"></div>` +
 		`<form id="composer" hx-post="/send" hx-swap="none" ` +
-		`hx-on::after-request="this.reset(); this.querySelector('input').focus()">` +
-		`<input type="text" name="prompt" autocomplete="off" autofocus placeholder="Ask my-orchestra…  (/help for commands)">` +
+		`hx-on::after-request="this.reset(); document.getElementById('cmd-menu').innerHTML=''; this.querySelector('input').focus()">` +
+		`<input type="text" name="prompt" autocomplete="off" autofocus placeholder="Ask my-orchestra…  (/help for commands)" ` +
+		`hx-get="/commands" hx-trigger="keyup changed delay:40ms" hx-target="#cmd-menu" hx-swap="innerHTML">` +
 		`<button type="submit">Send</button>` +
 		`</form></div></section>`
 }

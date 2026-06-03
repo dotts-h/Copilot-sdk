@@ -29,5 +29,18 @@
     <div sse-swap="status"   hx-target="#status"      hx-swap="innerHTML"></div>
     <div sse-swap="cost"     hx-target="#cost-footer" hx-swap="innerHTML"></div>
   </div>
+
+  <script>
+    // fillCmd places a chosen slash command into the composer and clears the
+    // autocomplete menu, leaving a trailing space ready for arguments.
+    function fillCmd(name) {
+      var input = document.querySelector('#composer input[name=prompt]');
+      if (!input) return;
+      input.value = '/' + name + ' ';
+      var menu = document.getElementById('cmd-menu');
+      if (menu) menu.innerHTML = '';
+      input.focus();
+    }
+  </script>
 </body>
 </html>{{end}}

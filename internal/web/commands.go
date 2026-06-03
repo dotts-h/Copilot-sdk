@@ -191,8 +191,20 @@ func isNavSlug(slug string) bool {
 	return false
 }
 
-// commandHelp lists the available slash commands for the /help note.
+// commandHelp lists the available slash commands for the /help note, derived
+// from the same registry that powers autocomplete so the two never drift.
 func commandHelp() string {
-	return "commands: /model [name] · /agent [id|none] · /clear · /cost · " +
-		"/attach <path> · /chat /telemetry /skills /instructions /agents /settings · /help"
+	parts := make([]string, 0, len(fixedCommandSpecs)+1)
+	for _, c := range fixedCommandSpecs {
+		s := "/" + c.Name
+		if c.Args != "" {
+			s += " " + c.Args
+		}
+		parts = append(parts, s)
+	}
+	navSlugs := make([]string, len(pageNames))
+	for i, p := range pageNames {
+		navSlugs[i] = "/" + p.slug
+	}
+	return "commands: " + strings.Join(parts, " · ") + " · " + strings.Join(navSlugs, " ")
 }
