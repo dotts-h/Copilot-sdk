@@ -52,13 +52,26 @@ func streamDemoReply(m *copilot.MockClient, prompt string) {
 	}})
 	time.Sleep(120 * time.Millisecond)
 
-	// 5. The streamed answer.
+	// 5. A sub-agent runs in the background, shown as an activity indicator that
+	// appears while it works and clears when it finishes.
+	model := "claude-sonnet-4-6"
+	m.Emit(copilot.Event{Type: copilot.EvSubagentStart, Subagent: &copilot.SubagentInfo{
+		ToolCallID: "demo-sa-1", Name: "explorer", DisplayName: "Explore",
+		Description: "search the repo", Model: model,
+	}})
+	time.Sleep(300 * time.Millisecond)
+	m.Emit(copilot.Event{Type: copilot.EvSubagentEnd, Subagent: &copilot.SubagentInfo{
+		ToolCallID: "demo-sa-1", Name: "explorer", DisplayName: "Explore", Model: model,
+		Success: true, Detail: "1.2s · 3.4k tok",
+	}})
+
+	// 6. The streamed answer.
 	reply := "Streaming skeleton is live. You said: " + strings.TrimSpace(prompt) +
 		". Reasoning, tools, the cost meter, and inline permissions all render over SSE."
 	stream(reply, copilot.EvMessageDelta)
 	m.Emit(copilot.Event{Type: copilot.EvMessage, Text: reply})
 
-	// 6. Usage → cost footer, and a context-window reading → live ctx meter.
+	// 7. Usage → cost footer, and a context-window reading → live ctx meter.
 	m.Emit(copilot.Event{Type: copilot.EvUsage, Usage: copilot.UsageData{
 		Model: "gpt-5", InputTokens: 1200, CachedTokens: 200, OutputTokens: 340,
 	}})
@@ -66,7 +79,7 @@ func streamDemoReply(m *copilot.MockClient, prompt string) {
 		CurrentTokens: 18400, TokenLimit: 128000,
 	}})
 
-	// 7. End of turn.
+	// 8. End of turn.
 	m.Emit(copilot.Event{Type: copilot.EvIdle})
 }
 

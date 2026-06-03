@@ -30,6 +30,8 @@ const (
 	EvUserInput       // the agent is asking the user a question (ask_user tool)
 	EvPlanReview      // the agent finished a plan and is asking to exit plan mode
 	EvPlanChanged     // the plan file was created/updated/deleted (notification)
+	EvSubagentStart   // a sub-agent began running (background activity)
+	EvSubagentEnd     // a sub-agent finished (Subagent.Success reports outcome)
 )
 
 // PermissionRequest describes a tool-permission prompt awaiting a decision.
@@ -47,6 +49,21 @@ type InputRequest struct {
 	Question      string
 	Choices       []string
 	AllowFreeform bool
+}
+
+// SubagentInfo is the normalized view of a sub-agent's lifecycle, surfaced as a
+// background-activity indicator. ToolCallID (the parent tool invocation that
+// spawned it) threads the start and end events so the UI can update one entry.
+// Detail carries a one-line summary on completion (duration/tokens) or the error
+// message on failure.
+type SubagentInfo struct {
+	ToolCallID  string
+	Name        string
+	DisplayName string
+	Description string
+	Model       string
+	Success     bool
+	Detail      string
 }
 
 // PlanRequest describes an exit-plan-mode prompt awaiting a decision: the
@@ -89,6 +106,7 @@ type Event struct {
 	Permission *PermissionRequest // set for EvPermission
 	Input      *InputRequest      // set for EvUserInput
 	Plan       *PlanRequest       // set for EvPlanReview
+	Subagent   *SubagentInfo      // set for EvSubagentStart / EvSubagentEnd
 	Err        error
 }
 

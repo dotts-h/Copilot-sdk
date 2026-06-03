@@ -37,6 +37,7 @@ type Server struct {
 	perms       []copilot.PermissionRequest
 	inputs      []copilot.InputRequest // pending ask_user questions (EvUserInput)
 	plans       []copilot.PlanRequest  // pending exit-plan-mode reviews (EvPlanReview)
+	subagents   []copilot.SubagentInfo // sub-agents currently running (activity indicator)
 	live        liveKind
 	sessionID   string
 	pending     []string // file paths queued via /attach for the next prompt
@@ -459,6 +460,12 @@ func (s *Server) ctxFrag() fragment {
 	return fragment{Event: "ctx", HTML: renderCtx(s.ctxCurrent, s.ctxLimit, s.compacting)}
 }
 
+// subagentsFrag builds the background-activity strip from the currently-running
+// sub-agents. Caller must hold s.mu.
+func (s *Server) subagentsFrag() fragment {
+	return fragment{Event: "subagents", HTML: renderSubagents(s.subagents)}
+}
+
 // nowMs returns the current time in epoch milliseconds.
 func nowMs() int64 { return time.Now().UnixMilli() }
 
@@ -487,6 +494,17 @@ func (s *Server) dropPlan(id string) {
 	for i := range s.plans {
 		if s.plans[i].ID == id {
 			s.plans = append(s.plans[:i], s.plans[i+1:]...)
+			return
+		}
+	}
+}
+
+// dropSubagent removes a finished sub-agent by its parent tool-call id. Caller
+// must hold s.mu.
+func (s *Server) dropSubagent(toolCallID string) {
+	for i := range s.subagents {
+		if s.subagents[i].ToolCallID == toolCallID {
+			s.subagents = append(s.subagents[:i], s.subagents[i+1:]...)
 			return
 		}
 	}
