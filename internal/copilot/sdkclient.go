@@ -19,7 +19,8 @@ import (
 type SDKClient struct {
 	client *sdk.Client
 
-	perms *permBridge
+	perms  *permBridge
+	inputs *inputBridge
 
 	mu        sync.Mutex
 	sessions  map[string]*sdk.Session
@@ -91,6 +92,7 @@ func NewSDKClient(ctx context.Context, opts Options) (*SDKClient, error) {
 	return &SDKClient{
 		client:    c,
 		perms:     newPermBridge(),
+		inputs:    newInputBridge(),
 		sessions:  make(map[string]*sdk.Session),
 		unsubs:    make(map[string]func()),
 		toolNames: make(map[string]string),
@@ -123,6 +125,7 @@ func (c *SDKClient) CreateSession(ctx context.Context, spec SessionSpec) (string
 	} else {
 		cfg.OnPermissionRequest = c.permissionHandler()
 	}
+	cfg.OnUserInputRequest = c.userInputHandler()
 	if len(spec.MCPServers) > 0 {
 		cfg.MCPServers = make(map[string]sdk.MCPServerConfig, len(spec.MCPServers))
 		for _, s := range spec.MCPServers {
@@ -189,6 +192,7 @@ func (c *SDKClient) ResumeSession(ctx context.Context, sessionID string) (string
 	session, err := c.client.ResumeSession(ctx, sessionID, &sdk.ResumeSessionConfig{
 		Streaming:           sdk.Bool(true),
 		OnPermissionRequest: c.permissionHandler(),
+		OnUserInputRequest:  c.userInputHandler(),
 	})
 	if err != nil {
 		return "", fmt.Errorf("resume session %q: %w", sessionID, err)
@@ -284,6 +288,33 @@ func (c *SDKClient) permissionHandler() sdk.PermissionHandlerFunc {
 			return &rpc.PermissionDecisionReject{Feedback: &fb}, nil
 		case <-c.done:
 			return &rpc.PermissionDecisionUserNotAvailable{}, nil
+		}
+	}
+}
+
+// userInputHandler bridges the SDK's synchronous ask_user callback to the async
+// web UI, mirroring permissionHandler: it emits an EvUserInput and blocks until
+// RespondInput() (or shutdown). WasFreeform is derived by checking whether the
+// answer matches one of the offered choices.
+func (c *SDKClient) userInputHandler() sdk.UserInputHandler {
+	return func(req sdk.UserInputRequest, _ sdk.UserInputInvocation) (sdk.UserInputResponse, error) {
+		id, ch := c.inputs.begin()
+		allow := req.AllowFreeform != nil && *req.AllowFreeform
+		c.emit(Event{Type: EvUserInput, Input: &InputRequest{
+			ID: id, Question: req.Question, Choices: req.Choices, AllowFreeform: allow,
+		}})
+		select {
+		case answer := <-ch:
+			wasFreeform := true
+			for _, choice := range req.Choices {
+				if choice == answer {
+					wasFreeform = false
+					break
+				}
+			}
+			return sdk.UserInputResponse{Answer: answer, WasFreeform: wasFreeform}, nil
+		case <-c.done:
+			return sdk.UserInputResponse{}, ErrClosed
 		}
 	}
 }
@@ -406,6 +437,14 @@ func (c *SDKClient) ListModels(ctx context.Context) ([]ModelInfo, error) {
 func (c *SDKClient) Respond(id string, approve bool) error {
 	if !c.perms.resolve(id, approve) {
 		return fmt.Errorf("no pending permission %q", id)
+	}
+	return nil
+}
+
+// RespondInput implements Client.
+func (c *SDKClient) RespondInput(id, answer string) error {
+	if !c.inputs.resolve(id, answer) {
+		return fmt.Errorf("no pending input %q", id)
 	}
 	return nil
 }

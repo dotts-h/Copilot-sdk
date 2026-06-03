@@ -85,6 +85,8 @@ func TestMockClient(t *testing.T) {
 // runtime, so the pure event-translation logic can be tested without the CLI.
 func newTestSDKClient() *SDKClient {
 	return &SDKClient{
+		perms:     newPermBridge(),
+		inputs:    newInputBridge(),
 		sessions:  map[string]*sdk.Session{},
 		unsubs:    map[string]func(){},
 		toolNames: map[string]string{},

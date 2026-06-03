@@ -35,6 +35,7 @@ type Server struct {
 	mu          sync.Mutex
 	state       convo.State
 	perms       []copilot.PermissionRequest
+	inputs      []copilot.InputRequest // pending ask_user questions (EvUserInput)
 	live        liveKind
 	sessionID   string
 	pending     []string // file paths queued via /attach for the next prompt
@@ -93,6 +94,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /send", s.handleSend)
 	mux.HandleFunc("POST /abort", s.handleAbort)
 	mux.HandleFunc("POST /perm/{id}", s.handlePerm)
+	mux.HandleFunc("POST /ask/{id}", s.handleAsk)
 	mux.HandleFunc("GET /page/{name}", s.handlePage)
 	mux.HandleFunc("GET /commands", s.handleCommands)
 
@@ -286,6 +288,28 @@ func (s *Server) handlePerm(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(oob))
 }
 
+// handleAsk answers a pending ask_user request via the client's inputBridge,
+// records the answer in the transcript, and returns an OOB timeline refresh (the
+// non-OOB empty body removes the inline form). Mirrors handlePerm. The form may
+// submit several "answer" values (an empty freeform field alongside a clicked
+// choice button); the first non-empty one wins.
+func (s *Server) handleAsk(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	_ = r.ParseForm()
+	answer := firstNonEmpty(r.Form["answer"])
+	if err := s.client.RespondInput(id, answer); err != nil {
+		s.logger.Printf("respond input: %v", err)
+	}
+	s.mu.Lock()
+	s.dropInput(id)
+	s.state.AddSystem("answered: " + answer)
+	oob := s.oobTimeline()
+	s.mu.Unlock()
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(oob))
+}
+
 func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write([]byte(s.renderPage(r.PathValue("name"))))
@@ -415,6 +439,26 @@ func (s *Server) dropPerm(id string) {
 			return
 		}
 	}
+}
+
+// dropInput removes a resolved ask_user request. Caller must hold s.mu.
+func (s *Server) dropInput(id string) {
+	for i := range s.inputs {
+		if s.inputs[i].ID == id {
+			s.inputs = append(s.inputs[:i], s.inputs[i+1:]...)
+			return
+		}
+	}
+}
+
+// firstNonEmpty returns the first non-empty, trimmed string in vals, or "".
+func firstNonEmpty(vals []string) string {
+	for _, v := range vals {
+		if t := strings.TrimSpace(v); t != "" {
+			return t
+		}
+	}
+	return ""
 }
 
 func (s *Server) persist() {

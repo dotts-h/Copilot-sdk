@@ -27,6 +27,7 @@ const (
 	EvContextWindow   // context-window usage update (SessionUsageInfoData)
 	EvCompactionStart // conversation compaction began
 	EvCompactionEnd   // conversation compaction finished (Text carries a summary)
+	EvUserInput       // the agent is asking the user a question (ask_user tool)
 )
 
 // PermissionRequest describes a tool-permission prompt awaiting a decision.
@@ -34,6 +35,16 @@ type PermissionRequest struct {
 	ID     string
 	Kind   string
 	Detail string
+}
+
+// InputRequest describes an ask_user prompt awaiting an answer: a question, an
+// optional set of suggested choices, and whether a freeform answer is allowed.
+// It is the elicitation analogue of PermissionRequest.
+type InputRequest struct {
+	ID            string
+	Question      string
+	Choices       []string
+	AllowFreeform bool
 }
 
 // UsageData is normalized token accounting derived from the SDK's
@@ -62,6 +73,7 @@ type Event struct {
 	Usage      UsageData
 	Context    ContextInfo        // set for EvContextWindow
 	Permission *PermissionRequest // set for EvPermission
+	Input      *InputRequest      // set for EvUserInput
 	Err        error
 }
 
@@ -133,6 +145,9 @@ type Client interface {
 	Abort(ctx context.Context, sessionID string) error
 	// Respond answers a pending tool-permission request (EvPermission).
 	Respond(id string, approve bool) error
+	// RespondInput answers a pending ask_user request (EvUserInput) with the
+	// user's chosen or freeform answer.
+	RespondInput(id, answer string) error
 	// ListModels returns the models available to the account.
 	ListModels(ctx context.Context) ([]ModelInfo, error)
 	// Events streams normalized events until Close.

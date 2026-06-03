@@ -73,7 +73,7 @@ func helpPartial() string {
 
 	b.WriteString(`<h3>Panels</h3><table class="kv">`)
 	rows := [][2]string{
-		{"Chat", "Stream prompts and replies; approve tool permissions inline; abort an in-flight turn with ⏹ stop. " +
+		{"Chat", "Stream prompts and replies; approve tool permissions inline and answer the agent's questions (ask_user) inline; abort an in-flight turn with ⏹ stop. " +
 			"Type ahead while a turn runs — extra prompts queue and send automatically when the turn ends."},
 		{"Telemetry", "Live credit/token spend, per-model breakdown, and your monthly budget."},
 		{"Skills", "Reusable prompt fragments; toggle which are active for the session."},
@@ -98,12 +98,17 @@ func (s *Server) chatPartial() string {
 	for _, p := range s.perms {
 		perms.WriteString(renderPermForm(p.ID, p.Detail))
 	}
+	var asks strings.Builder
+	for _, q := range s.inputs {
+		asks.WriteString(renderAskForm(q))
+	}
 	ctx := renderCtx(s.ctxCurrent, s.ctxLimit, s.compacting)
 	s.mu.Unlock()
 
 	return `<section class="chat">` +
 		`<div id="timeline" class="timeline">` + timeline + `</div>` +
 		`<div id="perms" class="perms">` + perms.String() + `</div>` +
+		`<div id="asks" class="asks">` + asks.String() + `</div>` +
 		`<div class="composer-bar">` +
 		`<div class="status-row">` +
 		`<div id="status" class="status"></div>` +
