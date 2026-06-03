@@ -58,7 +58,7 @@ func (s *Server) chatPartial() string {
 		`<div id="status" class="status"></div>` +
 		`<form id="composer" hx-post="/send" hx-swap="none" ` +
 		`hx-on::after-request="this.reset(); this.querySelector('input').focus()">` +
-		`<input type="text" name="prompt" autocomplete="off" autofocus placeholder="Ask my-orchestra…">` +
+		`<input type="text" name="prompt" autocomplete="off" autofocus placeholder="Ask my-orchestra…  (/help for commands)">` +
 		`<button type="submit">Send</button>` +
 		`</form></div></section>`
 }
