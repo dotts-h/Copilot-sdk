@@ -221,6 +221,22 @@ func TestHandlerDropsDuplicateReasoningBlock(t *testing.T) {
 	}
 }
 
+// An interrupted streamed segment (deltas, then idle with no full block) must not
+// leave a stale flag that suppresses a later non-streaming reasoning block.
+func TestHandlerResetsReasoningFlagOnIdle(t *testing.T) {
+	c := newTestSDKClient()
+	h := c.makeHandler("s1")
+
+	h(sdk.SessionEvent{Data: &sdk.AssistantReasoningDeltaData{DeltaContent: "partial"}})
+	<-c.events                                        // EvReasoningDelta
+	h(sdk.SessionEvent{Data: &sdk.SessionIdleData{}}) // turn ends, no full block
+	<-c.events                                        // EvIdle
+	h(sdk.SessionEvent{Data: &sdk.AssistantReasoningData{Content: "later"}})
+	if ev := <-c.events; ev.Type != EvReasoning || ev.Text != "later" {
+		t.Fatalf("post-idle non-streaming reasoning should emit, got %+v", ev)
+	}
+}
+
 func TestHandlerNormalizesContextAndCompaction(t *testing.T) {
 	c := newTestSDKClient()
 	h := c.makeHandler("")

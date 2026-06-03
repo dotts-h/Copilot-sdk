@@ -289,6 +289,12 @@ func (c *SDKClient) makeHandler(sid string) func(sdk.SessionEvent) {
 		case *sdk.SessionErrorData:
 			emit(Event{Type: EvError, Err: sessionError(d)})
 		case *sdk.SessionIdleData:
+			// A turn ended: clear any lingering reasoning-streamed flag so an
+			// interrupted segment (deltas with no trailing full block) can't suppress
+			// a later non-streaming reasoning block.
+			c.mu.Lock()
+			delete(c.reasoned, sid)
+			c.mu.Unlock()
 			emit(Event{Type: EvIdle})
 		}
 	}
