@@ -195,34 +195,6 @@ func (c *SDKClient) modelReasoningEfforts(ctx context.Context, model string) (ef
 	return efforts, known
 }
 
-// ResumeSession implements Client.
-func (c *SDKClient) ResumeSession(ctx context.Context, sessionID string) (string, error) {
-	session, err := c.client.ResumeSession(ctx, sessionID, &sdk.ResumeSessionConfig{
-		Streaming:             sdk.Bool(true),
-		OnPermissionRequest:   c.permissionHandler(),
-		OnUserInputRequest:    c.userInputHandler(),
-		OnExitPlanModeRequest: c.exitPlanModeHandler(),
-		OnElicitationRequest:  c.elicitationHandler(),
-	})
-	if err != nil {
-		return "", fmt.Errorf("resume session %q: %w", sessionID, err)
-	}
-	c.register(session)
-	return session.SessionID, nil
-}
-
-// LastSessionID implements Client.
-func (c *SDKClient) LastSessionID(ctx context.Context) (string, error) {
-	id, err := c.client.GetLastSessionID(ctx)
-	if err != nil {
-		return "", err
-	}
-	if id == nil {
-		return "", nil
-	}
-	return *id, nil
-}
-
 // register wires a session's event handler and tracks it for Send/Abort/Close.
 func (c *SDKClient) register(session *sdk.Session) {
 	unsub := session.On(c.makeHandler())

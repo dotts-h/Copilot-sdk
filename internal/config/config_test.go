@@ -30,7 +30,6 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	c := Default(dir)
 	c.DefaultModel = "claude-opus-4.7"
-	c.Theme = ThemeDark
 	c.Telemetry.MonthlyCreditAllowance = 7000
 	c.Telemetry.PriceOverrides = map[string][3]float64{"gpt-5": {1, 2, 3}}
 	if err := c.Save(); err != nil {
@@ -44,7 +43,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded.DefaultModel != "claude-opus-4.7" || loaded.Theme != ThemeDark {
+	if loaded.DefaultModel != "claude-opus-4.7" {
 		t.Fatalf("round trip lost fields: %+v", loaded)
 	}
 	if loaded.Telemetry.MonthlyCreditAllowance != 7000 {
@@ -59,7 +58,6 @@ func TestValidateRejectsBadValues(t *testing.T) {
 	dir := t.TempDir()
 	cases := []func(*Config){
 		func(c *Config) { c.DefaultModel = "" },
-		func(c *Config) { c.Theme = "neon" },
 		func(c *Config) { c.ReasoningEffort = "infinite" },
 		func(c *Config) { c.Telemetry.MonthlyCreditAllowance = -1 },
 		func(c *Config) { c.Telemetry.WarnFraction = 2 },
@@ -76,7 +74,7 @@ func TestValidateRejectsBadValues(t *testing.T) {
 func TestLoadPopulatesNewDefaultsOnUpgrade(t *testing.T) {
 	dir := t.TempDir()
 	// Simulate an old config file missing newer fields.
-	old := `{"defaultModel":"gpt-5","theme":"dark"}`
+	old := `{"defaultModel":"gpt-5"}`
 	if err := os.WriteFile(filepath.Join(dir, "config.json"), []byte(old), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -89,8 +87,12 @@ func TestLoadPopulatesNewDefaultsOnUpgrade(t *testing.T) {
 	if c.GitHubTokenEnv != "" {
 		t.Fatalf("GitHubTokenEnv should default to empty, got %q", c.GitHubTokenEnv)
 	}
-	if c.Keybindings["quit"] == "" {
-		t.Fatal("upgrade did not backfill keybindings")
+	// A field absent from an older file is backfilled from defaults.
+	if c.ReasoningEffort != "medium" {
+		t.Fatalf("upgrade did not backfill reasoningEffort, got %q", c.ReasoningEffort)
+	}
+	if c.ForgeDir == "" {
+		t.Fatal("upgrade did not backfill forgeDir")
 	}
 }
 
@@ -100,15 +102,5 @@ func TestGitHubTokenFromEnv(t *testing.T) {
 	t.Setenv("MY_ORCHESTRA_TEST_TOKEN", "secret-value")
 	if c.GitHubToken() != "secret-value" {
 		t.Fatalf("token not resolved from env, got %q", c.GitHubToken())
-	}
-}
-
-func TestKeyLookup(t *testing.T) {
-	c := Default(t.TempDir())
-	if c.Key("quit") != "ctrl+c" {
-		t.Fatalf("unexpected quit binding %q", c.Key("quit"))
-	}
-	if c.Key("nonexistent") != "" {
-		t.Fatal("unknown action should return empty binding")
 	}
 }

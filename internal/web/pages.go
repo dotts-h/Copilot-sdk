@@ -283,7 +283,6 @@ func (s *Server) settingsPartial() string {
 		{"Default model", c.DefaultModel},
 		{"Default agent", def(c.DefaultAgent, "(none)")},
 		{"Reasoning effort", def(c.ReasoningEffort, "medium")},
-		{"Theme", string(c.Theme)},
 		{"Streaming", onoff(c.Streaming)},
 		{"Auto-approve tools", onoff(c.AutoApproveTools)},
 		{"Auth", authState(c)},

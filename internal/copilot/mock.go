@@ -15,12 +15,10 @@ type MockClient struct {
 	SentModes       []string // agent mode passed alongside each Sent prompt
 	LastAttach      []string
 	Aborted         []string
-	Resumed         []string
 	Responded       []PermissionDecision
 	RespondedInput  []InputDecision
 	RespondedPlan   []PlanDecision
 	RespondedElicit []ElicitDecision
-	lastSession     string
 	closed          bool
 
 	CreateErr error
@@ -43,24 +41,7 @@ func (m *MockClient) CreateSession(context.Context, SessionSpec) (string, error)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.sessions++
-	m.lastSession = "mock-session"
 	return "mock-session", nil
-}
-
-// ResumeSession implements Client.
-func (m *MockClient) ResumeSession(_ context.Context, sessionID string) (string, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.Resumed = append(m.Resumed, sessionID)
-	m.lastSession = sessionID
-	return sessionID, nil
-}
-
-// LastSessionID implements Client.
-func (m *MockClient) LastSessionID(_ context.Context) (string, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.lastSession, nil
 }
 
 // Send implements Client.
