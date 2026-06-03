@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -35,10 +37,11 @@ type Server struct {
 	mu          sync.Mutex
 	state       convo.State
 	perms       []copilot.PermissionRequest
-	inputs      []copilot.InputRequest // pending ask_user questions (EvUserInput)
-	plans       []copilot.PlanRequest  // pending exit-plan-mode reviews (EvPlanReview)
-	subagents   []copilot.SubagentInfo // sub-agents currently running (activity indicator)
-	planMode    bool                   // when set, prompts are sent in plan mode (AgentMode=plan)
+	inputs      []copilot.InputRequest  // pending ask_user questions (EvUserInput)
+	plans       []copilot.PlanRequest   // pending exit-plan-mode reviews (EvPlanReview)
+	elicits     []copilot.ElicitRequest // pending elicitation forms (EvElicitation)
+	subagents   []copilot.SubagentInfo  // sub-agents currently running (activity indicator)
+	planMode    bool                    // when set, prompts are sent in plan mode (AgentMode=plan)
 	live        liveKind
 	sessionID   string
 	pending     []string // file paths queued via /attach for the next prompt
@@ -99,6 +102,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /perm/{id}", s.handlePerm)
 	mux.HandleFunc("POST /ask/{id}", s.handleAsk)
 	mux.HandleFunc("POST /plan/{id}", s.handlePlanReview)
+	mux.HandleFunc("POST /elicit/{id}", s.handleElicit)
 	mux.HandleFunc("GET /page/{name}", s.handlePage)
 	mux.HandleFunc("GET /commands", s.handleCommands)
 
@@ -352,6 +356,78 @@ func (s *Server) handlePlanReview(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(oob))
 }
 
+// handleElicit resolves a pending elicitation form via the client's
+// elicitBridge. The "action" value is "accept" (submit the form) or "decline";
+// on accept the field values are read by key and coerced to the types the schema
+// declared. Mirrors handlePlanReview.
+func (s *Server) handleElicit(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	_ = r.ParseForm()
+	action := r.FormValue("action")
+	if action != "accept" {
+		action = "decline"
+	}
+
+	s.mu.Lock()
+	req, ok := s.findElicit(id)
+	var content map[string]any
+	if action == "accept" && ok {
+		content = elicitContent(req.Fields, r.Form)
+	}
+	s.mu.Unlock()
+
+	if err := s.client.RespondElicit(id, action, content); err != nil {
+		s.logger.Printf("respond elicit: %v", err)
+	}
+
+	note := "form submitted"
+	if action != "accept" {
+		note = "form declined"
+	}
+	s.mu.Lock()
+	s.dropElicit(id)
+	s.state.AddSystem(note)
+	oob := s.oobTimeline()
+	s.mu.Unlock()
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(oob))
+}
+
+// elicitContent coerces submitted form values into the schema's declared types,
+// keyed by field name: booleans from checkbox presence, numbers/integers parsed
+// (omitted when blank or unparseable), and strings passed through. Empty
+// non-boolean fields are omitted so absent optional fields stay absent.
+func elicitContent(fields []copilot.ElicitField, form url.Values) map[string]any {
+	content := make(map[string]any, len(fields))
+	for _, f := range fields {
+		raw := strings.TrimSpace(form.Get(elicitFieldKey(f.Name)))
+		switch f.Type {
+		case "boolean":
+			content[f.Name] = raw != "" // an unchecked checkbox submits nothing
+		case "integer":
+			if raw == "" {
+				continue
+			}
+			if n, err := strconv.ParseInt(raw, 10, 64); err == nil {
+				content[f.Name] = n
+			}
+		case "number":
+			if raw == "" {
+				continue
+			}
+			if n, err := strconv.ParseFloat(raw, 64); err == nil {
+				content[f.Name] = n
+			}
+		default:
+			if raw != "" {
+				content[f.Name] = raw
+			}
+		}
+	}
+	return content
+}
+
 func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write([]byte(s.renderPage(r.PathValue("name"))))
@@ -504,6 +580,27 @@ func (s *Server) dropPlan(id string) {
 	for i := range s.plans {
 		if s.plans[i].ID == id {
 			s.plans = append(s.plans[:i], s.plans[i+1:]...)
+			return
+		}
+	}
+}
+
+// findElicit returns a copy of the pending elicitation with the given id and
+// whether it was found. Caller must hold s.mu.
+func (s *Server) findElicit(id string) (copilot.ElicitRequest, bool) {
+	for _, e := range s.elicits {
+		if e.ID == id {
+			return e, true
+		}
+	}
+	return copilot.ElicitRequest{}, false
+}
+
+// dropElicit removes a resolved elicitation form. Caller must hold s.mu.
+func (s *Server) dropElicit(id string) {
+	for i := range s.elicits {
+		if s.elicits[i].ID == id {
+			s.elicits = append(s.elicits[:i], s.elicits[i+1:]...)
 			return
 		}
 	}

@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -19,9 +21,10 @@ import (
 type SDKClient struct {
 	client *sdk.Client
 
-	perms  *permBridge
-	inputs *inputBridge
-	plans  *planBridge
+	perms   *permBridge
+	inputs  *inputBridge
+	plans   *planBridge
+	elicits *elicitBridge
 
 	mu        sync.Mutex
 	sessions  map[string]*sdk.Session
@@ -95,6 +98,7 @@ func NewSDKClient(ctx context.Context, opts Options) (*SDKClient, error) {
 		perms:     newPermBridge(),
 		inputs:    newInputBridge(),
 		plans:     newPlanBridge(),
+		elicits:   newElicitBridge(),
 		sessions:  make(map[string]*sdk.Session),
 		unsubs:    make(map[string]func()),
 		toolNames: make(map[string]string),
@@ -129,6 +133,7 @@ func (c *SDKClient) CreateSession(ctx context.Context, spec SessionSpec) (string
 	}
 	cfg.OnUserInputRequest = c.userInputHandler()
 	cfg.OnExitPlanModeRequest = c.exitPlanModeHandler()
+	cfg.OnElicitationRequest = c.elicitationHandler()
 	if len(spec.MCPServers) > 0 {
 		cfg.MCPServers = make(map[string]sdk.MCPServerConfig, len(spec.MCPServers))
 		for _, s := range spec.MCPServers {
@@ -197,6 +202,7 @@ func (c *SDKClient) ResumeSession(ctx context.Context, sessionID string) (string
 		OnPermissionRequest:   c.permissionHandler(),
 		OnUserInputRequest:    c.userInputHandler(),
 		OnExitPlanModeRequest: c.exitPlanModeHandler(),
+		OnElicitationRequest:  c.elicitationHandler(),
 	})
 	if err != nil {
 		return "", fmt.Errorf("resume session %q: %w", sessionID, err)
@@ -362,6 +368,122 @@ func (c *SDKClient) exitPlanModeHandler() sdk.ExitPlanModeRequestHandler {
 	}
 }
 
+// elicitationHandler bridges the SDK's synchronous OnElicitationRequest callback
+// to the async web UI, mirroring exitPlanModeHandler: it normalizes the schema
+// into displayable fields, emits an EvElicitation, and blocks until
+// RespondElicit() (or shutdown). On shutdown it cancels the request so the MCP
+// server is not left waiting.
+func (c *SDKClient) elicitationHandler() sdk.ElicitationHandler {
+	return func(ec sdk.ElicitationContext) (sdk.ElicitationResult, error) {
+		id, ch := c.elicits.begin()
+		c.emit(Event{Type: EvElicitation, Elicit: &ElicitRequest{
+			ID: id, Message: ec.Message, Source: derefStr(ec.ElicitationSource),
+			Fields: normalizeElicitFields(ec.RequestedSchema),
+		}})
+		select {
+		case d := <-ch:
+			return sdk.ElicitationResult{
+				Action:  sdk.ElicitationAction(d.Action),
+				Content: d.Content,
+			}, nil
+		case <-c.done:
+			return sdk.ElicitationResult{Action: sdk.ElicitationActionCancel}, nil
+		}
+	}
+}
+
+// normalizeElicitFields flattens an elicitation JSON schema into an ordered slice
+// of displayable fields. Schema properties arrive as a map (order undefined), so
+// fields are sorted by name for deterministic rendering, with required fields
+// marked from the schema's Required list.
+func normalizeElicitFields(schema *sdk.ElicitationSchema) []ElicitField {
+	if schema == nil || len(schema.Properties) == 0 {
+		return nil
+	}
+	required := make(map[string]bool, len(schema.Required))
+	for _, r := range schema.Required {
+		required[r] = true
+	}
+	names := make([]string, 0, len(schema.Properties))
+	for name := range schema.Properties {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	fields := make([]ElicitField, 0, len(names))
+	for _, name := range names {
+		f := normalizeElicitField(name, schema.Properties[name])
+		f.Required = required[name]
+		fields = append(fields, f)
+	}
+	return fields
+}
+
+// normalizeElicitField maps one JSON-schema property (a generic decoded object)
+// onto an ElicitField. Unknown or malformed properties degrade to a plain string
+// field so the form always renders something usable.
+func normalizeElicitField(name string, raw any) ElicitField {
+	f := ElicitField{Name: name, Label: name, Type: "string"}
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return f
+	}
+	if t := elicitStr(m, "type"); t != "" {
+		f.Type = t
+	}
+	if title := elicitStr(m, "title"); title != "" {
+		f.Label = title
+	}
+	f.Description = elicitStr(m, "description")
+	f.Default = elicitDefault(m["default"])
+	f.Enum = elicitStrSlice(m["enum"])
+	f.EnumLabels = elicitStrSlice(m["enumNames"])
+	return f
+}
+
+// elicitStr reads a string-valued schema key, or "" if absent/non-string.
+func elicitStr(m map[string]any, key string) string {
+	if v, ok := m[key].(string); ok {
+		return v
+	}
+	return ""
+}
+
+// elicitStrSlice coerces a decoded JSON array into a slice of strings, skipping
+// non-string entries. Returns nil for a missing or non-array value.
+func elicitStrSlice(v any) []string {
+	arr, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(arr))
+	for _, e := range arr {
+		if s, ok := e.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// elicitDefault renders a schema default value as the string to pre-fill a form
+// control with. Booleans become "true"/"false"; numbers drop a trailing ".0".
+func elicitDefault(v any) string {
+	switch d := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return d
+	case bool:
+		if d {
+			return "true"
+		}
+		return "false"
+	case float64:
+		return strconv.FormatFloat(d, 'f', -1, 64)
+	default:
+		return fmt.Sprint(d)
+	}
+}
+
 // planChangeText renders a one-line note for a plan-file change operation.
 func planChangeText(op sdk.PlanChangedOperation) string {
 	switch op {
@@ -510,6 +632,14 @@ func (c *SDKClient) RespondInput(id, answer string) error {
 func (c *SDKClient) RespondPlan(id string, approved bool, action, feedback string) error {
 	if !c.plans.resolve(id, planDecision{Approved: approved, Action: action, Feedback: feedback}) {
 		return fmt.Errorf("no pending plan review %q", id)
+	}
+	return nil
+}
+
+// RespondElicit implements Client.
+func (c *SDKClient) RespondElicit(id, action string, content map[string]any) error {
+	if !c.elicits.resolve(id, elicitDecision{Action: action, Content: content}) {
+		return fmt.Errorf("no pending elicitation %q", id)
 	}
 	return nil
 }

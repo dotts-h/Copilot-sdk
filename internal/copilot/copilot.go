@@ -32,6 +32,7 @@ const (
 	EvPlanChanged     // the plan file was created/updated/deleted (notification)
 	EvSubagentStart   // a sub-agent began running (background activity)
 	EvSubagentEnd     // a sub-agent finished (Subagent.Success reports outcome)
+	EvElicitation     // an MCP server is requesting structured input (a schema-driven form)
 )
 
 // PermissionRequest describes a tool-permission prompt awaiting a decision.
@@ -64,6 +65,36 @@ type SubagentInfo struct {
 	Model       string
 	Success     bool
 	Detail      string
+}
+
+// ElicitRequest describes a schema-driven elicitation form awaiting input: an
+// MCP server (via OnElicitationRequest) asking the user for structured data. It
+// is distinct from InputRequest (a single ask_user question) — it carries a
+// message, the requesting source, and a set of typed form Fields. Resolved via
+// RespondElicit. It reuses the bridge plumbing (a synchronous SDK callback
+// resolved asynchronously by the web UI).
+type ElicitRequest struct {
+	ID      string
+	Message string
+	Source  string // the MCP server / source that initiated the request
+	Fields  []ElicitField
+}
+
+// ElicitField is one field of an elicitation form, normalized for display: its
+// form key (Name), label, help text, primitive type, whether it is required,
+// the default value, and — for single-select fields — the allowed enum values
+// with optional display labels.
+type ElicitField struct {
+	Name        string
+	Label       string
+	Description string
+	// Type is the field's primitive type: "string", "boolean", "number", or
+	// "integer". It selects the control rendered for the field.
+	Type       string
+	Required   bool
+	Default    string
+	Enum       []string // allowed values for a single-select field; empty otherwise
+	EnumLabels []string // display labels parallel to Enum (may be empty)
 }
 
 // PlanRequest describes an exit-plan-mode prompt awaiting a decision: the
@@ -106,6 +137,7 @@ type Event struct {
 	Permission *PermissionRequest // set for EvPermission
 	Input      *InputRequest      // set for EvUserInput
 	Plan       *PlanRequest       // set for EvPlanReview
+	Elicit     *ElicitRequest     // set for EvElicitation
 	Subagent   *SubagentInfo      // set for EvSubagentStart / EvSubagentEnd
 	Err        error
 }
@@ -185,6 +217,10 @@ type Client interface {
 	// RespondPlan answers a pending exit-plan-mode request (EvPlanReview): either
 	// approve and proceed with action, or decline with feedback requesting changes.
 	RespondPlan(id string, approved bool, action, feedback string) error
+	// RespondElicit answers a pending elicitation request (EvElicitation). action
+	// is "accept" (with the submitted form content), "decline", or "cancel";
+	// content is ignored unless action is "accept".
+	RespondElicit(id, action string, content map[string]any) error
 	// ListModels returns the models available to the account.
 	ListModels(ctx context.Context) ([]ModelInfo, error)
 	// Events streams normalized events until Close.

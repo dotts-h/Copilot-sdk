@@ -52,6 +52,19 @@ func streamDemoReply(m *copilot.MockClient, prompt string) {
 	}})
 	time.Sleep(120 * time.Millisecond)
 
+	// 4b. A schema-driven elicitation form from an MCP server, rendered as an
+	// inline multi-field dialog. Nothing blocks on it in demo mode.
+	m.Emit(copilot.Event{Type: copilot.EvElicitation, Elicit: &copilot.ElicitRequest{
+		ID: "demo-elicit-1", Message: "Configure the deploy", Source: "deploy-mcp",
+		Fields: []copilot.ElicitField{
+			{Name: "env", Label: "Environment", Type: "string", Required: true,
+				Enum: []string{"staging", "production"}, Default: "staging"},
+			{Name: "replicas", Label: "Replicas", Type: "integer", Default: "3"},
+			{Name: "confirm", Label: "Run migrations", Type: "boolean", Description: "Apply DB migrations on deploy"},
+		},
+	}})
+	time.Sleep(120 * time.Millisecond)
+
 	// 5. A sub-agent runs in the background, shown as an activity indicator that
 	// appears while it works and clears when it finishes.
 	model := "claude-sonnet-4-6"

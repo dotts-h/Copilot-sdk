@@ -8,19 +8,20 @@ import (
 // MockClient is an in-memory Client for tests and offline use. It records calls
 // and lets the test drive the event stream.
 type MockClient struct {
-	mu             sync.Mutex
-	events         chan Event
-	sessions       int
-	Sent           []string
-	SentModes      []string // agent mode passed alongside each Sent prompt
-	LastAttach     []string
-	Aborted        []string
-	Resumed        []string
-	Responded      []PermissionDecision
-	RespondedInput []InputDecision
-	RespondedPlan  []PlanDecision
-	lastSession    string
-	closed         bool
+	mu              sync.Mutex
+	events          chan Event
+	sessions        int
+	Sent            []string
+	SentModes       []string // agent mode passed alongside each Sent prompt
+	LastAttach      []string
+	Aborted         []string
+	Resumed         []string
+	Responded       []PermissionDecision
+	RespondedInput  []InputDecision
+	RespondedPlan   []PlanDecision
+	RespondedElicit []ElicitDecision
+	lastSession     string
+	closed          bool
 
 	CreateErr error
 	SendErr   error
@@ -131,6 +132,21 @@ type PlanDecision struct {
 func (m *MockClient) RespondPlan(id string, approved bool, action, feedback string) error {
 	m.mu.Lock()
 	m.RespondedPlan = append(m.RespondedPlan, PlanDecision{ID: id, Approved: approved, Action: action, Feedback: feedback})
+	m.mu.Unlock()
+	return nil
+}
+
+// ElicitDecision records a RespondElicit call for assertions.
+type ElicitDecision struct {
+	ID      string
+	Action  string
+	Content map[string]any
+}
+
+// RespondElicit implements Client.
+func (m *MockClient) RespondElicit(id, action string, content map[string]any) error {
+	m.mu.Lock()
+	m.RespondedElicit = append(m.RespondedElicit, ElicitDecision{ID: id, Action: action, Content: content})
 	m.mu.Unlock()
 	return nil
 }
