@@ -45,6 +45,8 @@ func (s *Server) runCommand(input string) string {
 		return s.cmdCost()
 	case "attach":
 		return s.cmdAttach(args)
+	case "plan":
+		return s.cmdPlan(args)
 	}
 	if isNavSlug(name) {
 		return s.cmdNav(name)
@@ -70,6 +72,7 @@ func (s *Server) cmdClear() string {
 	s.inputs = nil
 	s.plans = nil
 	s.subagents = nil
+	s.planMode = false
 	s.pending = nil
 	s.queue = nil
 	s.busy = false
@@ -86,6 +89,28 @@ func (s *Server) cmdClear() string {
 		`<div id="subagents" hx-swap-oob="innerHTML"></div>` +
 		`<div id="status" hx-swap-oob="innerHTML"></div>` +
 		`<div id="ctx" hx-swap-oob="innerHTML"></div>`
+}
+
+// cmdPlan toggles plan mode: while on, prompts are sent with AgentMode=plan so
+// the agent drafts a plan and asks to exit plan mode (handled inline by the
+// plan-review form). "/plan on" and "/plan off" set it explicitly; a bare
+// "/plan" toggles. Approving a plan also turns it off (see handlePlanReview).
+func (s *Server) cmdPlan(args string) string {
+	s.mu.Lock()
+	switch strings.ToLower(strings.TrimSpace(args)) {
+	case "on":
+		s.planMode = true
+	case "off":
+		s.planMode = false
+	default:
+		s.planMode = !s.planMode
+	}
+	on := s.planMode
+	s.mu.Unlock()
+	if on {
+		return s.systemNote("plan mode on — the next prompt drafts a plan for your review")
+	}
+	return s.systemNote("plan mode off")
 }
 
 // cmdModel switches the session model in place (restarting the session) and

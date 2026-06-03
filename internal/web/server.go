@@ -38,6 +38,7 @@ type Server struct {
 	inputs      []copilot.InputRequest // pending ask_user questions (EvUserInput)
 	plans       []copilot.PlanRequest  // pending exit-plan-mode reviews (EvPlanReview)
 	subagents   []copilot.SubagentInfo // sub-agents currently running (activity indicator)
+	planMode    bool                   // when set, prompts are sent in plan mode (AgentMode=plan)
 	live        liveKind
 	sessionID   string
 	pending     []string // file paths queued via /attach for the next prompt
@@ -230,7 +231,13 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 // dispatch sends a prompt to the backing session and, in demo mode, kicks the
 // scripted reply. Shared by handleSend and the queue drain (handleEvent EvIdle).
 func (s *Server) dispatch(ctx context.Context, sessionID, prompt string, attachments []string) {
-	if err := s.client.Send(ctx, sessionID, prompt, attachments); err != nil {
+	s.mu.Lock()
+	mode := ""
+	if s.planMode {
+		mode = "plan"
+	}
+	s.mu.Unlock()
+	if err := s.client.Send(ctx, sessionID, prompt, attachments, mode); err != nil {
 		s.logger.Printf("send: %v", err)
 		return
 	}
@@ -334,6 +341,9 @@ func (s *Server) handlePlanReview(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.Lock()
 	s.dropPlan(id)
+	if approved {
+		s.planMode = false // approving the plan exits plan mode
+	}
 	s.state.AddSystem(note)
 	oob := s.oobTimeline()
 	s.mu.Unlock()
