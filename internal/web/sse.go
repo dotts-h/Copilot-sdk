@@ -41,6 +41,11 @@ func (s *Server) serveEvents(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-ctx.Done():
 			return
+		case e := <-s.inject:
+			for _, frag := range s.handleEvent(e) {
+				writeSSE(w, frag.Event, frag.HTML)
+			}
+			flusher.Flush()
 		case e, open := <-events:
 			if !open {
 				return

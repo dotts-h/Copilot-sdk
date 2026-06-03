@@ -95,7 +95,14 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 			s.queue = s.queue[1:]
 			sid := s.sessionID
 			s.turnStartMs = nowMs()
-			go s.dispatch(context.Background(), sid, next, nil)
+			// Drain on a goroutine so the event loop is not blocked; a Send failure
+			// here would otherwise leave the turn with no events, so surface it over
+			// SSE (the body-level listeners pick up the OOB fragments).
+			go func() {
+				if err := s.dispatch(context.Background(), sid, next, nil); err != nil {
+					s.broadcastSendFailure(err)
+				}
+			}()
 			st := "thinking…"
 			if rem := len(s.queue); rem > 0 {
 				st = queuedStatus(rem)
@@ -214,7 +221,12 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		}
 		s.state.AddSystem("⚠ " + msg)
 		s.live = liveNone
-		return s.timelineFragments()
+		// An error ends the turn: clear the busy/queued state and the spinner so the
+		// composer is not stuck waiting for events that will never arrive.
+		s.busy = false
+		s.queue = nil
+		s.turnStartMs = 0
+		return append(s.timelineFragments(), s.statusFrag("", false))
 
 	default:
 		return nil

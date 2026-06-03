@@ -51,6 +51,11 @@ type Server struct {
 	ctxCurrent  int64    // last context-window token reading (EvContextWindow)
 	ctxLimit    int64    // context-window size from the last reading
 	compacting  bool     // conversation compaction is in progress
+
+	// inject carries server-synthesized events (e.g. a queued-prompt Send failure
+	// that produces no runtime events) into the SSE stream, so serveEvents renders
+	// them through the same handleEvent path as live events.
+	inject chan copilot.Event
 }
 
 // Options configures a Server.
@@ -85,6 +90,17 @@ func New(opts Options) *Server {
 		spec:      opts.Spec,
 		logger:    lg,
 		demo:      opts.Demo,
+		inject:    make(chan copilot.Event, 8),
+	}
+}
+
+// broadcastSendFailure injects an error event into the SSE stream so a Send
+// failure on the queue-drain path (which produces no runtime events) still ends
+// the turn and tells the user. Non-blocking: dropped if no client is listening.
+func (s *Server) broadcastSendFailure(err error) {
+	select {
+	case s.inject <- copilot.Event{Type: copilot.EvError, Err: err}:
+	default:
 	}
 }
 
@@ -228,13 +244,17 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	oob := s.oobTimeline() + `<div id="status" hx-swap-oob="innerHTML">` + renderStatus("thinking…", true, s.turnStartMs) + `</div>`
 	s.mu.Unlock()
 
-	s.dispatch(r.Context(), sessionID, prompt, attachments)
+	if err := s.dispatch(r.Context(), sessionID, prompt, attachments); err != nil {
+		oob += s.sendFailedOOB(err)
+	}
 	_, _ = w.Write([]byte(oob))
 }
 
 // dispatch sends a prompt to the backing session and, in demo mode, kicks the
 // scripted reply. Shared by handleSend and the queue drain (handleEvent EvIdle).
-func (s *Server) dispatch(ctx context.Context, sessionID, prompt string, attachments []string) {
+// It returns the Send error (if any) so callers can surface it; the turn would
+// otherwise produce no events and leave the UI waiting forever.
+func (s *Server) dispatch(ctx context.Context, sessionID, prompt string, attachments []string) error {
 	s.mu.Lock()
 	mode := ""
 	if s.planMode {
@@ -243,13 +263,27 @@ func (s *Server) dispatch(ctx context.Context, sessionID, prompt string, attachm
 	s.mu.Unlock()
 	if err := s.client.Send(ctx, sessionID, prompt, attachments, mode); err != nil {
 		s.logger.Printf("send: %v", err)
-		return
+		return err
 	}
 	if s.demo {
 		if mock, ok := s.client.(*copilot.MockClient); ok {
 			go streamDemoReply(mock, prompt)
 		}
 	}
+	return nil
+}
+
+// sendFailedOOB records a failed dispatch as a system note, resets the busy
+// state so the composer is not stuck "thinking…", and returns the OOB fragments
+// (timeline + cleared status) to merge into the response.
+func (s *Server) sendFailedOOB(err error) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.state.AddSystem("⚠ send failed: " + err.Error())
+	s.busy = false
+	s.turnStartMs = 0
+	return s.oobTimeline() +
+		`<div id="status" hx-swap-oob="innerHTML">` + renderStatus("", false, 0) + `</div>`
 }
 
 // queuedStatus renders the status text shown while prompts are queued behind an
