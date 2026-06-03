@@ -47,6 +47,12 @@ func (s *Server) runCommand(input string) string {
 		return s.cmdAttach(args)
 	case "plan":
 		return s.cmdPlan(args)
+	case "auto", "autopilot":
+		return s.cmdAuto(args)
+	case "ask":
+		return s.cmdAsk(args)
+	case "effort":
+		return s.cmdEffort(args)
 	}
 	if isNavSlug(name) {
 		return s.cmdNav(name)
@@ -73,7 +79,7 @@ func (s *Server) cmdClear() string {
 	s.plans = nil
 	s.elicits = nil
 	s.subagents = nil
-	s.planMode = false
+	s.mode = ""
 	s.pending = nil
 	s.queue = nil
 	s.busy = false
@@ -82,8 +88,10 @@ func (s *Server) cmdClear() string {
 	s.compacting = false
 	s.sessionID = ""
 	s.live = liveNone
+	s.sessionStartMs = nowMs()
+	s.messagesSent, s.toolsUsed = 0, 0
 	s.state.AddSystem("conversation cleared")
-	return s.oobTimeline() +
+	return s.oobTimeline() + s.oobStat() +
 		`<div id="perms" hx-swap-oob="innerHTML"></div>` +
 		`<div id="asks" hx-swap-oob="innerHTML"></div>` +
 		`<div id="plans" hx-swap-oob="innerHTML"></div>` +
@@ -93,26 +101,98 @@ func (s *Server) cmdClear() string {
 		`<div id="ctx" hx-swap-oob="innerHTML"></div>`
 }
 
+// setMode moves the per-session agent mode toward target ("plan"/"autopilot"/
+// "interactive"): "on" sets it, "off" clears it when it was target, and a bare
+// arg toggles. Modes are mutually exclusive (one outgoing AgentMode per prompt),
+// so setting one replaces another. Returns whether target is now active.
+func (s *Server) setMode(target, args string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	switch strings.ToLower(strings.TrimSpace(args)) {
+	case "on":
+		s.mode = target
+	case "off":
+		if s.mode == target {
+			s.mode = ""
+		}
+	default:
+		if s.mode == target {
+			s.mode = ""
+		} else {
+			s.mode = target
+		}
+	}
+	return s.mode == target
+}
+
 // cmdPlan toggles plan mode: while on, prompts are sent with AgentMode=plan so
 // the agent drafts a plan and asks to exit plan mode (handled inline by the
 // plan-review form). "/plan on" and "/plan off" set it explicitly; a bare
 // "/plan" toggles. Approving a plan also turns it off (see handlePlanReview).
 func (s *Server) cmdPlan(args string) string {
-	s.mu.Lock()
-	switch strings.ToLower(strings.TrimSpace(args)) {
-	case "on":
-		s.planMode = true
-	case "off":
-		s.planMode = false
-	default:
-		s.planMode = !s.planMode
-	}
-	on := s.planMode
-	s.mu.Unlock()
-	if on {
+	if s.setMode("plan", args) {
 		return s.systemNote("plan mode on — the next prompt drafts a plan for your review")
 	}
 	return s.systemNote("plan mode off")
+}
+
+// cmdAuto toggles autopilot: prompts run with AgentMode=autopilot, so the agent
+// executes tools without pausing for approval. Mutually exclusive with /plan and
+// /ask.
+func (s *Server) cmdAuto(args string) string {
+	if s.setMode("autopilot", args) {
+		return s.systemNote("autopilot on — the agent runs tools without pausing to ask")
+	}
+	return s.systemNote("autopilot off — back to the default mode")
+}
+
+// cmdAsk toggles ask (interactive) mode: prompts run with AgentMode=interactive,
+// so the agent checks in before acting. Mutually exclusive with /plan and /auto.
+func (s *Server) cmdAsk(args string) string {
+	if s.setMode("interactive", args) {
+		return s.systemNote("ask mode on — the agent checks in before each action")
+	}
+	return s.systemNote("ask mode off — back to the default mode")
+}
+
+// cmdEffort sets the reasoning effort for the session in place (restarting it)
+// and persists it as the default. With no argument it reports the current value.
+// Valid values are low/medium/high; "default"/"none" clears it.
+func (s *Server) cmdEffort(arg string) string {
+	arg = strings.ToLower(strings.TrimSpace(arg))
+	if arg == "" {
+		s.mu.Lock()
+		cur := s.spec.ReasoningEffort
+		s.mu.Unlock()
+		return s.systemNote("reasoning effort: " + def(cur, "(default)"))
+	}
+	switch arg {
+	case "low", "medium", "high":
+	case "default", "none":
+		arg = ""
+	default:
+		return s.systemNote("usage: /effort <low|medium|high>")
+	}
+	s.setEffort(arg)
+	return s.systemNote("reasoning effort → " + def(arg, "(default)") + " (new session)")
+}
+
+// setEffort applies a reasoning effort to the session (clearing the session id so
+// the next prompt opens fresh) and persists it as the shared default. Callers
+// must hold neither lock.
+func (s *Server) setEffort(effort string) {
+	s.mu.Lock()
+	s.spec.ReasoningEffort = effort
+	s.sessionID = ""
+	s.mu.Unlock()
+	if s.config != nil {
+		s.hub.forgeMu.Lock()
+		s.config.ReasoningEffort = effort
+		if err := s.config.Save(); err != nil {
+			s.logger.Printf("save config: %v", err)
+		}
+		s.hub.forgeMu.Unlock()
+	}
 }
 
 // cmdModel switches the session model in place (restarting the session) and

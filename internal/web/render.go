@@ -217,6 +217,38 @@ func renderCtx(cur, limit int64, compacting bool) string {
 	})
 }
 
+// renderStatline builds the live chat statusline: the active model and mode, the
+// context-window fill, the session timer, and the running message/tool counts and
+// token/credit accounting. Caller must hold s.mu (it reads per-session counters);
+// the meter has its own lock. The session timer reuses the .elapsed mechanism, so
+// the client ticks it from data-start.
+func renderStatline(s *Server) string {
+	in, cached, out := s.meter.TotalTokens()
+	cacheWrite, reasoning := s.meter.ExtraTokens()
+	totals := s.meter.Totals()
+
+	hit := 0
+	if in+cached > 0 {
+		hit = int(float64(cached)/float64(in+cached)*100 + 0.5)
+	}
+	ctxPct := 0
+	if s.ctxLimit > 0 {
+		ctxPct = int(float64(s.ctxCurrent)/float64(s.ctxLimit)*100 + 0.5)
+		if ctxPct > 100 {
+			ctxPct = 100
+		}
+	}
+	return frag("statline", map[string]any{
+		"Model": def(s.spec.Model, "default"), "Mode": s.mode,
+		"HasCtx": s.ctxLimit > 0, "CtxPct": ctxPct,
+		"StartMs": s.sessionStartMs, "Msgs": s.messagesSent, "Tools": s.toolsUsed,
+		"In": humanTokens(in), "Out": humanTokens(out),
+		"CacheRead": humanTokens(cached), "CacheWrite": humanTokens(cacheWrite),
+		"Reasoning": humanTokens(reasoning), "Hit": hit,
+		"Credits": telemetry.FormatCredits(totals.Credits()), "USD": telemetry.FormatUSD(totals.USD()),
+	})
+}
+
 // humanTokens renders a token count compactly (1.5k, 128.0k, 2.5M).
 func humanTokens(n int64) string {
 	switch {

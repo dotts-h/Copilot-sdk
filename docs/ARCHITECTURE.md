@@ -83,7 +83,10 @@ renders each tool as a first-class timeline `Turn` (status glyph, args, live
 progress, bounded result) interleaved in execution order. Reasoning is kept in a
 **separate buffer** from assistant message text — switching modes commits the
 other buffer first — so "thinking" renders as its own dim block and is never
-concatenated into the answer.
+concatenated into the answer. The runtime emits a full `AssistantReasoningData`
+block after a segment that already streamed as deltas; `SDKClient` tracks whether
+a segment streamed and **drops the duplicate full block**, so the thinking is
+never rendered twice.
 
 ### Interactive permissions (sync ↔ async bridge)
 
@@ -130,7 +133,12 @@ signals:
    (`RecordReportedAIU`) and the Telemetry page shows it beside the estimate.
 
 Reasoning tokens are billed at the output rate, so the server folds
-`reasoningTokens` into output when recording usage.
+`reasoningTokens` into output when recording usage. Prompt-cache **writes** and
+reasoning tokens are also accumulated as display-only counts (not re-priced) to
+feed the live chat **statusline**, which shows the active model and mode, the
+context-window fill, the session timer, message/tool counts, the in/out/
+cache-read/cache-write token split with cache-hit rate, and the running
+credits/USD.
 
 The pricing engine has a **fuzz** target asserting cost is total (never negative
 or NaN for non-negative token inputs), and the meter has a **concurrency** test.

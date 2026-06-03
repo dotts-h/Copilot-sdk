@@ -20,8 +20,11 @@ type commandSpec struct {
 // fixedCommandSpecs are the non-navigation composer commands, in menu order.
 var fixedCommandSpecs = []commandSpec{
 	{"model", "[name]", "Switch the model in place (restarts the session)"},
+	{"effort", "[low|medium|high]", "Set the reasoning effort (restarts the session)"},
 	{"agent", "[id|none]", "Activate a forge agent or clear it"},
 	{"plan", "[on|off]", "Toggle plan mode — the agent drafts a plan for your review"},
+	{"auto", "[on|off]", "Toggle autopilot — run tools without pausing to ask"},
+	{"ask", "[on|off]", "Toggle ask mode — check in before each action"},
 	{"clear", "", "Reset the conversation and start a fresh session"},
 	{"cost", "", "Show credit usage and refresh the meter"},
 	{"attach", "<path>", "Queue a file to send with the next message"},

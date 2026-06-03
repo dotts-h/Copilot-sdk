@@ -81,8 +81,9 @@ func (h *Hub) newSession(id string) *Server {
 		hub: h, id: id,
 		client: h.client, forge: h.forge, config: h.config, meter: h.meter,
 		allowance: h.allowance, logger: h.logger, demo: h.demo,
-		spec: h.baseSpec,
-		subs: make(map[chan fragment]struct{}),
+		spec:           h.baseSpec,
+		sessionStartMs: nowMs(),
+		subs:           make(map[chan fragment]struct{}),
 	}
 	h.mu.Lock()
 	h.sessions[id] = s
@@ -206,6 +207,7 @@ func (h *Hub) Handler() http.Handler {
 	route("POST /agents/{id}/delete", (*Server).handleAgentDelete)
 
 	route("POST /models/{id}/select", (*Server).handleModelSelect)
+	route("POST /effort/{value}/select", (*Server).handleEffortSelect)
 	return mux
 }
 

@@ -79,15 +79,26 @@ func run(configDir, addr string, seed, demo bool) error {
 	// with the logged-in `copilot` CLI session; if it cannot start (no `copilot`
 	// CLI on PATH, or not logged in), fall back to the offline mock so the app
 	// remains usable for inspection.
+	spec := copilot.SessionSpec{Model: cfg.DefaultModel, ReasoningEffort: cfg.ReasoningEffort, Streaming: true}
+
 	var client copilot.Client
 	var closeFn func()
 	if demo {
+		// The demo must be self-contained and deterministic (it backs the e2e
+		// suite), so seed a representative forge in memory when none is on disk —
+		// otherwise the Skills/Agents pages render empty and have nothing to drive.
+		if len(forge.Skills) == 0 && len(forge.Agents) == 0 {
+			seedForge(forge)
+		}
 		mock := copilot.NewMockClient()
 		mock.Models = []copilot.ModelInfo{
 			{ID: "gpt-5", Name: "GPT-5", SupportedReasoningEfforts: []string{"low", "medium", "high"}},
 			{ID: "claude-sonnet-4-6", Name: "Claude Sonnet 4.6", SupportedReasoningEfforts: []string{"medium", "high"}},
 			{ID: "claude-haiku-4-5", Name: "Claude Haiku 4.5"},
 		}
+		// Pin the demo to a listed model so the picker and reasoning-effort row are
+		// self-consistent (and the statusline shows a real model).
+		spec.Model, spec.ReasoningEffort = "gpt-5", "medium"
 		client, closeFn = mock, func() { _ = mock.Close() }
 	} else {
 		client, closeFn = dialClient(cfg)
@@ -99,7 +110,7 @@ func run(configDir, addr string, seed, demo bool) error {
 		Forge:  forge,
 		Config: cfg,
 		Meter:  meter,
-		Spec:   copilot.SessionSpec{Model: cfg.DefaultModel, Streaming: true},
+		Spec:   spec,
 		Demo:   demo,
 		Logger: log.New(os.Stderr, "web: ", log.LstdFlags),
 	})
@@ -139,9 +150,10 @@ func defaultConfigDir() string {
 	return filepath.Join(home, ".my-orchestra")
 }
 
-// seedStarter writes a representative forge and config so first runs have
-// something to explore.
-func seedStarter(cfg *config.Config, forge *ctxforge.Forge) error {
+// seedForge populates a representative set of skills, instructions, and agents
+// in memory (no disk write). It backfills only the empty kinds, so an existing
+// forge is never clobbered. Shared by the on-disk seeder (-seed) and demo mode.
+func seedForge(forge *ctxforge.Forge) {
 	if len(forge.Skills) == 0 {
 		_ = forge.AddSkill(ctxforge.Skill{
 			ID: "tdd", Name: "Test-Driven Development", Command: "tdd",
@@ -170,6 +182,12 @@ func seedStarter(cfg *config.Config, forge *ctxforge.Forge) error {
 				Model: "claude-sonnet-4.6", ReasoningEffort: "high"},
 		)
 	}
+}
+
+// seedStarter writes a representative forge and config so first runs have
+// something to explore.
+func seedStarter(cfg *config.Config, forge *ctxforge.Forge) error {
+	seedForge(forge)
 	if err := forge.Save(); err != nil {
 		return err
 	}

@@ -86,6 +86,7 @@ func newTestSDKClient() *SDKClient {
 		sessions:  map[string]*sdk.Session{},
 		unsubs:    map[string]func(){},
 		toolNames: map[string]string{},
+		reasoned:  map[string]bool{},
 		events:    make(chan Event, 64),
 		done:      make(chan struct{}),
 	}
@@ -174,6 +175,49 @@ func TestHandlerEmitsFullReasoning(t *testing.T) {
 	ev := <-c.events
 	if ev.Type != EvReasoning || ev.Text != "step by step" {
 		t.Fatalf("reasoning event = %+v", ev)
+	}
+}
+
+// When reasoning streamed as deltas, the trailing full-block AssistantReasoningData
+// is a duplicate and must be dropped — otherwise the thinking renders twice (the
+// "double thinking" bug). After the block, a fresh segment streams normally again.
+func TestHandlerDropsDuplicateReasoningBlock(t *testing.T) {
+	c := newTestSDKClient()
+	h := c.makeHandler("s1")
+
+	h(sdk.SessionEvent{Data: &sdk.AssistantReasoningDeltaData{DeltaContent: "step "}})
+	h(sdk.SessionEvent{Data: &sdk.AssistantReasoningDeltaData{DeltaContent: "by step"}})
+	h(sdk.SessionEvent{Data: &sdk.AssistantReasoningData{Content: "step by step"}}) // duplicate, dropped
+	h(sdk.SessionEvent{Data: &sdk.AssistantMessageData{Content: "done"}})
+
+	want := []struct {
+		typ  EventType
+		text string
+	}{
+		{EvReasoningDelta, "step "},
+		{EvReasoningDelta, "by step"},
+		{EvMessage, "done"}, // the full reasoning block did NOT slip in here
+	}
+	for i, w := range want {
+		select {
+		case ev := <-c.events:
+			if ev.Type != w.typ || ev.Text != w.text {
+				t.Fatalf("event %d = %+v, want type=%v text=%q", i, ev, w.typ, w.text)
+			}
+		default:
+			t.Fatalf("expected event %d (%v) but channel was empty", i, w.typ)
+		}
+	}
+	select {
+	case ev := <-c.events:
+		t.Fatalf("unexpected extra event: %+v", ev)
+	default:
+	}
+
+	// A second, non-streaming segment (no deltas) still emits its full block.
+	h(sdk.SessionEvent{Data: &sdk.AssistantReasoningData{Content: "next turn"}})
+	if ev := <-c.events; ev.Type != EvReasoning || ev.Text != "next turn" {
+		t.Fatalf("fresh-segment reasoning = %+v", ev)
 	}
 }
 
