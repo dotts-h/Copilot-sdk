@@ -263,7 +263,7 @@ func (s *Server) cmdAgent(arg string) string {
 			s.logger.Printf("save config: %v", err)
 		}
 		s.hub.forgeMu.Unlock()
-		s.applyAgentSpec(model, effort)
+		s.applyAgentSpec(model, effort, nil)
 		return s.systemNote("agent cleared (new session)")
 	}
 
@@ -273,32 +273,31 @@ func (s *Server) cmdAgent(arg string) string {
 		s.hub.forgeMu.Unlock()
 		return s.systemNote("unknown agent: " + arg + " — see the Agents page")
 	}
-	name, model, effort := agent.Name, agent.Model, agent.ReasoningEffort
+	name, model, effort, tools := agent.Name, agent.Model, agent.ReasoningEffort, agent.AllowedTools
 	s.config.DefaultAgent = agent.ID
 	if err := s.config.Save(); err != nil {
 		s.logger.Printf("save config: %v", err)
 	}
 	s.hub.forgeMu.Unlock()
 
+	shown := s.applyAgentSpec(model, effort, tools)
+	return s.systemNote("agent → " + name + " (" + shown + ", new session)")
+}
+
+// applyAgentSpec applies a model/effort/tool-allowlist to this session's spec and
+// restarts the session. An empty model leaves the current one (the built-in chat
+// agent has no model of its own); a non-empty model overrides it. Returns the
+// resulting model for status messages.
+func (s *Server) applyAgentSpec(model, effort string, allowedTools []string) string {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	if model != "" {
 		s.spec.Model = model
 	}
 	s.spec.ReasoningEffort = effort
+	s.spec.AllowedTools = allowedTools
 	s.sessionID = ""
-	shown := def(model, s.spec.Model)
-	s.mu.Unlock()
-	return s.systemNote("agent → " + name + " (" + shown + ", new session)")
-}
-
-// applyAgentSpec resets this session's model/effort to the given defaults and
-// restarts the session (used when clearing the active agent).
-func (s *Server) applyAgentSpec(model, effort string) {
-	s.mu.Lock()
-	s.spec.Model = model
-	s.spec.ReasoningEffort = effort
-	s.sessionID = ""
-	s.mu.Unlock()
+	return s.spec.Model
 }
 
 // cmdCost appends a one-line credit summary and refreshes the ambient cost meter.

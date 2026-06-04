@@ -216,6 +216,7 @@ func renderAgentForm(a ctxforge.Agent, isNew bool, errMsg string) string {
 		selectField("Reasoning effort", "reasoningEffort", effort, reasoningOpts),
 		textArea("System message", "systemMessage", a.SystemMessage, false),
 		textField("Skills (comma-separated IDs)", "skills", strings.Join(a.Skills, ", "), false),
+		textField("Allowed tools (comma-separated; blank = all)", "allowedTools", strings.Join(a.AllowedTools, ", "), false),
 	)
 }
 
@@ -247,6 +248,7 @@ func agentFromForm(r *http.Request, id string) ctxforge.Agent {
 		ReasoningEffort: strings.TrimSpace(r.FormValue("reasoningEffort")),
 		SystemMessage:   strings.TrimSpace(r.FormValue("systemMessage")),
 		Skills:          parseCSV(r.FormValue("skills")),
+		AllowedTools:    parseCSV(r.FormValue("allowedTools")),
 	}
 }
 

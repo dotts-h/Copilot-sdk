@@ -256,3 +256,36 @@ func TestForgeToggleInstruction(t *testing.T) {
 		t.Fatal("expected error toggling unknown instruction")
 	}
 }
+
+func TestDefaultChatAgentResolvable(t *testing.T) {
+	f := &Forge{}
+	// The built-in chat agent is resolvable on an empty forge.
+	if a := f.Agent(DefaultChatAgentID); a == nil || a.Name != "Chat" {
+		t.Fatalf("built-in chat agent not resolvable: %+v", a)
+	}
+	if f.HasOwnChatAgent() {
+		t.Errorf("empty forge should not report its own chat agent")
+	}
+	// A forge-defined chat agent overrides the built-in.
+	f.Agents = []Agent{{ID: "chat", Name: "Custom Chat", Model: "gpt-5"}}
+	if a := f.Agent("chat"); a == nil || a.Name != "Custom Chat" {
+		t.Errorf("forge chat agent should override built-in: %+v", a)
+	}
+	if !f.HasOwnChatAgent() {
+		t.Errorf("forge with its own chat agent should report it")
+	}
+}
+
+func TestCompileCarriesAllowedTools(t *testing.T) {
+	f := &Forge{Agents: []Agent{{
+		ID: "scoped", Name: "Scoped", Model: "gpt-5", ReasoningEffort: "medium",
+		AllowedTools: []string{"bash", "read"},
+	}}}
+	spec, err := f.Compile("scoped")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(spec.AllowedTools, ",") != "bash,read" {
+		t.Errorf("Compile did not carry AllowedTools: %v", spec.AllowedTools)
+	}
+}

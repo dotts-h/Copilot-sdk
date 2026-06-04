@@ -32,6 +32,7 @@ type Hub struct {
 	baseSpec  copilot.SessionSpec
 	logger    *log.Logger
 	demo      bool
+	workdir   string // base dir scanned by "import project instructions"
 
 	// forgeMu serializes mutation of (and reads against mutation of) the shared
 	// forge and config across all sessions.
@@ -53,6 +54,9 @@ type Options struct {
 	// Demo drives a scripted streaming reply through a MockClient so the UI can
 	// be exercised offline (WEB_UI_PLAN.md step 1).
 	Demo bool
+	// Workdir is the directory scanned for well-known instruction files on import
+	// (.github/copilot-instructions.md, AGENTS.md, CLAUDE.md). Defaults to ".".
+	Workdir string
 }
 
 // New builds the Hub and starts the event pump.
@@ -65,9 +69,13 @@ func New(opts Options) *Hub {
 	if opts.Config != nil {
 		allowance = opts.Config.Telemetry.MonthlyCreditAllowance
 	}
+	workdir := opts.Workdir
+	if workdir == "" {
+		workdir = "."
+	}
 	h := &Hub{
 		client: opts.Client, forge: opts.Forge, config: opts.Config, meter: opts.Meter,
-		allowance: allowance, baseSpec: opts.Spec, logger: lg, demo: opts.Demo,
+		allowance: allowance, baseSpec: opts.Spec, logger: lg, demo: opts.Demo, workdir: workdir,
 		sessions: map[string]*Server{}, byCopilot: map[string]*Server{},
 	}
 	go h.pump()
@@ -192,6 +200,7 @@ func (h *Hub) Handler() http.Handler {
 	route("POST /skills/{id}/toggle", (*Server).handleSkillToggle)
 	route("POST /skills/{id}/delete", (*Server).handleSkillDelete)
 
+	route("POST /instructions/import", (*Server).handleInstructionImport)
 	route("GET /instructions/new", (*Server).handleInstructionNew)
 	route("GET /instructions/{id}/edit", (*Server).handleInstructionEdit)
 	route("POST /instructions", (*Server).handleInstructionCreate)
