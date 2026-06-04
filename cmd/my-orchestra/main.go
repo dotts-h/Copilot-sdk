@@ -81,6 +81,21 @@ func run(configDir, addr string, seed, demo bool) error {
 	// CLI on PATH, or not logged in), fall back to the offline mock so the app
 	// remains usable for inspection.
 	spec := copilot.SessionSpec{Model: cfg.DefaultModel, ReasoningEffort: cfg.ReasoningEffort, Streaming: true}
+	// Compile the configured default agent (or just the enabled global
+	// instructions/skills when none) so the very first session carries the same
+	// persona an explicit agent selection would apply later.
+	if cspec, err := forge.Compile(cfg.DefaultAgent); err != nil {
+		log.Printf("compile default agent %q: %v", cfg.DefaultAgent, err)
+	} else {
+		spec.SystemMessage = cspec.SystemMessage
+		spec.AllowedTools = cspec.AllowedTools
+		if cspec.Model != "" {
+			spec.Model = cspec.Model
+		}
+		if cspec.ReasoningEffort != "" {
+			spec.ReasoningEffort = cspec.ReasoningEffort
+		}
+	}
 
 	var client copilot.Client
 	var closeFn func()

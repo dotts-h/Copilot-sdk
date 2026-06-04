@@ -465,24 +465,22 @@ func (s *Server) handleInstructionDelete(w http.ResponseWriter, r *http.Request)
 func (s *Server) handleAgentSelect(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	s.hub.forgeMu.Lock()
-	var model, effort string
-	var tools []string
+	compileID := id
 	if s.config.DefaultAgent == id {
-		s.config.DefaultAgent = "" // toggle off → reset to config defaults
-		model, effort = s.config.DefaultModel, s.config.ReasoningEffort
+		s.config.DefaultAgent = "" // toggle off → no agent persona
+		compileID = ""
 	} else {
 		s.config.DefaultAgent = id
-		if a := s.forge.Agent(id); a != nil {
-			model, effort, tools = a.Model, a.ReasoningEffort, a.AllowedTools
-		}
 	}
 	if err := s.config.Save(); err != nil {
 		s.logger.Printf("save config: %v", err)
 	}
+	model, effort, sysMsg, tools := s.compiledSpec(compileID)
 	s.hub.forgeMu.Unlock()
-	// Apply the agent's model/effort/tool-allowlist to the live spec and restart
-	// the session so the selection takes effect on the next prompt.
-	s.applyAgentSpec(model, effort, tools)
+	// Compile the agent's full persona (system message + instructions + skill
+	// prompts) plus model/effort/tool-allowlist into the live spec and restart the
+	// session so the selection takes effect on the next prompt.
+	s.applyAgentSpec(model, effort, sysMsg, tools)
 	s.writePartial(w, s.agentsPartial())
 }
 

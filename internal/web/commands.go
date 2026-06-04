@@ -258,12 +258,14 @@ func (s *Server) cmdAgent(arg string) string {
 	case "none", "off":
 		s.hub.forgeMu.Lock()
 		s.config.DefaultAgent = ""
-		model, effort := s.config.DefaultModel, s.config.ReasoningEffort
 		if err := s.config.Save(); err != nil {
 			s.logger.Printf("save config: %v", err)
 		}
+		// Compile with no agent so global instructions and enabled skills still
+		// reach the session, just without an agent persona.
+		model, effort, sysMsg, tools := s.compiledSpec("")
 		s.hub.forgeMu.Unlock()
-		s.applyAgentSpec(model, effort, nil)
+		s.applyAgentSpec(model, effort, sysMsg, tools)
 		return s.systemNote("agent cleared (new session)")
 	}
 
@@ -273,28 +275,51 @@ func (s *Server) cmdAgent(arg string) string {
 		s.hub.forgeMu.Unlock()
 		return s.systemNote("unknown agent: " + arg + " — see the Agents page")
 	}
-	name, model, effort, tools := agent.Name, agent.Model, agent.ReasoningEffort, agent.AllowedTools
+	name := agent.Name
 	s.config.DefaultAgent = agent.ID
 	if err := s.config.Save(); err != nil {
 		s.logger.Printf("save config: %v", err)
 	}
+	model, effort, sysMsg, tools := s.compiledSpec(agent.ID)
 	s.hub.forgeMu.Unlock()
 
-	shown := s.applyAgentSpec(model, effort, tools)
+	shown := s.applyAgentSpec(model, effort, sysMsg, tools)
 	return s.systemNote("agent → " + name + " (" + shown + ", new session)")
 }
 
-// applyAgentSpec applies a model/effort/tool-allowlist to this session's spec and
-// restarts the session. An empty model leaves the current one (the built-in chat
-// agent has no model of its own); a non-empty model overrides it. Returns the
-// resulting model for status messages.
-func (s *Server) applyAgentSpec(model, effort string, allowedTools []string) string {
+// compiledSpec compiles the forge for agentID and returns the model, effort,
+// compiled system message (agent persona + enabled instructions + active skill
+// prompts), and tool allowlist to apply to the session. Model/effort fall back to
+// the config defaults when the compiled spec leaves them empty — the built-in chat
+// agent and the no-agent case carry no model of their own. The caller must hold
+// s.hub.forgeMu.
+func (s *Server) compiledSpec(agentID string) (model, effort, systemMessage string, tools []string) {
+	cspec, err := s.forge.Compile(agentID)
+	if err != nil {
+		s.logger.Printf("compile agent %q: %v", agentID, err)
+	}
+	model, effort = cspec.Model, cspec.ReasoningEffort
+	if model == "" {
+		model = s.config.DefaultModel
+	}
+	if effort == "" {
+		effort = s.config.ReasoningEffort
+	}
+	return model, effort, cspec.SystemMessage, cspec.AllowedTools
+}
+
+// applyAgentSpec applies a compiled model/effort/system-message/tool-allowlist to
+// this session's spec and restarts the session. An empty model leaves the current
+// one; a non-empty model overrides it. Returns the resulting model for status
+// messages.
+func (s *Server) applyAgentSpec(model, effort, systemMessage string, allowedTools []string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if model != "" {
 		s.spec.Model = model
 	}
 	s.spec.ReasoningEffort = effort
+	s.spec.SystemMessage = systemMessage
 	s.spec.AllowedTools = allowedTools
 	s.sessionID = ""
 	return s.spec.Model
