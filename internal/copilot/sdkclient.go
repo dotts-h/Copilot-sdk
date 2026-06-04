@@ -153,6 +153,119 @@ func (c *SDKClient) CreateSession(ctx context.Context, spec SessionSpec) (string
 	return session.SessionID, nil
 }
 
+// ListSessions implements Client: persisted sessions, most-recent first.
+func (c *SDKClient) ListSessions(ctx context.Context) ([]SessionMeta, error) {
+	metas, err := c.client.ListSessions(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("list sessions: %w", err)
+	}
+	out := make([]SessionMeta, 0, len(metas))
+	for _, m := range metas {
+		sm := SessionMeta{ID: m.SessionID, Modified: m.ModifiedTime}
+		if m.Summary != nil {
+			sm.Summary = *m.Summary
+		}
+		out = append(out, sm)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Modified.After(out[j].Modified) })
+	return out, nil
+}
+
+// ResumeSession implements Client: reattach to a persisted session, wiring the
+// same handlers as CreateSession so live events flow over Events() as usual.
+func (c *SDKClient) ResumeSession(ctx context.Context, sessionID string, spec SessionSpec) (string, error) {
+	cfg := &sdk.ResumeSessionConfig{
+		Model:           spec.Model,
+		ReasoningEffort: spec.ReasoningEffort,
+		Streaming:       sdk.Bool(spec.Streaming),
+	}
+	if cfg.ReasoningEffort != "" {
+		supported, known := c.modelReasoningEfforts(ctx, spec.Model)
+		if shouldDropReasoningEffort(cfg.ReasoningEffort, supported, known) {
+			cfg.ReasoningEffort = ""
+		}
+	}
+	if spec.AutoApproveTools {
+		cfg.OnPermissionRequest = sdk.PermissionHandler.ApproveAll
+	} else {
+		cfg.OnPermissionRequest = c.permissionHandler()
+	}
+	cfg.OnUserInputRequest = c.userInputHandler()
+	cfg.OnExitPlanModeRequest = c.exitPlanModeHandler()
+	cfg.OnElicitationRequest = c.elicitationHandler()
+
+	session, err := c.client.ResumeSession(ctx, sessionID, cfg)
+	if err != nil {
+		return "", fmt.Errorf("resume session %q: %w", sessionID, err)
+	}
+	c.register(session)
+	return session.SessionID, nil
+}
+
+// SessionHistory implements Client: the persisted conversation of an
+// already-resumed session, normalized for transcript rebuild.
+func (c *SDKClient) SessionHistory(ctx context.Context, sessionID string) ([]Event, error) {
+	c.mu.Lock()
+	session := c.sessions[sessionID]
+	c.mu.Unlock()
+	if session == nil {
+		return nil, fmt.Errorf("session %q not resumed", sessionID)
+	}
+	raw, err := session.GetEvents(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("session history %q: %w", sessionID, err)
+	}
+	return historyEvents(sessionID, raw), nil
+}
+
+// DeleteSession implements Client: remove the persisted session and stop tracking
+// it locally.
+func (c *SDKClient) DeleteSession(ctx context.Context, sessionID string) error {
+	if err := c.client.DeleteSession(ctx, sessionID); err != nil {
+		return fmt.Errorf("delete session %q: %w", sessionID, err)
+	}
+	c.mu.Lock()
+	if unsub := c.unsubs[sessionID]; unsub != nil {
+		unsub()
+	}
+	delete(c.sessions, sessionID)
+	delete(c.unsubs, sessionID)
+	c.mu.Unlock()
+	return nil
+}
+
+// historyEvents normalizes a session's persisted events into the committed
+// transcript events used to rebuild the timeline. It is deliberately separate
+// from makeHandler: history holds the committed forms (no streaming deltas) plus
+// the user's own prompts, and needs none of the per-segment dedup state.
+func historyEvents(sid string, raw []sdk.SessionEvent) []Event {
+	names := map[string]string{} // toolCallID -> name, within this history
+	out := make([]Event, 0, len(raw))
+	add := func(e Event) { e.SessionID = sid; out = append(out, e) }
+	for _, ev := range raw {
+		switch d := ev.Data.(type) {
+		case *sdk.UserMessageData:
+			add(Event{Type: EvUserMessage, Text: d.Content})
+		case *sdk.AssistantMessageData:
+			add(Event{Type: EvMessage, Text: d.Content})
+		case *sdk.AssistantReasoningData:
+			add(Event{Type: EvReasoning, Text: d.Content})
+		case *sdk.ToolExecutionStartData:
+			names[d.ToolCallID] = d.ToolName
+			tc := &ToolCall{ID: d.ToolCallID, Name: d.ToolName, Args: summarizeArgs(d.Arguments)}
+			if d.MCPServerName != nil {
+				tc.MCPServer = *d.MCPServerName
+			}
+			add(Event{Type: EvToolStart, Tool: d.ToolName, ToolCall: tc})
+		case *sdk.ToolExecutionCompleteData:
+			add(Event{Type: EvToolEnd, Tool: names[d.ToolCallID], ToolCall: &ToolCall{
+				ID: d.ToolCallID, Name: names[d.ToolCallID], Success: d.Success, Result: toolResultText(d),
+			}})
+		}
+	}
+	return out
+}
+
 // shouldDropReasoningEffort reports whether a requested reasoning effort must be
 // cleared before creating a session. known is whether the model's capabilities
 // were resolved; when false (capabilities unknown), the effort is left untouched

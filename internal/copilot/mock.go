@@ -26,6 +26,16 @@ type MockClient struct {
 	// Models is returned by ListModels; tests set it to drive the model picker.
 	Models        []ModelInfo
 	ListModelsErr error
+
+	// Session-management state, settable by tests to drive the session picker.
+	Sessions        []SessionMeta      // returned by ListSessions
+	Histories       map[string][]Event // returned by SessionHistory, keyed by id
+	ListSessionsErr error
+	ResumeErr       error
+	HistoryErr      error
+	DeleteErr       error
+	Resumed         []string // session ids passed to ResumeSession
+	Deleted         []string // session ids passed to DeleteSession
 }
 
 // NewMockClient returns a ready mock with a buffered event channel.
@@ -151,6 +161,45 @@ func (m *MockClient) ListModels(context.Context) ([]ModelInfo, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.Models, m.ListModelsErr
+}
+
+// ListSessions implements Client.
+func (m *MockClient) ListSessions(context.Context) ([]SessionMeta, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.Sessions, m.ListSessionsErr
+}
+
+// ResumeSession implements Client.
+func (m *MockClient) ResumeSession(_ context.Context, sessionID string, _ SessionSpec) (string, error) {
+	if m.ResumeErr != nil {
+		return "", m.ResumeErr
+	}
+	m.mu.Lock()
+	m.Resumed = append(m.Resumed, sessionID)
+	m.mu.Unlock()
+	return sessionID, nil
+}
+
+// SessionHistory implements Client.
+func (m *MockClient) SessionHistory(_ context.Context, sessionID string) ([]Event, error) {
+	if m.HistoryErr != nil {
+		return nil, m.HistoryErr
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.Histories[sessionID], nil
+}
+
+// DeleteSession implements Client.
+func (m *MockClient) DeleteSession(_ context.Context, sessionID string) error {
+	if m.DeleteErr != nil {
+		return m.DeleteErr
+	}
+	m.mu.Lock()
+	m.Deleted = append(m.Deleted, sessionID)
+	m.mu.Unlock()
+	return nil
 }
 
 // Events implements Client.

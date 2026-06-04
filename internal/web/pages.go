@@ -15,6 +15,7 @@ import (
 // pageNames is the nav order.
 var pageNames = []struct{ slug, label string }{
 	{"chat", "Chat"},
+	{"sessions", "Sessions"},
 	{"telemetry", "Telemetry"},
 	{"skills", "Skills"},
 	{"instructions", "Instructions"},
@@ -27,6 +28,8 @@ var pageNames = []struct{ slug, label string }{
 // renderPage returns the partial for a nav slug, or chat for unknown slugs.
 func (s *Server) renderPage(slug string) string {
 	switch slug {
+	case "sessions":
+		return s.sessionsPartial()
 	case "telemetry":
 		return s.telemetryPartial()
 	case "skills":
@@ -78,6 +81,7 @@ func helpPartial() string {
 	rows := [][2]string{
 		{"Chat", "Stream prompts and replies; approve tool permissions, answer the agent's questions (ask_user), fill schema-driven forms from MCP servers (elicitation), and review its plans (approve or request changes) — all inline; abort an in-flight turn with ⏹ stop. " +
 			"Type ahead while a turn runs — extra prompts queue and send automatically when the turn ends."},
+		{"Sessions", "List, resume, or delete past conversations. Resuming restores the full context (the first turn after a gap won't hit the prompt cache); start fresh with + New chat."},
 		{"Telemetry", "Live credit/token spend, per-model breakdown, and your monthly budget."},
 		{"Skills", "Reusable prompt fragments; toggle which are active for the session."},
 		{"Instructions", "Always-on guidance, ordered by priority."},

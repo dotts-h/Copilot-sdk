@@ -206,6 +206,9 @@ func (h *Hub) Handler() http.Handler {
 	route("POST /agents/{id}/select", (*Server).handleAgentSelect)
 	route("POST /agents/{id}/delete", (*Server).handleAgentDelete)
 
+	route("POST /sessions/new", (*Server).handleSessionNew)
+	route("POST /sessions/{id}/resume", (*Server).handleSessionResume)
+	route("POST /sessions/{id}/delete", (*Server).handleSessionDelete)
 	route("POST /settings", (*Server).handleSettingsSave)
 	route("POST /models/{id}/select", (*Server).handleModelSelect)
 	route("POST /effort/{value}/select", (*Server).handleEffortSelect)

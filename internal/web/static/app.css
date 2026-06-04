@@ -257,6 +257,18 @@ button.add:hover { border-color: var(--accent); color: var(--accent); }
 p.error { color: var(--bad); margin: 0 0 .6rem; }
 p.ok { color: var(--good); margin: 0 0 .6rem; }
 
+/* sessions picker */
+.session-list { list-style: none; padding: 0; margin: .6rem 0 0; display: flex; flex-direction: column; gap: .4rem; }
+.session-row { display: flex; align-items: center; gap: .6rem; padding: .5rem .7rem;
+  background: var(--panel); border-radius: 6px; }
+.session-row.on { outline: 1px solid var(--accent); }
+.session-title { font-weight: 600; }
+.session-when { font-size: .8rem; }
+.session-actions { margin-left: auto; display: flex; gap: .4rem; }
+.session-actions button { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit;
+  background: var(--accent); color: #1b1d1e; }
+.session-actions button.cancel { background: var(--bg); color: var(--dim); }
+
 /* slash-command autocomplete menu */
 .cmd-menu-wrap { max-width: 56rem; margin: 0 auto; position: relative; }
 .cmd-menu { position: absolute; bottom: .2rem; left: 0; right: 0; z-index: 20;

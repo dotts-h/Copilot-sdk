@@ -5,7 +5,10 @@
 // mock, while production uses the real SDK-backed implementation.
 package copilot
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // EventType enumerates the normalized events the TUI reacts to. They collapse
 // the SDK's richer event set into just what the UI needs.
@@ -33,7 +36,16 @@ const (
 	EvSubagentStart   // a sub-agent began running (background activity)
 	EvSubagentEnd     // a sub-agent finished (Subagent.Success reports outcome)
 	EvElicitation     // an MCP server is requesting structured input (a schema-driven form)
+	EvUserMessage     // a past user prompt, emitted only when rehydrating history (never live)
 )
+
+// SessionMeta is the normalized metadata for a persisted session, used to render
+// the session picker.
+type SessionMeta struct {
+	ID       string
+	Summary  string    // a short title/summary the runtime keeps, may be empty
+	Modified time.Time // last-modified time, for ordering and display
+}
 
 // PermissionRequest describes a tool-permission prompt awaiting a decision.
 type PermissionRequest struct {
@@ -224,6 +236,17 @@ type Client interface {
 	RespondElicit(id, action string, content map[string]any) error
 	// ListModels returns the models available to the account.
 	ListModels(ctx context.Context) ([]ModelInfo, error)
+	// ListSessions returns metadata for the persisted sessions, most-recent first.
+	ListSessions(ctx context.Context) ([]SessionMeta, error)
+	// ResumeSession reattaches to a persisted session by id (wiring the same event
+	// handlers as CreateSession) and returns its id. The runtime restores the full
+	// conversation context from disk; the next turn sees the entire prior history.
+	ResumeSession(ctx context.Context, sessionID string, spec SessionSpec) (string, error)
+	// SessionHistory returns a session's persisted conversation as normalized
+	// events (user/assistant/reasoning/tool), for rebuilding the transcript.
+	SessionHistory(ctx context.Context, sessionID string) ([]Event, error)
+	// DeleteSession permanently removes a persisted session and its on-disk state.
+	DeleteSession(ctx context.Context, sessionID string) error
 	// Events streams normalized events until Close.
 	Events() <-chan Event
 	// Close releases all resources (stops the runtime).

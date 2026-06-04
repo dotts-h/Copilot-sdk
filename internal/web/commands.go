@@ -70,9 +70,9 @@ func (s *Server) systemNote(text string) string {
 
 // cmdClear resets the transcript and restarts the session so the next prompt
 // opens a fresh one.
-func (s *Server) cmdClear() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// clearConversation resets all per-conversation state to a fresh chat. The
+// caller must hold s.mu. Shared by /clear and "+ New chat" on the sessions page.
+func (s *Server) clearConversation() {
 	s.state = convo.State{}
 	s.perms = nil
 	s.inputs = nil
@@ -90,6 +90,12 @@ func (s *Server) cmdClear() string {
 	s.live = liveNone
 	s.sessionStartMs = nowMs()
 	s.messagesSent, s.toolsUsed = 0, 0
+}
+
+func (s *Server) cmdClear() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.clearConversation()
 	s.state.AddSystem("conversation cleared")
 	return s.oobTimeline() + s.oobStat() +
 		`<div id="perms" hx-swap-oob="innerHTML"></div>` +
