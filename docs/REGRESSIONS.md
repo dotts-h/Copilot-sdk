@@ -33,6 +33,11 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
   it increased), never a fixed value.
 - The demo must be **self-contained**: anything a browser test drives (forge
   rows, models, effort) has to be seeded in `-demo` mode, not assumed on disk.
+- **`config.Config.Save()` mutates-then-validates without rollback** (unlike
+  ctxforge, which rolls back on an invalid result). A handler that edits config
+  fields and then `Save()`s leaves the live, in-memory config dirty if validation
+  fails. Edit through `Server.editConfig` (`internal/web/settings.go`), which
+  snapshots `*config`, applies, saves, and restores the snapshot on error.
 - **Go's `regexp` is RE2 — no backreferences.** A pattern like `([-*_])( *\1){2,}`
   panics at `MustCompile` ("invalid escape sequence: \1"). For repeated-char
   matching (e.g. the markdown horizontal rule), scan the string directly
@@ -53,7 +58,5 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
 These are tracked in the project roadmap memory; listed here so the lack of a
 guard is visible.
 
-- **Editable Settings → configure the SDK from the UI** — deferred. The page is
-  still read-only; no mutation guard.
 - **Session pick / start / continue** — deferred. No guard.
 - **Claude-CLI-style skills/agents + a default chat agent** — deferred. No guard.

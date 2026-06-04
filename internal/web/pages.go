@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dotts-h/copilot-sdk/internal/config"
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
 
@@ -84,7 +83,7 @@ func helpPartial() string {
 		{"Instructions", "Always-on guidance, ordered by priority."},
 		{"Agents", "Named model + reasoning + skill presets; select one as the default."},
 		{"Models", "Pick the model the session uses and its reasoning effort; selecting either restarts the session on your next prompt."},
-		{"Settings", "Read-only view of config.json / forge.json; edit those files to change them."},
+		{"Settings", "Edit config.json's main knobs (model, effort, streaming, budget); applied on your next session. Advanced keys edit the file directly."},
 	}
 	for _, r := range rows {
 		fmt.Fprintf(&b, `<tr><th>%s</th><td>%s</td></tr>`, esc(r[0]), esc(r[1]))
@@ -234,30 +233,7 @@ func (s *Server) modelsPartial() string {
 }
 
 func (s *Server) settingsPartial() string {
-	s.hub.forgeMu.Lock()
-	defer s.hub.forgeMu.Unlock()
-	c := s.config
-	rows := [][2]string{
-		{"Default model", c.DefaultModel},
-		{"Default agent", def(c.DefaultAgent, "(none)")},
-		{"Reasoning effort", def(c.ReasoningEffort, "medium")},
-		{"Streaming", onoff(c.Streaming)},
-		{"Auto-approve tools", onoff(c.AutoApproveTools)},
-		{"Auth", authState(c)},
-		{"Monthly credit budget", fmt.Sprintf("%.0f cr", c.Telemetry.MonthlyCreditAllowance)},
-		{"Warn at", fmt.Sprintf("%.0f%%", c.Telemetry.WarnFraction*100)},
-		{"OTLP endpoint", def(c.Telemetry.OTLPEndpoint, "(off)")},
-		{"Runtime", "github/copilot-sdk/go (copilot CLI)"},
-		{"Forge dir", c.ForgeDir},
-	}
-	return frag("settingsPage", map[string]any{"Rows": rows})
-}
-
-func onoff(b bool) string {
-	if b {
-		return "on"
-	}
-	return "off"
+	return s.renderSettings("", "")
 }
 
 func def(s, fallback string) string {
@@ -265,18 +241,6 @@ func def(s, fallback string) string {
 		return fallback
 	}
 	return s
-}
-
-// authState mirrors internal/tui/views.go: explicit token when configured,
-// otherwise the logged-in copilot CLI session.
-func authState(c *config.Config) string {
-	if c.GitHubTokenEnv == "" {
-		return "logged-in copilot CLI session"
-	}
-	if c.GitHubToken() != "" {
-		return fmt.Sprintf("token from $%s (set)", c.GitHubTokenEnv)
-	}
-	return fmt.Sprintf("token from $%s (unset → logged-in CLI)", c.GitHubTokenEnv)
 }
 
 // truncate shortens s to at most n runes, appending an ellipsis when it cuts.
