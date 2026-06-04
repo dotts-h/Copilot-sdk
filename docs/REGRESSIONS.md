@@ -22,6 +22,7 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
 | 8 | Composer **wiped its input on every keystroke**. | The form's `hx-on::after-request` caught the autocomplete GET's bubbled event. | Guard on `event.target === this`. | browser: `e2e/tests/ux.spec.ts` / `e2e.spec.ts` composer typing |
 | 9 | **Topbar overflowed** at tablet width. | No wrap on the nav/cost row. | `flex-wrap` on `.topbar` / `.nav`. | browser: `e2e/tests/ux.spec.ts` responsive layout |
 | 10 | Toggle "off" glyph **failed WCAG AA contrast**. | `--subtle` on `--bg` is below 4.5:1. | Use `--dim` for the off glyph. | browser: `e2e/tests/a11y.spec.ts` (axe-core, no A/AA violations) |
+| 11 | `my-orchestra -seed` could **fail and write nothing** on a forge that already had skills but no agents. | `seedForge` always pinned the `tdd` skill on the seeded `builder` agent; when skills were pre-populated `tdd` was never seeded, so `Save()` → `Validate()` failed on the dangling agent→skill reference. Found by the code review of #13 (the preserves-existing test set up the trigger state but didn't `Validate()`). | Pin `tdd` only when it exists, so `seedForge` stays valid under any partial state; add the `Validate()` assertion. | unit: `cmd/my-orchestra` `TestSeedForgePreservesExisting` (now asserts `Validate()`; fails without the fix) |
 
 ## Testing notes (gotchas that bit us)
 
