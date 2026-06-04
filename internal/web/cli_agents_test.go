@@ -50,6 +50,65 @@ func TestAgentAllowedToolsAppliedOnSelect(t *testing.T) {
 	}
 }
 
+func TestAgentSystemMessageCompiledOnSelect(t *testing.T) {
+	s, _ := newTestServer()
+	s.forge.Instructions = []ctxforge.Instruction{
+		{ID: "house", Title: "House rules", Body: "Be terse.", Enabled: true, Priority: 0},
+	}
+	s.forge.Skills = []ctxforge.Skill{
+		{ID: "tdd", Name: "TDD", Prompt: "Write a failing test first.", Enabled: false},
+	}
+	s.forge.Agents = []ctxforge.Agent{
+		{ID: "builder", Name: "Builder", Model: "gpt-5", ReasoningEffort: "high",
+			SystemMessage: "You are the Builder.", Skills: []string{"tdd"}},
+	}
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	resp, err := http.PostForm(srv.URL+"/agents/builder/select", url.Values{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	// Activation must compile the agent's full persona into the session, not just
+	// model/effort/tools: the agent system message, enabled global instructions,
+	// and the prompts of the agent's pinned skills.
+	for _, want := range []string{"You are the Builder.", "Be terse.", "Write a failing test first."} {
+		if !strings.Contains(s.spec.SystemMessage, want) {
+			t.Errorf("compiled system message missing %q:\n%s", want, s.spec.SystemMessage)
+		}
+	}
+}
+
+func TestAgentClearCompilesGlobalContext(t *testing.T) {
+	s, _ := newTestServer()
+	s.forge.Instructions = []ctxforge.Instruction{
+		{ID: "house", Title: "House rules", Body: "Be terse.", Enabled: true, Priority: 0},
+	}
+	s.forge.Agents = []ctxforge.Agent{
+		{ID: "builder", Name: "Builder", Model: "gpt-5", SystemMessage: "You are the Builder."},
+	}
+	s.config.DefaultAgent = "builder"
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	// Toggle the active agent off; the agent persona must drop out but global
+	// instructions must still be compiled into the session.
+	resp, err := http.PostForm(srv.URL+"/agents/builder/select", url.Values{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	if strings.Contains(s.spec.SystemMessage, "You are the Builder.") {
+		t.Errorf("cleared agent persona still present:\n%s", s.spec.SystemMessage)
+	}
+	if !strings.Contains(s.spec.SystemMessage, "Be terse.") {
+		t.Errorf("global instruction dropped on clear:\n%s", s.spec.SystemMessage)
+	}
+}
+
 func TestAgentFormHasAllowedToolsField(t *testing.T) {
 	s, _ := newTestServer()
 	srv := httptest.NewServer(s.Handler())
