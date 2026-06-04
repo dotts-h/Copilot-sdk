@@ -175,9 +175,16 @@ func seedForge(forge *ctxforge.Forge) {
 		})
 	}
 	if len(forge.Agents) == 0 {
+		// Only pin the tdd skill if it actually exists — when the forge already had
+		// skills (so we didn't seed tdd above), pinning it would dangle the
+		// reference and fail forge.Validate() on the next Save (e.g. under -seed).
+		var builderSkills []string
+		if forge.Skill("tdd") != nil {
+			builderSkills = []string{"tdd"}
+		}
 		forge.Agents = append(forge.Agents,
 			ctxforge.Agent{ID: "builder", Name: "Builder", Description: "Implements features test-first",
-				Model: "gpt-5", ReasoningEffort: "high", Skills: []string{"tdd"}},
+				Model: "gpt-5", ReasoningEffort: "high", Skills: builderSkills},
 			ctxforge.Agent{ID: "sdet", Name: "SDET", Description: "Hardens code with adversarial tests",
 				Model: "claude-sonnet-4.6", ReasoningEffort: "high"},
 		)
