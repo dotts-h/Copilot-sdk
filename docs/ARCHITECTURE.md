@@ -18,7 +18,9 @@ This document is the engineering deep dive. The
 ## Module map
 
 ```
-cmd/my-orchestra        entrypoint: load config+forge, build meter, dial client, serve web
+cmd/my-orchestra        entrypoint: serve the web UI (pure-Go, CGO-free)
+cmd/my-orchestra-desktop native desktop window over the same UI via Wails v3 (build tag `desktop`)
+internal/bootstrap      shared assembly: config+forge → meter → spec → client → *web.Hub; ServeLocal
 internal/web            net/http server: handlers, SSE hub, html/template partials, vendored htmx
 internal/convo          UI-agnostic transcript model: Turn · ToolView · State reducer (pure)
 internal/copilot        copilot.Client interface · SDKClient (Go SDK) · MockClient
@@ -193,6 +195,26 @@ build chain. The design and the full event→fragment contract live in
 Handlers and the reducer are exercised by `internal/web` tests using the mock
 client and synthetic events — no browser required. Vendored `htmx.org` +
 `htmx-ext-sse` live under `internal/web/static/`.
+
+## Desktop shell (Wails v3)
+
+`cmd/my-orchestra-desktop` wraps the exact same UI in a native OS window. It is a
+thin edge: `internal/bootstrap.Build` produces the same configured `*web.Hub` the
+web binary uses, `bootstrap.ServeLocal` serves that `http.Handler` on an ephemeral
+**loopback** port, and a Wails `WebviewWindow` is pointed at
+`http://127.0.0.1:<port>/`. Because the window loads an external loopback URL
+(not Wails' `wails://` asset protocol), **SSE streams natively** in the OS webview
+(WebView2 / WKWebView / WebKitGTK) — the UI is byte-identical to the browser, so
+the whole existing test pyramid covers it unchanged. We use Wails only for the
+window + `OnShutdown` lifecycle (no Go↔JS IPC); teardown is idempotent so the
+defer and `OnShutdown` never double-close the client. A `-serve` flag runs
+headless (no window) for CI smoke and Playwright.
+
+The shell needs **CGO + the platform webview toolchain**, so it is isolated
+behind the `desktop` build tag — the pure-Go `cmd/my-orchestra` and the default
+`go build/test ./...` never compile it. It builds on native runners
+(`.github/workflows/desktop.yml`), not the `CGO_ENABLED=0` cross-compile in
+`release.yml`. See [ADR-0006](adr/0006-desktop-shell-via-wails-v3-localhost-window.md).
 
 ## Failure & offline behavior
 

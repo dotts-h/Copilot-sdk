@@ -1,9 +1,10 @@
 BINARY := bin/my-orchestra
+DESKTOP_BINARY := bin/my-orchestra-desktop
 PKG := ./...
 VERSION ?= dev
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: all build run test bench cover lint fmt vet fuzz tidy clean e2e e2e-install
+.PHONY: all build run desktop run-desktop test bench cover lint fmt vet fuzz tidy clean e2e e2e-install
 
 all: lint test build
 
@@ -13,6 +14,16 @@ build:
 
 run: build
 	$(BINARY)
+
+# Desktop shell (Wails v3). Requires CGO + the OS webview toolchain: on Linux
+# install libgtk-3-dev + libwebkit2gtk-4.1-dev; macOS/Windows ship the webview.
+# Isolated behind the `desktop` build tag so the pure-Go targets never need CGO.
+desktop:
+	@mkdir -p bin
+	CGO_ENABLED=1 go build -tags desktop -ldflags "$(LDFLAGS)" -o $(DESKTOP_BINARY) ./cmd/my-orchestra-desktop
+
+run-desktop: desktop
+	$(DESKTOP_BINARY) -demo
 
 test:
 	go test $(PKG) -race -count=1 -timeout 180s -cover

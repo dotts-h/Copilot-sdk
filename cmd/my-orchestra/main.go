@@ -5,20 +5,14 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
-	"path/filepath"
-	"time"
 
+	"github.com/dotts-h/copilot-sdk/internal/bootstrap"
 	"github.com/dotts-h/copilot-sdk/internal/config"
-	"github.com/dotts-h/copilot-sdk/internal/copilot"
 	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
-	"github.com/dotts-h/copilot-sdk/internal/telemetry"
-	"github.com/dotts-h/copilot-sdk/internal/web"
 )
 
 // version is overridden at build time via -ldflags.
@@ -33,7 +27,7 @@ func main() {
 		demo        bool
 	)
 	flag.BoolVar(&showVersion, "version", false, "print version and exit")
-	flag.StringVar(&configDir, "config-dir", defaultConfigDir(), "configuration directory")
+	flag.StringVar(&configDir, "config-dir", bootstrap.DefaultConfigDir(), "configuration directory")
 	flag.BoolVar(&seed, "seed", false, "write a starter forge + config to the config dir and exit")
 	flag.StringVar(&addr, "addr", "127.0.0.1:8765", "address for the web UI")
 	flag.BoolVar(&demo, "demo", false, "drive the web UI with a scripted mock (no Copilot runtime)")
@@ -50,10 +44,27 @@ func main() {
 	}
 }
 
-// run loads config + forge, builds the meter, dials the client, and serves the
-// htmx web UI (WEB_UI_PLAN.md). In demo mode it drives a scripted MockClient so
-// the streaming UI works with no Copilot runtime.
+// run builds the configured server via bootstrap and serves the htmx web UI.
+// The -seed path writes a starter forge + config and exits without serving.
 func run(configDir, addr string, seed, demo bool) error {
+	if seed {
+		return seedStarter(configDir)
+	}
+
+	srv, closeFn, err := bootstrap.Build(configDir, demo)
+	if err != nil {
+		return err
+	}
+	defer closeFn()
+
+	httpSrv := &http.Server{Addr: addr, Handler: srv.Handler()}
+	fmt.Printf("my-orchestra web UI on http://%s\n", addr)
+	return httpSrv.ListenAndServe()
+}
+
+// seedStarter writes a representative forge and config so first runs have
+// something to explore.
+func seedStarter(configDir string) error {
 	cfg, err := config.Load(configDir)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -62,172 +73,7 @@ func run(configDir, addr string, seed, demo bool) error {
 	if err != nil {
 		return fmt.Errorf("load forge: %w", err)
 	}
-
-	if seed {
-		return seedStarter(cfg, forge)
-	}
-
-	// Build the price book, applying any settings overrides.
-	pb := telemetry.DefaultPriceBook()
-	for model, r := range cfg.Telemetry.PriceOverrides {
-		pb.Set(telemetry.ModelRate{
-			Model: model, InputPerMTok: r[0], CachedInputPerMTok: r[1], OutputPerMTok: r[2],
-		})
-	}
-	meter := telemetry.NewMeter(pb)
-
-	// Connect to the Copilot runtime via the official Go SDK, authenticating
-	// with the logged-in `copilot` CLI session; if it cannot start (no `copilot`
-	// CLI on PATH, or not logged in), fall back to the offline mock so the app
-	// remains usable for inspection.
-	spec := copilot.SessionSpec{Model: cfg.DefaultModel, ReasoningEffort: cfg.ReasoningEffort, Streaming: true}
-	// Compile the configured default agent (or just the enabled global
-	// instructions/skills when none) so the very first session carries the same
-	// persona an explicit agent selection would apply later.
-	if cspec, err := forge.Compile(cfg.DefaultAgent); err != nil {
-		log.Printf("compile default agent %q: %v", cfg.DefaultAgent, err)
-	} else {
-		spec.SystemMessage = cspec.SystemMessage
-		spec.AllowedTools = cspec.AllowedTools
-		if cspec.Model != "" {
-			spec.Model = cspec.Model
-		}
-		if cspec.ReasoningEffort != "" {
-			spec.ReasoningEffort = cspec.ReasoningEffort
-		}
-	}
-
-	var client copilot.Client
-	var closeFn func()
-	if demo {
-		// The demo must be self-contained and deterministic (it backs the e2e
-		// suite), so seed a representative forge in memory when none is on disk —
-		// otherwise the Skills/Agents pages render empty and have nothing to drive.
-		if len(forge.Skills) == 0 && len(forge.Agents) == 0 {
-			seedForge(forge)
-		}
-		mock := copilot.NewMockClient()
-		mock.Models = []copilot.ModelInfo{
-			{ID: "gpt-5", Name: "GPT-5", SupportedReasoningEfforts: []string{"low", "medium", "high"}},
-			{ID: "claude-sonnet-4-6", Name: "Claude Sonnet 4.6", SupportedReasoningEfforts: []string{"medium", "high"}},
-			{ID: "claude-haiku-4-5", Name: "Claude Haiku 4.5"},
-		}
-		// Pin the demo to a listed model so the picker and reasoning-effort row are
-		// self-consistent (and the statusline shows a real model).
-		spec.Model, spec.ReasoningEffort = "gpt-5", "medium"
-		// Seed a couple of persisted sessions (with history) so the Sessions page
-		// has something to list, resume, and delete in demo / e2e.
-		mock.Sessions = []copilot.SessionMeta{
-			{ID: "demo-sess-1", Summary: "Refactor the auth flow", Modified: time.Now().Add(-30 * time.Minute)},
-			{ID: "demo-sess-2", Summary: "Investigate the flaky CI run", Modified: time.Now().Add(-26 * time.Hour)},
-		}
-		mock.Histories = map[string][]copilot.Event{
-			"demo-sess-1": {
-				{Type: copilot.EvUserMessage, Text: "Help me refactor the auth flow"},
-				{Type: copilot.EvReasoning, Text: "The login handler mixes parsing and policy; split them."},
-				{Type: copilot.EvMessage, Text: "Done. I extracted `parseCredentials` from the handler and added a `Policy` seam.\n\n```go\nfunc parseCredentials(r *http.Request) (Creds, error) { /* … */ }\n```"},
-			},
-			"demo-sess-2": {
-				{Type: copilot.EvUserMessage, Text: "Why is the e2e job flaky?"},
-				{Type: copilot.EvMessage, Text: "The forge tests assumed an on-disk `forge.json`; in CI the demo seeds in memory now."},
-			},
-		}
-		client, closeFn = mock, func() { _ = mock.Close() }
-	} else {
-		client, closeFn = dialClient(cfg)
-	}
-	defer closeFn()
-
-	srv := web.New(web.Options{
-		Client: client,
-		Forge:  forge,
-		Config: cfg,
-		Meter:  meter,
-		Spec:   spec,
-		Demo:   demo,
-		Logger: log.New(os.Stderr, "web: ", log.LstdFlags),
-	})
-
-	httpSrv := &http.Server{Addr: addr, Handler: srv.Handler()}
-	fmt.Printf("my-orchestra web UI on http://%s\n", addr)
-	return httpSrv.ListenAndServe()
-}
-
-// dialClient starts the SDK-backed client, returning a mock if the runtime is
-// unavailable so the app still launches.
-func dialClient(cfg *config.Config) (copilot.Client, func()) {
-	// Prefer the already-logged-in `copilot` CLI session; only fall back to an
-	// explicit token when one is configured via GitHubTokenEnv.
-	token, useLoggedInUser := copilot.ResolveAuth(cfg.GitHubToken())
-	c, err := copilot.NewSDKClient(context.Background(), copilot.Options{
-		GitHubToken:     token,
-		UseLoggedInUser: useLoggedInUser,
-		OTLPEndpoint:    cfg.Telemetry.OTLPEndpoint,
-	})
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "my-orchestra: copilot runtime unavailable ("+err.Error()+"); using offline mock")
-		mock := copilot.NewMockClient()
-		return mock, func() { _ = mock.Close() }
-	}
-	return c, func() { _ = c.Close() }
-}
-
-func defaultConfigDir() string {
-	if dir := os.Getenv("MY_ORCHESTRA_HOME"); dir != "" {
-		return dir
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ".my-orchestra"
-	}
-	return filepath.Join(home, ".my-orchestra")
-}
-
-// seedForge populates a representative set of skills, instructions, and agents
-// in memory (no disk write). It backfills only the empty kinds, so an existing
-// forge is never clobbered. Shared by the on-disk seeder (-seed) and demo mode.
-func seedForge(forge *ctxforge.Forge) {
-	if len(forge.Skills) == 0 {
-		_ = forge.AddSkill(ctxforge.Skill{
-			ID: "tdd", Name: "Test-Driven Development", Command: "tdd",
-			Description: "Write a failing test before any implementation.",
-			Prompt:      "Always write a failing test first, then the minimum code to pass it, then refactor.",
-			Enabled:     true,
-		})
-		_ = forge.AddSkill(ctxforge.Skill{
-			ID: "cost-aware", Name: "Cost-aware engineering",
-			Description: "Prefer cheaper models and minimal tokens.",
-			Prompt:      "Be token-frugal: prefer concise diffs, avoid re-reading unchanged files, and pick the cheapest capable model.",
-			Enabled:     true,
-		})
-	}
-	if len(forge.Instructions) == 0 {
-		forge.Instructions = append(forge.Instructions, ctxforge.Instruction{
-			ID: "no-secrets", Title: "Never leak secrets", Priority: 1, Enabled: true,
-			Body: "Never print or commit secrets, tokens, or credentials.",
-		})
-	}
-	if len(forge.Agents) == 0 {
-		// Only pin the tdd skill if it actually exists — when the forge already had
-		// skills (so we didn't seed tdd above), pinning it would dangle the
-		// reference and fail forge.Validate() on the next Save (e.g. under -seed).
-		var builderSkills []string
-		if forge.Skill("tdd") != nil {
-			builderSkills = []string{"tdd"}
-		}
-		forge.Agents = append(forge.Agents,
-			ctxforge.Agent{ID: "builder", Name: "Builder", Description: "Implements features test-first",
-				Model: "gpt-5", ReasoningEffort: "high", Skills: builderSkills},
-			ctxforge.Agent{ID: "sdet", Name: "SDET", Description: "Hardens code with adversarial tests",
-				Model: "claude-sonnet-4.6", ReasoningEffort: "high"},
-		)
-	}
-}
-
-// seedStarter writes a representative forge and config so first runs have
-// something to explore.
-func seedStarter(cfg *config.Config, forge *ctxforge.Forge) error {
-	seedForge(forge)
+	bootstrap.SeedForge(forge)
 	if err := forge.Save(); err != nil {
 		return err
 	}

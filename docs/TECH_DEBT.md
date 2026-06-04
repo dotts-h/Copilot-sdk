@@ -8,6 +8,8 @@
 | 1 | Claude folder/`SKILL.md` skill model — per-skill resources + allowed-tools, loading skills from on-disk folders. Deferred from backlog #9 (the focused slice shipped instead). Needs runtime support for skill resources the SDK may not expose. | internal/ctxforge | low | L | low | [ADR 0003](adr/0003-claude-cli-style-agents-built-in-chat-agent-and-per-agent-tool-allowlist.md) | when on-disk skill folders or per-skill resources are actually requested |
 | 2 | Statusline token/credit totals are meter-global, not per-session. | internal/web (renderStatline) | low | M | low | — | when multi-session accounting matters |
 | 3 | Docs say "single in-memory session"; the Hub is cookie-keyed multi-session. | docs/ARCHITECTURE.md, README | low | S | med | — | next docs pass |
+| 5 | Desktop ships raw binaries only — no installers (.dmg/.msi/.deb/AppImage). "Binaries-first" was the chosen scope; packaging via the `wails3 package` CLI (Taskfile, icons, plist/NSIS) is deferred. | cmd/my-orchestra-desktop, .github/workflows/desktop.yml | low | M | low | [ADR 0006](adr/0006-desktop-shell-via-wails-v3-localhost-window.md) | when a non-technical install flow is needed |
+| 6 | Wails v3 pinned to an **alpha** (`v3.0.0-alpha.98`); also forced the module to Go 1.25. API may shift before stable. | go.mod | med | S | med | [ADR 0006](adr/0006-desktop-shell-via-wails-v3-localhost-window.md) | when Wails v3 reaches a stable release |
 
 ## Paid
 
