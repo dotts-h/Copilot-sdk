@@ -56,7 +56,8 @@ We chose **Wails v3**, used in a deliberately minimal way:
     toolchain, so the desktop binary cannot ride the pure-Go `CGO_ENABLED=0`
     6-target cross-compile in `release.yml`. It builds on a native matrix
     (`.github/workflows/desktop.yml`: ubuntu/macos/windows; Linux needs
-    `libgtk-3-dev` + `libwebkit2gtk-4.1-dev`). The Wails import is isolated behind
+    the GTK4 stack: `libgtk-4-dev` + `libwebkitgtk-6.0-dev` + `libsoup-3.0-dev`).
+    The Wails import is isolated behind
     the `desktop` build tag so the pure-Go web binary and the default
     `go build/test ./...` never compile CGO.
   - **Go 1.25.** Wails v3 alpha requires Go ≥ 1.25, bumping the module's `go`

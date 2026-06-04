@@ -76,8 +76,9 @@ Exact commands CI enforces (`.github/workflows/ci.yml`, `Makefile`):
 - **Go 1.25+** required (the Wails v3 desktop dep raised the module floor from 1.24).
 - `jq` is **not** installed; use `python3` for JSON.
 - Run the app: `make run`. Benchmarks: `make bench`. Tidy modules: `make tidy`.
-- Desktop build deps (Linux): `pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev`; then
-  `make desktop` / `make run-desktop`. macOS/Windows ship the webview.
+- Desktop build deps (Linux, Wails v3 GTK4 backend): `pkg-config libgtk-4-dev
+  libwebkitgtk-6.0-dev libsoup-3.0-dev`; then `make desktop` / `make run-desktop`.
+  macOS/Windows ship the webview.
 
 ## Naming & style
 
