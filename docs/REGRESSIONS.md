@@ -67,4 +67,6 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
 These are tracked in the project roadmap memory; listed here so the lack of a
 guard is visible.
 
-- **Claude-CLI-style skills/agents + a default chat agent** — deferred. No guard.
+- _(All validated-backlog items #4/#7/#8/#9 are now built and guarded. The one
+  deferred piece — the Claude folder/`SKILL.md` skill model — is tracked in
+  [TECH_DEBT.md](TECH_DEBT.md) item 1, not here.)_

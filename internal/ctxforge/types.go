@@ -52,6 +52,24 @@ type Agent struct {
 	// Skills lists skill IDs this agent always activates, beyond globally
 	// enabled skills.
 	Skills []string `json:"skills,omitempty"`
+	// AllowedTools restricts the session to this set of tool names when the agent
+	// is active (maps to the SDK session's AvailableTools). Empty = all tools.
+	AllowedTools []string `json:"allowedTools,omitempty"`
+}
+
+// DefaultChatAgentID is the id of the built-in general-purpose agent.
+const DefaultChatAgentID = "chat"
+
+// DefaultChatAgent returns the built-in general-purpose agent. It is virtual —
+// never persisted — so chat has a sensible baseline persona with no forge
+// configuration. A forge-defined agent with the same id overrides it. Its empty
+// Model means "use the configured default model".
+func DefaultChatAgent() Agent {
+	return Agent{
+		ID:          DefaultChatAgentID,
+		Name:        "Chat",
+		Description: "General-purpose coding assistant — the default when no other agent is selected.",
+	}
 }
 
 // MCPServer describes a Model Context Protocol server the forge can expose to a

@@ -136,6 +136,9 @@ func (c *SDKClient) CreateSession(ctx context.Context, spec SessionSpec) (string
 	cfg.OnUserInputRequest = c.userInputHandler()
 	cfg.OnExitPlanModeRequest = c.exitPlanModeHandler()
 	cfg.OnElicitationRequest = c.elicitationHandler()
+	if len(spec.AllowedTools) > 0 {
+		cfg.AvailableTools = spec.AllowedTools
+	}
 	if len(spec.MCPServers) > 0 {
 		cfg.MCPServers = make(map[string]sdk.MCPServerConfig, len(spec.MCPServers))
 		for _, s := range spec.MCPServers {
@@ -193,6 +196,9 @@ func (c *SDKClient) ResumeSession(ctx context.Context, sessionID string, spec Se
 	cfg.OnUserInputRequest = c.userInputHandler()
 	cfg.OnExitPlanModeRequest = c.exitPlanModeHandler()
 	cfg.OnElicitationRequest = c.elicitationHandler()
+	if len(spec.AllowedTools) > 0 {
+		cfg.AvailableTools = spec.AllowedTools
+	}
 
 	session, err := c.client.ResumeSession(ctx, sessionID, cfg)
 	if err != nil {

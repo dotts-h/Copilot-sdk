@@ -143,7 +143,25 @@ func (f *Forge) Agent(id string) *Agent {
 			return &f.Agents[i]
 		}
 	}
+	// The built-in chat agent is always resolvable so chat works with no forge
+	// config; a forge-defined "chat" agent above overrides it.
+	if id == DefaultChatAgentID {
+		a := DefaultChatAgent()
+		return &a
+	}
 	return nil
+}
+
+// HasOwnChatAgent reports whether the forge defines its own "chat" agent (i.e.
+// the built-in is overridden). The web layer uses this to decide whether to
+// list the built-in.
+func (f *Forge) HasOwnChatAgent() bool {
+	for i := range f.Agents {
+		if f.Agents[i].ID == DefaultChatAgentID {
+			return true
+		}
+	}
+	return false
 }
 
 // AddSkill validates and appends a skill, rejecting duplicate IDs.
@@ -321,6 +339,9 @@ type SessionSpec struct {
 	SlashCommands   []string
 	MCPServers      []MCPServer
 	AgentID         string
+	// AllowedTools restricts the session's tools (maps to the SDK's
+	// AvailableTools). Set from the active agent; empty = all tools.
+	AllowedTools []string
 }
 
 // Compile produces a SessionSpec for the given agent ID (empty = no agent
@@ -339,6 +360,7 @@ func (f *Forge) Compile(agentID string) (SessionSpec, error) {
 		}
 		spec.Model = agent.Model
 		spec.ReasoningEffort = agent.ReasoningEffort
+		spec.AllowedTools = agent.AllowedTools
 	}
 
 	var b strings.Builder

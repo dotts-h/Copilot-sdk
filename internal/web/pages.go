@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
 
@@ -84,8 +85,8 @@ func helpPartial() string {
 		{"Sessions", "List, resume, or delete past conversations. Resuming restores the full context (the first turn after a gap won't hit the prompt cache); start fresh with + New chat."},
 		{"Telemetry", "Live credit/token spend, per-model breakdown, and your monthly budget."},
 		{"Skills", "Reusable prompt fragments; toggle which are active for the session."},
-		{"Instructions", "Always-on guidance, ordered by priority."},
-		{"Agents", "Named model + reasoning + skill presets; select one as the default."},
+		{"Instructions", "Always-on guidance, ordered by priority. Import project files pulls in .github/copilot-instructions.md, AGENTS.md, and CLAUDE.md."},
+		{"Agents", "Named model + reasoning + skill + tool-allowlist presets; select one as the default. A built-in Chat agent is always available."},
 		{"Models", "Pick the model the session uses and its reasoning effort; selecting either restarts the session on your next prompt."},
 		{"Settings", "Edit config.json's main knobs (model, effort, streaming, budget); applied on your next session. Advanced keys edit the file directly."},
 	}
@@ -189,11 +190,21 @@ func (s *Server) instructionsPartial() string {
 func (s *Server) agentsPartial() string {
 	s.hub.forgeMu.Lock()
 	defer s.hub.forgeMu.Unlock()
-	rows := make([]map[string]any, 0, len(s.forge.Agents))
+	rows := make([]map[string]any, 0, len(s.forge.Agents)+1)
 	for _, a := range s.forge.Agents {
 		desc := fmt.Sprintf("%s · %s · %s", a.Model, def(a.ReasoningEffort, "medium"), a.Description)
 		rows = append(rows, map[string]any{
 			"ID": a.ID, "Active": a.ID == s.config.DefaultAgent, "Name": a.Name, "Desc": desc,
+		})
+	}
+	// Always offer the built-in chat agent (unless the forge defines its own), so
+	// chat has a baseline persona with no config. It is virtual: selectable but
+	// not editable/deletable (ADR 0003).
+	if !s.forge.HasOwnChatAgent() {
+		b := ctxforge.DefaultChatAgent()
+		rows = append(rows, map[string]any{
+			"ID": b.ID, "Active": b.ID == s.config.DefaultAgent, "Name": b.Name + " (built-in)",
+			"Desc": b.Description, "Builtin": true,
 		})
 	}
 	return frag("agentsPage", map[string]any{"Add": addData("agents", "agent"), "Rows": rows})

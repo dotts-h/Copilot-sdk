@@ -202,6 +202,9 @@ type SessionSpec struct {
 	Streaming        bool
 	AutoApproveTools bool
 	MCPServers       []MCPServer
+	// AllowedTools restricts the session to these tool names (maps to the SDK's
+	// AvailableTools). Empty = all tools available.
+	AllowedTools []string
 }
 
 // MCPServer is a stdio MCP server to expose to the session.
