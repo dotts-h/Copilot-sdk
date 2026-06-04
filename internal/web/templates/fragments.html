@@ -5,7 +5,7 @@
 {{define "deltaSpan"}}<span>{{richtext .}}</span>{{end}}
 
 {{define "turnUser"}}<div class="turn user"><div class="role">you</div><div class="body">{{richtext .}}</div></div>{{end}}
-{{define "turnAgent"}}<div class="turn assistant"><div class="role">orchestra</div><div class="body">{{richtext .}}</div></div>{{end}}
+{{define "turnAgent"}}<div class="turn assistant"><div class="role">orchestra</div><div class="body md">{{markdown .}}</div></div>{{end}}
 {{define "turnReasoning"}}<details class="turn reasoning"><summary>✻ thinking</summary><div class="body">{{richtext .}}</div></details>{{end}}
 {{define "turnSystem"}}<div class="turn system">· {{richtext .}}</div>{{end}}
 

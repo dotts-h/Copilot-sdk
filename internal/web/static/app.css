@@ -61,6 +61,26 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
   color: var(--dim); margin-bottom: .25rem; }
 .turn.system { background: none; color: var(--dim); font-size: .85rem; padding: .2rem .85rem; }
 
+/* rendered markdown in committed agent turns (ADR 0001) */
+.body.md > :first-child { margin-top: 0; }
+.body.md > :last-child { margin-bottom: 0; }
+.body.md p { margin: 0 0 .5rem; }
+.body.md h1, .body.md h2, .body.md h3,
+.body.md h4, .body.md h5, .body.md h6 { margin: .6rem 0 .35rem; line-height: 1.25; }
+.body.md h1 { font-size: 1.3rem; } .body.md h2 { font-size: 1.18rem; }
+.body.md h3 { font-size: 1.06rem; } .body.md h4 { font-size: .98rem; }
+.body.md ul, .body.md ol { margin: 0 0 .5rem; padding-left: 1.4rem; }
+.body.md li { margin: .1rem 0; }
+.body.md blockquote { margin: 0 0 .5rem; padding: .1rem .75rem; color: var(--dim);
+  border-left: 3px solid var(--subtle); }
+.body.md hr { border: none; border-top: 1px solid var(--subtle); margin: .75rem 0; }
+.body.md a { color: var(--accent2); }
+.body.md code { background: rgba(255,255,255,.07); padding: .05rem .3rem;
+  border-radius: 4px; font-size: .9em; }
+.body.md pre { background: var(--bg); border: 1px solid var(--panel); border-radius: 6px;
+  padding: .6rem .75rem; overflow-x: auto; margin: 0 0 .5rem; }
+.body.md pre code { background: none; padding: 0; }
+
 /* reasoning ("thinking") — dim, collapsible */
 .turn.reasoning { background: rgba(255,255,255,.03); border-left: 3px solid var(--subtle);
   color: var(--dim); font-size: .92rem; }

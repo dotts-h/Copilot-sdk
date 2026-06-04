@@ -20,6 +20,11 @@ var funcMap = template.FuncMap{
 	"richtext": func(s string) template.HTML {
 		return template.HTML(esc(s)) //nolint:gosec // esc() escapes; this only adds <br>
 	},
+	// markdown renders a safe markdown subset for committed agent turns (ADR 0001).
+	// renderMarkdown escapes all input first and only emits whitelisted tags.
+	"markdown": func(s string) template.HTML {
+		return template.HTML(renderMarkdown(s)) //nolint:gosec // renderMarkdown escapes input; whitelist-only tags
+	},
 	// clampLines bounds a long tool result before it is escaped by richtext.
 	"clampLines":  clampLines,
 	"humanTokens": humanTokens,
