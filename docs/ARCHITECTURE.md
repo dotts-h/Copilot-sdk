@@ -218,6 +218,10 @@ edge cases (unknown models, empty forge, upgrade-time config backfill),
 invariants (pricing totality via fuzz), concurrency (meter under 16×100 writers),
 and translation correctness (every SDK event → expected normalized event).
 
+Fixed bugs are logged in [REGRESSIONS.md](REGRESSIONS.md), each mapped to the
+test that now guards it — a fix without a guard is the thing we're trying not to
+ship.
+
 The web layer adds a consolidated HTTP **contract** suite (`api_test.go`:
 content-types, output escaping/XSS, cookie hardening, per-session isolation, SSE
 greeting, malformed-payload tolerance), **benchmarks** for the render/reducer

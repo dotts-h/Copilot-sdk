@@ -68,6 +68,57 @@ func TestModelSelectSwitchesAndRestarts(t *testing.T) {
 	}
 }
 
+func TestModelsPageShowsEffortRowForCurrentModel(t *testing.T) {
+	s, mock := newTestServer()
+	mock.Models = []copilot.ModelInfo{
+		{ID: "gpt-5", Name: "GPT-5", SupportedReasoningEfforts: []string{"low", "medium", "high"}},
+	}
+	s.spec.Model = "gpt-5"
+	s.spec.ReasoningEffort = "medium"
+
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	// The effort row offers only the current model's supported efforts, with the
+	// active one marked (regression: effort was unsettable from the UI).
+	body := get(t, srv, "/page/models")
+	for _, want := range []string{`effort-row`, `/effort/low/select`, `/effort/high/select`, `class="effort on"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("models page effort row missing %q: %q", want, body)
+		}
+	}
+}
+
+func TestEffortSelectSwitchesAndRestarts(t *testing.T) {
+	s, mock := newTestServer()
+	mock.Models = []copilot.ModelInfo{
+		{ID: "gpt-5", Name: "GPT-5", SupportedReasoningEfforts: []string{"low", "medium", "high"}},
+	}
+	s.spec.Model = "gpt-5"
+	s.sessionID = "live-session"
+
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	resp, err := http.Post(srv.URL+"/effort/high/select", "application/x-www-form-urlencoded", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := readBody(t, resp)
+	if s.spec.ReasoningEffort != "high" {
+		t.Errorf("select should set the effort, got %q", s.spec.ReasoningEffort)
+	}
+	if s.sessionID != "" {
+		t.Errorf("select should restart the session, got %q", s.sessionID)
+	}
+	if s.config.ReasoningEffort != "high" {
+		t.Errorf("select should persist the effort, got %q", s.config.ReasoningEffort)
+	}
+	if !strings.Contains(body, `/effort/low/select`) {
+		t.Errorf("select response should re-render the models page: %q", body)
+	}
+}
+
 func TestModelsPageHandlesListError(t *testing.T) {
 	s, mock := newTestServer()
 	mock.ListModelsErr = errFake
