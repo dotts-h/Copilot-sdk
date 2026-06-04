@@ -1,0 +1,80 @@
+name: Desktop
+
+# The desktop shell (cmd/my-orchestra-desktop, build tag `desktop`) wraps the web
+# UI in a native OS webview via Wails v3. Unlike the pure-Go web binary, it needs
+# CGO and the platform webview toolchain, so it builds on native runners — it
+# cannot ride the CGO_ENABLED=0 cross-compile in release.yml. Binaries-first:
+# this produces raw executables + checksums; installers are a tracked follow-up
+# (docs/TECH_DEBT.md). See docs/adr/0006-desktop-shell-via-wails-v3-localhost-window.md.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "cmd/my-orchestra-desktop/**"
+      - "internal/bootstrap/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/desktop.yml"
+  pull_request:
+    paths:
+      - "cmd/my-orchestra-desktop/**"
+      - "internal/bootstrap/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/desktop.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Install Linux webview toolchain
+        if: runner.os == 'Linux'
+        # Wails v3 defaults to the GTK4 / webkitgtk-6.0 backend on Linux.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libgtk-4-dev libwebkitgtk-6.0-dev libsoup-3.0-dev xvfb
+
+      - name: Build desktop binary
+        env:
+          CGO_ENABLED: "1"
+        shell: bash
+        run: |
+          out="my-orchestra-desktop-${{ runner.os }}"
+          [ "${{ runner.os }}" = "Windows" ] && out="$out.exe"
+          go build -tags desktop -ldflags "-s -w -X main.version=ci-${{ github.sha }}" -o "dist/$out" ./cmd/my-orchestra-desktop
+
+      - name: Boot smoke (Linux, xvfb)
+        if: runner.os == 'Linux'
+        run: |
+          xvfb-run -a ./dist/my-orchestra-desktop-Linux -demo &
+          pid=$!
+          sleep 8
+          if ! kill -0 "$pid" 2>/dev/null; then
+            echo "::error::desktop binary exited during startup (webview init failed)"
+            wait "$pid"; exit 1
+          fi
+          echo "desktop shell booted under xvfb and stayed alive"
+          kill "$pid"
+
+      - name: Checksums
+        shell: bash
+        run: cd dist && (sha256sum * > checksums.txt 2>/dev/null || shasum -a 256 * > checksums.txt) && cat checksums.txt
+
+      - name: Upload desktop binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-orchestra-desktop-${{ runner.os }}
+          path: dist/*

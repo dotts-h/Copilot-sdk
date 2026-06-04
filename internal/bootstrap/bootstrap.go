@@ -1,0 +1,213 @@
+// Package bootstrap assembles a ready-to-serve web.Hub from on-disk config and
+// forge, wiring the price book, meter, the compiled default-agent SessionSpec,
+// and the Copilot client (real SDK, or an offline/demo mock). Both the web
+// entrypoint (cmd/my-orchestra) and the desktop shell (cmd/my-orchestra-desktop)
+// share this so the two binaries serve byte-identical UIs over the same seam.
+package bootstrap
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"net"
+	"net/http"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/dotts-h/copilot-sdk/internal/config"
+	"github.com/dotts-h/copilot-sdk/internal/copilot"
+	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
+	"github.com/dotts-h/copilot-sdk/internal/telemetry"
+	"github.com/dotts-h/copilot-sdk/internal/web"
+)
+
+// Build loads config + forge from configDir, builds the meter, compiles the
+// default agent into a SessionSpec, dials the Copilot client, and returns a
+// configured *web.Hub whose Handler() serves the htmx UI. The returned close
+// func tears the client down and must be called on shutdown.
+//
+// In demo mode it drives a scripted MockClient (seeding a representative forge,
+// models, and persisted sessions when none exist on disk) so the streaming UI
+// works with no Copilot runtime — this backs the e2e suite and must stay
+// deterministic.
+func Build(configDir string, demo bool) (srv *web.Hub, close func(), err error) {
+	cfg, err := config.Load(configDir)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load config: %w", err)
+	}
+	forge, err := ctxforge.Load(cfg.ForgeDir)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load forge: %w", err)
+	}
+
+	// Build the price book, applying any settings overrides.
+	pb := telemetry.DefaultPriceBook()
+	for model, r := range cfg.Telemetry.PriceOverrides {
+		pb.Set(telemetry.ModelRate{
+			Model: model, InputPerMTok: r[0], CachedInputPerMTok: r[1], OutputPerMTok: r[2],
+		})
+	}
+	meter := telemetry.NewMeter(pb)
+
+	spec := copilot.SessionSpec{Model: cfg.DefaultModel, ReasoningEffort: cfg.ReasoningEffort, Streaming: true}
+	// Compile the configured default agent (or just the enabled global
+	// instructions/skills when none) so the very first session carries the same
+	// persona an explicit agent selection would apply later.
+	if cspec, err := forge.Compile(cfg.DefaultAgent); err != nil {
+		log.Printf("compile default agent %q: %v", cfg.DefaultAgent, err)
+	} else {
+		spec.SystemMessage = cspec.SystemMessage
+		spec.AllowedTools = cspec.AllowedTools
+		if cspec.Model != "" {
+			spec.Model = cspec.Model
+		}
+		if cspec.ReasoningEffort != "" {
+			spec.ReasoningEffort = cspec.ReasoningEffort
+		}
+	}
+
+	var client copilot.Client
+	var closeFn func()
+	if demo {
+		client, closeFn = demoClient(forge, &spec)
+	} else {
+		client, closeFn = dialClient(cfg)
+	}
+
+	srv = web.New(web.Options{
+		Client: client,
+		Forge:  forge,
+		Config: cfg,
+		Meter:  meter,
+		Spec:   spec,
+		Demo:   demo,
+		Logger: log.New(os.Stderr, "web: ", log.LstdFlags),
+	})
+	return srv, closeFn, nil
+}
+
+// demoClient builds the deterministic scripted MockClient that backs demo mode
+// and the e2e suite. It seeds a representative forge in memory when none is on
+// disk (otherwise the Skills/Agents pages render empty), pins the spec to a
+// listed model, and stages a couple of persisted sessions to resume/delete.
+func demoClient(forge *ctxforge.Forge, spec *copilot.SessionSpec) (copilot.Client, func()) {
+	if len(forge.Skills) == 0 && len(forge.Agents) == 0 {
+		SeedForge(forge)
+	}
+	mock := copilot.NewMockClient()
+	mock.Models = []copilot.ModelInfo{
+		{ID: "gpt-5", Name: "GPT-5", SupportedReasoningEfforts: []string{"low", "medium", "high"}},
+		{ID: "claude-sonnet-4-6", Name: "Claude Sonnet 4.6", SupportedReasoningEfforts: []string{"medium", "high"}},
+		{ID: "claude-haiku-4-5", Name: "Claude Haiku 4.5"},
+	}
+	// Pin the demo to a listed model so the picker and reasoning-effort row are
+	// self-consistent (and the statusline shows a real model).
+	spec.Model, spec.ReasoningEffort = "gpt-5", "medium"
+	// Seed a couple of persisted sessions (with history) so the Sessions page
+	// has something to list, resume, and delete in demo / e2e.
+	mock.Sessions = []copilot.SessionMeta{
+		{ID: "demo-sess-1", Summary: "Refactor the auth flow", Modified: time.Now().Add(-30 * time.Minute)},
+		{ID: "demo-sess-2", Summary: "Investigate the flaky CI run", Modified: time.Now().Add(-26 * time.Hour)},
+	}
+	mock.Histories = map[string][]copilot.Event{
+		"demo-sess-1": {
+			{Type: copilot.EvUserMessage, Text: "Help me refactor the auth flow"},
+			{Type: copilot.EvReasoning, Text: "The login handler mixes parsing and policy; split them."},
+			{Type: copilot.EvMessage, Text: "Done. I extracted `parseCredentials` from the handler and added a `Policy` seam.\n\n```go\nfunc parseCredentials(r *http.Request) (Creds, error) { /* … */ }\n```"},
+		},
+		"demo-sess-2": {
+			{Type: copilot.EvUserMessage, Text: "Why is the e2e job flaky?"},
+			{Type: copilot.EvMessage, Text: "The forge tests assumed an on-disk `forge.json`; in CI the demo seeds in memory now."},
+		},
+	}
+	return mock, func() { _ = mock.Close() }
+}
+
+// dialClient starts the SDK-backed client, returning a mock if the runtime is
+// unavailable so the app still launches.
+func dialClient(cfg *config.Config) (copilot.Client, func()) {
+	// Prefer the already-logged-in `copilot` CLI session; only fall back to an
+	// explicit token when one is configured via GitHubTokenEnv.
+	token, useLoggedInUser := copilot.ResolveAuth(cfg.GitHubToken())
+	c, err := copilot.NewSDKClient(context.Background(), copilot.Options{
+		GitHubToken:     token,
+		UseLoggedInUser: useLoggedInUser,
+		OTLPEndpoint:    cfg.Telemetry.OTLPEndpoint,
+	})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "my-orchestra: copilot runtime unavailable ("+err.Error()+"); using offline mock")
+		mock := copilot.NewMockClient()
+		return mock, func() { _ = mock.Close() }
+	}
+	return c, func() { _ = c.Close() }
+}
+
+// ServeLocal binds an ephemeral loopback port and serves h on it in a
+// background goroutine, returning the chosen port and a stop func. The desktop
+// shell points a webview window at the returned port; keeping this in bootstrap
+// (free of the Wails/CGO dependency) lets it stay unit-testable without a
+// native window or display.
+func ServeLocal(h http.Handler) (port int, stop func(), err error) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, nil, err
+	}
+	hs := &http.Server{Handler: h}
+	go func() { _ = hs.Serve(ln) }()
+	return ln.Addr().(*net.TCPAddr).Port, func() { _ = hs.Close() }, nil
+}
+
+// DefaultConfigDir is the per-user config directory, overridable via the
+// MY_ORCHESTRA_HOME env var. Shared by every entrypoint.
+func DefaultConfigDir() string {
+	if dir := os.Getenv("MY_ORCHESTRA_HOME"); dir != "" {
+		return dir
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ".my-orchestra"
+	}
+	return filepath.Join(home, ".my-orchestra")
+}
+
+// SeedForge populates a representative set of skills, instructions, and agents
+// in memory (no disk write). It backfills only the empty kinds, so an existing
+// forge is never clobbered. Shared by the on-disk seeder (-seed) and demo mode.
+func SeedForge(forge *ctxforge.Forge) {
+	if len(forge.Skills) == 0 {
+		_ = forge.AddSkill(ctxforge.Skill{
+			ID: "tdd", Name: "Test-Driven Development", Command: "tdd",
+			Description: "Write a failing test before any implementation.",
+			Prompt:      "Always write a failing test first, then the minimum code to pass it, then refactor.",
+			Enabled:     true,
+		})
+		_ = forge.AddSkill(ctxforge.Skill{
+			ID: "cost-aware", Name: "Cost-aware engineering",
+			Description: "Prefer cheaper models and minimal tokens.",
+			Prompt:      "Be token-frugal: prefer concise diffs, avoid re-reading unchanged files, and pick the cheapest capable model.",
+			Enabled:     true,
+		})
+	}
+	if len(forge.Instructions) == 0 {
+		forge.Instructions = append(forge.Instructions, ctxforge.Instruction{
+			ID: "no-secrets", Title: "Never leak secrets", Priority: 1, Enabled: true,
+			Body: "Never print or commit secrets, tokens, or credentials.",
+		})
+	}
+	if len(forge.Agents) == 0 {
+		// Only pin the tdd skill if it actually exists — when the forge already had
+		// skills (so we didn't seed tdd above), pinning it would dangle the
+		// reference and fail forge.Validate() on the next Save (e.g. under -seed).
+		var builderSkills []string
+		if forge.Skill("tdd") != nil {
+			builderSkills = []string{"tdd"}
+		}
+		forge.Agents = append(forge.Agents,
+			ctxforge.Agent{ID: "builder", Name: "Builder", Description: "Implements features test-first",
+				Model: "gpt-5", ReasoningEffort: "high", Skills: builderSkills},
+			ctxforge.Agent{ID: "sdet", Name: "SDET", Description: "Hardens code with adversarial tests",
+				Model: "claude-sonnet-4.6", ReasoningEffort: "high"},
+		)
+	}
+}

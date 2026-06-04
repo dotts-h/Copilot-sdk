@@ -36,6 +36,11 @@ Module: `github.com/dotts-h/copilot-sdk` · app *my-orchestra*.
 - Session pick/start/continue is backed by **SDK session resume**, not a bespoke
   in-memory store. — see [ADR-0002](adr/0002-restore-sdk-session-resume-for-session-pick-start-continue.md)
 - Agents are CLI-style: a built-in chat agent plus a per-agent tool allowlist. — see [ADR-0003](adr/0003-claude-cli-style-agents-built-in-chat-agent-and-per-agent-tool-allowlist.md)
+- **The desktop shell is CGO + native-runner only.** Keep the Wails import inside
+  `cmd/my-orchestra-desktop` (build tag `desktop`); never import it from
+  `cmd/my-orchestra` or shared packages, so the pure-Go web binary and the default
+  `go build/test ./...` stay CGO-free. Both binaries share `internal/bootstrap`.
+  — see [ADR-0006](adr/0006-desktop-shell-via-wails-v3-localhost-window.md)
 
 ## Testing
 
@@ -55,7 +60,9 @@ Exact commands CI enforces (`.github/workflows/ci.yml`, `Makefile`):
 - **Coverage floor: 65%** (`go tool cover -func`; CI fails below 65%).
 - **Fuzz:** `make fuzz` — smoke on pricing.
 - **E2E:** `make e2e` (Playwright; `make e2e-install` first); CI runs `npx playwright test`.
-- **Build matrix:** `make build` must pass across the release matrix.
+- **Build matrix:** `make build` must pass across the release matrix (pure-Go, `CGO_ENABLED=0`).
+- **Desktop:** `make desktop` (CGO, build tag `desktop`) builds the Wails shell; CI
+  (`desktop.yml`) builds it on native runners and runs a boot smoke under xvfb.
 
 ## Persistence & data
 
@@ -66,8 +73,12 @@ Exact commands CI enforces (`.github/workflows/ci.yml`, `Makefile`):
 
 - **Go toolchain is not on the default PATH:**
   `export PATH=$PATH:/home/ori913/go-install/go/bin`
+- **Go 1.25+** required (the Wails v3 desktop dep raised the module floor from 1.24).
 - `jq` is **not** installed; use `python3` for JSON.
 - Run the app: `make run`. Benchmarks: `make bench`. Tidy modules: `make tidy`.
+- Desktop build deps (Linux, Wails v3 GTK4 backend): `pkg-config libgtk-4-dev
+  libwebkitgtk-6.0-dev libsoup-3.0-dev`; then `make desktop` / `make run-desktop`.
+  macOS/Windows ship the webview.
 
 ## Naming & style
 
