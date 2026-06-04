@@ -1,0 +1,8 @@
+{
+  "extraKnownMarketplaces": {
+    "orchestra": {
+      "source": { "source": "github", "repo": "dotts-h/claude-skills" }
+    }
+  },
+  "enabledPlugins": ["orchestra-skills@orchestra"]
+}
