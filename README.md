@@ -144,4 +144,7 @@ docs/                GitHub Pages site + architecture
 
 ## License
 
-See [LICENSE](LICENSE).
+Business Source License 1.1 (BSL) — source-available. Free for personal and
+internal individual use, including production; you may not offer it to third
+parties as a commercial product or hosted service. Each version converts to
+Apache License 2.0 on its Change Date (2030-06-04). See [LICENSE](LICENSE).
