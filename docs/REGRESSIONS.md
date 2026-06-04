@@ -33,6 +33,15 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
   it increased), never a fixed value.
 - The demo must be **self-contained**: anything a browser test drives (forge
   rows, models, effort) has to be seeded in `-demo` mode, not assumed on disk.
+- **Adding a nav page is coupled to the e2e suite.** `e2e/tests/e2e.spec.ts`
+  asserts `nav` link count `== pages.length`, and several specs iterate the
+  `pages` array in `e2e/tests/helpers.ts`. A new top-level page (e.g. Sessions)
+  must be added to that array in nav order, or CI's e2e job fails on the count.
+- **Don't persist session history app-side — the runtime already does.** The
+  Copilot CLI persists each session's conversation on disk; `ListSessions`,
+  `GetEvents`, and `ResumeSession` expose it. Resume reattaches and `GetEvents`
+  rehydrates the transcript; a resumed session's first turn after a gap pays full
+  uncached input (the prompt cache is cold). See [ADR 0002](adr/0002-restore-sdk-session-resume-for-session-pick-start-continue.md).
 - **`config.Config.Save()` mutates-then-validates without rollback** (unlike
   ctxforge, which rolls back on an invalid result). A handler that edits config
   fields and then `Save()`s leaves the live, in-memory config dirty if validation
@@ -58,5 +67,4 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
 These are tracked in the project roadmap memory; listed here so the lack of a
 guard is visible.
 
-- **Session pick / start / continue** — deferred. No guard.
 - **Claude-CLI-style skills/agents + a default chat agent** — deferred. No guard.

@@ -206,3 +206,25 @@ test.describe("slash commands", () => {
     await expect(page.locator(sel.agentTurn)).toHaveCount(agentTurnsBefore);
   });
 });
+
+test.describe("sessions", () => {
+  test("lists persisted sessions and resumes one, rebuilding its transcript", async ({ page }) => {
+    await gotoApp(page);
+    await navTo(page, "Sessions");
+    await expect(page.locator("#main")).toContainText("Refactor the auth flow");
+
+    // Resume the first session; its history rehydrates into the chat timeline.
+    await page.locator(`#main button[hx-post="/sessions/demo-sess-1/resume"]`).click();
+    await expect(page.locator(sel.userTurn).filter({ hasText: "Help me refactor the auth flow" })).toBeVisible();
+    // The committed agent turn is markdown-rendered: the fenced code becomes a <pre>.
+    await expect(page.locator(`${sel.agentTurn} pre`)).toContainText("parseCredentials");
+  });
+
+  test("starts a fresh chat from the sessions page", async ({ page }) => {
+    await gotoApp(page);
+    await navTo(page, "Sessions");
+    await page.locator(`#main button[hx-post="/sessions/new"]`).click();
+    await expect(page.locator(sel.composer)).toBeVisible();
+    await expect(page.locator(sel.timeline)).toContainText("new chat");
+  });
+});

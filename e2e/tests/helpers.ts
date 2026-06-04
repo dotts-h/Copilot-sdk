@@ -25,9 +25,10 @@ export const sel = {
   rows: ".rows .row",
 } as const;
 
-// The eight nav pages, in nav order, with a landmark string each test can anchor on.
+// The nav pages, in nav order, with a landmark string each test can anchor on.
 export const pages = [
   { slug: "chat", label: "Chat", landmark: "#composer" },
+  { slug: "sessions", label: "Sessions", landmark: "h2" },
   { slug: "telemetry", label: "Telemetry", landmark: "h2" },
   { slug: "skills", label: "Skills", landmark: "h2" },
   { slug: "instructions", label: "Instructions", landmark: "h2" },

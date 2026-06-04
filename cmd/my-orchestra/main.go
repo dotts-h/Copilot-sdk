@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/dotts-h/copilot-sdk/internal/config"
 	"github.com/dotts-h/copilot-sdk/internal/copilot"
@@ -99,6 +100,23 @@ func run(configDir, addr string, seed, demo bool) error {
 		// Pin the demo to a listed model so the picker and reasoning-effort row are
 		// self-consistent (and the statusline shows a real model).
 		spec.Model, spec.ReasoningEffort = "gpt-5", "medium"
+		// Seed a couple of persisted sessions (with history) so the Sessions page
+		// has something to list, resume, and delete in demo / e2e.
+		mock.Sessions = []copilot.SessionMeta{
+			{ID: "demo-sess-1", Summary: "Refactor the auth flow", Modified: time.Now().Add(-30 * time.Minute)},
+			{ID: "demo-sess-2", Summary: "Investigate the flaky CI run", Modified: time.Now().Add(-26 * time.Hour)},
+		}
+		mock.Histories = map[string][]copilot.Event{
+			"demo-sess-1": {
+				{Type: copilot.EvUserMessage, Text: "Help me refactor the auth flow"},
+				{Type: copilot.EvReasoning, Text: "The login handler mixes parsing and policy; split them."},
+				{Type: copilot.EvMessage, Text: "Done. I extracted `parseCredentials` from the handler and added a `Policy` seam.\n\n```go\nfunc parseCredentials(r *http.Request) (Creds, error) { /* … */ }\n```"},
+			},
+			"demo-sess-2": {
+				{Type: copilot.EvUserMessage, Text: "Why is the e2e job flaky?"},
+				{Type: copilot.EvMessage, Text: "The forge tests assumed an on-disk `forge.json`; in CI the demo seeds in memory now."},
+			},
+		}
 		client, closeFn = mock, func() { _ = mock.Close() }
 	} else {
 		client, closeFn = dialClient(cfg)
