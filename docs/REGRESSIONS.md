@@ -23,6 +23,7 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
 | 9 | **Topbar overflowed** at tablet width. | No wrap on the nav/cost row. | `flex-wrap` on `.topbar` / `.nav`. | browser: `e2e/tests/ux.spec.ts` responsive layout |
 | 10 | Toggle "off" glyph **failed WCAG AA contrast**. | `--subtle` on `--bg` is below 4.5:1. | Use `--dim` for the off glyph. | browser: `e2e/tests/a11y.spec.ts` (axe-core, no A/AA violations) |
 | 11 | `my-orchestra -seed` could **fail and write nothing** on a forge that already had skills but no agents. | `seedForge` always pinned the `tdd` skill on the seeded `builder` agent; when skills were pre-populated `tdd` was never seeded, so `Save()` → `Validate()` failed on the dangling agent→skill reference. Found by the code review of #13 (the preserves-existing test set up the trigger state but didn't `Validate()`). | Pin `tdd` only when it exists, so `seedForge` stays valid under any partial state; add the `Validate()` assertion. | unit: `cmd/my-orchestra` `TestSeedForgePreservesExisting` (now asserts `Validate()`; fails without the fix) |
+| 12 | Markdown renderer mangled **snake_case identifiers in agent prose** — `my_var_name` rendered as `my<em>var</em>name`. | Underscore emphasis matched intraword; CommonMark deliberately doesn't. Caught by the pre-merge code review of #16. | Word-boundary `\b` anchors on the `_`/`__` alternatives only; `*` emphasis stays intraword-capable. | unit: `internal/web` `TestRenderMarkdown` "intraword underscore stays literal" / "double intraword underscore stays literal" |
 
 ## Testing notes (gotchas that bit us)
 
@@ -32,13 +33,26 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
   it increased), never a fixed value.
 - The demo must be **self-contained**: anything a browser test drives (forge
   rows, models, effort) has to be seeded in `-demo` mode, not assumed on disk.
+- **Go's `regexp` is RE2 — no backreferences.** A pattern like `([-*_])( *\1){2,}`
+  panics at `MustCompile` ("invalid escape sequence: \1"). For repeated-char
+  matching (e.g. the markdown horizontal rule), scan the string directly
+  (`isHR()` in `internal/web/markdown.go`) instead of a backreference.
+
+## Dead-ends (tried/considered, rejected — don't redo)
+
+| Approach | Why it failed / was rejected | Do instead |
+|----------|------------------------------|------------|
+| Client-side markdown (JS web component + sanitizer) | Makes rendering browser-only-testable, undercutting the core "reduce + project, unit-tested with no browser" goal; needs a vendored JS lib + client sanitization. | Server-side safe-subset renderer, escape-first. See [ADR 0001](adr/0001-render-markdown-server-side-for-committed-agent-turns.md). |
+| Markdown via `gomarkdown` + `bluemonday` | Pulls transitive deps (x/net, aho-corasick, css) into a localhost single-user tool for a bounded need. | In-house subset renderer; zero deps. See ADR 0001. |
+| Client-side state reducer (SPA framework) | Duplicates the transcript reducer client-side + forces a JSON API and build chain. | Server owns all state; htmx projects SSE fragments. |
+| Dual frontend (keep TUI alongside web) | Two reducers/renderers to maintain. | Hard cut — `internal/tui` deleted; web is the only frontend. |
+| htmx from a CDN | Offline/single-binary tool can't depend on a CDN. | Vendor htmx + htmx-ext-sse under `internal/web/static/`. |
 
 ## Known gaps (fixed behavior, not yet guarded — or not yet built)
 
 These are tracked in the project roadmap memory; listed here so the lack of a
 guard is visible.
 
-- **Markdown rendering** — deferred (not built). No guard yet.
 - **Editable Settings → configure the SDK from the UI** — deferred. The page is
   still read-only; no mutation guard.
 - **Session pick / start / continue** — deferred. No guard.
