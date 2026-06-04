@@ -38,4 +38,10 @@ func TestSeedForgePreservesExisting(t *testing.T) {
 	if len(f.Skills) != 1 || f.Skills[0].ID != "mine" {
 		t.Errorf("seedForge should not overwrite existing skills: %+v", f.Skills)
 	}
+	// Backfilling agents onto a forge that already had skills must stay valid: the
+	// seeded builder agent must not pin a skill (tdd) that was never seeded, or
+	// -seed's forge.Save() would fail Validate on a dangling reference.
+	if err := f.Validate(); err != nil {
+		t.Errorf("partial-seed forge should remain valid: %v", err)
+	}
 }
