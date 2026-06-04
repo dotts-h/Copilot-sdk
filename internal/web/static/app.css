@@ -255,6 +255,7 @@ button.add:hover { border-color: var(--accent); color: var(--accent); }
 .form-actions button[type=submit] { background: var(--accent); color: #1b1d1e; }
 .form-actions .cancel { background: var(--panel); color: var(--dim); }
 p.error { color: var(--bad); margin: 0 0 .6rem; }
+p.ok { color: var(--good); margin: 0 0 .6rem; }
 
 /* slash-command autocomplete menu */
 .cmd-menu-wrap { max-width: 56rem; margin: 0 auto; position: relative; }
