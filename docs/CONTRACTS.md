@@ -147,6 +147,14 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   overrides (`DefaultPriceBook`). `TelemetryConfig.WarnFraction` (soft-warn threshold,
   `[0,1]`) and `TelemetryConfig.HardCapCredits` (absolute credit ceiling, `>= 0`,
   `0` = off) back the budget guardrails. — see [ADR-0008](adr/0008-budget-guardrails-soft-warn-and-hard-cap-gate.md)
+  `Config.KeyBindings` (`keyBindings`, omitempty) holds per-action keyboard-shortcut
+  **overrides** keyed by action id; the rebindable action set is fixed in code
+  (`config.KeyActions()` — ordered `{id, label, default}`), and `Config.Keymap()`
+  resolves the effective key per action (override-or-default). `Validate` enforces a
+  known action id, a single-character key, and no duplicate key across actions.
+  Surfaced in the help overlay + Settings form; edited through `editConfig`
+  (rollback-on-invalid). Older files (no `keyBindings`) read clean.
+  — see [ADR-0014](adr/0014-keybinding-surface-config-backed-keymap-with-minimal-js-dispatch.md)
 - **`telemetry.SpendStore`** / **`telemetry.SpendRecord`** (`history.go`): the persisted
   spend ledger at `<configDir>/spend.json`. On-disk shape is a versioned envelope
   `{"version":1,"records":[…]}`; each record is

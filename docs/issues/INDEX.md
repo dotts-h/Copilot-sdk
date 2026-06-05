@@ -10,7 +10,7 @@ issues are added or closed.
 |----|-------|--------|----------|
 | [0001](0001-epic-cost-awareness.md) | Epic: make cost active (Tier 1) | closed | 0002, 0003, 0004 |
 | [0005](0005-epic-orchestration.md) | Epic: make it an orchestra (Tier 2) | closed | 0006, 0010 |
-| [0007](0007-epic-polish.md) | Epic: polish that compounds (Tier 3) | open | 0008, 0009 |
+| [0007](0007-epic-polish.md) | Epic: polish that compounds (Tier 3) | open | 0008, 0009, 0011 |
 
 ## Issues
 
@@ -23,3 +23,4 @@ issues are added or closed.
 | [0008](0008-per-session-telemetry-totals.md) | Per-session telemetry totals (item 3.2) | closed | medium | 0007 | ADR-0011 |
 | [0009](0009-diff-review-lane.md) | Diff review lane (item 3.1) | closed | medium | 0007 | ADR-0012 |
 | [0010](0010-multi-agent-run-handoff.md) | Multi-agent run / handoff surface (item 2.1) | closed | high | 0005 | ADR-0013 |
+| [0011](0011-keybinding-surface.md) | Keybinding surface (item 3.3) | closed | low | 0007 | ADR-0014 |

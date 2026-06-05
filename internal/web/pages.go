@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/dotts-h/copilot-sdk/internal/config"
 	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
@@ -51,16 +52,45 @@ func (s *Server) renderPage(slug string) string {
 	case "settings":
 		return s.settingsPartial()
 	case "help":
-		return helpPartial()
+		return s.helpPartial()
 	default:
 		return s.chatPartial()
 	}
 }
 
-// helpPartial renders the static Help/reference page: how the panels work and
-// the full set of composer slash commands. It is the discoverability surface
-// behind /help in the composer.
-func helpPartial() string {
+// renderShortcuts renders the keyboard-shortcuts table (key → action) shared by
+// the Help page and the help overlay. Keys and labels are HTML-escaped; the
+// non-rebindable Esc-closes-overlay convention is appended as a fixed row.
+func renderShortcuts(keymap []config.ResolvedKey) string {
+	var b strings.Builder
+	b.WriteString(`<table class="kv shortcuts">`)
+	for _, k := range keymap {
+		b.WriteString(`<tr><th><kbd>` + esc(k.Key) + `</kbd></th><td>` + esc(k.Label) + `</td></tr>`)
+	}
+	b.WriteString(`<tr><th><kbd>Esc</kbd></th><td>Close the shortcuts overlay</td></tr>`)
+	b.WriteString(`</table>`)
+	return b.String()
+}
+
+// helpOverlay renders the body-level keyboard-shortcuts overlay (hidden until
+// the bound key opens it). It lives in the page shell so it works across htmx
+// navigation; the keymap is the live, config-resolved set.
+func helpOverlay(keymap []config.ResolvedKey) string {
+	return `<div id="help-overlay" class="overlay" hidden role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">` +
+		`<div class="overlay-card"><h2>Keyboard shortcuts</h2>` +
+		renderShortcuts(keymap) +
+		`<p class="dim">Shortcuts are ignored while you're typing in a field. Customise them on the Settings page.</p>` +
+		`<button type="button" class="overlay-close" onclick="toggleHelpOverlay(false)">Close</button></div></div>`
+}
+
+// helpPartial renders the static Help/reference page: how the panels work, the
+// composer slash commands, and the keyboard shortcuts. It is the discoverability
+// surface behind /help in the composer.
+func (s *Server) helpPartial() string {
+	s.hub.forgeMu.Lock()
+	keymap := s.config.Keymap()
+	s.hub.forgeMu.Unlock()
+
 	cmd := func(name, desc string) string {
 		return `<tr><th><code>` + esc(name) + `</code></th><td>` + esc(desc) + `</td></tr>`
 	}
@@ -100,7 +130,13 @@ func helpPartial() string {
 	for _, r := range rows {
 		fmt.Fprintf(&b, `<tr><th>%s</th><td>%s</td></tr>`, esc(r[0]), esc(r[1]))
 	}
-	b.WriteString(`</table></section>`)
+	b.WriteString(`</table>`)
+
+	b.WriteString(`<h3>Keyboard shortcuts</h3>`)
+	b.WriteString(`<p class="dim">Press these anywhere outside a text field; the overlay also opens with its key. Customise them on the Settings page.</p>`)
+	b.WriteString(renderShortcuts(keymap))
+
+	b.WriteString(`</section>`)
 	return b.String()
 }
 

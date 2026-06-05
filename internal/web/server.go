@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
@@ -128,9 +129,13 @@ func (s *Server) broadcastSendFailure(err error) {
 
 // indexData is the data for the page shell.
 type indexData struct {
-	Nav  []navItem
-	Cost template.HTML
-	Main template.HTML
+	Nav     []navItem
+	Cost    template.HTML
+	Main    template.HTML
+	Overlay template.HTML
+	// KeymapJSON is the action→key map the frontend dispatcher reads from
+	// <body data-keymap>; html/template escapes it in the attribute context.
+	KeymapJSON string
 }
 
 type navItem struct {
@@ -142,10 +147,20 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	for i, p := range pageNames {
 		nav[i] = navItem{Slug: p.slug, Label: p.label}
 	}
+	s.hub.forgeMu.Lock()
+	keymap := s.config.Keymap()
+	s.hub.forgeMu.Unlock()
+	dispatch := make(map[string]string, len(keymap))
+	for _, k := range keymap {
+		dispatch[k.ID] = k.Key
+	}
+	keymapJSON, _ := json.Marshal(dispatch) // map marshals with sorted keys → deterministic
 	data := indexData{
-		Nav:  nav,
-		Cost: template.HTML(renderCostFooter(s.meter, s.budget())), //nolint:gosec // internally rendered, escaped via esc()
-		Main: template.HTML(s.chatPartial()),                       //nolint:gosec // internally rendered, escaped via esc()
+		Nav:        nav,
+		Cost:       template.HTML(renderCostFooter(s.meter, s.budget())), //nolint:gosec // internally rendered, escaped via esc()
+		Main:       template.HTML(s.chatPartial()),                       //nolint:gosec // internally rendered, escaped via esc()
+		Overlay:    template.HTML(helpOverlay(keymap)),                   //nolint:gosec // internally rendered, escaped via esc()
+		KeymapJSON: string(keymapJSON),
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := pageTemplates.ExecuteTemplate(w, "index", data); err != nil {

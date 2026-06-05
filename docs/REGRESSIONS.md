@@ -142,6 +142,25 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
   (committed lane output via the server-side markdown renderer; names/detail via
   `richtext`/`html/template` auto-escaping), per ADR-0001. Guarded by
   `internal/web` `TestWorkflowLanesEscapeModelText`.
+- **Keyboard shortcuts are config-backed and dispatched client-side, but the
+  keymap is computed server-side.** The rebindable action set is fixed in code
+  (`config.KeyActions()`); only overrides persist (`Config.KeyBindings`,
+  omitempty). `handleIndex` renders the resolved action→key map onto `<body
+  data-keymap>` (JSON, auto-escaped) and the body-level `#help-overlay`; a small
+  `keydown` handler dispatches it. **Two guards the handler must keep:** ignore
+  keystrokes when the target is an `INPUT`/`TEXTAREA`/`SELECT`/contenteditable
+  (so typing the bound chars in the composer is text, not actions — `e2e/tests/
+  keybindings.spec.ts` "ignored while typing"), and ignore ctrl/meta/alt-modified
+  keys. **Validation is pure** (`config.validateKeyBindings`): single-char key,
+  known action id, no duplicate key — a colliding bind is rolled back by
+  `editConfig`, never half-applied (`internal/web` `TestSettingsSaveRejectsDuplicateKey`).
+  A rebind applies on the **next full page load** (TECH_DEBT #13), so an e2e test
+  must reload to observe a saved keymap — the specs only *read* shared config, so
+  no `afterEach` reset is needed (cf. the shared-config gotcha). Esc-closes-overlay
+  is a **fixed convention, not a binding**. Guarded by `internal/config`
+  `TestKeymap*`/`TestKeyBinding*`, `internal/web` `TestIndexRendersKeymapAndOverlay`/
+  `TestHelpPageListsShortcuts`/`TestSettingsFormHasKeybindingFields`/
+  `TestSettingsSaveAppliesKeybindingOverride`.
 - **Go's `regexp` is RE2 — no backreferences.** A pattern like `([-*_])( *\1){2,}`
   panics at `MustCompile` ("invalid escape sequence: \1"). For repeated-char
   matching (e.g. the markdown horizontal rule), scan the string directly

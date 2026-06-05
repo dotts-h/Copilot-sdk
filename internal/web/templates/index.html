@@ -8,7 +8,7 @@
   <script src="/static/htmx.min.js" defer></script>
   <script src="/static/htmx-ext-sse.js" defer></script>
 </head>
-<body hx-ext="sse" sse-connect="/events">
+<body hx-ext="sse" sse-connect="/events" data-keymap="{{.KeymapJSON}}">
   <header class="topbar">
     <span class="brand">my-orchestra</span>
     <nav class="nav">
@@ -38,6 +38,8 @@
     <div sse-swap="cost"     hx-target="#cost-footer" hx-swap="innerHTML"></div>
   </div>
 
+  {{.Overlay}}
+
   <script>
     // fillCmd places a chosen slash command into the composer and clears the
     // autocomplete menu, leaving a trailing space ready for arguments.
@@ -49,6 +51,81 @@
       if (menu) menu.innerHTML = '';
       input.focus();
     }
+
+    // --- keyboard shortcuts (item 3.3) ---
+    // The server renders the active action→key map onto <body data-keymap>; we
+    // build the reverse (key→action) and dispatch on keydown. Shortcuts are
+    // ignored while a text field is focused (so typing in the composer is never
+    // hijacked) and while a control/meta/alt modifier is held; Esc always closes
+    // the overlay. The overlay lives in the page shell, so it survives htmx swaps.
+    var keyToAction = {};
+    try {
+      var km = JSON.parse(document.body.dataset.keymap || '{}');
+      for (var action in km) { keyToAction[km[action]] = action; }
+    } catch (e) { /* a malformed keymap simply leaves shortcuts off */ }
+
+    function toggleHelpOverlay(show) {
+      var o = document.getElementById('help-overlay');
+      if (!o) return;
+      if (show === undefined) show = o.hidden;
+      o.hidden = !show;
+      // Move focus into the dialog on open so Esc/Tab work and a screen reader
+      // lands on it; on close, return focus to the composer if it's present.
+      if (show) {
+        var close = o.querySelector('.overlay-close');
+        if (close) close.focus();
+      } else {
+        var input = document.querySelector('#composer input[name=prompt]');
+        if (input) input.focus();
+      }
+    }
+
+    function navClick(slug) {
+      var a = document.querySelector('.nav a[hx-get="/page/' + slug + '"]');
+      if (a) a.click();
+    }
+
+    function runShortcut(action) {
+      switch (action) {
+        case 'help':
+          toggleHelpOverlay();
+          break;
+        case 'focusComposer': {
+          var input = document.querySelector('#composer input[name=prompt]');
+          if (input) { input.focus(); } else { navClick('chat'); }
+          break;
+        }
+        case 'newChat':
+          if (window.htmx) htmx.ajax('POST', '/sessions/new', { target: '#main', swap: 'innerHTML' });
+          break;
+        case 'abort': {
+          var stop = document.querySelector('#status .abort');
+          if (stop) stop.click();
+          break;
+        }
+        case 'gotoTelemetry': navClick('telemetry'); break;
+        case 'gotoSettings': navClick('settings'); break;
+      }
+    }
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        var o = document.getElementById('help-overlay');
+        if (o && !o.hidden) { toggleHelpOverlay(false); e.preventDefault(); }
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      var t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      var action = keyToAction[e.key];
+      if (!action) return;
+      // While the modal overlay is open, only its own toggle fires — other
+      // bound keys must not act on the page behind it (aria-modal).
+      var o = document.getElementById('help-overlay');
+      if (o && !o.hidden && action !== 'help') return;
+      e.preventDefault();
+      runShortcut(action);
+    });
 
     // Tick every live elapsed-time timer in the status line once a second. The
     // server stamps each active status with data-start (epoch ms); when the turn
