@@ -77,17 +77,38 @@ multiple agents. The product is named for orchestration it doesn't yet expose.
   the seam (`Send`/session lifecycle for sub-runs), `internal/web` (lanes,
   a workflow page). Record the model as an ADR before building.
 
-### 2.2 MCP server management page  — **M**
+### 2.2 MCP server management page + curated defaults  — **M**
 - **What:** Skills/Instructions/Agents have full CRUD pages; **MCP servers do
   not** — `settings.go:15` says outright they "are not exposed here," yet
   `ctxforge.MCPServer` is a first-class forge entity that `Compile` already wires
   into the session. Add the nav page + add/edit/toggle/delete, mirroring the
-  existing forge-CRUD pattern and validated builders.
+  existing forge-CRUD pattern and validated builders. **And** ship a curated set
+  of well-known servers baked in by default.
+- **Bake-in approach (decided):** seed a handful of well-known stdio servers
+  (filesystem, git, fetch, …) into the forge **disabled by default**, plus a
+  **preflight** that checks whether each server's `Command` resolves on `PATH`
+  (`exec.LookPath`) and marks the unavailable ones in the UI instead of letting
+  them fail at session start.
+  - **Why disabled + preflight, not just a config seed:** MCP servers here are
+    **stdio = external processes** (`MCPStdioServerConfig`, `sdkclient.go:145`),
+    so a seeded `npx …` entry still needs the command present on the host. Auto-
+    enabling would surprise-fail when node/the binary is absent and clashes with
+    the project's offline single-binary value (htmx is vendored precisely to
+    avoid runtime fetches). Seeding *config* is cheap; baking in *capability*
+    without the host dep is a separate, larger move — see the follow-up below.
+  - **Secrets caveat:** the highest-value servers (web fetch/search, GitHub) need
+    API keys. `MCPServer.Env` exists but there's no secrets UI/handling; the
+    curated defaults should prefer key-free servers, and a secrets story is its
+    own scoped item before shipping key-requiring ones.
+  - **Follow-up (not now):** embed a first-party Go MCP server (sidecar exec or,
+    if the SDK ever exposes non-stdio registration, in-process) for a true
+    out-of-the-box baseline with no external runtime. Tracked, not built.
 - **Why now:** it's the one forge entity with no UI; MCP is how users extend the
   agent's tools, so this unblocks real customization. Lowest-novelty, high-utility.
 - **Touches:** `internal/web/pages.go` (nav + the e2e `pages.length` count —
   see REGRESSIONS testing note), `forms.go`, new routes in `hub.go`, CONTRACTS
-  route table. Reuses the rollback-on-invalid save path.
+  route table; `cmd/my-orchestra` `seedForge` (curated entries) + a preflight
+  helper (`exec.LookPath`). Reuses the rollback-on-invalid save path.
 
 ## Tier 3 — polish that compounds
 
