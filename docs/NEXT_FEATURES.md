@@ -66,16 +66,21 @@ Subagent events (`EvSubagentStart/End`) are already normalized and rendered as
 background activity, but there is **no control surface** to compose or run
 multiple agents. The product is named for orchestration it doesn't yet expose.
 
-### 2.1 Multi-agent run / handoff surface  — **L**
-- **What:** Define a small workflow — pick an agent, hand off to another on
-  completion, or fan out to parallel agents — and watch each as its own lane in
-  the timeline (the subagent rendering is the seed). Start with sequential
-  handoff (lowest risk), then parallel.
-- **Why now:** differentiates from a plain chat UI and cashes the name; the
-  forge already compiles distinct agent personas deterministically.
-- **Touches:** `internal/ctxforge` (a workflow/handoff type + `Validate`),
-  the seam (`Send`/session lifecycle for sub-runs), `internal/web` (lanes,
-  a workflow page). Record the model as an ADR before building.
+### 2.1 Multi-agent run / handoff surface  — **L** ✅ shipped (ADR-0013, issue 0010)
+- **What:** A forge **Workflow** (an ordered list of (agent, task) steps + a
+  `mode`) runs as **lanes**: pick an agent, hand off to the next on completion
+  (sequential), or fan out to parallel agents — each watched as its own lane in a
+  dedicated `#lanes` panel on the chat page (the subagent rendering was the seed).
+- **Shipped:** `ctxforge.Workflow`/`WorkflowStep` (pure type + `Validate` +
+  whole-forge step→agent referential integrity + `CompileWorkflow`), a pure
+  `workflowRun` state machine (unit-tested for both modes, no client), a Workflows
+  CRUD nav page with a **▶ run** control, lanes routed by `SessionID` (sole-running
+  fallback for the mock), per-lane metered cost, and a seeded sequential demo
+  workflow. **Sequential ships fully; parallel is in the model/engine/wiring** with
+  the demo covering sequential (TECH_DEBT #12). Lead-with-an-ADR done: ADR-0013.
+- **Touched:** `internal/ctxforge` (`workflow.go`), the seam
+  (`CreateSession`/`Send` per step), `internal/web` (`workflow.go`, the run-branch
+  in `session.go`, lanes templates/CSS), `bootstrap` seed + `demo.go`.
 
 ### 2.2 MCP server management page + curated defaults  — **M** ✅ shipped (ADR-0010, issue 0006)
 - **What:** Skills/Instructions/Agents have full CRUD pages; **MCP servers do
@@ -167,8 +172,15 @@ config; surface via the autocomplete that already powers slash commands.
    3.1 ✅ shipped (ADR-0012): a file-write permission renders an inline diff review
    lane (collapsible, side-numbered, diffstat) with approve/reject on the existing
    `/perm` flow; the diff is parsed by a pure `parseUnifiedDiff` and escaped. 2.1 next.
-4. **2.1 (orchestration)** — the big bet; do it once 1.x has hardened the
-   multi-run cost accounting it will lean on, and lead with an ADR.
+4. ~~**2.1 (orchestration)** — the big bet; do it once 1.x has hardened the
+   multi-run cost accounting it will lean on, and lead with an ADR.~~ ✅ shipped
+   (ADR-0013): a forge **Workflow** runs as **lanes** — sequential handoff (each
+   lane's output feeds the next) or parallel fan-out — each a sub-run on the seam's
+   session lifecycle, watched in a `#lanes` panel; per-lane cost folds into the
+   existing meters/ledger. Sequential is end-to-end (demo + e2e); parallel is in the
+   model/engine (TECH_DEBT #12). **End of the current roadmap** — remaining Tier-3
+   polish (3.3 keybinding surface, 3.4 prompt/snippet library) or a fresh research
+   pass are the next candidates.
 
 Each item: write the failing test first, keep domain logic pure, run
 `make lint && make test` (coverage floor 65%), and fold its ADR/CONTRACTS/

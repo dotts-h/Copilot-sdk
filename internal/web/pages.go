@@ -22,6 +22,7 @@ var pageNames = []struct{ slug, label string }{
 	{"skills", "Skills"},
 	{"instructions", "Instructions"},
 	{"agents", "Agents"},
+	{"workflows", "Workflows"},
 	{"mcp", "MCP"},
 	{"models", "Models"},
 	{"settings", "Settings"},
@@ -41,6 +42,8 @@ func (s *Server) renderPage(slug string) string {
 		return s.instructionsPartial()
 	case "agents":
 		return s.agentsPartial()
+	case "workflows":
+		return s.workflowsPartial()
 	case "mcp":
 		return s.mcpServersPartial()
 	case "models":
@@ -123,6 +126,7 @@ func (s *Server) chatPartial() string {
 	}
 	ctx := renderCtx(s.ctxCurrent, s.ctxLimit, s.compacting)
 	subagents := renderSubagents(s.subagents)
+	lanes := renderLanes(s.run)
 	statline := renderStatline(s)
 	budget := s.renderGate()
 	s.mu.Unlock()
@@ -131,7 +135,8 @@ func (s *Server) chatPartial() string {
 		"Timeline": trusted(timeline), "Perms": trusted(perms.String()),
 		"Asks": trusted(asks.String()), "Plans": trusted(plans.String()),
 		"Elicits": trusted(elicits.String()), "Subagents": trusted(subagents),
-		"Ctx": trusted(ctx), "Statline": trusted(statline), "Budget": trusted(budget),
+		"Lanes": trusted(lanes),
+		"Ctx":   trusted(ctx), "Statline": trusted(statline), "Budget": trusted(budget),
 	})
 }
 

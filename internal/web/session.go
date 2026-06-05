@@ -29,6 +29,12 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// While a multi-agent workflow run is in flight, its sub-runs' events feed the
+	// lanes surface (item 2.1) rather than the main chat transcript.
+	if s.run != nil && !s.run.done {
+		return s.handleRunEvent(s.run, e)
+	}
+
 	switch e.Type {
 	case copilot.EvMessageDelta:
 		prev := s.live
