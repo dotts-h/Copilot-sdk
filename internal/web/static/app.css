@@ -258,6 +258,12 @@ ul.rows { list-style: none; margin: 0; padding: 0; }
 .row .toggle .off { color: var(--dim); } /* a11y: --subtle fails WCAG AA contrast on --bg */
 .row .edit:hover { color: var(--accent); }
 .row .del:hover { color: var(--bad); }
+/* MCP preflight: a server whose command isn't on PATH is dimmed and badged so a
+   disabled-by-default curated entry never surprise-fails at session start. */
+.row.unavailable .row-name { color: var(--dim); }
+.badge { font-size: .7rem; padding: 0 .35rem; border-radius: 4px; vertical-align: middle;
+  border: 1px solid var(--subtle); color: var(--dim); }
+.badge.warn { border-color: var(--warn); color: var(--warn); }
 
 button.abort { background: none; border: 1px solid var(--bad); color: var(--bad); border-radius: 6px;
   padding: .1rem .5rem; cursor: pointer; font: inherit; font-size: .85rem; margin-left: .5rem; }

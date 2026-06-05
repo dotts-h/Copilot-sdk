@@ -435,3 +435,21 @@ func TestSessionErrorFallback(t *testing.T) {
 		t.Fatalf("empty session error = %q", got)
 	}
 }
+
+func TestMCPServerKey(t *testing.T) {
+	// ID is the key when set.
+	if got := (MCPServer{ID: "git", Name: "Git"}).Key(); got != "git" {
+		t.Errorf("Key() with ID = %q, want \"git\"", got)
+	}
+	// Falls back to Name for legacy callers that set no ID.
+	if got := (MCPServer{Name: "Git"}).Key(); got != "Git" {
+		t.Errorf("Key() without ID = %q, want \"Git\"", got)
+	}
+	// Two servers with the same (or empty) Name still key distinctly by ID, so
+	// neither can silently overwrite the other in the SDK MCP-config map.
+	a := MCPServer{ID: "a", Name: ""}
+	b := MCPServer{ID: "b", Name: ""}
+	if a.Key() == b.Key() {
+		t.Errorf("empty-Name servers must key distinctly: %q == %q", a.Key(), b.Key())
+	}
+}

@@ -192,6 +192,46 @@ test.describe("forge management", () => {
   });
 });
 
+test.describe("MCP server management", () => {
+  // The demo seeds the curated stdio servers DISABLED by default; the page lists
+  // them and supports add/toggle/edit/delete like the other forge entities. The
+  // preflight "unavailable" badge depends on what's installed on the CI host, so
+  // assert on structure (rows, toggle state, add), never on badge presence.
+  test("lists curated servers and toggles one on", async ({ page }) => {
+    await gotoApp(page);
+    await navTo(page, "MCP");
+    await expect(page.locator("#main h2")).toContainText("MCP");
+    const firstRow = page.locator(sel.rows).first();
+    await expect(firstRow).toBeVisible();
+    // Curated entries are seeded disabled; enabling flips the row's on-state.
+    const wasOn = (await firstRow.getAttribute("class"))?.includes("on");
+    await firstRow.locator(".toggle").click();
+    await expect
+      .poll(async () => {
+        const cls = (await page.locator(sel.rows).first().getAttribute("class")) ?? "";
+        return cls.includes("on");
+      })
+      .toBe(!wasOn);
+  });
+
+  test("adds a new MCP server through the form", async ({ page }) => {
+    await gotoApp(page);
+    await navTo(page, "MCP");
+    const before = await page.locator(sel.rows).count();
+    await page.locator(`#main button.add`).click();
+    await expect(page.locator(`#main form[hx-post="/mcp"]`)).toBeVisible();
+    // Unique id so reruns against the shared demo session don't collide.
+    const id = `e2e-${Date.now()}`;
+    await page.fill(`#main input[name="id"]`, id);
+    await page.fill(`#main input[name="name"]`, "E2E server");
+    await page.fill(`#main input[name="command"]`, "echo");
+    await page.locator(`#main button[type=submit]`).click();
+    // Back on the list with the new row present.
+    await expect(page.locator(sel.rows)).toHaveCount(before + 1);
+    await expect(page.locator("#main")).toContainText("E2E server");
+  });
+});
+
 test.describe("slash commands", () => {
   test("typing '/' opens the command autocomplete menu", async ({ page }) => {
     await gotoApp(page);

@@ -39,8 +39,12 @@ type Server struct {
 	allowance    float64
 	warnFraction float64 // soft-warn threshold as a fraction of the allowance
 	hardCap      float64 // hard credit ceiling; 0 disables the gate
-	logger       *log.Logger
-	demo         bool
+	// lookPath resolves an MCP server command on PATH for the MCP page preflight,
+	// isolating the one impurity behind a seam (defaults to exec.LookPath; tests
+	// inject a fake).
+	lookPath func(string) (string, error)
+	logger   *log.Logger
+	demo     bool
 
 	mu          sync.Mutex
 	spec        copilot.SessionSpec // per-session model/effort (mutable via /model, /agent)
@@ -580,12 +584,12 @@ func (s *Server) handleAgentSelect(w http.ResponseWriter, r *http.Request) {
 	if err := s.config.Save(); err != nil {
 		s.logger.Printf("save config: %v", err)
 	}
-	model, effort, sysMsg, tools := s.compiledSpec(compileID)
+	c := s.compiledSpec(compileID)
 	s.hub.forgeMu.Unlock()
 	// Compile the agent's full persona (system message + instructions + skill
-	// prompts) plus model/effort/tool-allowlist into the live spec and restart the
-	// session so the selection takes effect on the next prompt.
-	s.applyAgentSpec(model, effort, sysMsg, tools)
+	// prompts) plus model/effort/tool-allowlist + enabled MCP servers into the live
+	// spec and restart the session so the selection takes effect on the next prompt.
+	s.applyAgentSpec(c)
 	s.writePartial(w, s.agentsPartial())
 }
 

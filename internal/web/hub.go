@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os/exec"
 	"sync"
 
 	"github.com/dotts-h/copilot-sdk/internal/config"
@@ -36,6 +37,10 @@ type Hub struct {
 	logger       *log.Logger
 	demo         bool
 	workdir      string // base dir scanned by "import project instructions"
+	// lookPath resolves an MCP server command on PATH for the page preflight. It is
+	// the one impurity in the otherwise-pure forge rendering, isolated behind this
+	// seam so tests can inject a fake; defaults to exec.LookPath.
+	lookPath func(string) (string, error)
 
 	// forgeMu serializes mutation of (and reads against mutation of) the shared
 	// forge and config across all sessions.
@@ -85,6 +90,7 @@ func New(opts Options) *Hub {
 		client: opts.Client, forge: opts.Forge, config: opts.Config, meter: opts.Meter, spend: opts.Spend,
 		allowance: allowance, warnFraction: warnFraction, hardCap: hardCap,
 		baseSpec: opts.Spec, logger: lg, demo: opts.Demo, workdir: workdir,
+		lookPath: exec.LookPath,
 		sessions: map[string]*Server{}, byCopilot: map[string]*Server{},
 	}
 	go h.pump()
@@ -98,7 +104,8 @@ func (h *Hub) newSession(id string) *Server {
 		hub: h, id: id,
 		client: h.client, forge: h.forge, config: h.config, meter: h.meter, spend: h.spend,
 		allowance: h.allowance, warnFraction: h.warnFraction, hardCap: h.hardCap,
-		logger: h.logger, demo: h.demo,
+		lookPath: h.lookPath,
+		logger:   h.logger, demo: h.demo,
 		spec:           h.baseSpec,
 		sessionStartMs: nowMs(),
 		subs:           make(map[chan fragment]struct{}),
@@ -226,6 +233,13 @@ func (h *Hub) Handler() http.Handler {
 	route("POST /agents/{id}", (*Server).handleAgentUpdate)
 	route("POST /agents/{id}/select", (*Server).handleAgentSelect)
 	route("POST /agents/{id}/delete", (*Server).handleAgentDelete)
+
+	route("GET /mcp/new", (*Server).handleMCPServerNew)
+	route("GET /mcp/{id}/edit", (*Server).handleMCPServerEdit)
+	route("POST /mcp", (*Server).handleMCPServerCreate)
+	route("POST /mcp/{id}", (*Server).handleMCPServerUpdate)
+	route("POST /mcp/{id}/toggle", (*Server).handleMCPServerToggle)
+	route("POST /mcp/{id}/delete", (*Server).handleMCPServerDelete)
 
 	route("POST /sessions/new", (*Server).handleSessionNew)
 	route("POST /sessions/{id}/resume", (*Server).handleSessionResume)

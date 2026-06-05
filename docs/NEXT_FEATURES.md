@@ -77,7 +77,7 @@ multiple agents. The product is named for orchestration it doesn't yet expose.
   the seam (`Send`/session lifecycle for sub-runs), `internal/web` (lanes,
   a workflow page). Record the model as an ADR before building.
 
-### 2.2 MCP server management page + curated defaults  — **M**
+### 2.2 MCP server management page + curated defaults  — **M** ✅ shipped (ADR-0010, issue 0006)
 - **What:** Skills/Instructions/Agents have full CRUD pages; **MCP servers do
   not** — `settings.go:15` says outright they "are not exposed here," yet
   `ctxforge.MCPServer` is a first-class forge entity that `Compile` already wires
@@ -148,7 +148,9 @@ config; surface via the autocomplete that already powers slash commands.
 
 1. **1.2 → 1.1 → 1.3** — turn cost from a gauge into a guardrail-and-ledger; this
    is the product's reason to exist and every piece reuses existing primitives.
-2. **2.2 (MCP page)** — closes the one missing forge CRUD; small and unblocking.
+2. ~~**2.2 (MCP page)** — closes the one missing forge CRUD; small and unblocking.~~
+   ✅ shipped (ADR-0010): MCP nav page + add/edit/toggle/delete, curated stdio
+   servers seeded disabled with an `exec.LookPath` preflight badging unavailable ones.
 3. **3.2 + 3.1** — per-session totals and the diff lane; visible polish.
 4. **2.1 (orchestration)** — the big bet; do it once 1.x has hardened the
    multi-run cost accounting it will lean on, and lead with an ADR.

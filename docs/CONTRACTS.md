@@ -36,6 +36,10 @@ no SDK import is allowed on the consumer side (see CONVENTIONS architecture rule
 **`SessionSpec`** (`copilot.go:198`): `Model, ReasoningEffort, SystemMessage, Streaming,
 AutoApproveTools, MCPServers, AllowedTools`. `AllowedTools` empty = all tools; otherwise maps
 to the SDK session's `AvailableTools`. — see [ADR-0003](adr/0003-claude-cli-style-agents-built-in-chat-agent-and-per-agent-tool-allowlist.md)
+`MCPServers` carries the forge's **enabled** servers (compiled in, translated via
+`web.MCPServerSpecs`); each `copilot.MCPServer` registers under its unique `Key()`
+(its `ID`, or `Name` for legacy callers) so a non-unique `Name` can't collide in the
+SDK config map. — see [ADR-0010](adr/0010-mcp-server-management-page-curated-defaults-disabled-with-preflight.md)
 
 ## 2. Normalized event vocabulary — `EventType` (`Ev*`)
 
@@ -72,11 +76,15 @@ for the streaming/turn routes (`/events`, `/send`, the `/perm|ask|plan|elicit/{i
 | Skills | `GET /skills/new` · `GET /skills/{id}/edit` · `POST /skills` · `POST /skills/{id}` · `POST /skills/{id}/toggle` · `POST /skills/{id}/delete` |
 | Instructions | `POST /instructions/import` · `GET /instructions/new` · `GET /instructions/{id}/edit` · `POST /instructions` · `POST /instructions/{id}` · `POST /instructions/{id}/toggle` · `POST /instructions/{id}/delete` |
 | Agents | `GET /agents/new` · `GET /agents/{id}/edit` · `POST /agents` · `POST /agents/{id}` · `POST /agents/{id}/select` · `POST /agents/{id}/delete` |
+| MCP servers | `GET /mcp/new` · `GET /mcp/{id}/edit` · `POST /mcp` · `POST /mcp/{id}` · `POST /mcp/{id}/toggle` · `POST /mcp/{id}/delete` |
 | Sessions | `POST /sessions/new` · `POST /sessions/{id}/resume` · `POST /sessions/{id}/delete` |
 | Settings | `POST /settings` · `POST /models/{id}/select` · `POST /effort/{value}/select` |
 
 `/instructions/import`, `/agents/{id}/select`, and the `/sessions/*` routes are the
 phase-2–4 additions. — see [ADR-0002](adr/0002-restore-sdk-session-resume-for-session-pick-start-continue.md), [ADR-0003](adr/0003-claude-cli-style-agents-built-in-chat-agent-and-per-agent-tool-allowlist.md)
+
+The `/mcp…` group (item 2.2) closes MCP-server CRUD, the last forge entity without
+a UI; it mirrors the skills/agents routes. — see [ADR-0010](adr/0010-mcp-server-management-page-curated-defaults-disabled-with-preflight.md)
 
 `POST /budget/{action}` (`action` ∈ {proceed, raise, cancel}) resolves a turn the
 hard cap paused before `Send`: **proceed** dispatches the held prompt and keeps the
@@ -97,8 +105,13 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
 - **`ctxforge.Agent`** (`types.go:45`): `id, name, description, model, reasoningEffort`
   (low|medium|high|xhigh), `systemMessage?`, `skills?` (skill IDs always activated),
   `allowedTools?` (empty = all). — see [ADR-0003](adr/0003-claude-cli-style-agents-built-in-chat-agent-and-per-agent-tool-allowlist.md)
-- **`ctxforge.Skill`** (`types.go:22`), **`ctxforge.Instruction`** (`types.go:35`),
-  **`ctxforge.MCPServer`** (`types.go:77`).
+- **`ctxforge.Skill`** (`types.go:22`), **`ctxforge.Instruction`** (`types.go:35`).
+- **`ctxforge.MCPServer`** (`types.go:77`): `id, name, command, args?, env?, enabled`.
+  A stdio server: `command`+`args` are exec'd by the runtime (`MCPStdioServerConfig`).
+  Managed via the MCP page (validated builders, rollback-on-invalid). `env` is **not**
+  edited in the UI (no secrets surface yet) but is preserved across edits. Curated
+  defaults are seeded **disabled** and key-free; the page preflights `command` on
+  `PATH`. — see [ADR-0010](adr/0010-mcp-server-management-page-curated-defaults-disabled-with-preflight.md)
 - **`config.Config`** / **`config.TelemetryConfig`** (`config.go`): user settings + pricing
   overrides (`DefaultPriceBook`). `TelemetryConfig.WarnFraction` (soft-warn threshold,
   `[0,1]`) and `TelemetryConfig.HardCapCredits` (absolute credit ceiling, `>= 0`,

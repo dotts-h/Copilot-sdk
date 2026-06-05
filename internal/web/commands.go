@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/dotts-h/copilot-sdk/internal/convo"
+	"github.com/dotts-h/copilot-sdk/internal/copilot"
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
 
@@ -263,9 +264,9 @@ func (s *Server) cmdAgent(arg string) string {
 		}
 		// Compile with no agent so global instructions and enabled skills still
 		// reach the session, just without an agent persona.
-		model, effort, sysMsg, tools := s.compiledSpec("")
+		c := s.compiledSpec("")
 		s.hub.forgeMu.Unlock()
-		s.applyAgentSpec(model, effort, sysMsg, tools)
+		s.applyAgentSpec(c)
 		return s.systemNote("agent cleared (new session)")
 	}
 
@@ -280,47 +281,58 @@ func (s *Server) cmdAgent(arg string) string {
 	if err := s.config.Save(); err != nil {
 		s.logger.Printf("save config: %v", err)
 	}
-	model, effort, sysMsg, tools := s.compiledSpec(agent.ID)
+	c := s.compiledSpec(agent.ID)
 	s.hub.forgeMu.Unlock()
 
-	shown := s.applyAgentSpec(model, effort, sysMsg, tools)
+	shown := s.applyAgentSpec(c)
 	return s.systemNote("agent → " + name + " (" + shown + ", new session)")
 }
 
-// compiledSpec compiles the forge for agentID and returns the model, effort,
-// compiled system message (agent persona + enabled instructions + active skill
-// prompts), and tool allowlist to apply to the session. Model/effort fall back to
-// the config defaults when the compiled spec leaves them empty — the built-in chat
-// agent and the no-agent case carry no model of their own. The caller must hold
-// s.hub.forgeMu.
-func (s *Server) compiledSpec(agentID string) (model, effort, systemMessage string, tools []string) {
+// compiledForge holds the forge-compiled session inputs for one agent selection:
+// the model/effort, the system message (agent persona + enabled instructions +
+// active skill prompts), the tool allowlist, and the enabled MCP servers.
+type compiledForge struct {
+	model, effort, systemMessage string
+	tools                        []string
+	mcpServers                   []copilot.MCPServer
+}
+
+// compiledSpec compiles the forge for agentID into the session inputs to apply.
+// Model/effort fall back to the config defaults when the compiled spec leaves them
+// empty — the built-in chat agent and the no-agent case carry no model of their
+// own. The caller must hold s.hub.forgeMu.
+func (s *Server) compiledSpec(agentID string) compiledForge {
 	cspec, err := s.forge.Compile(agentID)
 	if err != nil {
 		s.logger.Printf("compile agent %q: %v", agentID, err)
 	}
-	model, effort = cspec.Model, cspec.ReasoningEffort
-	if model == "" {
-		model = s.config.DefaultModel
+	c := compiledForge{
+		model: cspec.Model, effort: cspec.ReasoningEffort,
+		systemMessage: cspec.SystemMessage, tools: cspec.AllowedTools,
+		mcpServers: MCPServerSpecs(cspec.MCPServers),
 	}
-	if effort == "" {
-		effort = s.config.ReasoningEffort
+	if c.model == "" {
+		c.model = s.config.DefaultModel
 	}
-	return model, effort, cspec.SystemMessage, cspec.AllowedTools
+	if c.effort == "" {
+		c.effort = s.config.ReasoningEffort
+	}
+	return c
 }
 
-// applyAgentSpec applies a compiled model/effort/system-message/tool-allowlist to
-// this session's spec and restarts the session. An empty model leaves the current
-// one; a non-empty model overrides it. Returns the resulting model for status
-// messages.
-func (s *Server) applyAgentSpec(model, effort, systemMessage string, allowedTools []string) string {
+// applyAgentSpec applies a compiled forge to this session's spec and restarts the
+// session. An empty model leaves the current one; a non-empty model overrides it.
+// Returns the resulting model for status messages.
+func (s *Server) applyAgentSpec(c compiledForge) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if model != "" {
-		s.spec.Model = model
+	if c.model != "" {
+		s.spec.Model = c.model
 	}
-	s.spec.ReasoningEffort = effort
-	s.spec.SystemMessage = systemMessage
-	s.spec.AllowedTools = allowedTools
+	s.spec.ReasoningEffort = c.effort
+	s.spec.SystemMessage = c.systemMessage
+	s.spec.AllowedTools = c.tools
+	s.spec.MCPServers = c.mcpServers
 	s.sessionID = ""
 	return s.spec.Model
 }

@@ -34,6 +34,7 @@ export const pages = [
   { slug: "skills", label: "Skills", landmark: "h2" },
   { slug: "instructions", label: "Instructions", landmark: "h2" },
   { slug: "agents", label: "Agents", landmark: "h2" },
+  { slug: "mcp", label: "MCP", landmark: "h2" },
   { slug: "models", label: "Models", landmark: "h2" },
   { slug: "settings", label: "Settings", landmark: "h2" },
   { slug: "help", label: "Help", landmark: "h2" },

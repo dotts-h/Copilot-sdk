@@ -125,6 +125,47 @@ func TestSeedForgePopulatesEmptyForge(t *testing.T) {
 	}
 }
 
+// SeedForge must seed a curated set of well-known stdio MCP servers, all
+// DISABLED by default (item 2.2 / ADR-0010): seeding config is cheap, but
+// enabling a stdio server whose binary is absent would surprise-fail at session
+// start, so the user opts in after the page preflight confirms availability.
+func TestSeedForgeSeedsMCPServersDisabled(t *testing.T) {
+	f := &ctxforge.Forge{}
+	SeedForge(f)
+
+	if len(f.MCPServers) == 0 {
+		t.Fatal("SeedForge should seed curated MCP servers")
+	}
+	for _, m := range f.MCPServers {
+		if m.Enabled {
+			t.Errorf("curated MCP server %q must be seeded disabled by default", m.ID)
+		}
+		if m.Command == "" {
+			t.Errorf("curated MCP server %q must carry a command", m.ID)
+		}
+		// Curated defaults must be key-free (no secrets UI yet — ADR-0010).
+		if len(m.Env) != 0 {
+			t.Errorf("curated MCP server %q must not require env/secrets, got %+v", m.ID, m.Env)
+		}
+	}
+	if err := f.Validate(); err != nil {
+		t.Errorf("seeded forge with MCP servers should be valid: %v", err)
+	}
+}
+
+// SeedForge backfills MCP servers independently: a forge that already has some is
+// left untouched.
+func TestSeedForgePreservesExistingMCPServers(t *testing.T) {
+	f := &ctxforge.Forge{}
+	if err := f.AddMCPServer(ctxforge.MCPServer{ID: "mine", Name: "Mine", Command: "my-cmd"}); err != nil {
+		t.Fatal(err)
+	}
+	SeedForge(f)
+	if len(f.MCPServers) != 1 || f.MCPServers[0].ID != "mine" {
+		t.Errorf("SeedForge should not overwrite existing MCP servers: %+v", f.MCPServers)
+	}
+}
+
 // SeedForge backfills only empty kinds, so an existing forge is never clobbered.
 func TestSeedForgePreservesExisting(t *testing.T) {
 	f := &ctxforge.Forge{}
