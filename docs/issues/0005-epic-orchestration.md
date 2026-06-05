@@ -1,14 +1,14 @@
 ---
 id: 0005
 title: "Epic: make it an orchestra (Tier 2)"
-status: open
+status: closed
 severity: high
 group:
 github:
 links:
   adr:
   prs: []
-  issues: [0006]
+  issues: [0006, 0010]
   regression:
 assets: []
 ---
@@ -26,15 +26,19 @@ passive surfaces into active control surfaces: the missing forge-CRUD page, and
       (ADR-0010). The last forge entity with no UI: an MCP nav page with
       add/edit/toggle/delete, curated stdio servers seeded **disabled** with an
       `exec.LookPath` preflight badging unavailable ones.
-- [ ] **2.1 — Multi-agent run / handoff surface** — the big bet; sequential
-      handoff first, then parallel lanes. Lead with an ADR. Do after Tier-3 polish
-      (3.2 + 3.1) per the recommended sequencing.
+- [x] **2.1 — Multi-agent run / handoff surface** → [0010](0010-multi-agent-run-handoff.md)
+      (ADR-0013). A forge **Workflow** runs as **lanes**: sequential handoff (each
+      lane's output feeds the next) or parallel fan-out, each a sub-run on the seam's
+      session lifecycle, watched in a `#lanes` panel. Pure `Workflow` type +
+      `Validate` + `CompileWorkflow`; pure `workflowRun` engine; Workflows CRUD page
+      with a ▶ run control; per-lane metered cost. Sequential end-to-end (demo +
+      e2e); parallel in the model/engine (TECH_DEBT #12).
 
 ## Status
 
-2.2 shipped (closes the forge-CRUD gap). 2.1 deferred per sequencing
-(… → 2.2 → 3.2 → 3.1 → 2.1) until the Tier-3 polish and the cost accounting it
-leans on have hardened.
+**Epic complete.** 2.2 closed the forge-CRUD gap; 2.1 ships the orchestration
+surface that cashes the product's name. Remaining roadmap candidates are Tier-3
+polish (3.3 / 3.4) or a fresh research pass.
 
 ## Notes
 

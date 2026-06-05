@@ -246,6 +246,44 @@ test.describe("MCP server management", () => {
   });
 });
 
+test.describe("multi-agent workflows", () => {
+  // The demo seeds a sequential "Build & harden" workflow (builder → sdet).
+  // Running it streams each step as a lane on the chat page; the scripted demo
+  // lanes complete quickly so the run reaches the finished state.
+  test("runs the seeded workflow as streaming lanes that finish", async ({ page }) => {
+    await gotoApp(page);
+    await navTo(page, "Workflows");
+    await expect(page.locator("#main h2")).toContainText("Workflows");
+    const row = page.locator(sel.rows, { hasText: "Build & harden" });
+    await expect(row).toBeVisible();
+    await row.locator("button.run").click();
+
+    // The run lands on the chat page with the lanes panel.
+    await expect(page.locator("#composer")).toBeVisible();
+    await expect(page.locator(`${sel.lanes} .workflow-run`)).toBeVisible();
+    await expect(page.locator(`${sel.lanes} .lane`).first()).toBeVisible();
+    // Both lanes settle and the run reports finished.
+    await expect(page.locator(`${sel.lanes} .run-status.done`)).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator(`${sel.lanes} .lane-done`).first()).toBeVisible();
+  });
+
+  test("adds a workflow through the form", async ({ page }) => {
+    await gotoApp(page);
+    await navTo(page, "Workflows");
+    const before = await page.locator(sel.rows).count();
+    await page.locator(`#main button.add`).click();
+    await expect(page.locator(`#main form[hx-post="/workflows"]`)).toBeVisible();
+    // Unique id so reruns against the shared demo session don't collide.
+    const id = `e2e-wf-${Date.now()}`;
+    await page.fill(`#main input[name="id"]`, id);
+    await page.fill(`#main input[name="name"]`, "E2E flow");
+    await page.fill(`#main textarea[name="steps"]`, "builder: do the thing");
+    await page.locator(`#main button[type=submit]`).click();
+    await expect(page.locator(sel.rows)).toHaveCount(before + 1);
+    await expect(page.locator("#main")).toContainText("E2E flow");
+  });
+});
+
 test.describe("slash commands", () => {
   test("typing '/' opens the command autocomplete menu", async ({ page }) => {
     await gotoApp(page);

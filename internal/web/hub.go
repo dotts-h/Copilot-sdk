@@ -247,6 +247,13 @@ func (h *Hub) Handler() http.Handler {
 	route("POST /mcp/{id}/toggle", (*Server).handleMCPServerToggle)
 	route("POST /mcp/{id}/delete", (*Server).handleMCPServerDelete)
 
+	route("GET /workflows/new", (*Server).handleWorkflowNew)
+	route("GET /workflows/{id}/edit", (*Server).handleWorkflowEdit)
+	route("POST /workflows", (*Server).handleWorkflowCreate)
+	route("POST /workflows/{id}", (*Server).handleWorkflowUpdate)
+	route("POST /workflows/{id}/run", (*Server).handleWorkflowRun)
+	route("POST /workflows/{id}/delete", (*Server).handleWorkflowDelete)
+
 	route("POST /sessions/new", (*Server).handleSessionNew)
 	route("POST /sessions/{id}/resume", (*Server).handleSessionResume)
 	route("POST /sessions/{id}/delete", (*Server).handleSessionDelete)

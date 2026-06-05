@@ -22,6 +22,7 @@ export const sel = {
   elicits: "#elicits",
   budget: "#budget",
   subagents: "#subagents",
+  lanes: "#lanes",
   cmdMenu: "#cmd-menu",
   rows: ".rows .row",
 } as const;
@@ -34,6 +35,7 @@ export const pages = [
   { slug: "skills", label: "Skills", landmark: "h2" },
   { slug: "instructions", label: "Instructions", landmark: "h2" },
   { slug: "agents", label: "Agents", landmark: "h2" },
+  { slug: "workflows", label: "Workflows", landmark: "h2" },
   { slug: "mcp", label: "MCP", landmark: "h2" },
   { slug: "models", label: "Models", landmark: "h2" },
   { slug: "settings", label: "Settings", landmark: "h2" },

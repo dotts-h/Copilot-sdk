@@ -19,6 +19,7 @@ type Forge struct {
 	Instructions []Instruction `json:"instructions"`
 	Agents       []Agent       `json:"agents"`
 	MCPServers   []MCPServer   `json:"mcpServers"`
+	Workflows    []Workflow    `json:"workflows,omitempty"`
 }
 
 const forgeFile = "forge.json"
@@ -87,6 +88,9 @@ func (f *Forge) Validate() error {
 	if err := uniqueIDs("mcpServer", len(f.MCPServers), func(i int) string { return f.MCPServers[i].ID }); err != nil {
 		return err
 	}
+	if err := uniqueIDs("workflow", len(f.Workflows), func(i int) string { return f.Workflows[i].ID }); err != nil {
+		return err
+	}
 	for _, s := range f.Skills {
 		if err := s.Validate(); err != nil {
 			return err
@@ -110,6 +114,16 @@ func (f *Forge) Validate() error {
 	for _, m := range f.MCPServers {
 		if err := m.Validate(); err != nil {
 			return err
+		}
+	}
+	for _, w := range f.Workflows {
+		if err := w.Validate(); err != nil {
+			return err
+		}
+		for i, st := range w.Steps {
+			if f.Agent(st.AgentID) == nil {
+				return fmt.Errorf("workflow %q step %d references unknown agent %q", w.ID, i+1, st.AgentID)
+			}
 		}
 	}
 	return nil

@@ -15,3 +15,5 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0009 | [Persisted spend history: an append-only, atomically-written ledger](0009-persisted-spend-history-append-only-ledger.md) | accepted |
 | 0010 | [MCP server management page: curated defaults, disabled-by-default, with a PATH preflight](0010-mcp-server-management-page-curated-defaults-disabled-with-preflight.md) | accepted |
 | 0011 | [Per-session telemetry meter for the statusline](0011-per-session-telemetry-meter-for-the-statusline.md) | accepted |
+| 0012 | [Diff review lane for file-write permissions](0012-diff-review-lane-for-file-write-permissions.md) | accepted |
+| 0013 | [Multi-agent workflow run / handoff surface](0013-multi-agent-workflow-run-handoff-surface.md) | accepted |

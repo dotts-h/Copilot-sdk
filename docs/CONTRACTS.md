@@ -84,6 +84,7 @@ for the streaming/turn routes (`/events`, `/send`, the `/perm|ask|plan|elicit/{i
 | Instructions | `POST /instructions/import` · `GET /instructions/new` · `GET /instructions/{id}/edit` · `POST /instructions` · `POST /instructions/{id}` · `POST /instructions/{id}/toggle` · `POST /instructions/{id}/delete` |
 | Agents | `GET /agents/new` · `GET /agents/{id}/edit` · `POST /agents` · `POST /agents/{id}` · `POST /agents/{id}/select` · `POST /agents/{id}/delete` |
 | MCP servers | `GET /mcp/new` · `GET /mcp/{id}/edit` · `POST /mcp` · `POST /mcp/{id}` · `POST /mcp/{id}/toggle` · `POST /mcp/{id}/delete` |
+| Workflows | `GET /workflows/new` · `GET /workflows/{id}/edit` · `POST /workflows` · `POST /workflows/{id}` · `POST /workflows/{id}/run` · `POST /workflows/{id}/delete` |
 | Sessions | `POST /sessions/new` · `POST /sessions/{id}/resume` · `POST /sessions/{id}/delete` |
 | Settings | `POST /settings` · `POST /models/{id}/select` · `POST /effort/{value}/select` |
 
@@ -92,6 +93,14 @@ phase-2–4 additions. — see [ADR-0002](adr/0002-restore-sdk-session-resume-fo
 
 The `/mcp…` group (item 2.2) closes MCP-server CRUD, the last forge entity without
 a UI; it mirrors the skills/agents routes. — see [ADR-0010](adr/0010-mcp-server-management-page-curated-defaults-disabled-with-preflight.md)
+
+The `/workflows…` group (item 2.1) is workflow CRUD (mirroring agents) plus
+`POST /workflows/{id}/run`, which **starts a multi-agent run**: it compiles the
+workflow's steps into one `SessionSpec` each and launches them as **lanes** —
+sequential handoff (each lane's output feeds the next) or parallel fan-out — each a
+sub-run on the seam's `CreateSession`/`Send` lifecycle. Run progress streams over
+the `lanes` SSE event; the run response lands the user on the chat page where the
+`#lanes` panel renders. — see [ADR-0013](adr/0013-multi-agent-workflow-run-handoff-surface.md)
 
 `POST /budget/{action}` (`action` ∈ {proceed, raise, cancel}) resolves a turn the
 hard cap paused before `Send`: **proceed** dispatches the held prompt and keeps the
@@ -125,6 +134,15 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   edited in the UI (no secrets surface yet) but is preserved across edits. Curated
   defaults are seeded **disabled** and key-free; the page preflights `command` on
   `PATH`. — see [ADR-0010](adr/0010-mcp-server-management-page-curated-defaults-disabled-with-preflight.md)
+- **`ctxforge.Workflow`** / **`ctxforge.WorkflowStep`** (`workflow.go`): a multi-agent
+  run. `Workflow` is `{id, name, description, mode, steps}` where `mode` ∈
+  {`sequential`, `parallel`} (`""` reads as sequential); each `WorkflowStep` is
+  `{agentId, prompt}`. Persisted under the additive `workflows` key on `forge.json`
+  (omitempty, so older files read clean). `Validate` enforces id slug, name, a valid
+  mode, ≥1 step, and each step's agent+prompt; **whole-forge Validate** additionally
+  enforces step→agent referential integrity (the `agentId` must resolve, the built-in
+  `chat` agent included), like agent→skill. `CompileWorkflow` reuses `Compile` to
+  produce a `SessionSpec` per step, deterministically. — see [ADR-0013](adr/0013-multi-agent-workflow-run-handoff-surface.md)
 - **`config.Config`** / **`config.TelemetryConfig`** (`config.go`): user settings + pricing
   overrides (`DefaultPriceBook`). `TelemetryConfig.WarnFraction` (soft-warn threshold,
   `[0,1]`) and `TelemetryConfig.HardCapCredits` (absolute credit ceiling, `>= 0`,

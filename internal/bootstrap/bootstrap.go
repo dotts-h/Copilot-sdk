@@ -244,6 +244,19 @@ func SeedForge(forge *ctxforge.Forge) {
 				Model: "claude-sonnet-4.6", ReasoningEffort: "high"},
 		)
 	}
+	if len(forge.Workflows) == 0 && forge.Agent("builder") != nil && forge.Agent("sdet") != nil {
+		// A representative sequential handoff: the Builder implements, then the SDET
+		// hardens its output. Only seeded when both agents exist, so referential
+		// integrity holds under any partial state (mirrors the tdd-skill guard above).
+		_ = forge.AddWorkflow(ctxforge.Workflow{
+			ID: "build-and-harden", Name: "Build & harden", Mode: ctxforge.WorkflowSequential,
+			Description: "Builder implements a change, then SDET hardens it with tests.",
+			Steps: []ctxforge.WorkflowStep{
+				{AgentID: "builder", Prompt: "Implement the requested change."},
+				{AgentID: "sdet", Prompt: "Review and harden the previous step with adversarial tests."},
+			},
+		})
+	}
 	if len(forge.MCPServers) == 0 {
 		// Curated, well-known stdio MCP servers, seeded DISABLED by default (ADR
 		// 0010). All are key-free (no secrets UI yet) and external processes, so the

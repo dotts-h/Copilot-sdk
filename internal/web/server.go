@@ -64,14 +64,15 @@ type Server struct {
 	mode        string                  // agent mode for outgoing prompts: "" | "plan" | "autopilot" | "interactive"
 	live        liveKind
 	sessionID   string
-	pending     []string    // file paths queued via /attach for the next prompt
-	busy        bool        // a turn is in flight; further prompts are queued
-	queue       []string    // prompts typed while busy, drained in order on turn end
-	turnStartMs int64       // epoch ms the active turn began (drives the elapsed timer); 0 when idle
-	ctxCurrent  int64       // last context-window token reading (EvContextWindow)
-	ctxLimit    int64       // context-window size from the last reading
-	compacting  bool        // conversation compaction is in progress
-	gate        *budgetGate // a turn paused on the hard cap (nil when none pending)
+	pending     []string     // file paths queued via /attach for the next prompt
+	busy        bool         // a turn is in flight; further prompts are queued
+	queue       []string     // prompts typed while busy, drained in order on turn end
+	turnStartMs int64        // epoch ms the active turn began (drives the elapsed timer); 0 when idle
+	ctxCurrent  int64        // last context-window token reading (EvContextWindow)
+	ctxLimit    int64        // context-window size from the last reading
+	compacting  bool         // conversation compaction is in progress
+	gate        *budgetGate  // a turn paused on the hard cap (nil when none pending)
+	run         *workflowRun // an active/just-finished multi-agent workflow run (item 2.1)
 
 	sessionStartMs int64 // epoch ms this conversation began (drives the session timer)
 	messagesSent   int64 // user prompts dispatched (statusline)
@@ -183,6 +184,16 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	// A leading "/" routes to a composer command instead of the model.
 	if strings.HasPrefix(prompt, "/") {
 		_, _ = w.Write([]byte(s.runCommand(prompt)))
+		return
+	}
+
+	// A multi-agent workflow run owns the turn; normal prompts don't queue behind
+	// it (the run drives the lanes, not the chat composer). Surface a note and bail.
+	s.mu.Lock()
+	runActive := s.run != nil && !s.run.done
+	s.mu.Unlock()
+	if runActive {
+		_, _ = w.Write([]byte(s.systemNote("a workflow is running — wait for it to finish or clear the chat (/clear)")))
 		return
 	}
 

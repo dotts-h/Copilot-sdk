@@ -80,6 +80,7 @@ func (s *Server) clearConversation() {
 	s.plans = nil
 	s.elicits = nil
 	s.subagents = nil
+	s.run = nil
 	s.mode = ""
 	s.pending = nil
 	s.queue = nil
@@ -104,6 +105,7 @@ func (s *Server) cmdClear() string {
 		`<div id="plans" hx-swap-oob="innerHTML"></div>` +
 		`<div id="elicits" hx-swap-oob="innerHTML"></div>` +
 		`<div id="subagents" hx-swap-oob="innerHTML"></div>` +
+		`<div id="lanes" hx-swap-oob="innerHTML"></div>` +
 		`<div id="status" hx-swap-oob="innerHTML"></div>` +
 		`<div id="ctx" hx-swap-oob="innerHTML"></div>`
 }

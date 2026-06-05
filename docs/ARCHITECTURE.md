@@ -24,7 +24,7 @@ internal/bootstrap      shared assembly: config+forge → meter → spec → cli
 internal/web            net/http server: handlers, SSE hub, html/template partials, vendored htmx
 internal/convo          UI-agnostic transcript model: Turn · ToolView · State reducer (pure)
 internal/copilot        copilot.Client interface · SDKClient (Go SDK) · MockClient
-internal/ctxforge       Skill/Instruction/Agent/MCPServer · Forge.Compile → SessionSpec
+internal/ctxforge       Skill/Instruction/Agent/MCPServer/Workflow · Forge.Compile → SessionSpec
 internal/telemetry      PriceBook · Meter (concurrent) · Budget · Cost · AIU · SpendStore (persisted ledger)
 internal/config         Config (settings + key bindings), JSON, atomic save
 ```
@@ -178,6 +178,15 @@ SessionSpec
 
 Determinism (stable sort, ordered de-dup) means the same forge always yields the
 same context — important for reproducibility and for snapshotting in tests.
+
+A fifth entity, **Workflow**, composes agents into a multi-agent run: an ordered
+list of `WorkflowStep{AgentID, Prompt}` plus a `Mode` (sequential | parallel).
+`CompileWorkflow(id)` reuses `Compile` to produce one `SessionSpec` per step;
+the web layer runs each step as a **lane** — a sub-run on the seam's
+`CreateSession`/`Send` lifecycle, watched in a dedicated panel. Sequential mode
+hands each lane's output to the next; parallel fans them out. The run logic is a
+pure `workflowRun` state machine (`internal/web/workflow.go`), unit-tested with no
+client. See [ADR-0013](adr/0013-multi-agent-workflow-run-handoff-surface.md).
 
 ## Web UI (htmx + SSE)
 

@@ -122,6 +122,26 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
   is deterministically covered, not raced. The demo perm has a fixed id, so (like
   the demo ask/plan/elicit forms) it accumulates across the shared session —
   browser assertions use `.last()`.
+- **A workflow run owns the turn; its sub-runs' events route to lanes, not the
+  chat transcript.** While `s.run != nil && !s.run.done`, `handleEvent` dispatches
+  to `handleRunEvent`, which attributes each event to a lane **by copilot
+  `SessionID`, falling back to the sole running lane** when the id is empty (the
+  mock/offline case, where a sequential run has exactly one lane active). So a
+  sequential run is fully testable offline; a **parallel** run needs real
+  `SessionID`s to disambiguate concurrent lanes (the `MockClient` returns one id,
+  so the offline demo/e2e drive only the sequential path — the parallel engine
+  logic is unit-tested directly). Normal `/send` is **refused with a note** during a
+  run (it doesn't queue behind the lanes), and `/clear` resets `s.run`. Adding the
+  Workflows nav page also touched the `pageNames`/e2e-`pages` count coupling (below).
+  Guarded by `internal/web` `TestRun*` (pure engine, both modes),
+  `TestWorkflowRunReducerSequential`, `TestWorkflowLanesEscapeModelText`,
+  `TestSendBlockedDuringWorkflowRun`; `internal/ctxforge` `TestCompileWorkflow`,
+  `TestForgeValidateWorkflowAgentReference`.
+- **Workflow lane text is model/forge-originated → HTML-escaped.** Agent names and a
+  lane's streamed output reach the browser through the same escaped paths as chat
+  (committed lane output via the server-side markdown renderer; names/detail via
+  `richtext`/`html/template` auto-escaping), per ADR-0001. Guarded by
+  `internal/web` `TestWorkflowLanesEscapeModelText`.
 - **Go's `regexp` is RE2 — no backreferences.** A pattern like `([-*_])( *\1){2,}`
   panics at `MustCompile` ("invalid escape sequence: \1"). For repeated-char
   matching (e.g. the markdown horizontal rule), scan the string directly
