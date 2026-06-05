@@ -238,6 +238,10 @@ func renderStatline(s *Server) string {
 			ctxPct = 100
 		}
 	}
+	// Pre-flight estimate: what the next turn would cost to resend the current
+	// context as input, so the abort decision is informed before sending. Shown
+	// only once a context reading has arrived (EvContextWindow).
+	est := s.meter.EstimateTurn(s.spec.Model, s.ctxCurrent)
 	return frag("statline", map[string]any{
 		"Model": def(s.spec.Model, "default"), "Mode": s.mode,
 		"HasCtx": s.ctxLimit > 0, "CtxPct": ctxPct,
@@ -245,6 +249,7 @@ func renderStatline(s *Server) string {
 		"In": humanTokens(in), "Out": humanTokens(out),
 		"CacheRead": humanTokens(cached), "CacheWrite": humanTokens(cacheWrite),
 		"Reasoning": humanTokens(reasoning), "Hit": hit,
+		"HasEst": s.ctxCurrent > 0, "Est": telemetry.FormatCredits(est.Credits()),
 		"Credits": telemetry.FormatCredits(totals.Credits()), "USD": telemetry.FormatUSD(totals.USD()),
 	})
 }

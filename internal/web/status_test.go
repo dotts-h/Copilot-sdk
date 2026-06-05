@@ -114,6 +114,41 @@ func TestUsageEmitsStatlineWithTokenBreakdown(t *testing.T) {
 	}
 }
 
+// statFor returns the HTML of the "stat" (statline) fragment emitted for an
+// event, or "".
+func statFor(s *Server, e copilot.Event) string {
+	for _, f := range s.handleEvent(e) {
+		if f.Event == "stat" {
+			return f.HTML
+		}
+	}
+	return ""
+}
+
+func TestStatlineShowsPreflightEstimateAtCurrentContext(t *testing.T) {
+	s, _ := newTestServer()
+	s.spec.Model = "gpt-5" // pin the model so the estimate is deterministic
+
+	// Before any context reading, there is nothing to estimate, so the statline
+	// carries no pre-flight figure.
+	if pre := statFor(s, copilot.Event{Type: copilot.EvToolStart, Tool: "shell"}); strings.Contains(pre, "next turn") {
+		t.Errorf("no estimate expected before a context reading: %q", pre)
+	}
+
+	// A context-window reading drives the estimate: 100k gpt-5 input tokens at
+	// $1.25/Mtok = $0.125 = 12.50 credits.
+	got := statFor(s, copilot.Event{
+		Type:    copilot.EvContextWindow,
+		Context: copilot.ContextInfo{CurrentTokens: 100_000, TokenLimit: 128_000},
+	})
+	if !strings.Contains(got, "~12.50 cr") {
+		t.Errorf("statline should show the pre-flight estimate ~12.50 cr: %q", got)
+	}
+	if !strings.Contains(got, "next turn") {
+		t.Errorf("statline estimate should be labelled for the next turn: %q", got)
+	}
+}
+
 func TestToolStartCountsTowardStatline(t *testing.T) {
 	s, _ := newTestServer()
 	frags := s.handleEvent(copilot.Event{Type: copilot.EvToolStart, Tool: "shell"})

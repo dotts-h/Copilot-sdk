@@ -184,6 +184,53 @@ func TestUsageTotalTokens(t *testing.T) {
 	}
 }
 
+func TestEstimateTurn(t *testing.T) {
+	pb := DefaultPriceBook()
+	// The next turn resends the current context as fresh input. gpt-5 input is
+	// $1.25/Mtok, so a 100k-token context ≈ $0.125 = 12.5 credits.
+	c := EstimateTurn(pb, "gpt-5", 100_000)
+	if !c.Matched {
+		t.Fatal("gpt-5 should match the price book")
+	}
+	approx(t, c.InputUSD, 0.125)
+	approx(t, c.CachedUSD, 0)
+	approx(t, c.OutputUSD, 0)
+	approx(t, c.USD(), 0.125)
+	approx(t, c.Credits(), 12.5)
+}
+
+func TestEstimateTurnUnknownModelUsesFallback(t *testing.T) {
+	pb := DefaultPriceBook()
+	c := EstimateTurn(pb, "totally-made-up", 1_000_000)
+	if c.Matched {
+		t.Fatal("unknown model must not report a price-book match")
+	}
+	if c.USD() <= 0 {
+		t.Fatalf("unknown model must price at the non-zero fallback, never free: %v", c.USD())
+	}
+}
+
+func TestEstimateTurnNonPositiveContextIsZero(t *testing.T) {
+	pb := DefaultPriceBook()
+	for _, toks := range []int64{0, -100} {
+		if c := EstimateTurn(pb, "gpt-5", toks); c.USD() != 0 {
+			t.Fatalf("EstimateTurn(%d tokens) = %v, want 0", toks, c.USD())
+		}
+	}
+}
+
+func TestEstimateTurnNilPriceBookIsZero(t *testing.T) {
+	if c := EstimateTurn(nil, "gpt-5", 100_000); c.USD() != 0 {
+		t.Fatalf("nil price book must price at zero, got %v", c.USD())
+	}
+}
+
+func TestMeterEstimateTurnUsesItsPriceBook(t *testing.T) {
+	m := NewMeter(DefaultPriceBook())
+	c := m.EstimateTurn("gpt-5", 100_000)
+	approx(t, c.Credits(), 12.5)
+}
+
 // FuzzPriceNeverNegativeOrNaN ensures pricing is total: no input of non-negative
 // token counts should ever yield a negative or NaN cost.
 func FuzzPriceNeverNegativeOrNaN(f *testing.F) {
