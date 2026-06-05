@@ -93,6 +93,17 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		// and the drained prompt starts a fresh turn for the elapsed timer.
 		if len(s.queue) > 0 && s.sessionID != "" {
 			next := s.queue[0]
+			// Gate the queued turn too: type-ahead must not slip an over-budget
+			// prompt past the hard cap. The just-finished turn's usage/context is
+			// already folded in, so the projection is fresh. Surface the gate over
+			// SSE (the body-level `budget` listener) instead of dispatching.
+			if projected, capped := s.overCap(); capped {
+				s.queue = s.queue[1:]
+				s.gate = &budgetGate{prompt: next, projected: projected, cap: s.hardCap}
+				s.turnStartMs = 0
+				return append(s.timelineFragments(),
+					s.budgetFrag(), s.statusFrag("over budget cap — confirm to proceed", false))
+			}
 			s.queue = s.queue[1:]
 			sid := s.sessionID
 			s.turnStartMs = nowMs()

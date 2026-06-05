@@ -161,6 +161,33 @@ func TestHardCapCancelDropsTurn(t *testing.T) {
 	}
 }
 
+func TestHardCapGatesQueuedTurnOnDrain(t *testing.T) {
+	s, mock := newTestServer()
+	s.spec.Model = "gpt-5"
+	s.hardCap = 1
+	s.ctxCurrent = 100_000
+	// Simulate a prompt typed ahead while a turn was in flight: busy, with a
+	// backing session and the prompt waiting in the queue.
+	s.busy = true
+	s.sessionID = "sess-1"
+	s.queue = []string{"queued over-budget turn"}
+
+	frags := s.handleEvent(copilot.Event{Type: copilot.EvIdle})
+
+	if len(mock.Sent) != 0 {
+		t.Fatalf("a queued over-cap turn must gate, not dispatch on drain: %v", mock.Sent)
+	}
+	if s.gate == nil || s.gate.prompt != "queued over-budget turn" {
+		t.Fatalf("draining an over-cap queued turn should record a gate: %+v", s.gate)
+	}
+	if !fragContains(frags, "budget", "exceed your budget cap") {
+		t.Errorf("drain should surface the budget gate over SSE: %+v", frags)
+	}
+	if len(s.queue) != 0 {
+		t.Errorf("the gated prompt should be removed from the queue: %v", s.queue)
+	}
+}
+
 func TestUnderCapDispatchesNormally(t *testing.T) {
 	s, mock := newTestServer()
 	s.spec.Model = "gpt-5"

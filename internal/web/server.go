@@ -644,6 +644,12 @@ func (s *Server) oobBudget() string {
 	return `<div id="budget" hx-swap-oob="innerHTML">` + s.renderGate() + `</div>`
 }
 
+// budgetFrag builds the SSE fragment that swaps the inline hard-cap gate into
+// #budget (used when a queued turn is gated on drain). Caller must hold s.mu.
+func (s *Server) budgetFrag() fragment {
+	return fragment{Event: "budget", HTML: s.renderGate()}
+}
+
 // renderGate renders the pending hard-cap gate form, or "" when none is pending.
 // Caller must hold s.mu.
 func (s *Server) renderGate() string {
