@@ -65,6 +65,14 @@ test.describe("streaming a turn", () => {
       .not.toBe(costBefore);
   });
 
+  test("the statusline shows a pre-flight cost estimate once context is known", async ({ page }) => {
+    await gotoApp(page);
+    await send(page, "spend some credits");
+    // The scripted turn emits a context-window reading; once it lands the
+    // statusline projects the next turn's cost at the current context.
+    await expect(page.locator(sel.statline)).toContainText(/next turn ~.*cr/, { timeout: 15_000 });
+  });
+
   test("the statusline shows the model and counts the message sent", async ({ page }) => {
     await gotoApp(page);
     // The demo pins the model to gpt-5, so the statusline names it from the start.

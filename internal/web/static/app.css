@@ -192,6 +192,7 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
 .stat-model { color: var(--accent2); font-weight: 600; }
 .stat-mode { color: var(--warn); text-transform: uppercase; letter-spacing: .03em;
   border: 1px solid var(--warn); border-radius: 4px; padding: 0 .3rem; }
+.stat-est { color: var(--accent); }
 .stat-cost { color: var(--fg); }
 
 /* Models page: reasoning-effort selector row. */

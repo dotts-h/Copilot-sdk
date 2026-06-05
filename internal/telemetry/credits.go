@@ -58,6 +58,19 @@ func Price(pb *PriceBook, u Usage) Cost {
 	return c
 }
 
+// EstimateTurn gives a pre-flight estimate of the next turn's cost by pricing
+// the current context-window fill as fresh input at the model's rate. Output is
+// unknown before the turn runs, so the estimate is the knowable input cost of
+// resending the accumulated context — enough to make an abort decision informed.
+// It is pure (same inputs → same Cost) and never panics: a nil price book or a
+// non-positive context prices at zero.
+func EstimateTurn(pb *PriceBook, model string, contextTokens int64) Cost {
+	if contextTokens < 0 {
+		contextTokens = 0
+	}
+	return Price(pb, Usage{Model: model, InputTokens: contextTokens})
+}
+
 // Meter accumulates usage across a session in a goroutine-safe way and exposes
 // running totals in tokens, USD, and credits. It is the single source of truth
 // for the telemetry dashboard.
@@ -162,6 +175,13 @@ func (m *Meter) ExtraTokens() (cacheWrite, reasoning int64) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.cacheWriteTokens, m.reasoningTokens
+}
+
+// EstimateTurn prices the next turn against the meter's price book. See the
+// package-level EstimateTurn for the model; the meter holds the (overridable)
+// rates so the estimate tracks any settings-page price changes.
+func (m *Meter) EstimateTurn(model string, contextTokens int64) Cost {
+	return EstimateTurn(m.pb, model, contextTokens)
 }
 
 // Totals returns the aggregate cost across all models.
