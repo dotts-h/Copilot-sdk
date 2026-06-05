@@ -88,10 +88,107 @@ func renderTimelineInner(st *convo.State) string {
 	return b.String()
 }
 
+// maxDiffLines bounds how many diff lines the review lane renders, so a huge
+// proposed change can't flood the timeline or balloon the SSE fragment. The
+// remainder is elided with a note; the full change still applies on approve.
+const maxDiffLines = 400
+
 // renderPermForm renders an inline approve/reject control for a pending
-// tool-permission request, posting the decision to /perm/{id}.
-func renderPermForm(id, detail string) string {
-	return frag("permForm", map[string]any{"ID": id, "Detail": detail})
+// tool-permission request, posting the decision to /perm/{id}. A file-write
+// request whose proposed change parses as a unified diff renders the dedicated
+// review lane (item 3.1): the file, intention, and a collapsible inline diff with
+// the approve/reject attached. Every other request (and a write with no parseable
+// diff) renders the compact one-line form. The decision binds to the same
+// /perm/{id} flow either way — the review lane is a richer affordance, not a new
+// gate (ADR-0012).
+func renderPermForm(req copilot.PermissionRequest) string {
+	if view := parseUnifiedDiff(req.Diff); view.OK {
+		return frag("permReview", map[string]any{
+			"ID": req.ID, "FileName": req.FileName, "Intention": req.Intention,
+			"Adds": view.Adds, "Dels": view.Dels,
+			"Lines": diffLineViews(view.Lines),
+		})
+	}
+	return frag("permForm", map[string]any{"ID": req.ID, "Detail": req.Detail})
+}
+
+// diffLineViews prepares parsed diff lines for the permReview template, bounding
+// the count and mapping each kind to its CSS class and gutter marker. Numbers are
+// rendered as strings ("" for the absent side) so the template stays declarative;
+// the line Text is escaped by html/template at render time.
+func diffLineViews(lines []diffLine) []map[string]any {
+	n := len(lines)
+	truncated := false
+	if n > maxDiffLines {
+		n, truncated = maxDiffLines, true
+	}
+	out := make([]map[string]any, 0, n+1)
+	for _, l := range lines[:n] {
+		out = append(out, map[string]any{
+			"Class": diffClass(l.Kind), "Marker": diffMarker(l.Kind), "Label": diffLabel(l.Kind),
+			"Old": gutterNum(l.OldNum), "New": gutterNum(l.NewNum), "Text": l.Text,
+		})
+	}
+	if truncated {
+		out = append(out, map[string]any{
+			"Class": "diff-meta", "Marker": "", "Old": "", "New": "",
+			"Text": fmt.Sprintf("… (+%d more lines — approve to apply the full change)", len(lines)-maxDiffLines),
+		})
+	}
+	return out
+}
+
+// diffClass maps a diff line kind to its row CSS class.
+func diffClass(k diffLineKind) string {
+	switch k {
+	case diffAdd:
+		return "diff-add"
+	case diffDel:
+		return "diff-del"
+	case diffHunk:
+		return "diff-hunk"
+	case diffMeta:
+		return "diff-meta"
+	default:
+		return "diff-context"
+	}
+}
+
+// diffMarker is the leading gutter glyph for a diff line kind (a redundant,
+// non-color cue so add/remove are distinguishable without relying on color).
+func diffMarker(k diffLineKind) string {
+	switch k {
+	case diffAdd:
+		return "+"
+	case diffDel:
+		return "-"
+	case diffContext:
+		return " "
+	default:
+		return ""
+	}
+}
+
+// diffLabel returns a visually-hidden prefix announcing an add/remove line to a
+// screen reader, since the +/- gutter marker (the only non-color visual cue) is
+// aria-hidden. Empty for context/hunk/meta, which read fine as-is (WCAG 1.3.1).
+func diffLabel(k diffLineKind) string {
+	switch k {
+	case diffAdd:
+		return "added "
+	case diffDel:
+		return "removed "
+	default:
+		return ""
+	}
+}
+
+// gutterNum renders a line number for the diff gutter, blank when absent (0).
+func gutterNum(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return strconv.Itoa(n)
 }
 
 // renderAskForm renders an inline ask_user prompt: the question, one submit

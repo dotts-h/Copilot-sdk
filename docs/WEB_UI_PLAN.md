@@ -22,7 +22,9 @@ removes the old 6-connection limit.
    block), collapsible.
 4. **Approval/permission is a first-class inline control**, not a modal afterthought.
 5. **Diffs get a review lane** — file writes/edits render as a diff with the
-   approve/reject affordance attached.
+   approve/reject affordance attached. *(Met: a `PermissionRequestWrite` renders a
+   collapsible, side-numbered inline unified diff with approve/reject on the
+   `/perm` flow — item 3.1, [ADR-0012](adr/0012-diff-review-lane-for-file-write-permissions.md).)*
 6. **Event-driven, not request/response** — the agent streams updates; the UI
    reflects progress continuously (AG-UI style).
 7. **Cost stays ambient** — the credit/budget meter is always visible (footer),

@@ -101,6 +101,27 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
   spec asserts on *structure* (rows, toggle state, add), not on badge presence — in
   CI `npx` may be present and `uvx` absent. Curated servers are seeded **disabled**
   precisely so an absent binary can't surprise-fail a session at start.
+- **The diff review lane keys off a hunk header, not any leading `+`/`-`.**
+  `parseUnifiedDiff` (`internal/web/diff.go`) reports `OK` only when it finds a
+  `@@ … @@` hunk header, so prose that merely starts lines with `-` (a markdown
+  bullet) or `+` can't hijack an ordinary permission summary into the review lane.
+  `renderPermForm` falls back to the compact form when `OK` is false (including a
+  write request with no parseable diff). Untrusted file content in the diff is
+  HTML-escaped by `html/template` like all model text (ADR-0001). Guarded by
+  `internal/web` `TestParseUnifiedDiffRejectsNonDiff`,
+  `TestRenderPermFormReviewLane` (asserts `&lt;old&gt;` escaping),
+  `TestRenderPermFormWriteWithoutDiffStaysCompact`.
+- **Adding a permission to the demo surfaced the reject button to the a11y scan.**
+  The diff review lane (item 3.1) added a file-write `EvPermission` to
+  `streamDemoReply`, so the a11y chat scan now sees the reject button (`.no`,
+  white-on-red) for the first time — it joins the documented destructive-control
+  contrast baseline (`KNOWN_CONTRAST_SELECTORS` in `e2e/tests/a11y.spec.ts`),
+  same family as `.abort`/`.plan-reject`/`.elicit-no`. The lane's diff body is
+  fully AA (per-line tint + `+`/`-` marker; foregrounds on AA-safe tokens, never
+  `--bad` red as text). The chat scan waits for `#perms .perm-review` so the lane
+  is deterministically covered, not raced. The demo perm has a fixed id, so (like
+  the demo ask/plan/elicit forms) it accumulates across the shared session —
+  browser assertions use `.last()`.
 - **Go's `regexp` is RE2 — no backreferences.** A pattern like `([-*_])( *\1){2,}`
   panics at `MustCompile` ("invalid escape sequence: \1"). For repeated-char
   matching (e.g. the markdown horizontal rule), scan the string directly

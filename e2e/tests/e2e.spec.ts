@@ -137,6 +137,20 @@ test.describe("inline interaction forms", () => {
     await form.locator(".elicit-ok").click();
     await expect(page.locator(sel.timeline)).toContainText("form submitted", { timeout: 10_000 });
   });
+
+  test("a file-write permission renders a diff review lane and approves", async ({ page }) => {
+    await gotoApp(page);
+    await send(page, "write a file");
+    const review = page.locator(`${sel.perms} .perm-review`).last();
+    await expect(review).toBeVisible({ timeout: 10_000 });
+    // The proposed change reads as a side-numbered inline diff with typed lines.
+    await expect(review).toContainText("internal/summary.go");
+    await expect(review.locator(".diff-line.diff-add").first()).toBeVisible();
+    await expect(review.locator(".diff-line.diff-del").first()).toBeVisible();
+    // Approve/reject post through the existing /perm flow; the server notes it.
+    await review.locator("button.ok", { hasText: "approve" }).click();
+    await expect(page.locator(sel.timeline)).toContainText("permission approved", { timeout: 10_000 });
+  });
 });
 
 test.describe("abort & type-ahead", () => {

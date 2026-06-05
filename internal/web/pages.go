@@ -110,7 +110,7 @@ func (s *Server) chatPartial() string {
 	timeline := renderTimelineInner(&s.state)
 	var perms, asks, plans, elicits strings.Builder
 	for _, p := range s.perms {
-		perms.WriteString(renderPermForm(p.ID, p.Detail))
+		perms.WriteString(renderPermForm(p))
 	}
 	for _, q := range s.inputs {
 		asks.WriteString(renderAskForm(q))

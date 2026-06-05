@@ -147,6 +147,33 @@ func TestPermResolves(t *testing.T) {
 	}
 }
 
+func TestPermissionWithDiffEmitsReviewLane(t *testing.T) {
+	s, _ := newTestServer()
+	frags := s.handleEvent(copilot.Event{Type: copilot.EvPermission,
+		Permission: &copilot.PermissionRequest{
+			ID: "w1", Kind: "write", Detail: "write file: x.go", FileName: "x.go",
+			Intention: "tweak", Diff: "@@ -1 +1 @@\n-a\n+b\n",
+		}})
+	var perm string
+	for _, f := range frags {
+		if f.Event == "perm" {
+			perm = f.HTML
+		}
+	}
+	if perm == "" {
+		t.Fatal("no perm fragment emitted")
+	}
+	for _, sub := range []string{"perm-review", "x.go", "diff-add", "diff-del", `hx-post="/perm/w1"`} {
+		if !strings.Contains(perm, sub) {
+			t.Errorf("review-lane perm fragment missing %q: %q", sub, perm)
+		}
+	}
+	// The pending request is retained so a full chat re-render rebuilds the lane.
+	if len(s.perms) != 1 || s.perms[0].Diff == "" {
+		t.Errorf("write permission not retained with diff: %+v", s.perms)
+	}
+}
+
 func TestPageRoutes(t *testing.T) {
 	s, _ := newTestServer()
 	s.forge.Skills = []ctxforge.Skill{{ID: "tdd", Name: "TDD", Enabled: true}}
