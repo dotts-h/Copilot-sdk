@@ -8,7 +8,7 @@ github:
 links:
   adr:
   prs: []
-  issues: [0008, 0009]
+  issues: [0008, 0009, 0011]
   regression:
 assets: []
 ---
@@ -30,17 +30,19 @@ surface, and a prompt/snippet library. Each reuses existing primitives. Source:
       file-write permission renders a collapsible, side-numbered **inline** unified
       diff (diffstat + intention) with approve/reject on the existing `/perm` flow;
       parsed server-side by a pure `parseUnifiedDiff` and HTML-escaped.
-- [ ] **3.3 — Keybinding surface** — a help overlay + a Settings section over the
-      existing `config.Config` key bindings.
+- [x] **3.3 — Keybinding surface** → [0011](0011-keybinding-surface.md) (ADR-0014).
+      A config-backed keymap (fixed action set + persisted overrides, pure-validated)
+      surfaced in a help overlay + the Help page + a Settings section, dispatched by
+      a small vanilla-JS `keydown` handler reading `<body data-keymap>`.
 - [ ] **3.4 — Prompt/snippet library** — saved, reusable prompts insertable from the
       composer via the slash-command autocomplete.
 
 ## Status
 
-3.2 shipped (closes TECH_DEBT #2) and 3.1 shipped (ADR-0012, the diff review
-lane). Per the recommended sequencing (… → 3.2 → 3.1 → 2.1), the next roadmap
-item is **2.1 (multi-agent run / handoff)** in Tier 2's epic 0005; 3.3 / 3.4
-remain smaller Tier-3 follow-ons under this epic.
+3.2 (ADR-0011, closes TECH_DEBT #2), 3.1 (ADR-0012, diff review lane), and 3.3
+(ADR-0014, keybinding surface) have shipped; 2.1 (multi-agent run / handoff)
+shipped under Tier-2 epic 0005 (ADR-0013). The one remaining Tier-3 follow-on
+under this epic is **3.4 (prompt/snippet library)**.
 
 ## Notes
 

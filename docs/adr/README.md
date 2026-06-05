@@ -17,3 +17,4 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0011 | [Per-session telemetry meter for the statusline](0011-per-session-telemetry-meter-for-the-statusline.md) | accepted |
 | 0012 | [Diff review lane for file-write permissions](0012-diff-review-lane-for-file-write-permissions.md) | accepted |
 | 0013 | [Multi-agent workflow run / handoff surface](0013-multi-agent-workflow-run-handoff-surface.md) | accepted |
+| 0014 | [Keybinding surface: a config-backed keymap with minimal JS dispatch](0014-keybinding-surface-config-backed-keymap-with-minimal-js-dispatch.md) | accepted |

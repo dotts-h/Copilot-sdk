@@ -72,9 +72,31 @@ func renderSettingsForm(c *config.Config, note, errMsg string) string {
 		textField("OTLP endpoint", "otlpEndpoint", c.Telemetry.OTLPEndpoint, false),
 		textField("GitHub token env var (blank = copilot CLI session)", "githubTokenEnv", c.GitHubTokenEnv, false),
 	}
+	// Keyboard shortcuts: one single-key field per rebindable action. A blank
+	// reverts to the default; Esc (close overlay) is fixed and not rebindable.
+	fields = append(fields,
+		`<h3 class="settings-subhead">Keyboard shortcuts</h3>`,
+		`<p class="dim">One key each (case-sensitive); blank reverts to the default. Esc always closes the overlay.</p>`,
+	)
+	for _, k := range c.Keymap() {
+		fields = append(fields, textField(k.Label, "key_"+k.ID, k.Key, false))
+	}
 	return frag("settingsForm", map[string]any{
 		"Fields": trusted(strings.Join(fields, "")), "Note": note, "Err": errMsg, "ForgeDir": c.ForgeDir,
 	})
+}
+
+// formHasKeyBindings reports whether the submitted form carried the keyboard-
+// shortcut section (any key_* field), so a save can distinguish "the user
+// cleared this shortcut" (present-but-blank → revert to default) from "this POST
+// didn't include the section at all" (absent → leave bindings untouched).
+func formHasKeyBindings(r *http.Request) bool {
+	for _, a := range config.KeyActions() {
+		if _, ok := r.Form["key_"+a.ID]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // handleSettingsSave applies the submitted settings, persisting on success and
@@ -98,6 +120,27 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		}
 		if v, e := strconv.ParseFloat(strings.TrimSpace(r.FormValue("hardCap")), 64); e == nil {
 			c.Telemetry.HardCapCredits = v
+		}
+		// Key bindings: store only the overrides that differ from the default; a
+		// blank or default-valued field clears the override. Validate (in Save)
+		// rejects an invalid key (multi-char) or a duplicate, rolling the edit back.
+		// Only rebuild when the form actually carried the shortcut section, so a
+		// partial POST (one that omits the key_ fields) preserves the current
+		// bindings rather than silently wiping them — same preserve-on-absent
+		// discipline as the numeric fields above.
+		if formHasKeyBindings(r) {
+			bindings := map[string]string{}
+			for _, a := range config.KeyActions() {
+				v := strings.TrimSpace(r.FormValue("key_" + a.ID))
+				if v != "" && v != a.Default {
+					bindings[a.ID] = v
+				}
+			}
+			if len(bindings) == 0 {
+				c.KeyBindings = nil
+			} else {
+				c.KeyBindings = bindings
+			}
 		}
 	})
 	if err != nil {

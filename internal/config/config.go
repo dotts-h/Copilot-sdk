@@ -34,6 +34,12 @@ type Config struct {
 	// Telemetry configures the credits dashboard.
 	Telemetry TelemetryConfig `json:"telemetry"`
 
+	// KeyBindings overrides the default keyboard shortcut for a UI action, keyed
+	// by the action id (see KeyActions). Only overrides are stored; an action
+	// absent here uses its built-in default. Edited on the Settings page and
+	// listed in the help overlay. omitempty so older files read clean.
+	KeyBindings map[string]string `json:"keyBindings,omitempty"`
+
 	// dir is the directory this config loads/saves from (not serialized).
 	dir string
 }
@@ -129,6 +135,7 @@ func (c *Config) normalize() {
 	if c.ForgeDir == "" {
 		c.ForgeDir = filepath.Join(c.dir, "forge")
 	}
+	c.normalizeKeyBindings()
 }
 
 // Validate enforces invariants the UI relies on.
@@ -149,6 +156,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Telemetry.HardCapCredits < 0 {
 		return fmt.Errorf("hardCapCredits must be >= 0")
+	}
+	if err := c.validateKeyBindings(); err != nil {
+		return err
 	}
 	return nil
 }

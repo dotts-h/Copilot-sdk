@@ -138,10 +138,18 @@ enforcement/accounting must be cumulative — the remaining ledger-derived step 
 TECH_DEBT #9). Pairs naturally with 1.3 (the persisted ledger already tags
 `SessionID`).
 
-### 3.3 Keybinding surface  — **S**
-`config.Config` already carries key bindings but they aren't surfaced or editable
-in the web UI. A help overlay (`/help` exists as a note) + a Settings section
-that reads/writes the existing schema. Low effort, good discoverability.
+### 3.3 Keybinding surface  — **S** ✅ shipped (ADR-0014, issue 0011)
+The docs claimed `config.Config` carried key bindings, but it didn't — and the
+web UI had no shortcuts at all. Shipped a real, config-backed keymap: a fixed
+ordered action set in code (`config.KeyActions()`) with persisted **overrides**
+(`Config.KeyBindings`, `omitempty`), resolved by `Config.Keymap()` and
+pure-validated (known id, single-char key, no duplicate). Surfaced three ways —
+a body-level **help overlay** (toggled by its key, closed by Esc, survives htmx
+swaps), the **Help page** shortcut table, and a **Keyboard shortcuts** section in
+Settings — and dispatched by a small vanilla-JS `keydown` handler that reads
+`<body data-keymap>`, ignores keystrokes typed into fields, and routes each
+action to an existing affordance. Escape-first throughout (ADR-0001); editing
+reuses `editConfig` rollback-on-invalid.
 
 ### 3.4 Prompt/snippet library  — **M**
 Saved, reusable prompts insertable from the composer (a lighter cousin of skills,
@@ -178,9 +186,12 @@ config; surface via the autocomplete that already powers slash commands.
    lane's output feeds the next) or parallel fan-out — each a sub-run on the seam's
    session lifecycle, watched in a `#lanes` panel; per-lane cost folds into the
    existing meters/ledger. Sequential is end-to-end (demo + e2e); parallel is in the
-   model/engine (TECH_DEBT #12). **End of the current roadmap** — remaining Tier-3
-   polish (3.3 keybinding surface, 3.4 prompt/snippet library) or a fresh research
-   pass are the next candidates.
+   model/engine (TECH_DEBT #12).
+5. **3.3 (keybinding surface)** ✅ shipped (ADR-0014): a config-backed keymap
+   (fixed action set + persisted overrides, pure-validated) surfaced in a help
+   overlay + the Help page + a Settings section, dispatched by a small vanilla-JS
+   `keydown` handler. **The validated roadmap is now down to 3.4 (prompt/snippet
+   library)** — build it next, or kick off a fresh next-features research pass.
 
 Each item: write the failing test first, keep domain logic pure, run
 `make lint && make test` (coverage floor 65%), and fold its ADR/CONTRACTS/
