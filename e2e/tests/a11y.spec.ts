@@ -17,7 +17,10 @@ const WCAG = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
 // here rather than silently passing: a contrast violation on any OTHER element
 // still fails the suite, and the dedicated test below asserts this baseline
 // still exists so the allowlist gets removed once the palette is fixed.
-const KNOWN_CONTRAST_SELECTORS = [".abort", ".plan-reject", ".elicit-no"];
+// `.no` is the permission/budget reject button (white-on-red, same family); it
+// joined the scanned set when the diff review lane (item 3.1) added a file-write
+// permission to the demo. The review lane's diff body itself is fully AA.
+const KNOWN_CONTRAST_SELECTORS = [".abort", ".plan-reject", ".elicit-no", ".no"];
 
 function isBaseline(v: any): boolean {
   if (v.id !== "color-contrast") return false;
@@ -50,8 +53,11 @@ test.describe("static pages have no WCAG A/AA violations", () => {
 test("chat page is accessible after a streamed turn (timeline + inline forms)", async ({ page }) => {
   await gotoApp(page);
   await send(page, "configure deploy");
-  // Wait for the dynamic surfaces the demo injects: tool card + an inline form.
+  // Wait for the dynamic surfaces the demo injects: tool card, the diff review
+  // lane (item 3.1), and another inline form — so the scan covers them, not the
+  // empty shell.
   await expect(page.locator(".turn.tool").last()).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator("#perms .perm-review").last()).toBeVisible({ timeout: 15_000 });
   const results = await scan(page);
   expect(results.violations, formatViolations("chat (post-turn)", results.violations)).toEqual([]);
 });

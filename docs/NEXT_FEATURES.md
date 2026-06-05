@@ -112,12 +112,16 @@ multiple agents. The product is named for orchestration it doesn't yet expose.
 
 ## Tier 3 — polish that compounds
 
-### 3.1 Diff review lane  — **M**
-WEB_UI_PLAN UX principle #5 ("diffs get a review lane") is only partially met:
-file edits render a diff inside the tool card, but approval is per-tool, not a
-dedicated review affordance. A collapsible side-by-side/inline diff with the
-approve/reject attached would make file-writing agents feel trustworthy.
-Touches `render.go` (tool result rendering) + the permission form.
+### 3.1 Diff review lane  — **M** ✅ shipped (ADR-0012, issue 0009)
+WEB_UI_PLAN UX principle #5 ("diffs get a review lane") was only partially met:
+file edits rendered as the same bare permission prompt as a shell command, even
+though the runtime hands us the proposed change. Now a file-write permission
+(`PermissionRequestWrite` carries a unified `Diff`/`FileName`/`Intention`) renders
+the **diff review lane**: a collapsible, side-numbered **inline** unified diff with
+a diffstat and the approve/reject attached, posting to the same `/perm/{id}` flow.
+The diff is parsed server-side by a pure, unit-tested `parseUnifiedDiff`
+(`internal/web/diff.go`) and HTML-escaped (ADR-0001). Inline (not side-by-side) and
+the SDK-permission seam (not a new gate) were the decisions — see ADR-0012.
 
 ### 3.2 Per-session telemetry totals  — **S/M**  *(TECH_DEBT #2)* ✅ shipped (ADR-0011, issue 0008)
 Statusline credits/tokens were meter-global, not per-session. Scoped a per-session
@@ -159,7 +163,10 @@ config; surface via the autocomplete that already powers slash commands.
    servers seeded disabled with an `exec.LookPath` preflight badging unavailable ones.
 3. **3.2 + 3.1** — per-session totals and the diff lane; visible polish.
    3.2 ✅ shipped (ADR-0011): a per-session `Meter` scopes the statusline to *this*
-   conversation; budget gauge / cap / Telemetry stay account-wide. 3.1 next.
+   conversation; budget gauge / cap / Telemetry stay account-wide.
+   3.1 ✅ shipped (ADR-0012): a file-write permission renders an inline diff review
+   lane (collapsible, side-numbered, diffstat) with approve/reject on the existing
+   `/perm` flow; the diff is parsed by a pure `parseUnifiedDiff` and escaped. 2.1 next.
 4. **2.1 (orchestration)** — the big bet; do it once 1.x has hardened the
    multi-run cost accounting it will lean on, and lead with an ADR.
 

@@ -34,6 +34,25 @@ func streamDemoReply(m *copilot.MockClient, prompt string) {
 	m.Emit(copilot.Event{Type: copilot.EvToolEnd,
 		ToolCall: &copilot.ToolCall{ID: "demo-1", Result: "hello", Success: true}})
 
+	// 2b. A file-write permission, rendered as the diff review lane (item 3.1): a
+	// collapsible inline unified diff with approve/reject attached. Nothing blocks
+	// on the decision in demo mode; submitting it exercises the /perm route.
+	m.Emit(copilot.Event{Type: copilot.EvPermission, Permission: &copilot.PermissionRequest{
+		ID: "demo-perm-1", Kind: "write", Detail: "write file: internal/summary.go",
+		FileName: "internal/summary.go", Intention: "add a Summarize helper",
+		Diff: "--- a/internal/summary.go\n" +
+			"+++ b/internal/summary.go\n" +
+			"@@ -1,4 +1,7 @@\n" +
+			" package summary\n" +
+			" \n" +
+			"-func todo() {}\n" +
+			"+// Summarize condenses text to a single line.\n" +
+			"+func Summarize(s string) string {\n" +
+			"+\treturn s\n" +
+			"+}\n",
+	}})
+	time.Sleep(120 * time.Millisecond)
+
 	// 3. An ask_user prompt (elicitation), rendered as an inline form. In demo
 	// mode nothing blocks on the answer; submitting it just exercises the route.
 	m.Emit(copilot.Event{Type: copilot.EvUserInput, Input: &copilot.InputRequest{

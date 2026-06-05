@@ -15,6 +15,11 @@
 
 * { box-sizing: border-box; }
 
+/* Visually-hidden but exposed to assistive tech (e.g. the diff lane's per-line
+   "added"/"removed" label, since the +/- marker is aria-hidden). */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
 html, body {
   margin: 0; height: 100%;
   background: var(--bg); color: var(--fg);
@@ -115,6 +120,43 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
 .perm .ok { background: var(--good); color: #1b1d1e; }
 .perm .no { background: var(--bad); color: #fff; }
 .perm .raise { background: var(--warn); color: #1b1d1e; }
+
+/* diff review lane (item 3.1): a file-write permission rendered as a collapsible
+   inline unified diff with approve/reject attached. The add/remove tint is paired
+   with a +/- gutter marker so the change is legible without relying on color
+   alone, and the diff text keeps --fg for AA contrast over the tinted rows. */
+.perm.perm-review { display: block; }
+.perm-review .review-head { display: flex; align-items: baseline; gap: .6rem; }
+.perm-review .review-q { flex: 1 1 auto; }
+.perm-review .diffstat { font-size: .82rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* --good (green) clears AA on the dark panel; the removed count stays --fg rather
+   than --bad red, which sits ~4.5:1 on these tinted backgrounds. The +/- signs and
+   the per-line tint carry the add/remove cue, so color is never the sole signal. */
+.perm-review .diffstat-add { color: var(--good); }
+.perm-review .diffstat-del { color: var(--fg); }
+.perm-review .review-intention { color: var(--dim); font-size: .9rem; margin: .3rem 0 0; }
+.perm-review details.diff { margin: .5rem 0; }
+.perm-review details.diff > summary { cursor: pointer; color: var(--dim); font-size: .85rem; }
+.diff-body { margin-top: .4rem; border-radius: 6px; overflow: auto; max-height: 24em;
+  background: var(--bg); border: 1px solid var(--panel);
+  font: .82rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.diff-line { display: flex; }
+.diff-gutter { flex: 0 0 auto; width: 3em; text-align: right; padding: 0 .4rem; color: var(--dim);
+  user-select: none; -webkit-user-select: none; }
+.diff-marker { flex: 0 0 auto; width: 1.2em; text-align: center;
+  user-select: none; -webkit-user-select: none; }
+.diff-text { flex: 1 1 auto; padding-right: .6rem; white-space: pre; }
+/* The per-line tint plus the +/- gutter marker double-encode add/remove so the
+   distinction never relies on color alone (WCAG 1.4.1). Foregrounds are kept to
+   AA-safe tokens over the tints: --good/--accent2/--dim all clear 4.5:1, and the
+   diff text inherits --fg (~12:1). The removed marker stays --fg rather than
+   --bad red, which dips to ~4.5:1 on the red tint. */
+.diff-line.diff-add { background: rgba(126,231,135,.12); }
+.diff-line.diff-add .diff-marker { color: var(--good); }
+.diff-line.diff-del { background: rgba(248,81,73,.12); }
+.diff-line.diff-hunk { background: rgba(110,168,254,.10); color: var(--accent2); }
+.diff-line.diff-meta { color: var(--dim); }
+.perm-review .review-actions { display: flex; gap: .5rem; margin-top: .35rem; }
 
 /* hard-cap budget gate: an over-budget turn paused for confirmation */
 .budget-gate-wrap:empty { display: none; }

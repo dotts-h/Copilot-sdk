@@ -426,8 +426,10 @@ func (c *SDKClient) makeHandler(sid string) func(sdk.SessionEvent) {
 func (c *SDKClient) permissionHandler() sdk.PermissionHandlerFunc {
 	return func(req sdk.PermissionRequest, inv sdk.PermissionInvocation) (rpc.PermissionDecision, error) {
 		id, ch := c.perms.begin()
+		file, intention, diff := permWriteFields(req)
 		c.emit(Event{Type: EvPermission, SessionID: inv.SessionID, Permission: &PermissionRequest{
 			ID: id, Kind: string(req.Kind()), Detail: describePermission(req),
+			FileName: file, Intention: intention, Diff: diff,
 		}})
 		select {
 		case approve := <-ch:
@@ -660,6 +662,17 @@ func describePermission(req sdk.PermissionRequest) string {
 	default:
 		return string(req.Kind())
 	}
+}
+
+// permWriteFields extracts the file name, intention, and unified diff for a
+// file-write permission request; all empty for any other request kind. It keeps
+// the write-specific payload (which feeds the diff review lane) out of the
+// generic Detail summary.
+func permWriteFields(req sdk.PermissionRequest) (file, intention, diff string) {
+	if w, ok := req.(sdk.PermissionRequestWrite); ok {
+		return w.FileName, w.Intention, w.Diff
+	}
+	return "", "", ""
 }
 
 // summarizeArgs renders a tool's arguments as a single concise line for the

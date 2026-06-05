@@ -168,7 +168,7 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		}
 		s.perms = append(s.perms, *e.Permission)
 		return []fragment{
-			{Event: "perm", HTML: renderPermForm(e.Permission.ID, e.Permission.Detail)},
+			{Event: "perm", HTML: renderPermForm(*e.Permission)},
 			s.statusFrag("permission requested", true),
 		}
 

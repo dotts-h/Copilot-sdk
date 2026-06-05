@@ -48,10 +48,17 @@ type SessionMeta struct {
 }
 
 // PermissionRequest describes a tool-permission prompt awaiting a decision.
+// For a file-write request the runtime also supplies the proposed change, so the
+// UI can render a review lane (item 3.1): FileName, a one-line Intention, and the
+// unified Diff. These are empty for non-write requests (e.g. shell), where Detail
+// alone carries the summary.
 type PermissionRequest struct {
-	ID     string
-	Kind   string
-	Detail string
+	ID        string
+	Kind      string
+	Detail    string
+	FileName  string // path being written (write requests only)
+	Intention string // human-readable description of the change (write requests only)
+	Diff      string // unified diff of the proposed change (write requests only)
 }
 
 // InputRequest describes an ask_user prompt awaiting an answer: a question, an

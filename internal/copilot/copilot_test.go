@@ -286,6 +286,35 @@ func TestSummarizeArgs(t *testing.T) {
 	}
 }
 
+func TestDescribePermission(t *testing.T) {
+	cases := []struct {
+		name string
+		req  sdk.PermissionRequest
+		want string
+	}{
+		{"shell", sdk.PermissionRequestShell{FullCommandText: "ls -la"}, "run shell: ls -la"},
+		{"write", sdk.PermissionRequestWrite{FileName: "internal/x.go"}, "write file: internal/x.go"},
+	}
+	for _, tc := range cases {
+		if got := describePermission(tc.req); got != tc.want {
+			t.Errorf("%s: describePermission = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestPermWriteFields(t *testing.T) {
+	diff := "@@ -1 +1 @@\n-old\n+new\n"
+	w := sdk.PermissionRequestWrite{FileName: "a.go", Intention: "rename var", Diff: diff}
+	f, intent, d := permWriteFields(w)
+	if f != "a.go" || intent != "rename var" || d != diff {
+		t.Errorf("write fields = %q/%q/%q, want a.go/rename var/<diff>", f, intent, d)
+	}
+	// A non-write request carries no file/diff payload.
+	if f, intent, d := permWriteFields(sdk.PermissionRequestShell{FullCommandText: "ls"}); f != "" || intent != "" || d != "" {
+		t.Errorf("non-write fields = %q/%q/%q, want all empty", f, intent, d)
+	}
+}
+
 func TestToolResultTextPrefersDetailAndSurfacesError(t *testing.T) {
 	detailed := "full diff"
 	ok := &sdk.ToolExecutionCompleteData{Success: true, Result: &sdk.ToolExecutionCompleteResult{

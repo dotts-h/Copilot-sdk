@@ -8,7 +8,7 @@ github:
 links:
   adr:
   prs: []
-  issues: [0008]
+  issues: [0008, 0009]
   regression:
 assets: []
 ---
@@ -26,9 +26,10 @@ surface, and a prompt/snippet library. Each reuses existing primitives. Source:
       (ADR-0011, TECH_DEBT #2). A per-session `telemetry.Meter` scopes the
       statusline to *this* conversation; the budget gauge / hard-cap / Telemetry
       rows stay account-wide.
-- [ ] **3.1 — Diff review lane** — a collapsible side-by-side/inline diff with the
-      approve/reject attached, so file-writing agents feel trustworthy. Touches
-      `render.go` (tool result rendering) + the permission form. Next per sequencing.
+- [x] **3.1 — Diff review lane** → [0009](0009-diff-review-lane.md) (ADR-0012). A
+      file-write permission renders a collapsible, side-numbered **inline** unified
+      diff (diffstat + intention) with approve/reject on the existing `/perm` flow;
+      parsed server-side by a pure `parseUnifiedDiff` and HTML-escaped.
 - [ ] **3.3 — Keybinding surface** — a help overlay + a Settings section over the
       existing `config.Config` key bindings.
 - [ ] **3.4 — Prompt/snippet library** — saved, reusable prompts insertable from the
@@ -36,8 +37,10 @@ surface, and a prompt/snippet library. Each reuses existing primitives. Source:
 
 ## Status
 
-3.2 shipped (closes TECH_DEBT #2). 3.1 is next per the recommended sequencing
-(… → 3.2 → 3.1 → 2.1); 3.3 / 3.4 are smaller follow-ons.
+3.2 shipped (closes TECH_DEBT #2) and 3.1 shipped (ADR-0012, the diff review
+lane). Per the recommended sequencing (… → 3.2 → 3.1 → 2.1), the next roadmap
+item is **2.1 (multi-agent run / handoff)** in Tier 2's epic 0005; 3.3 / 3.4
+remain smaller Tier-3 follow-ons under this epic.
 
 ## Notes
 

@@ -57,6 +57,13 @@ Permission*, Input*, Plan*, Elicit*, Subagent*, Err`. Pointer fields are set onl
 matching event type (e.g. `Permission` for `EvPermission`). `SessionID` is empty for
 `MockClient` events; a single-session consumer may ignore it.
 
+**`PermissionRequest`** (`copilot.go:50`): `ID, Kind, Detail` plus the write-only
+`FileName, Intention, Diff` — set from `sdk.PermissionRequestWrite` for file-write
+requests, empty for every other kind. The `Diff` (a unified diff) feeds the diff
+review lane: `web.renderPermForm` renders the richer `permReview` form when the
+diff parses, falling back to the compact form otherwise. Additive/backward-compatible.
+— see [ADR-0012](adr/0012-diff-review-lane-for-file-write-permissions.md)
+
 **Invariant:** every SDK-event → normalized-`Event` mapping has a test; `EvUnknown` is the
 total fallback (no SDK event is dropped silently).
 
@@ -91,6 +98,12 @@ hard cap paused before `Send`: **proceed** dispatches the held prompt and keeps 
 cap, **raise** lifts (disables) and persists the cap then dispatches, **cancel**
 drops the turn. It is an **app-level** gate, not an SDK permission — distinct from
 `/perm/{id}` despite reusing the inline-form look. — see [ADR-0008](adr/0008-budget-guardrails-soft-warn-and-hard-cap-gate.md)
+
+`POST /perm/{id}` answers a file-write permission identically whether it renders
+as the compact form or the **diff review lane** (item 3.1): both post `approve=1|0`
+to the same route. The review lane is a richer affordance on the existing seam,
+**not** a new gate — distinct from `/budget/{action}` above, which is app-level
+because it pauses before `Send`. — see [ADR-0012](adr/0012-diff-review-lane-for-file-write-permissions.md)
 
 `GET /telemetry/export.csv` streams the full persisted spend ledger as a CSV
 attachment (header `at,session,model,input,cached,output,usd,credits,aiu`; one row
