@@ -132,6 +132,43 @@ func TestBudget(t *testing.T) {
 	}
 }
 
+func TestBudgetWarned(t *testing.T) {
+	b := Budget{AllowanceCredits: 1000, WarnFraction: 0.8}
+	if b.Warned(799) {
+		t.Error("under the soft threshold should not warn")
+	}
+	if !b.Warned(800) {
+		t.Error("at the soft threshold should warn (>=)")
+	}
+	if !b.Warned(1200) {
+		t.Error("over the allowance should warn")
+	}
+
+	// A zero allowance or zero warn fraction disables the soft warn entirely, so a
+	// missing budget never nags.
+	if (Budget{AllowanceCredits: 0, WarnFraction: 0.8}).Warned(50) {
+		t.Error("no allowance should disable the soft warn")
+	}
+	if (Budget{AllowanceCredits: 1000, WarnFraction: 0}).Warned(999) {
+		t.Error("zero warn fraction should disable the soft warn")
+	}
+}
+
+func TestBudgetCapExceeded(t *testing.T) {
+	b := Budget{HardCapCredits: 100}
+	if b.CapExceeded(100) {
+		t.Error("projected spend at the cap is allowed (strict >)")
+	}
+	if !b.CapExceeded(100.01) {
+		t.Error("projected spend over the cap must be flagged")
+	}
+
+	// A zero cap disables the hard ceiling, so nothing is ever gated.
+	if (Budget{HardCapCredits: 0}).CapExceeded(1e6) {
+		t.Error("zero cap should disable the hard ceiling")
+	}
+}
+
 func TestMeterConcurrentSafe(t *testing.T) {
 	m := NewMeter(DefaultPriceBook())
 	var wg sync.WaitGroup

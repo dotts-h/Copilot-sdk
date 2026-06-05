@@ -41,7 +41,7 @@ func TestSettingsPageRendersEditableForm(t *testing.T) {
 		`<form`, `hx-post="/settings"`,
 		`name="defaultModel"`, `value="gpt-5"`,
 		`name="reasoningEffort"`, `name="streaming"`, `name="autoApproveTools"`,
-		`name="allowance"`, `name="warnPercent"`, `name="otlpEndpoint"`,
+		`name="allowance"`, `name="warnPercent"`, `name="hardCap"`, `name="otlpEndpoint"`,
 		`name="githubTokenEnv"`,
 	} {
 		if !strings.Contains(body, sub) {
@@ -63,6 +63,7 @@ func TestSettingsSavePersistsAndApplies(t *testing.T) {
 		"autoApproveTools": {"on"},
 		"allowance":        {"3000"},
 		"warnPercent":      {"75"},
+		"hardCap":          {"500"},
 		"otlpEndpoint":     {"http://localhost:4317"},
 		"githubTokenEnv":   {"GH_PAT"},
 	})
@@ -82,8 +83,14 @@ func TestSettingsSavePersistsAndApplies(t *testing.T) {
 		t.Errorf("config not applied in memory: %+v", s.config)
 	}
 	if s.config.Telemetry.MonthlyCreditAllowance != 3000 || s.config.Telemetry.WarnFraction != 0.75 ||
+		s.config.Telemetry.HardCapCredits != 500 ||
 		s.config.Telemetry.OTLPEndpoint != "http://localhost:4317" {
 		t.Errorf("telemetry config not applied: %+v", s.config.Telemetry)
+	}
+	// The saved budget knobs are refreshed onto the live session immediately.
+	if s.hardCap != 500 || s.allowance != 3000 || s.warnFraction != 0.75 {
+		t.Errorf("budget not refreshed onto the live session: cap=%v allowance=%v warn=%v",
+			s.hardCap, s.allowance, s.warnFraction)
 	}
 
 	// Persisted to disk: reload and confirm.

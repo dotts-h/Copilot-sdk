@@ -44,6 +44,9 @@ type TelemetryConfig struct {
 	MonthlyCreditAllowance float64 `json:"monthlyCreditAllowance"`
 	// WarnFraction triggers a UI warning once usage crosses this fraction.
 	WarnFraction float64 `json:"warnFraction"`
+	// HardCapCredits is an absolute credit ceiling; a turn whose projected spend
+	// would exceed it is paused for confirmation. Zero (the default) disables it.
+	HardCapCredits float64 `json:"hardCapCredits,omitempty"`
 	// OTLPEndpoint, if set, is forwarded to the SDK's OpenTelemetry exporter.
 	OTLPEndpoint string `json:"otlpEndpoint,omitempty"`
 	// PriceOverrides maps model -> [inputPerMTok, cachedPerMTok, outputPerMTok].
@@ -143,6 +146,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Telemetry.WarnFraction < 0 || c.Telemetry.WarnFraction > 1 {
 		return fmt.Errorf("warnFraction must be within [0,1]")
+	}
+	if c.Telemetry.HardCapCredits < 0 {
+		return fmt.Errorf("hardCapCredits must be >= 0")
 	}
 	return nil
 }

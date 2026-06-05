@@ -31,13 +31,15 @@ type Server struct {
 	// Shared dependencies, copied from the Hub for convenient access. The forge
 	// and config pointers are shared across all sessions and must only be mutated
 	// under hub.forgeMu.
-	client    copilot.Client
-	forge     *ctxforge.Forge
-	config    *config.Config
-	meter     *telemetry.Meter
-	allowance float64
-	logger    *log.Logger
-	demo      bool
+	client       copilot.Client
+	forge        *ctxforge.Forge
+	config       *config.Config
+	meter        *telemetry.Meter
+	allowance    float64
+	warnFraction float64 // soft-warn threshold as a fraction of the allowance
+	hardCap      float64 // hard credit ceiling; 0 disables the gate
+	logger       *log.Logger
+	demo         bool
 
 	mu          sync.Mutex
 	spec        copilot.SessionSpec // per-session model/effort (mutable via /model, /agent)
@@ -50,13 +52,14 @@ type Server struct {
 	mode        string                  // agent mode for outgoing prompts: "" | "plan" | "autopilot" | "interactive"
 	live        liveKind
 	sessionID   string
-	pending     []string // file paths queued via /attach for the next prompt
-	busy        bool     // a turn is in flight; further prompts are queued
-	queue       []string // prompts typed while busy, drained in order on turn end
-	turnStartMs int64    // epoch ms the active turn began (drives the elapsed timer); 0 when idle
-	ctxCurrent  int64    // last context-window token reading (EvContextWindow)
-	ctxLimit    int64    // context-window size from the last reading
-	compacting  bool     // conversation compaction is in progress
+	pending     []string    // file paths queued via /attach for the next prompt
+	busy        bool        // a turn is in flight; further prompts are queued
+	queue       []string    // prompts typed while busy, drained in order on turn end
+	turnStartMs int64       // epoch ms the active turn began (drives the elapsed timer); 0 when idle
+	ctxCurrent  int64       // last context-window token reading (EvContextWindow)
+	ctxLimit    int64       // context-window size from the last reading
+	compacting  bool        // conversation compaction is in progress
+	gate        *budgetGate // a turn paused on the hard cap (nil when none pending)
 
 	sessionStartMs int64 // epoch ms this conversation began (drives the session timer)
 	messagesSent   int64 // user prompts dispatched (statusline)
@@ -128,8 +131,8 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	data := indexData{
 		Nav:  nav,
-		Cost: template.HTML(renderCostFooter(s.meter, s.allowance)), //nolint:gosec // internally rendered, escaped via esc()
-		Main: template.HTML(s.chatPartial()),                        //nolint:gosec // internally rendered, escaped via esc()
+		Cost: template.HTML(renderCostFooter(s.meter, s.budget())), //nolint:gosec // internally rendered, escaped via esc()
+		Main: template.HTML(s.chatPartial()),                       //nolint:gosec // internally rendered, escaped via esc()
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := pageTemplates.ExecuteTemplate(w, "index", data); err != nil {
@@ -207,10 +210,111 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	attachments := s.pending
 	s.pending = nil
 	s.live = liveNone
-	oob := s.oobTimeline() + s.oobStat() + `<div id="status" hx-swap-oob="innerHTML">` + renderStatus("thinking…", true, s.turnStartMs) + `</div>`
+
+	// Hard-cap gate: if the projected spend of this turn (current total + the
+	// pre-flight estimate of resending the live context) would breach the cap,
+	// pause and ask for confirmation instead of dispatching. The user bubble is
+	// already in the transcript, so type-ahead UX is preserved.
+	if projected, capped := s.overCap(); capped {
+		s.gate = &budgetGate{prompt: prompt, attachments: attachments, projected: projected, cap: s.hardCap}
+		s.turnStartMs = 0 // not running yet — awaiting the decision
+		oob := s.oobTimeline() + s.oobStat() + s.oobBudget() +
+			oobStatus("over budget cap — confirm to proceed", false, 0)
+		s.mu.Unlock()
+		_, _ = w.Write([]byte(oob))
+		return
+	}
+
+	oob := s.oobTimeline() + s.oobStat() + oobStatus("thinking…", true, s.turnStartMs)
 	s.mu.Unlock()
 
 	if err := s.dispatch(r.Context(), sessionID, prompt, attachments); err != nil {
+		oob += s.sendFailedOOB(err)
+	}
+	_, _ = w.Write([]byte(oob))
+}
+
+// overCap reports the projected credit spend of the next turn (running total
+// plus the pre-flight estimate of resending the live context) and whether it
+// would breach the hard cap. Caller must hold s.mu.
+func (s *Server) overCap() (projected float64, capped bool) {
+	b := s.budget()
+	if b.HardCapCredits <= 0 {
+		return 0, false
+	}
+	projected = s.meter.Totals().Credits() + s.meter.EstimateTurn(s.spec.Model, s.ctxCurrent).Credits()
+	return projected, b.CapExceeded(projected)
+}
+
+// budget builds the telemetry budget from this session's cached allowance, warn
+// fraction, and hard cap (refreshed from config on a settings save).
+func (s *Server) budget() telemetry.Budget {
+	return telemetry.Budget{
+		AllowanceCredits: s.allowance,
+		WarnFraction:     s.warnFraction,
+		HardCapCredits:   s.hardCap,
+	}
+}
+
+// budgetGate holds a turn paused because its projected spend would breach the
+// hard cap, until the user proceeds, raises the cap, or cancels it.
+type budgetGate struct {
+	prompt      string
+	attachments []string
+	projected   float64
+	cap         float64
+}
+
+// handleBudget resolves a paused over-cap turn. "proceed" dispatches the held
+// prompt and keeps the cap; "raise" lifts (disables) the cap, persists it, and
+// dispatches; "cancel" drops the turn. Mirrors the inline permission flow.
+func (s *Server) handleBudget(w http.ResponseWriter, r *http.Request) {
+	action := r.PathValue("action")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	s.mu.Lock()
+	g := s.gate
+	s.gate = nil
+	if g == nil {
+		s.mu.Unlock()
+		_, _ = w.Write(nil) // nothing pending (e.g. a double submit)
+		return
+	}
+
+	// Only an explicit proceed/raise releases the held turn; cancel (and any
+	// unrecognized action) drops it — the safe default never spends past the cap.
+	if action != "proceed" && action != "raise" {
+		s.busy = false
+		s.queue = nil
+		s.turnStartMs = 0
+		s.state.AddSystem("⚠ turn cancelled — over budget cap")
+		oob := s.oobTimeline() + s.oobBudget() + oobStatus("", false, 0)
+		s.mu.Unlock()
+		_, _ = w.Write([]byte(oob))
+		return
+	}
+
+	sid := s.sessionID
+	s.turnStartMs = nowMs()
+	s.busy = true
+	prompt, attachments := g.prompt, g.attachments
+	s.mu.Unlock()
+
+	if action == "raise" {
+		if err := s.editConfig(func(c *config.Config) { c.Telemetry.HardCapCredits = 0 }); err != nil {
+			s.logger.Printf("lift cap: %v", err)
+		} else {
+			s.mu.Lock()
+			s.hardCap = 0
+			s.mu.Unlock()
+		}
+	}
+
+	s.mu.Lock()
+	oob := s.oobTimeline() + s.oobStat() + s.oobBudget() + oobStatus("thinking…", true, s.turnStartMs)
+	s.mu.Unlock()
+
+	if err := s.dispatch(r.Context(), sid, prompt, attachments); err != nil {
 		oob += s.sendFailedOOB(err)
 	}
 	_, _ = w.Write([]byte(oob))
@@ -527,6 +631,26 @@ func (s *Server) handleAgentDelete(w http.ResponseWriter, r *http.Request) {
 // Caller must hold s.mu.
 func (s *Server) oobTimeline() string {
 	return `<div id="timeline" hx-swap-oob="innerHTML">` + renderTimelineInner(&s.state) + `</div>`
+}
+
+// oobStatus renders an out-of-band #status refresh for POST responses.
+func oobStatus(text string, active bool, startMs int64) string {
+	return `<div id="status" hx-swap-oob="innerHTML">` + renderStatus(text, active, startMs) + `</div>`
+}
+
+// oobBudget renders an out-of-band #budget refresh (the inline hard-cap gate, or
+// empty once resolved). Caller must hold s.mu.
+func (s *Server) oobBudget() string {
+	return `<div id="budget" hx-swap-oob="innerHTML">` + s.renderGate() + `</div>`
+}
+
+// renderGate renders the pending hard-cap gate form, or "" when none is pending.
+// Caller must hold s.mu.
+func (s *Server) renderGate() string {
+	if s.gate == nil {
+		return ""
+	}
+	return renderBudgetForm(s.gate.projected, s.gate.cap)
 }
 
 // statusFrag builds the status SSE fragment, attaching the live elapsed-timer

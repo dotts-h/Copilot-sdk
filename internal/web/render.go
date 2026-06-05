@@ -242,6 +242,8 @@ func renderStatline(s *Server) string {
 	// context as input, so the abort decision is informed before sending. Shown
 	// only once a context reading has arrived (EvContextWindow).
 	est := s.meter.EstimateTurn(s.spec.Model, s.ctxCurrent)
+	// Soft-warn: turn the cost item amber once spend crosses the budget threshold.
+	costWarn := s.budget().Warned(totals.Credits())
 	return frag("statline", map[string]any{
 		"Model": def(s.spec.Model, "default"), "Mode": s.mode,
 		"HasCtx": s.ctxLimit > 0, "CtxPct": ctxPct,
@@ -250,7 +252,8 @@ func renderStatline(s *Server) string {
 		"CacheRead": humanTokens(cached), "CacheWrite": humanTokens(cacheWrite),
 		"Reasoning": humanTokens(reasoning), "Hit": hit,
 		"HasEst": s.ctxCurrent > 0, "Est": telemetry.FormatCredits(est.Credits()),
-		"Credits": telemetry.FormatCredits(totals.Credits()), "USD": telemetry.FormatUSD(totals.USD()),
+		"CostWarn": costWarn,
+		"Credits":  telemetry.FormatCredits(totals.Credits()), "USD": telemetry.FormatUSD(totals.USD()),
 	})
 }
 
@@ -266,19 +269,31 @@ func humanTokens(n int64) string {
 	}
 }
 
-// renderCostFooter renders the ambient credit/budget meter.
-func renderCostFooter(meter *telemetry.Meter, allowance float64) string {
-	totals := meter.Totals()
-	budget := telemetry.Budget{AllowanceCredits: allowance}
-	frac := budget.FractionUsed(totals.Credits())
+// renderCostFooter renders the ambient credit/budget meter. It turns amber and
+// shows a warning glyph once spend crosses the soft threshold (Budget.Warned),
+// making the topbar itself the ambient over-budget banner.
+func renderCostFooter(meter *telemetry.Meter, budget telemetry.Budget) string {
+	credits := meter.Totals().Credits()
+	frac := budget.FractionUsed(credits)
 	pct := frac * 100
 	if pct > 100 {
 		pct = 100
 	}
 	return frag("costFooter", map[string]any{
-		"Credits":  telemetry.FormatCredits(totals.Credits()),
+		"Credits":  telemetry.FormatCredits(credits),
 		"Width":    fmt.Sprintf("%.1f%%", pct),
 		"PctWhole": fmt.Sprintf("%.0f", frac*100),
+		"Warn":     budget.Warned(credits),
+	})
+}
+
+// renderBudgetForm renders the inline hard-cap gate: a paused over-budget turn
+// with proceed / raise-cap / cancel controls, reusing the permission-form look.
+// It posts each decision to /budget/{action}.
+func renderBudgetForm(projected, capCredits float64) string {
+	return frag("budgetForm", map[string]any{
+		"Projected": telemetry.FormatCredits(projected),
+		"Cap":       telemetry.FormatCredits(capCredits),
 	})
 }
 

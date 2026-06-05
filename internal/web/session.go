@@ -125,7 +125,7 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		})
 		s.meter.RecordReportedAIU(e.Usage.NanoAIU * 1e-9)
 		return []fragment{
-			{Event: "cost", HTML: renderCostFooter(s.meter, s.allowance)},
+			{Event: "cost", HTML: renderCostFooter(s.meter, s.budget())},
 			s.statFrag(),
 		}
 

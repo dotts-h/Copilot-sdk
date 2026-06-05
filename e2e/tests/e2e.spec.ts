@@ -215,6 +215,47 @@ test.describe("slash commands", () => {
   });
 });
 
+test.describe("budget guardrails (hard cap)", () => {
+  // Set the hard cap through the Settings form. Saving applies it to the live
+  // session immediately (the gate reads the refreshed value on the next turn).
+  async function setHardCap(page: import("@playwright/test").Page, credits: number) {
+    await navTo(page, "Settings");
+    await expect(page.locator("#main form.forge-form")).toBeVisible();
+    await page.fill('#main input[name="hardCap"]', String(credits));
+    await page.locator("#main button[type=submit]").click();
+    await expect(page.locator("#main p.ok")).toContainText("saved");
+  }
+
+  // Always lift the cap again so it can't leak into the shared demo session and
+  // gate unrelated tests that run afterwards.
+  test.afterEach(async ({ page }) => {
+    await setHardCap(page, 0);
+  });
+
+  test("a turn over the cap pauses inline, then proceeds on confirmation", async ({ page }) => {
+    await gotoApp(page);
+    // Warm up so a context-window reading and some spend exist — the projected
+    // next-turn cost is then non-trivial and will breach a tiny cap.
+    await send(page, "warm up the meter");
+    await expect(page.locator(sel.statline)).toContainText(/next turn ~.*cr/, { timeout: 15_000 });
+
+    await setHardCap(page, 1);
+    await navTo(page, "Chat");
+
+    await send(page, "an over-budget turn");
+    // The inline gate appears instead of dispatching the turn.
+    const gate = page.locator(`${sel.budget} .budget`);
+    await expect(gate).toContainText(/exceed your budget cap/, { timeout: 10_000 });
+
+    // Proceeding releases the held turn; the assistant reply streams in and the
+    // gate clears.
+    await gate.getByRole("button", { name: "proceed" }).click();
+    await expect(page.locator(`${sel.agentTurn}:not(#cur)`).filter({ hasText: "You said: an over-budget turn" }).last())
+      .toBeVisible({ timeout: 25_000 });
+    await expect(page.locator(sel.budget)).toBeEmpty();
+  });
+});
+
 test.describe("sessions", () => {
   test("lists persisted sessions and resumes one, rebuilding its transcript", async ({ page }) => {
     await gotoApp(page);

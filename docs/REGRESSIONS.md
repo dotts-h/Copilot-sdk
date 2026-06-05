@@ -48,6 +48,17 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
   fields and then `Save()`s leaves the live, in-memory config dirty if validation
   fails. Edit through `Server.editConfig` (`internal/web/settings.go`), which
   snapshots `*config`, applies, saves, and restores the snapshot on error.
+- **An e2e test that mutates shared config must reset it in `afterEach`.** The
+  demo is one shared session *and* one shared `config.Config`; a test that sets a
+  budget hard cap via the Settings form (to exercise the over-cap gate) would gate
+  every later test's sends if it left the cap set. The budget-guardrails spec
+  resets the cap to `0` in `afterEach` so it can't leak. Same family as the
+  shared-session gotcha above.
+- **Lock ordering is `forgeMu` → `s.mu`, never the reverse.** `handleAgentSelect`
+  takes `forgeMu` then `applyAgentSpec` (`s.mu`); a handler holding `s.mu` must
+  **not** call `editConfig`/`editForge` (which take `forgeMu`) or it can deadlock.
+  `handleBudget`'s "raise" path releases `s.mu` before persisting the lifted cap
+  through `editConfig`, then re-locks only to read for rendering.
 - **Go's `regexp` is RE2 — no backreferences.** A pattern like `([-*_])( *\1){2,}`
   panics at `MustCompile` ("invalid escape sequence: \1"). For repeated-char
   matching (e.g. the markdown horizontal rule), scan the string directly

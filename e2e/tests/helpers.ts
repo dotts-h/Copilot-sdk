@@ -20,6 +20,7 @@ export const sel = {
   asks: "#asks",
   plans: "#plans",
   elicits: "#elicits",
+  budget: "#budget",
   subagents: "#subagents",
   cmdMenu: "#cmd-menu",
   rows: ".rows .row",

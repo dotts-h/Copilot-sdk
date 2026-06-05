@@ -10,6 +10,7 @@
 | 3 | Docs say "single in-memory session"; the Hub is cookie-keyed multi-session. | docs/ARCHITECTURE.md, README | low | S | med | — | next docs pass |
 | 5 | Desktop ships raw binaries only — no installers (.dmg/.msi/.deb/AppImage). "Binaries-first" was the chosen scope; packaging via the `wails3 package` CLI (Taskfile, icons, plist/NSIS) is deferred. | cmd/my-orchestra-desktop, .github/workflows/desktop.yml | low | M | low | [ADR 0006](adr/0006-desktop-shell-via-wails-v3-localhost-window.md) | when a non-technical install flow is needed |
 | 6 | Wails v3 pinned to an **alpha** (`v3.0.0-alpha.98`); also forced the module to Go 1.25. API may shift before stable. | go.mod | med | S | med | [ADR 0006](adr/0006-desktop-shell-via-wails-v3-localhost-window.md) | when Wails v3 reaches a stable release |
+| 7 | A Settings save refreshes the budget knobs (allowance, warn fraction, hard cap) only on the **editing** session; other concurrent cookie-keyed sessions pick the change up on their next session. Fine for the single-user localhost tool. | internal/web (`refreshBudget`) | low | S | low | [ADR 0008](adr/0008-budget-guardrails-soft-warn-and-hard-cap-gate.md) | when multi-session live-config propagation matters |
 
 ## Paid
 

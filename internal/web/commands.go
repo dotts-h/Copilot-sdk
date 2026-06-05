@@ -328,12 +328,12 @@ func (s *Server) applyAgentSpec(model, effort, systemMessage string, allowedTool
 // cmdCost appends a one-line credit summary and refreshes the ambient cost meter.
 func (s *Server) cmdCost() string {
 	totals := s.meter.Totals()
-	budget := telemetry.Budget{AllowanceCredits: s.allowance}
+	budget := s.budget()
 	note := fmt.Sprintf("cost: %s of %.0f cr · remaining %s",
 		telemetry.FormatCredits(totals.Credits()), budget.AllowanceCredits,
 		telemetry.FormatCredits(budget.Remaining(totals.Credits())))
 	return s.systemNote(note) +
-		`<div id="cost-footer" hx-swap-oob="innerHTML">` + renderCostFooter(s.meter, s.allowance) + `</div>`
+		`<div id="cost-footer" hx-swap-oob="innerHTML">` + renderCostFooter(s.meter, budget) + `</div>`
 }
 
 // cmdAttach queues a file path to ride along with the next prompt.

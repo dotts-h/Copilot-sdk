@@ -24,15 +24,17 @@ const cookieName = "mo_sid"
 // Conversation state lives on each Server; the shared forge/config is mutated
 // only under forgeMu.
 type Hub struct {
-	client    copilot.Client
-	forge     *ctxforge.Forge
-	config    *config.Config
-	meter     *telemetry.Meter
-	allowance float64
-	baseSpec  copilot.SessionSpec
-	logger    *log.Logger
-	demo      bool
-	workdir   string // base dir scanned by "import project instructions"
+	client       copilot.Client
+	forge        *ctxforge.Forge
+	config       *config.Config
+	meter        *telemetry.Meter
+	allowance    float64
+	warnFraction float64
+	hardCap      float64
+	baseSpec     copilot.SessionSpec
+	logger       *log.Logger
+	demo         bool
+	workdir      string // base dir scanned by "import project instructions"
 
 	// forgeMu serializes mutation of (and reads against mutation of) the shared
 	// forge and config across all sessions.
@@ -65,9 +67,11 @@ func New(opts Options) *Hub {
 	if lg == nil {
 		lg = log.Default()
 	}
-	var allowance float64
+	var allowance, warnFraction, hardCap float64
 	if opts.Config != nil {
 		allowance = opts.Config.Telemetry.MonthlyCreditAllowance
+		warnFraction = opts.Config.Telemetry.WarnFraction
+		hardCap = opts.Config.Telemetry.HardCapCredits
 	}
 	workdir := opts.Workdir
 	if workdir == "" {
@@ -75,7 +79,8 @@ func New(opts Options) *Hub {
 	}
 	h := &Hub{
 		client: opts.Client, forge: opts.Forge, config: opts.Config, meter: opts.Meter,
-		allowance: allowance, baseSpec: opts.Spec, logger: lg, demo: opts.Demo, workdir: workdir,
+		allowance: allowance, warnFraction: warnFraction, hardCap: hardCap,
+		baseSpec: opts.Spec, logger: lg, demo: opts.Demo, workdir: workdir,
 		sessions: map[string]*Server{}, byCopilot: map[string]*Server{},
 	}
 	go h.pump()
@@ -88,7 +93,8 @@ func (h *Hub) newSession(id string) *Server {
 	s := &Server{
 		hub: h, id: id,
 		client: h.client, forge: h.forge, config: h.config, meter: h.meter,
-		allowance: h.allowance, logger: h.logger, demo: h.demo,
+		allowance: h.allowance, warnFraction: h.warnFraction, hardCap: h.hardCap,
+		logger: h.logger, demo: h.demo,
 		spec:           h.baseSpec,
 		sessionStartMs: nowMs(),
 		subs:           make(map[chan fragment]struct{}),
@@ -186,6 +192,7 @@ func (h *Hub) Handler() http.Handler {
 	route("GET /events", (*Server).serveEvents)
 	route("POST /send", (*Server).handleSend)
 	route("POST /abort", (*Server).handleAbort)
+	route("POST /budget/{action}", (*Server).handleBudget)
 	route("POST /perm/{id}", (*Server).handlePerm)
 	route("POST /ask/{id}", (*Server).handleAsk)
 	route("POST /plan/{id}", (*Server).handlePlanReview)
