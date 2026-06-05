@@ -22,6 +22,7 @@ var pageNames = []struct{ slug, label string }{
 	{"skills", "Skills"},
 	{"instructions", "Instructions"},
 	{"agents", "Agents"},
+	{"mcp", "MCP"},
 	{"models", "Models"},
 	{"settings", "Settings"},
 	{"help", "Help"},
@@ -40,6 +41,8 @@ func (s *Server) renderPage(slug string) string {
 		return s.instructionsPartial()
 	case "agents":
 		return s.agentsPartial()
+	case "mcp":
+		return s.mcpServersPartial()
 	case "models":
 		return s.modelsPartial()
 	case "settings":

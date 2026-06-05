@@ -142,7 +142,9 @@ func (c *SDKClient) CreateSession(ctx context.Context, spec SessionSpec) (string
 	if len(spec.MCPServers) > 0 {
 		cfg.MCPServers = make(map[string]sdk.MCPServerConfig, len(spec.MCPServers))
 		for _, s := range spec.MCPServers {
-			cfg.MCPServers[s.Name] = sdk.MCPStdioServerConfig{
+			// Key by the unique id (not the non-unique Name) so two enabled servers
+			// with the same or empty Name can't collide and silently drop one.
+			cfg.MCPServers[s.Key()] = sdk.MCPStdioServerConfig{
 				Command: s.Command, Args: s.Args, Env: s.Env,
 			}
 		}

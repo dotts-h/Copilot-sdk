@@ -73,6 +73,7 @@ func Build(configDir string, demo bool) (srv *web.Hub, close func(), err error) 
 	} else {
 		spec.SystemMessage = cspec.SystemMessage
 		spec.AllowedTools = cspec.AllowedTools
+		spec.MCPServers = web.MCPServerSpecs(cspec.MCPServers)
 		if cspec.Model != "" {
 			spec.Model = cspec.Model
 		}
@@ -242,5 +243,32 @@ func SeedForge(forge *ctxforge.Forge) {
 			ctxforge.Agent{ID: "sdet", Name: "SDET", Description: "Hardens code with adversarial tests",
 				Model: "claude-sonnet-4.6", ReasoningEffort: "high"},
 		)
+	}
+	if len(forge.MCPServers) == 0 {
+		// Curated, well-known stdio MCP servers, seeded DISABLED by default (ADR
+		// 0010). All are key-free (no secrets UI yet) and external processes, so the
+		// user enables one only after the MCP page's PATH preflight confirms its
+		// command is installed — auto-enabling would surprise-fail at session start
+		// and clashes with the offline single-binary value.
+		for _, m := range curatedMCPServers() {
+			_ = forge.AddMCPServer(m)
+		}
+	}
+}
+
+// curatedMCPServers returns the baked-in set of well-known, key-free stdio MCP
+// servers. They are seeded disabled; the command (npx/uvx) must be present on the
+// host before the server can be enabled — the MCP page flags the unavailable ones.
+func curatedMCPServers() []ctxforge.MCPServer {
+	return []ctxforge.MCPServer{
+		{ID: "filesystem", Name: "Filesystem", Command: "npx",
+			Args: []string{"-y", "@modelcontextprotocol/server-filesystem", "."}},
+		{ID: "git", Name: "Git", Command: "uvx", Args: []string{"mcp-server-git"}},
+		{ID: "fetch", Name: "Fetch", Command: "uvx", Args: []string{"mcp-server-fetch"}},
+		{ID: "memory", Name: "Memory", Command: "npx",
+			Args: []string{"-y", "@modelcontextprotocol/server-memory"}},
+		{ID: "sequential-thinking", Name: "Sequential Thinking", Command: "npx",
+			Args: []string{"-y", "@modelcontextprotocol/server-sequential-thinking"}},
+		{ID: "time", Name: "Time", Command: "uvx", Args: []string{"mcp-server-time"}},
 	}
 }

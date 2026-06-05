@@ -330,6 +330,67 @@ func (f *Forge) RemoveAgent(id string) error {
 	return fmt.Errorf("unknown agent %q", id)
 }
 
+// MCPServer returns the MCP server with the given ID, or nil.
+func (f *Forge) MCPServer(id string) *MCPServer {
+	for i := range f.MCPServers {
+		if f.MCPServers[i].ID == id {
+			return &f.MCPServers[i]
+		}
+	}
+	return nil
+}
+
+// AddMCPServer validates and appends an MCP server, rejecting duplicate IDs.
+func (f *Forge) AddMCPServer(m MCPServer) error {
+	if err := m.Validate(); err != nil {
+		return err
+	}
+	if f.MCPServer(m.ID) != nil {
+		return fmt.Errorf("mcpServer %q already exists", m.ID)
+	}
+	f.MCPServers = append(f.MCPServers, m)
+	return nil
+}
+
+// UpdateMCPServer replaces the server identified by id with m, then validates the
+// whole forge and rolls back to the prior value if the result is invalid (e.g. a
+// rename collides with another id).
+func (f *Forge) UpdateMCPServer(id string, m MCPServer) error {
+	cur := f.MCPServer(id)
+	if cur == nil {
+		return fmt.Errorf("unknown mcpServer %q", id)
+	}
+	old := *cur
+	*cur = m
+	if err := f.Validate(); err != nil {
+		*cur = old
+		return err
+	}
+	return nil
+}
+
+// ToggleMCPServer flips a server's Enabled flag, returning the new state.
+func (f *Forge) ToggleMCPServer(id string) (bool, error) {
+	m := f.MCPServer(id)
+	if m == nil {
+		return false, fmt.Errorf("unknown mcpServer %q", id)
+	}
+	m.Enabled = !m.Enabled
+	return m.Enabled, nil
+}
+
+// RemoveMCPServer deletes the server with the given id. Nothing within the forge
+// references an MCP server, so no rollback is needed.
+func (f *Forge) RemoveMCPServer(id string) error {
+	for i := range f.MCPServers {
+		if f.MCPServers[i].ID == id {
+			f.MCPServers = append(f.MCPServers[:i], f.MCPServers[i+1:]...)
+			return nil
+		}
+	}
+	return fmt.Errorf("unknown mcpServer %q", id)
+}
+
 // SessionSpec is the compiled, ready-to-use context for a Copilot SDK session.
 type SessionSpec struct {
 	Model           string

@@ -209,10 +209,25 @@ type SessionSpec struct {
 
 // MCPServer is a stdio MCP server to expose to the session.
 type MCPServer struct {
+	// ID is the stable, unique key the server registers under (the forge guarantees
+	// uniqueness). Name is the human label; it is neither unique nor required, so it
+	// must not be used as a map key (see CreateSession). ID falls back to Name only
+	// for legacy callers that set no ID.
+	ID      string
 	Name    string
 	Command string
 	Args    []string
 	Env     map[string]string
+}
+
+// Key returns the unique identifier the server registers under: its ID, or its
+// Name when no ID is set (legacy callers). Used as the SDK MCP-config map key so
+// two servers with the same (or empty) Name can't silently overwrite each other.
+func (m MCPServer) Key() string {
+	if m.ID != "" {
+		return m.ID
+	}
+	return m.Name
 }
 
 // Client is the dependency the TUI talks to.

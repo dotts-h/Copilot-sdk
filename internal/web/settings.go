@@ -12,8 +12,9 @@ import (
 // user-facing knobs as a form and writes them back through editConfig, which
 // snapshots-then-validates-then-rolls-back so an invalid edit never leaves the
 // live config (or disk) in a bad state — the same discipline ctxforge uses for
-// the forge. Advanced keys (price overrides, MCP servers) are not exposed here;
-// they remain editable directly in config.json.
+// the forge. Advanced config keys (price overrides) are not exposed here; they
+// remain editable directly in config.json. MCP servers are a forge entity with
+// their own management page (see mcp.go), not a config key.
 
 // editConfig applies fn to the live config and persists it, restoring the prior
 // config if either the mutation or the validating Save fails. Holds forgeMu, the
