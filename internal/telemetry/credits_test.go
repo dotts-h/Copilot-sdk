@@ -13,6 +13,20 @@ func approx(t *testing.T, got, want float64) {
 	}
 }
 
+func TestMeterPriceBookExposed(t *testing.T) {
+	pb := DefaultPriceBook()
+	m := NewMeter(pb)
+	// A sibling meter (e.g. a per-session scope) must price against the same book
+	// so its credits/estimate match the account-wide meter to the cent.
+	if m.PriceBook() != pb {
+		t.Fatal("PriceBook must return the meter's own book so a scoped meter shares rates")
+	}
+	// A nil book is replaced with the default, and that default is exposed.
+	if NewMeter(nil).PriceBook() == nil {
+		t.Fatal("a nil-constructed meter must still expose a usable price book")
+	}
+}
+
 func TestPriceExactModel(t *testing.T) {
 	pb := DefaultPriceBook()
 	// gpt-5: in $1.25/Mt, cached $0.125/Mt, out $10/Mt.

@@ -14,3 +14,4 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0008 | [Budget guardrails: a soft warn and a hard-cap turn gate](0008-budget-guardrails-soft-warn-and-hard-cap-gate.md) | accepted |
 | 0009 | [Persisted spend history: an append-only, atomically-written ledger](0009-persisted-spend-history-append-only-ledger.md) | accepted |
 | 0010 | [MCP server management page: curated defaults, disabled-by-default, with a PATH preflight](0010-mcp-server-management-page-curated-defaults-disabled-with-preflight.md) | accepted |
+| 0011 | [Per-session telemetry meter for the statusline](0011-per-session-telemetry-meter-for-the-statusline.md) | accepted |

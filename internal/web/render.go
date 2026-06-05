@@ -222,10 +222,18 @@ func renderCtx(cur, limit int64, compacting bool) string {
 // token/credit accounting. Caller must hold s.mu (it reads per-session counters);
 // the meter has its own lock. The session timer reuses the .elapsed mechanism, so
 // the client ticks it from data-start.
+//
+// Token/credit totals come from the per-session meter (sessionMeter) so the
+// statusline reflects *this* conversation, not the account-wide meter that
+// aggregates every cookie-keyed session (item 3.2 / TECH_DEBT #2). The topbar
+// cost footer and the hard-cap projection stay account-wide on s.meter; the
+// statusline's soft-warn tints when this conversation alone crosses the budget
+// threshold, with the cumulative banner remaining the topbar gauge.
 func renderStatline(s *Server) string {
-	in, cached, out := s.meter.TotalTokens()
-	cacheWrite, reasoning := s.meter.ExtraTokens()
-	totals := s.meter.Totals()
+	meter := s.sessionMeter
+	in, cached, out := meter.TotalTokens()
+	cacheWrite, reasoning := meter.ExtraTokens()
+	totals := meter.Totals()
 
 	hit := 0
 	if in+cached > 0 {
@@ -241,8 +249,9 @@ func renderStatline(s *Server) string {
 	// Pre-flight estimate: what the next turn would cost to resend the current
 	// context as input, so the abort decision is informed before sending. Shown
 	// only once a context reading has arrived (EvContextWindow).
-	est := s.meter.EstimateTurn(s.spec.Model, s.ctxCurrent)
-	// Soft-warn: turn the cost item amber once spend crosses the budget threshold.
+	est := meter.EstimateTurn(s.spec.Model, s.ctxCurrent)
+	// Soft-warn: turn the cost item amber once this session's spend crosses the
+	// budget threshold (the account-wide banner stays the topbar cost footer).
 	costWarn := s.budget().Warned(totals.Credits())
 	return frag("statline", map[string]any{
 		"Model": def(s.spec.Model, "default"), "Mode": s.mode,

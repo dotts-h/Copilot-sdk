@@ -119,9 +119,15 @@ dedicated review affordance. A collapsible side-by-side/inline diff with the
 approve/reject attached would make file-writing agents feel trustworthy.
 Touches `render.go` (tool result rendering) + the permission form.
 
-### 3.2 Per-session telemetry totals  — **S/M**  *(TECH_DEBT #2)*
-Statusline credits/tokens are meter-global, not per-session. Scope a per-session
-meter so the footer reflects *this* conversation. Pairs naturally with 1.3.
+### 3.2 Per-session telemetry totals  — **S/M**  *(TECH_DEBT #2)* ✅ shipped (ADR-0011, issue 0008)
+Statusline credits/tokens were meter-global, not per-session. Scoped a per-session
+meter (`Server.sessionMeter`, same price book as the account-wide meter) recorded
+alongside the global meter on each `EvUsage`; `renderStatline` reads it so the
+statusline reflects *this* conversation. The topbar cost footer, the hard-cap
+projection, and the Telemetry month-to-date rows stay account-wide (budget
+enforcement/accounting must be cumulative — the remaining ledger-derived step is
+TECH_DEBT #9). Pairs naturally with 1.3 (the persisted ledger already tags
+`SessionID`).
 
 ### 3.3 Keybinding surface  — **S**
 `config.Config` already carries key bindings but they aren't surfaced or editable
@@ -152,6 +158,8 @@ config; surface via the autocomplete that already powers slash commands.
    ✅ shipped (ADR-0010): MCP nav page + add/edit/toggle/delete, curated stdio
    servers seeded disabled with an `exec.LookPath` preflight badging unavailable ones.
 3. **3.2 + 3.1** — per-session totals and the diff lane; visible polish.
+   3.2 ✅ shipped (ADR-0011): a per-session `Meter` scopes the statusline to *this*
+   conversation; budget gauge / cap / Telemetry stay account-wide. 3.1 next.
 4. **2.1 (orchestration)** — the big bet; do it once 1.x has hardened the
    multi-run cost accounting it will lean on, and lead with an ADR.
 

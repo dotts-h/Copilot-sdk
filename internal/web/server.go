@@ -31,10 +31,17 @@ type Server struct {
 	// Shared dependencies, copied from the Hub for convenient access. The forge
 	// and config pointers are shared across all sessions and must only be mutated
 	// under hub.forgeMu.
-	client       copilot.Client
-	forge        *ctxforge.Forge
-	config       *config.Config
+	client copilot.Client
+	forge  *ctxforge.Forge
+	config *config.Config
+	// meter is the process-global, account-wide meter shared across every
+	// cookie-keyed session: it backs the topbar budget gauge, the hard-cap
+	// projection, and the Telemetry page's month-to-date rows. sessionMeter is
+	// this conversation's own scope (same price book), backing the statusline so
+	// the footer reflects *this* session, not every session's combined spend
+	// (item 3.2 / TECH_DEBT #2). EvUsage records each turn into both.
 	meter        *telemetry.Meter
+	sessionMeter *telemetry.Meter
 	spend        *telemetry.SpendStore
 	allowance    float64
 	warnFraction float64 // soft-warn threshold as a fraction of the allowance

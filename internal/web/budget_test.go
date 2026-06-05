@@ -12,10 +12,13 @@ import (
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
 
-// recordSpend folds a single priced usage into the session meter so tests can
-// drive the budget past a threshold.
+// recordSpend folds a single priced usage into both the account-wide and the
+// per-session meter (as the real EvUsage reducer does) so tests can drive the
+// budget past a threshold on either gauge.
 func recordSpend(s *Server, inputTokens int64) {
-	s.meter.Record(telemetry.Usage{Model: "gpt-5", InputTokens: inputTokens})
+	u := telemetry.Usage{Model: "gpt-5", InputTokens: inputTokens}
+	s.meter.Record(u)
+	s.sessionMeter.Record(u)
 }
 
 func TestStatlineTurnsAmberOverSoftThreshold(t *testing.T) {
