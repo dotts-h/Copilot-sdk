@@ -8,7 +8,7 @@ issues are added or closed.
 
 | id | title | status | children |
 |----|-------|--------|----------|
-| [0001](0001-epic-cost-awareness.md) | Epic: make cost active (Tier 1) | in-progress | 0002, 0003 |
+| [0001](0001-epic-cost-awareness.md) | Epic: make cost active (Tier 1) | closed | 0002, 0003, 0004 |
 
 ## Issues
 
@@ -16,3 +16,4 @@ issues are added or closed.
 |----|-------|--------|----------|-------|-------|
 | [0002](0002-pre-flight-turn-cost-estimate.md) | Pre-flight turn cost estimate (item 1.2) | closed | high | 0001 | ADR-0007 |
 | [0003](0003-budget-guardrails.md) | Budget guardrails — soft warn + hard cap (item 1.1) | closed | high | 0001 | ADR-0008 |
+| [0004](0004-persisted-spend-history.md) | Persisted spend history + trends (item 1.3) | closed | high | 0001 | ADR-0009 |

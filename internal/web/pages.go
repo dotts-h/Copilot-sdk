@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
@@ -161,9 +162,74 @@ func (s *Server) telemetryPartial() string {
 			"Credits": fmt.Sprintf("%.2f", r.Credits()), "USD": telemetry.FormatUSD(r.USD()),
 		})
 	}
+	days, shares, hasHistory := s.spendTrend()
 	return frag("telemetryPage", map[string]any{
 		"Rows": rows, "Width": fmt.Sprintf("%.1f%%", pct), "Models": models,
+		"Days": days, "Shares": shares, "HasHistory": hasHistory,
 	})
+}
+
+// spendTrend builds the persisted-ledger trend data for the Telemetry page: the
+// per-day spend (most recent last, each bar scaled to the busiest day) and each
+// model's share of all-time spend. Empty when no ledger is wired or none yet.
+func (s *Server) spendTrend() (days, shares []map[string]any, hasHistory bool) {
+	days, shares = []map[string]any{}, []map[string]any{}
+	if s.spend == nil {
+		return days, shares, false
+	}
+	records := s.spend.Records()
+	if len(records) == 0 {
+		return days, shares, false
+	}
+
+	daily := telemetry.DailyTotals(records)
+	// Show the most recent window so a long history stays scannable.
+	const maxDays = 14
+	if len(daily) > maxDays {
+		daily = daily[len(daily)-maxDays:]
+	}
+	// Scale bars to the busiest day *in view*, so the visible window always uses
+	// the full width even when an off-screen older day spent more.
+	var maxUSD float64
+	for _, d := range daily {
+		if d.USD > maxUSD {
+			maxUSD = d.USD
+		}
+	}
+	for _, d := range daily {
+		w := 0.0
+		if maxUSD > 0 {
+			w = d.USD / maxUSD * 100
+		}
+		days = append(days, map[string]any{
+			"Day": d.Day, "Credits": fmt.Sprintf("%.2f", d.Credits),
+			"USD": telemetry.FormatUSD(d.USD), "Turns": d.Count,
+			"Width": fmt.Sprintf("%.1f%%", w),
+		})
+	}
+
+	for _, m := range telemetry.ModelShares(records) {
+		shares = append(shares, map[string]any{
+			"Model": m.Model, "Credits": fmt.Sprintf("%.2f", m.Credits),
+			"Pct": fmt.Sprintf("%.0f", m.Fraction*100), "Width": fmt.Sprintf("%.1f%%", m.Fraction*100),
+		})
+	}
+	return days, shares, true
+}
+
+// handleSpendExport streams the full persisted spend ledger as a CSV download,
+// so spend can be analysed outside the app (the trend view's accountable-ledger
+// promise). Empty (header only) when no ledger is wired.
+func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request) {
+	var records []telemetry.SpendRecord
+	if s.spend != nil {
+		records = s.spend.Records()
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="my-orchestra-spend.csv"`)
+	if err := telemetry.WriteCSV(w, records); err != nil {
+		s.logger.Printf("export spend csv: %v", err)
+	}
 }
 
 func (s *Server) skillsPartial() string {

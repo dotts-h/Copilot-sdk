@@ -126,7 +126,7 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		return append(s.timelineFragments(), s.statusFrag("", false))
 
 	case copilot.EvUsage:
-		s.meter.Record(telemetry.Usage{
+		cost := s.meter.Record(telemetry.Usage{
 			Model:            e.Usage.Model,
 			InputTokens:      e.Usage.InputTokens,
 			CachedTokens:     e.Usage.CachedTokens,
@@ -134,7 +134,25 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 			OutputTokens:     e.Usage.OutputTokens,
 			ReasoningTokens:  e.Usage.ReasoningTokens,
 		})
-		s.meter.RecordReportedAIU(e.Usage.NanoAIU * 1e-9)
+		aiu := e.Usage.NanoAIU * 1e-9
+		s.meter.RecordReportedAIU(aiu)
+		// Persist the turn to the append-only ledger so spend survives a restart
+		// and feeds the Telemetry trend view. Best-effort: a disk error is logged,
+		// not surfaced — the live meter and stream are unaffected.
+		if s.spend != nil {
+			rec := telemetry.SpendRecord{
+				SessionID:    s.sessionID,
+				Model:        e.Usage.Model,
+				InputTokens:  e.Usage.InputTokens,
+				CachedTokens: e.Usage.CachedTokens,
+				OutputTokens: e.Usage.OutputTokens,
+				USD:          cost.USD(),
+				AIU:          aiu,
+			}
+			if err := s.spend.Append(rec); err != nil {
+				s.logger.Printf("persist spend: %v", err)
+			}
+		}
 		return []fragment{
 			{Event: "cost", HTML: renderCostFooter(s.meter, s.budget())},
 			s.statFrag(),

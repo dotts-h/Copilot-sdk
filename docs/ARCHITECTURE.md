@@ -25,7 +25,7 @@ internal/web            net/http server: handlers, SSE hub, html/template partia
 internal/convo          UI-agnostic transcript model: Turn · ToolView · State reducer (pure)
 internal/copilot        copilot.Client interface · SDKClient (Go SDK) · MockClient
 internal/ctxforge       Skill/Instruction/Agent/MCPServer · Forge.Compile → SessionSpec
-internal/telemetry      PriceBook · Meter (concurrent) · Budget · Cost · AIU
+internal/telemetry      PriceBook · Meter (concurrent) · Budget · Cost · AIU · SpendStore (persisted ledger)
 internal/config         Config (settings + key bindings), JSON, atomic save
 ```
 
@@ -144,6 +144,16 @@ credits/USD.
 
 The pricing engine has a **fuzz** target asserting cost is total (never negative
 or NaN for non-negative token inputs), and the meter has a **concurrency** test.
+
+The live `Meter` is in-memory and resets on restart; a persisted, append-only
+**`SpendStore`** (`internal/telemetry/history.go`) is the accountable ledger
+behind it. Each metered turn appends a `SpendRecord` to `<configDir>/spend.json`
+(a versioned JSON document written atomically — temp-file + rename — exactly like
+config); the Telemetry page reads it back as a trend (spend over time, per-model
+share) and a `GET /telemetry/export.csv` download. The store is the one IO edge
+in an otherwise pure package: `DailyTotals`/`ModelShares`/`WriteCSV` are pure
+functions over a record slice. An empty dir makes it ephemeral (demo/tests never
+write to a real config directory). See [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md).
 
 ## The my-ctx forge
 

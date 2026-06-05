@@ -35,6 +35,7 @@ type Server struct {
 	forge        *ctxforge.Forge
 	config       *config.Config
 	meter        *telemetry.Meter
+	spend        *telemetry.SpendStore
 	allowance    float64
 	warnFraction float64 // soft-warn threshold as a fraction of the allowance
 	hardCap      float64 // hard credit ceiling; 0 disables the gate

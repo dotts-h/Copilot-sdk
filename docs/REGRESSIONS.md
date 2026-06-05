@@ -24,6 +24,7 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
 | 10 | Toggle "off" glyph **failed WCAG AA contrast**. | `--subtle` on `--bg` is below 4.5:1. | Use `--dim` for the off glyph. | browser: `e2e/tests/a11y.spec.ts` (axe-core, no A/AA violations) |
 | 11 | `my-orchestra -seed` could **fail and write nothing** on a forge that already had skills but no agents. | `seedForge` always pinned the `tdd` skill on the seeded `builder` agent; when skills were pre-populated `tdd` was never seeded, so `Save()` → `Validate()` failed on the dangling agent→skill reference. Found by the code review of #13 (the preserves-existing test set up the trigger state but didn't `Validate()`). | Pin `tdd` only when it exists, so `seedForge` stays valid under any partial state; add the `Validate()` assertion. | unit: `cmd/my-orchestra` `TestSeedForgePreservesExisting` (now asserts `Validate()`; fails without the fix) |
 | 12 | Markdown renderer mangled **snake_case identifiers in agent prose** — `my_var_name` rendered as `my<em>var</em>name`. | Underscore emphasis matched intraword; CommonMark deliberately doesn't. Caught by the pre-merge code review of #16. | Word-boundary `\b` anchors on the `_`/`__` alternatives only; `*` emphasis stays intraword-capable. | unit: `internal/web` `TestRenderMarkdown` "intraword underscore stays literal" / "double intraword underscore stays literal" |
+| 14 | The Telemetry **spend-over-time bars scaled to the all-time busiest day**, not the busiest day in the visible 14-day window. Caught by the pre-merge code review of the 1.3 diff. | `spendTrend` computed `maxUSD` over the full history *before* slicing to the most-recent 14 days, so once history exceeded 14 days an off-screen peak made every visible bar a sliver. | Slice to the visible window first, then compute `maxUSD` over what's shown, so the window always uses the full bar width. | unit: `internal/web` `TestTelemetryTrendWindowsAndScalesToVisibleMax` (20-day history; off-screen all-time max; asserts the busiest in-window day fills 100%) |
 | 13 | **Agent personas didn't affect chat** — selecting an agent applied only its model/effort/tool-allowlist; its system message, the enabled instructions, and skill prompts never reached the session. `Forge.Compile` produced the full system message but was never called in the web path. | `applyAgentSpec` set model/effort/tools directly from the `Agent` struct and dropped `SystemMessage`; startup built the spec from config without compiling. | Both activation sites (`/agent` and Agents-page select) and the clear path route through `compiledSpec` → `Forge.Compile`, applying the compiled system message; `main.go` compiles the default agent into the initial session. | unit: `internal/web` `TestAgentSystemMessageCompiledOnSelect`, `TestAgentClearCompilesGlobalContext` |
 
 ## Testing notes (gotchas that bit us)
@@ -59,6 +60,20 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
   **not** call `editConfig`/`editForge` (which take `forgeMu`) or it can deadlock.
   `handleBudget`'s "raise" path releases `s.mu` before persisting the lifted cap
   through `editConfig`, then re-locks only to read for rendering.
+- **The demo spend ledger is shared and append-only across the whole suite.**
+  Demo mode seeds an *ephemeral* `telemetry.SpendStore` (empty dir → in-memory,
+  never touches a real config dir), but it is one store for the one shared demo
+  session, and every demo turn appends to it. So the Telemetry **trend view**
+  (spend over time, per-model share) grows as the suite runs — assert on
+  *structure* (the "Spend over time" / "Per-model share" sections, that a
+  `.trend-row` exists, that the CSV header is present), never on exact figures.
+  Same family as the shared-session / shared-config gotchas above.
+- **Persist spend through the ledger, not by re-reading the meter.** The live
+  `Meter` is process-global and resets on restart; the accountable record is
+  `SpendStore` (`<configDir>/spend.json`, append-only, atomic temp-file+rename
+  like config). The `EvUsage` reducer appends one `SpendRecord` per turn
+  best-effort (a disk error is logged, never surfaced). Don't reconstruct history
+  from `Meter.ByModel()` — it only knows this process. See [ADR 0009](adr/0009-persisted-spend-history-append-only-ledger.md).
 - **Go's `regexp` is RE2 — no backreferences.** A pattern like `([-*_])( *\1){2,}`
   panics at `MustCompile` ("invalid escape sequence: \1"). For repeated-char
   matching (e.g. the markdown horizontal rule), scan the string directly

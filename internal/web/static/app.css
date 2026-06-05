@@ -231,6 +231,22 @@ table.grid th, table.grid td { text-align: right; padding: .25rem .6rem; border-
 table.grid th:first-child, table.grid td:first-child { text-align: left; }
 table.grid th { color: var(--dim); font-weight: 400; }
 
+/* Spend-history trend view (Telemetry page). */
+.page h4 { color: var(--dim); margin: 1rem 0 .4rem; font-size: .85rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .04em; }
+.trends-head { display: flex; align-items: baseline; justify-content: space-between;
+  gap: 1rem; margin-top: 1.5rem; }
+.trends-head h3 { margin: 0; }
+.trends-head .export { color: var(--accent2); text-decoration: none; font-size: .85rem; }
+.trends-head .export:hover, .trends-head .export:focus-visible { text-decoration: underline; }
+ul.trend { list-style: none; margin: .25rem 0 .5rem; padding: 0; }
+.trend-row { display: flex; align-items: center; gap: .6rem; padding: .2rem 0; }
+.trend-label { flex: 0 0 8.5rem; color: var(--dim); font-size: .85rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meter.trend-meter { flex: 1 1 auto; width: auto; min-width: 4rem; }
+.trend-val { flex: 0 0 auto; color: var(--fg); font-size: .82rem; text-align: right;
+  min-width: 8.5rem; }
+
 ul.rows { list-style: none; margin: 0; padding: 0; }
 .row { display: flex; align-items: center; gap: .6rem; padding: .5rem .25rem; border-bottom: 1px solid var(--panel); }
 .row .row-text { flex: 1 1 auto; display: flex; flex-direction: column; }

@@ -1,14 +1,14 @@
 ---
 id: 0001
 title: "Epic: make cost active (Tier 1)"
-status: in-progress
+status: closed
 severity: high
 group:
 github:
 links:
   adr:
   prs: []
-  issues: [0002, 0003]
+  issues: [0002, 0003, 0004]
   regression:
 assets: []
 ---
@@ -29,8 +29,17 @@ Tier 1.
       (ADR-0008). Amber statusline + cost footer at a soft threshold; an optional hard
       cap that pauses the next turn (`/budget/{action}`) when `total + EstimateTurn`
       would breach it.
-- [ ] **1.3 — Persisted spend history + trends.** Append-only per-session/per-day
-      ledger (atomic write) + a trend view on the Telemetry page.
+- [x] **1.3 — Persisted spend history + trends** → [0004](0004-persisted-spend-history.md)
+      (ADR-0009). Append-only per-session/per-day ledger (`<configDir>/spend.json`,
+      atomic write) + a Spend-history trend view (spend over time, per-model share,
+      CSV export) on the Telemetry page.
+
+## Status
+
+**Tier 1 complete** — cost is now active end to end: projected before a turn (1.2),
+guarded by a soft warn + hard cap (1.1), and persisted as an accountable ledger with
+trends (1.3). Follow-ups carried forward: reconcile the budget/month-to-date rows
+against the ledger and per-session totals (TECH_DEBT #8/#9, item 3.2).
 
 ## Notes
 

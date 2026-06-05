@@ -28,6 +28,7 @@ type Hub struct {
 	forge        *ctxforge.Forge
 	config       *config.Config
 	meter        *telemetry.Meter
+	spend        *telemetry.SpendStore
 	allowance    float64
 	warnFraction float64
 	hardCap      float64
@@ -51,6 +52,9 @@ type Options struct {
 	Forge  *ctxforge.Forge
 	Config *config.Config
 	Meter  *telemetry.Meter
+	// Spend is the persisted spend ledger; nil disables persistence (the trend
+	// view and CSV export render empty).
+	Spend  *telemetry.SpendStore
 	Spec   copilot.SessionSpec
 	Logger *log.Logger
 	// Demo drives a scripted streaming reply through a MockClient so the UI can
@@ -78,7 +82,7 @@ func New(opts Options) *Hub {
 		workdir = "."
 	}
 	h := &Hub{
-		client: opts.Client, forge: opts.Forge, config: opts.Config, meter: opts.Meter,
+		client: opts.Client, forge: opts.Forge, config: opts.Config, meter: opts.Meter, spend: opts.Spend,
 		allowance: allowance, warnFraction: warnFraction, hardCap: hardCap,
 		baseSpec: opts.Spec, logger: lg, demo: opts.Demo, workdir: workdir,
 		sessions: map[string]*Server{}, byCopilot: map[string]*Server{},
@@ -92,7 +96,7 @@ func New(opts Options) *Hub {
 func (h *Hub) newSession(id string) *Server {
 	s := &Server{
 		hub: h, id: id,
-		client: h.client, forge: h.forge, config: h.config, meter: h.meter,
+		client: h.client, forge: h.forge, config: h.config, meter: h.meter, spend: h.spend,
 		allowance: h.allowance, warnFraction: h.warnFraction, hardCap: h.hardCap,
 		logger: h.logger, demo: h.demo,
 		spec:           h.baseSpec,
@@ -198,6 +202,7 @@ func (h *Hub) Handler() http.Handler {
 	route("POST /plan/{id}", (*Server).handlePlanReview)
 	route("POST /elicit/{id}", (*Server).handleElicit)
 	route("GET /page/{name}", (*Server).handlePage)
+	route("GET /telemetry/export.csv", (*Server).handleSpendExport)
 	route("GET /commands", (*Server).handleCommands)
 
 	route("GET /skills/new", (*Server).handleSkillNew)
