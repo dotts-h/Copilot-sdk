@@ -39,8 +39,11 @@ body { display: flex; flex-direction: column; }
 /* cost meter in the header */
 .cost { display: flex; align-items: center; gap: .5rem; color: var(--dim); font-size: .82rem; }
 .cost .credits { color: var(--fg); }
+.cost .credits.warn { color: var(--warn); font-weight: 600; }
 .meter { display: inline-block; width: 90px; height: 8px; background: var(--bg);
   border: 1px solid var(--subtle); border-radius: 5px; overflow: hidden; }
+.meter.warn { border-color: var(--warn); }
+.meter.warn .meter-fill { background: var(--warn); }
 .meter.wide { width: 100%; height: 12px; margin: .5rem 0 1rem; }
 .meter-fill { display: block; height: 100%; background: var(--accent); }
 
@@ -111,6 +114,12 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
 .perm button { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit; }
 .perm .ok { background: var(--good); color: #1b1d1e; }
 .perm .no { background: var(--bad); color: #fff; }
+.perm .raise { background: var(--warn); color: #1b1d1e; }
+
+/* hard-cap budget gate: an over-budget turn paused for confirmation */
+.budget-gate-wrap:empty { display: none; }
+.budget-gate-wrap { max-width: 56rem; width: 100%; margin: 0 auto; padding: 0 1rem; }
+.perm.budget { background: rgba(227,179,65,.14); }
 
 /* ask_user (elicitation) */
 .asks { max-width: 56rem; width: 100%; margin: 0 auto; padding: 0 1rem; }
@@ -194,6 +203,7 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
   border: 1px solid var(--warn); border-radius: 4px; padding: 0 .3rem; }
 .stat-est { color: var(--accent); }
 .stat-cost { color: var(--fg); }
+.stat-cost.warn { color: var(--warn); font-weight: 600; }
 
 /* Models page: reasoning-effort selector row. */
 .effort-row { display: flex; align-items: center; gap: .4rem; margin: .25rem 0 .75rem; }

@@ -11,3 +11,4 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0005 | [Relicense to BSL 1.1](0005-relicense-to-bsl-1-1.md) | accepted |
 | 0006 | [Desktop shell via Wails v3 wrapping the local HTTP server](0006-desktop-shell-via-wails-v3-localhost-window.md) | accepted |
 | 0007 | [Pre-flight turn cost estimate prices the live context as fresh input](0007-pre-flight-turn-cost-estimate-prices-context-as-fresh-input.md) | accepted |
+| 0008 | [Budget guardrails: a soft warn and a hard-cap turn gate](0008-budget-guardrails-soft-warn-and-hard-cap-gate.md) | accepted |

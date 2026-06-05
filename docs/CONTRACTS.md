@@ -66,7 +66,7 @@ for the streaming/turn routes (`/events`, `/send`, the `/perm|ask|plan|elicit/{i
 | Group | Routes |
 |-------|--------|
 | Core | `GET /` · `GET /events` (SSE) · `POST /send` · `POST /abort` |
-| Turn answers | `POST /perm/{id}` · `POST /ask/{id}` · `POST /plan/{id}` · `POST /elicit/{id}` |
+| Turn answers | `POST /perm/{id}` · `POST /ask/{id}` · `POST /plan/{id}` · `POST /elicit/{id}` · `POST /budget/{action}` |
 | Navigation | `GET /page/{name}` · `GET /commands` · `GET /static/…` |
 | Skills | `GET /skills/new` · `GET /skills/{id}/edit` · `POST /skills` · `POST /skills/{id}` · `POST /skills/{id}/toggle` · `POST /skills/{id}/delete` |
 | Instructions | `POST /instructions/import` · `GET /instructions/new` · `GET /instructions/{id}/edit` · `POST /instructions` · `POST /instructions/{id}` · `POST /instructions/{id}/toggle` · `POST /instructions/{id}/delete` |
@@ -76,6 +76,12 @@ for the streaming/turn routes (`/events`, `/send`, the `/perm|ask|plan|elicit/{i
 
 `/instructions/import`, `/agents/{id}/select`, and the `/sessions/*` routes are the
 phase-2–4 additions. — see [ADR-0002](adr/0002-restore-sdk-session-resume-for-session-pick-start-continue.md), [ADR-0003](adr/0003-claude-cli-style-agents-built-in-chat-agent-and-per-agent-tool-allowlist.md)
+
+`POST /budget/{action}` (`action` ∈ {proceed, raise, cancel}) resolves a turn the
+hard cap paused before `Send`: **proceed** dispatches the held prompt and keeps the
+cap, **raise** lifts (disables) and persists the cap then dispatches, **cancel**
+drops the turn. It is an **app-level** gate, not an SDK permission — distinct from
+`/perm/{id}` despite reusing the inline-form look. — see [ADR-0008](adr/0008-budget-guardrails-soft-warn-and-hard-cap-gate.md)
 
 ## 4. Persisted schemas (forge + config)
 
@@ -89,7 +95,9 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
 - **`ctxforge.Skill`** (`types.go:22`), **`ctxforge.Instruction`** (`types.go:35`),
   **`ctxforge.MCPServer`** (`types.go:77`).
 - **`config.Config`** / **`config.TelemetryConfig`** (`config.go`): user settings + pricing
-  overrides (`DefaultPriceBook`).
+  overrides (`DefaultPriceBook`). `TelemetryConfig.WarnFraction` (soft-warn threshold,
+  `[0,1]`) and `TelemetryConfig.HardCapCredits` (absolute credit ceiling, `>= 0`,
+  `0` = off) back the budget guardrails. — see [ADR-0008](adr/0008-budget-guardrails-soft-warn-and-hard-cap-gate.md)
 
 ## 5. Invariants (promises that aren't a signature)
 

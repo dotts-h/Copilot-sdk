@@ -8,7 +8,7 @@ github:
 links:
   adr:
   prs: []
-  issues: [0002]
+  issues: [0002, 0003]
   regression:
 assets: []
 ---
@@ -25,9 +25,10 @@ Tier 1.
 
 - [x] **1.2 — Pre-flight turn cost estimate** → [0002](0002-pre-flight-turn-cost-estimate.md)
       (ADR-0007). Project the next turn's cost at the current context in the composer.
-- [ ] **1.1 — Budget guardrails (soft warn + hard cap).** Amber statusline + ambient
-      banner at a soft threshold; optional hard cap that pauses the next turn via the
-      permission-form pattern. Can reuse `EstimateTurn` to project an over-budget turn.
+- [x] **1.1 — Budget guardrails (soft warn + hard cap)** → [0003](0003-budget-guardrails.md)
+      (ADR-0008). Amber statusline + cost footer at a soft threshold; an optional hard
+      cap that pauses the next turn (`/budget/{action}`) when `total + EstimateTurn`
+      would breach it.
 - [ ] **1.3 — Persisted spend history + trends.** Append-only per-session/per-day
       ledger (atomic write) + a trend view on the Telemetry page.
 

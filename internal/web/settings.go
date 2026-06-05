@@ -30,6 +30,21 @@ func (s *Server) editConfig(fn func(*config.Config)) error {
 	return nil
 }
 
+// refreshBudget re-reads the budget knobs (allowance, warn fraction, hard cap)
+// from the shared config into this session's cached copies, so a settings save
+// takes effect on the live session immediately rather than only on the next one.
+func (s *Server) refreshBudget() {
+	s.hub.forgeMu.Lock()
+	allowance := s.config.Telemetry.MonthlyCreditAllowance
+	warn := s.config.Telemetry.WarnFraction
+	hardCap := s.config.Telemetry.HardCapCredits
+	s.hub.forgeMu.Unlock()
+
+	s.mu.Lock()
+	s.allowance, s.warnFraction, s.hardCap = allowance, warn, hardCap
+	s.mu.Unlock()
+}
+
 // renderSettings locks and renders the settings form with an optional saved/error
 // banner.
 func (s *Server) renderSettings(note, errMsg string) string {
@@ -52,6 +67,7 @@ func renderSettingsForm(c *config.Config, note, errMsg string) string {
 		checkboxField("Auto-approve tools", "autoApproveTools", c.AutoApproveTools),
 		numberField("Monthly credit budget", "allowance", int(c.Telemetry.MonthlyCreditAllowance)),
 		numberField("Warn at (%)", "warnPercent", int(c.Telemetry.WarnFraction*100+0.5)),
+		numberField("Hard cap (credits; 0 = off)", "hardCap", int(c.Telemetry.HardCapCredits)),
 		textField("OTLP endpoint", "otlpEndpoint", c.Telemetry.OTLPEndpoint, false),
 		textField("GitHub token env var (blank = copilot CLI session)", "githubTokenEnv", c.GitHubTokenEnv, false),
 	}
@@ -79,10 +95,16 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		if v, e := strconv.Atoi(strings.TrimSpace(r.FormValue("warnPercent"))); e == nil {
 			c.Telemetry.WarnFraction = float64(v) / 100
 		}
+		if v, e := strconv.ParseFloat(strings.TrimSpace(r.FormValue("hardCap")), 64); e == nil {
+			c.Telemetry.HardCapCredits = v
+		}
 	})
 	if err != nil {
 		s.writePartial(w, s.renderSettings("", err.Error()))
 		return
 	}
+	// Apply the saved budget knobs to this live session immediately so the gate
+	// and soft-warn take effect now, not only on the next session.
+	s.refreshBudget()
 	s.writePartial(w, s.renderSettings("saved", ""))
 }

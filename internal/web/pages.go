@@ -120,26 +120,30 @@ func (s *Server) chatPartial() string {
 	ctx := renderCtx(s.ctxCurrent, s.ctxLimit, s.compacting)
 	subagents := renderSubagents(s.subagents)
 	statline := renderStatline(s)
+	budget := s.renderGate()
 	s.mu.Unlock()
 
 	return frag("chatPage", map[string]any{
 		"Timeline": trusted(timeline), "Perms": trusted(perms.String()),
 		"Asks": trusted(asks.String()), "Plans": trusted(plans.String()),
 		"Elicits": trusted(elicits.String()), "Subagents": trusted(subagents),
-		"Ctx": trusted(ctx), "Statline": trusted(statline),
+		"Ctx": trusted(ctx), "Statline": trusted(statline), "Budget": trusted(budget),
 	})
 }
 
 func (s *Server) telemetryPartial() string {
 	totals := s.meter.Totals()
 	in, cached, out := s.meter.TotalTokens()
-	budget := telemetry.Budget{AllowanceCredits: s.allowance}
+	budget := s.budget()
 	frac := budget.FractionUsed(totals.Credits())
 
 	rows := [][2]string{
 		{"Total cost", fmt.Sprintf("%s (%s)", telemetry.FormatCredits(totals.Credits()), telemetry.FormatUSD(totals.USD()))},
 		{"Monthly budget", fmt.Sprintf("%.2f of %.0f cr", totals.Credits(), budget.AllowanceCredits)},
 		{"Remaining", telemetry.FormatCredits(budget.Remaining(totals.Credits()))},
+	}
+	if s.hardCap > 0 {
+		rows = append(rows, [2]string{"Hard cap", fmt.Sprintf("%.0f cr — a turn projected to exceed it pauses for confirmation", s.hardCap)})
 	}
 	if aiu := s.meter.ReportedAIU(); aiu > 0 {
 		rows = append(rows, [2]string{"GitHub-reported cost", fmt.Sprintf("%.4f AIU", aiu)})

@@ -232,10 +232,17 @@ func (m *Meter) Count() int {
 }
 
 // Budget tracks consumption against a credit allowance (e.g. a plan's monthly
-// AI Credit grant) so the UI can warn before overage.
+// AI Credit grant) so the UI can warn before overage and, optionally, pause a
+// turn that would breach a hard ceiling.
 type Budget struct {
 	// AllowanceCredits is the included monthly credit grant.
 	AllowanceCredits float64
+	// WarnFraction is the soft threshold: once used/allowance crosses it the UI
+	// raises an ambient warning. Zero (or no allowance) disables the soft warn.
+	WarnFraction float64
+	// HardCapCredits is an absolute ceiling in credits; a turn whose projected
+	// spend would exceed it is paused for confirmation. Zero disables the cap.
+	HardCapCredits float64
 }
 
 // Remaining returns credits left in the allowance (may be negative on overage).
@@ -251,6 +258,26 @@ func (b Budget) FractionUsed(used float64) float64 {
 		return 1e9
 	}
 	return used / b.AllowanceCredits
+}
+
+// Warned reports whether spend has crossed the soft warning threshold. It is
+// false when no allowance or no warn fraction is configured, so a missing budget
+// never nags. Pure: same inputs → same answer.
+func (b Budget) Warned(used float64) bool {
+	if b.AllowanceCredits <= 0 || b.WarnFraction <= 0 {
+		return false
+	}
+	return used/b.AllowanceCredits >= b.WarnFraction
+}
+
+// CapExceeded reports whether a projected spend would breach the hard cap. A
+// zero cap disables the ceiling, so nothing is ever gated. The comparison is
+// strict (>) so a projection exactly at the cap is still allowed.
+func (b Budget) CapExceeded(projected float64) bool {
+	if b.HardCapCredits <= 0 {
+		return false
+	}
+	return projected > b.HardCapCredits
 }
 
 // FormatUSD renders a dollar amount with cent precision.
