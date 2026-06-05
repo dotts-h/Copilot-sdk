@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
+	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
 
 // ServeLocal serves the handler on an ephemeral loopback port; after stop() the
@@ -57,6 +59,48 @@ func TestBuildDemoServesIndex(t *testing.T) {
 	}
 	if rec.Body.Len() == 0 {
 		t.Error("GET / returned empty body")
+	}
+}
+
+// seedSpend must populate the demo ledger with a deterministic, multi-day,
+// multi-model history so the Telemetry trend view renders something offline.
+func TestSeedSpendPopulatesDeterministicHistory(t *testing.T) {
+	store, err := telemetry.LoadSpendStore("") // ephemeral
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedSpend(store)
+	recs := store.Records()
+	if len(recs) < 3 {
+		t.Fatalf("seedSpend should add several records, got %d", len(recs))
+	}
+	if days := telemetry.DailyTotals(recs); len(days) < 2 {
+		t.Fatalf("seed should span multiple days, got %d", len(days))
+	}
+	if shares := telemetry.ModelShares(recs); len(shares) < 2 {
+		t.Fatalf("seed should span multiple models, got %d", len(shares))
+	}
+}
+
+// A demo-mode Build wires the seeded ledger through to the Telemetry page, so
+// the trend view and CSV export are populated with no Copilot runtime.
+func TestBuildDemoTelemetryShowsTrend(t *testing.T) {
+	srv, closeFn, err := Build(t.TempDir(), true)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	t.Cleanup(closeFn)
+
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/page/telemetry", nil))
+	if !strings.Contains(rec.Body.String(), "Spend over time") {
+		t.Fatalf("demo telemetry page missing the trend view:\n%s", rec.Body.String())
+	}
+
+	csv := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(csv, httptest.NewRequest(http.MethodGet, "/telemetry/export.csv", nil))
+	if ct := csv.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/csv") {
+		t.Fatalf("export Content-Type = %q, want text/csv", ct)
 	}
 }
 

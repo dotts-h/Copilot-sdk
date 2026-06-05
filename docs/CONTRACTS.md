@@ -68,6 +68,7 @@ for the streaming/turn routes (`/events`, `/send`, the `/perm|ask|plan|elicit/{i
 | Core | `GET /` · `GET /events` (SSE) · `POST /send` · `POST /abort` |
 | Turn answers | `POST /perm/{id}` · `POST /ask/{id}` · `POST /plan/{id}` · `POST /elicit/{id}` · `POST /budget/{action}` |
 | Navigation | `GET /page/{name}` · `GET /commands` · `GET /static/…` |
+| Telemetry | `GET /telemetry/export.csv` |
 | Skills | `GET /skills/new` · `GET /skills/{id}/edit` · `POST /skills` · `POST /skills/{id}` · `POST /skills/{id}/toggle` · `POST /skills/{id}/delete` |
 | Instructions | `POST /instructions/import` · `GET /instructions/new` · `GET /instructions/{id}/edit` · `POST /instructions` · `POST /instructions/{id}` · `POST /instructions/{id}/toggle` · `POST /instructions/{id}/delete` |
 | Agents | `GET /agents/new` · `GET /agents/{id}/edit` · `POST /agents` · `POST /agents/{id}` · `POST /agents/{id}/select` · `POST /agents/{id}/delete` |
@@ -82,6 +83,10 @@ hard cap paused before `Send`: **proceed** dispatches the held prompt and keeps 
 cap, **raise** lifts (disables) and persists the cap then dispatches, **cancel**
 drops the turn. It is an **app-level** gate, not an SDK permission — distinct from
 `/perm/{id}` despite reusing the inline-form look. — see [ADR-0008](adr/0008-budget-guardrails-soft-warn-and-hard-cap-gate.md)
+
+`GET /telemetry/export.csv` streams the full persisted spend ledger as a CSV
+attachment (header `at,session,model,input,cached,output,usd,credits,aiu`; one row
+per metered turn). Empty (header only) when no ledger is wired. — see [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md)
 
 ## 4. Persisted schemas (forge + config)
 
@@ -98,6 +103,14 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   overrides (`DefaultPriceBook`). `TelemetryConfig.WarnFraction` (soft-warn threshold,
   `[0,1]`) and `TelemetryConfig.HardCapCredits` (absolute credit ceiling, `>= 0`,
   `0` = off) back the budget guardrails. — see [ADR-0008](adr/0008-budget-guardrails-soft-warn-and-hard-cap-gate.md)
+- **`telemetry.SpendStore`** / **`telemetry.SpendRecord`** (`history.go`): the persisted
+  spend ledger at `<configDir>/spend.json`. On-disk shape is a versioned envelope
+  `{"version":1,"records":[…]}`; each record is
+  `{at, session?, model, in, cached, out, usd, aiu?}` (JSON tags are the contract).
+  Written **atomically** (temp-file + rename); missing file = empty, present-but-invalid
+  = error. **Migration note:** `version` gates the schema and the `records` array is the
+  stable surface — bumps must add fields only (older readers ignore unknown keys; newer
+  readers tolerate a higher `version`) or ship a converting migration. — see [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md)
 
 ## 5. Invariants (promises that aren't a signature)
 

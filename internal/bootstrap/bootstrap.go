@@ -50,6 +50,20 @@ func Build(configDir string, demo bool) (srv *web.Hub, close func(), err error) 
 	}
 	meter := telemetry.NewMeter(pb)
 
+	// Persisted, append-only spend ledger (survives restart; feeds the Telemetry
+	// trend view). Demo uses an ephemeral, pre-seeded store so the trend renders
+	// deterministically offline without writing to a real config directory.
+	var spend *telemetry.SpendStore
+	if demo {
+		spend, _ = telemetry.LoadSpendStore("")
+		seedSpend(spend)
+	} else {
+		spend, err = telemetry.LoadSpendStore(configDir)
+		if err != nil {
+			return nil, nil, fmt.Errorf("load spend history: %w", err)
+		}
+	}
+
 	spec := copilot.SessionSpec{Model: cfg.DefaultModel, ReasoningEffort: cfg.ReasoningEffort, Streaming: true}
 	// Compile the configured default agent (or just the enabled global
 	// instructions/skills when none) so the very first session carries the same
@@ -80,6 +94,7 @@ func Build(configDir string, demo bool) (srv *web.Hub, close func(), err error) 
 		Forge:  forge,
 		Config: cfg,
 		Meter:  meter,
+		Spend:  spend,
 		Spec:   spec,
 		Demo:   demo,
 		Logger: log.New(os.Stderr, "web: ", log.LstdFlags),
@@ -122,6 +137,24 @@ func demoClient(forge *ctxforge.Forge, spec *copilot.SessionSpec) (copilot.Clien
 		},
 	}
 	return mock, func() { _ = mock.Close() }
+}
+
+// seedSpend pre-loads the demo's ephemeral ledger with a few days of spend so
+// the Telemetry trend view (spend over time, per-model share, CSV export) has
+// something to show offline. Deterministic shape; dates are relative to now so
+// the trend always lands in the recent window the page shows.
+func seedSpend(store *telemetry.SpendStore) {
+	now := time.Now()
+	at := func(daysAgo int) time.Time { return now.AddDate(0, 0, -daysAgo) }
+	for _, r := range []telemetry.SpendRecord{
+		{At: at(4), SessionID: "demo-sess-2", Model: "gpt-5", InputTokens: 900, OutputTokens: 220, USD: 0.012},
+		{At: at(3), SessionID: "demo-sess-2", Model: "claude-sonnet-4-6", InputTokens: 1500, OutputTokens: 400, USD: 0.030},
+		{At: at(2), SessionID: "demo-sess-1", Model: "gpt-5", InputTokens: 1200, CachedTokens: 200, OutputTokens: 340, USD: 0.018},
+		{At: at(1), SessionID: "demo-sess-1", Model: "gpt-5", InputTokens: 2200, CachedTokens: 600, OutputTokens: 520, USD: 0.026},
+		{At: at(0), SessionID: "demo-sess-1", Model: "claude-haiku-4-5", InputTokens: 800, OutputTokens: 150, USD: 0.004},
+	} {
+		_ = store.Append(r)
+	}
 }
 
 // dialClient starts the SDK-backed client, returning a mock if the runtime is

@@ -215,6 +215,31 @@ test.describe("slash commands", () => {
   });
 });
 
+test.describe("persisted spend history + trends", () => {
+  test("the Telemetry page shows the spend trend and exports CSV", async ({ page }) => {
+    await gotoApp(page);
+    await navTo(page, "Telemetry");
+
+    // The demo seeds a multi-day, multi-model ledger, so the trend view renders
+    // without any live turn. (The store is append-only and shared across the
+    // suite, so assert structure, not exact figures.)
+    const main = page.locator("#main");
+    await expect(main).toContainText("Spend history");
+    await expect(main).toContainText("Spend over time");
+    await expect(main).toContainText("Per-model share");
+    // At least one day bar and one model-share bar are present.
+    await expect(page.locator("#main ul.trend .trend-row").first()).toBeVisible();
+
+    // The export link downloads a CSV with the documented header.
+    const link = page.locator('#main a.export[href="/telemetry/export.csv"]');
+    await expect(link).toBeVisible();
+    const res = await page.request.get("/telemetry/export.csv");
+    expect(res.status()).toBe(200);
+    expect(res.headers()["content-type"]).toContain("text/csv");
+    expect(await res.text()).toContain("at,session,model");
+  });
+});
+
 test.describe("budget guardrails (hard cap)", () => {
   // Set the hard cap through the Settings form. Saving applies it to the live
   // session immediately (the gate reads the refreshed value on the next turn).
