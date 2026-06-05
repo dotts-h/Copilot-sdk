@@ -134,6 +134,11 @@ func NewMeter(pb *PriceBook) *Meter {
 	return &Meter{pb: pb, perModel: make(map[string]*ModelTotals)}
 }
 
+// PriceBook returns the meter's price book so a sibling meter — e.g. a per-
+// session scope built alongside the account-wide one — can price against the
+// same rates and stay consistent to the cent. The book is shared, not copied.
+func (m *Meter) PriceBook() *PriceBook { return m.pb }
+
 // Record prices a usage event and folds it into the running totals, returning
 // the cost of just that event.
 func (m *Meter) Record(u Usage) Cost {

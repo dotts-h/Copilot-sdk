@@ -75,6 +75,22 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
   like config). The `EvUsage` reducer appends one `SpendRecord` per turn
   best-effort (a disk error is logged, never surfaced). Don't reconstruct history
   from `Meter.ByModel()` — it only knows this process. See [ADR 0009](adr/0009-persisted-spend-history-append-only-ledger.md).
+- **Two meters now: per-session (statusline) vs account-wide (budget/Telemetry).**
+  `Server.sessionMeter` scopes the **statusline** to *this* conversation (item 3.2
+  / ADR-0011); the process-global `s.meter` still backs the **topbar cost footer**,
+  the **hard-cap projection** (`overCap`), and the **Telemetry page**. The `EvUsage`
+  reducer records each turn into **both** — drop the `sessionMeter.Record` and the
+  statusline silently goes stale; record only into it and the budget gauge stops
+  moving. Build the session meter on the **account meter's price book**
+  (`telemetry.NewMeter(h.meter.PriceBook())`) or per-session credits/estimates
+  drift from the global gauge. Tests that drive the budget past a threshold must
+  fold spend into **both** meters (see `recordSpend` in `budget_test.go`), since
+  the statusline soft-warn now reads the session meter while the footer reads the
+  global one. In the **single shared demo session** both meters see identical
+  records, so e2e/relative assertions are unaffected — same family as the
+  shared-session / shared-config / shared-ledger gotchas above. Guarded by
+  `internal/web` `TestStatlineScopesTotalsToThisSession`,
+  `TestTelemetryPageStaysAccountWide`.
 - **The MCP page's PATH preflight is the one impurity — keep it behind the seam.**
   Whether a curated stdio server's `Command` (`npx`/`uvx`) resolves depends on the
   host, so `mcpServersPartial` calls `exec.LookPath` through the `s.lookPath` seam

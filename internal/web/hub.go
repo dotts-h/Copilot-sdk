@@ -103,7 +103,13 @@ func (h *Hub) newSession(id string) *Server {
 	s := &Server{
 		hub: h, id: id,
 		client: h.client, forge: h.forge, config: h.config, meter: h.meter, spend: h.spend,
-		allowance: h.allowance, warnFraction: h.warnFraction, hardCap: h.hardCap,
+		// A per-session meter on the account-wide meter's price book, so the
+		// statusline scopes to this conversation while staying penny-consistent
+		// with the global gauge (item 3.2 / TECH_DEBT #2). h.meter is non-nil by
+		// the same invariant the rest of the package relies on (bootstrap/tests
+		// always supply one).
+		sessionMeter: telemetry.NewMeter(h.meter.PriceBook()),
+		allowance:    h.allowance, warnFraction: h.warnFraction, hardCap: h.hardCap,
 		lookPath: h.lookPath,
 		logger:   h.logger, demo: h.demo,
 		spec:           h.baseSpec,

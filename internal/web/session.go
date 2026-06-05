@@ -126,14 +126,18 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		return append(s.timelineFragments(), s.statusFrag("", false))
 
 	case copilot.EvUsage:
-		cost := s.meter.Record(telemetry.Usage{
+		usage := telemetry.Usage{
 			Model:            e.Usage.Model,
 			InputTokens:      e.Usage.InputTokens,
 			CachedTokens:     e.Usage.CachedTokens,
 			CacheWriteTokens: e.Usage.CacheWriteTokens,
 			OutputTokens:     e.Usage.OutputTokens,
 			ReasoningTokens:  e.Usage.ReasoningTokens,
-		})
+		}
+		cost := s.meter.Record(usage)
+		// Fold the same turn into this conversation's own meter so the statusline
+		// reflects *this* session, not every session's combined spend (item 3.2).
+		s.sessionMeter.Record(usage)
 		aiu := e.Usage.NanoAIU * 1e-9
 		s.meter.RecordReportedAIU(aiu)
 		// Persist the turn to the append-only ledger so spend survives a restart
