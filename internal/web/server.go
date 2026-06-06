@@ -309,6 +309,22 @@ func (s *Server) monthToDate() telemetry.Cost {
 	return telemetry.MonthToDate(s.spend.Records(), time.Now())
 }
 
+// forecast projects when the monthly allowance is exhausted at the recent burn
+// rate, read account-wide off the persisted ledger like the other ADR-0016 rows
+// (a pure telemetry.Forecast over the daily series — ADR-0019). ok is false when
+// no ledger is wired or it holds no records, so callers can hide the surface
+// entirely (distinct from a wired-but-degenerate projection, which Status carries).
+func (s *Server) forecast(now time.Time) (telemetry.Projection, bool) {
+	if s.spend == nil {
+		return telemetry.Projection{}, false
+	}
+	records := s.spend.Records()
+	if len(records) == 0 {
+		return telemetry.Projection{}, false
+	}
+	return telemetry.Forecast(telemetry.DailyTotals(records), s.budget(), now), true
+}
+
 // budget builds the telemetry budget from this session's cached allowance, warn
 // fraction, and hard cap (refreshed from config on a settings save).
 func (s *Server) budget() telemetry.Budget {

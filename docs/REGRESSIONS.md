@@ -122,6 +122,29 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
   `TestNewSessionSeedsActiveAgentFromConfig`, `TestTelemetryPageShowsAttributionBreakdown`;
   `internal/telemetry` `TestSpendRecordRoundTripsAttributionTags`,
   `TestSpendStoreReadsV1RecordWithoutTags`, `TestAgentShares`, `TestWorkflowSharesExcludeNonWorkflowSpend`.
+- **The burn-rate forecast is a fourth pure *reader* over the same ledger — not a
+  fourth source.** `telemetry.Forecast(DailyTotals, Budget, now)` projects when the
+  monthly allowance is exhausted (item A3 / ADR-0019); it reads the **ledger** like
+  the other account-wide rows (via `Server.forecast(now)` → `DailyTotals`), never
+  the process/session meter — don't "fix" a forecast by pointing it at
+  `s.meter`. Three gotchas it bit on: (1) the slope **divides window credits by
+  elapsed observed days** (the 7-day window *clamped to ledger age*), so a
+  single-day/new ledger isn't divided by a mostly-absent week (→ near-zero rate)
+  while idle days inside an established history still drag it down — don't switch
+  the denominator to "days that have records." (2) the displayed "~N days" uses
+  `⌈DaysToCap⌉` to **match** `ExhaustionDate = today + ⌈DaysToCap⌉`; rounding the
+  count independently prints "~9 days" beside a +10-day date. (3) thread **one
+  `now`** per render into both `Forecast` and `forecastSoon` (the amber predicate)
+  so the date and the warn can't disagree across a month boundary. Degenerate cases
+  are explicit in `Projection.Status` (no-budget / idle / exhausted / ok) — the
+  statusline cell shows **only** `ProjectionOK`; the Telemetry page explains the
+  rest. Like `MonthToDate`, the read is O(n) on the render path (caching deferred,
+  ADR-0016/0019). The shared **demo ledger** is append-only across the suite, so
+  e2e asserts the **"Forecast" label**, never figures (same family as the
+  shared-ledger gotcha above). Guarded by `internal/telemetry` `TestForecast`,
+  `TestForecastDeterministic`; `internal/web` `TestTelemetryPageShowsForecast`,
+  `TestTelemetryForecastNoBudgetHint`, `TestStatlineShowsForecastCell`,
+  `TestStatlineNoForecastCellWithoutBudget`.
 - **The MCP page's PATH preflight is the one impurity — keep it behind the seam.**
   Whether a curated stdio server's `Command` (`npx`/`uvx`) resolves depends on the
   host, so `mcpServersPartial` calls `exec.LookPath` through the `s.lookPath` seam

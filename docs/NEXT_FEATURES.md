@@ -79,7 +79,7 @@ wrong (in-process) source.
   `spendTag`; "Cost by agent / workflow" on Telemetry; CSV columns appended.
   **Decision → ADR-0018. Issue [0016](issues/0016-cost-attribution-rollups.md).**
 
-### A3 — Budget burn-rate projection / forecast  — **S/M**
+### A3 — Budget burn-rate projection / forecast  — **S/M**  ·  **SHIPPED (#TBD)**
 - **What:** from `DailyTotals` + the allowance, project *"at this rate you reach
   your cap in ~N turns / by <date>"* — on Telemetry and (compact) in the
   statusline. Turns cost from **reactive** (warn at 80%) to **predictive**.
@@ -87,6 +87,11 @@ wrong (in-process) source.
   already gives the slope; a pure function, no new IO.
 - **Touches:** `internal/telemetry` (a pure `Forecast` over `DailyTotals` +
   `Budget`), `internal/web` (`telemetryPartial`, optional statusline cell).
+- **Shipped:** pure `telemetry.Forecast` → `Projection` (trailing-7-day-average
+  burn rate; days/turns-to-cap + exhaustion date; degenerate cases explicit in
+  `Status`: no-budget / idle / exhausted / ok); a Telemetry-page forecast line +
+  a compact `cap ~Nd` statusline cell (ambers when on track to exceed the budget
+  before month-end). **Decision → ADR-0019. Issue [0017](issues/0017-budget-burn-rate-forecast.md).**
 
 ## Tier B — deepen orchestration (the name)
 
@@ -166,7 +171,8 @@ Paydown, not product — pull when demand appears:
 2. **B1 — real parallel lanes**. Completes the orchestration differentiator's
    unobserved half; M/L; engine already exists. → issue **0015**.
 3. **A2 → A3** — cost attribution, then forecast: per-agent/per-workflow spend, then
-   predictive burn-rate. The two differentiators meet in A2.
+   predictive burn-rate. The two differentiators meet in A2. **Both shipped**
+   (A2 ADR-0018 #41; A3 ADR-0019) — Tier A's cost-accountability loop is now closed.
 4. **C2 (textarea composer)** — small, compounding; then **C1 (MCP secrets**, lead
    with an ADR for the secrets store).
 5. **B2 / B3** — branching + run history: the bigger orchestration bets; lead each
