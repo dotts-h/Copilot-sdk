@@ -45,6 +45,10 @@ func renderTurn(t convo.Turn) string {
 	return ""
 }
 
+// maxToolResultLines bounds how many lines of a tool's result the timeline card
+// renders, so a large command output can't flood the transcript.
+const maxToolResultLines = 16
+
 // renderToolCard renders one tool-execution timeline entry: a status glyph with
 // the tool name and argument summary, a live progress line while running, and
 // the (bounded) result on completion.
@@ -63,7 +67,7 @@ func renderToolCard(tv *convo.ToolView) string {
 		"ID": tv.ID, "Name": tv.Name, "Args": tv.Args,
 		"Glyph": glyph, "State": state,
 		"Progress": tv.Progress, "ShowProgress": !tv.Done && tv.Progress != "",
-		"Result": clampLines(tv.Result, 16), "ShowResult": tv.Done && tv.Result != "",
+		"Result": clampLines(tv.Result, maxToolResultLines), "ShowResult": tv.Done && tv.Result != "",
 	})
 }
 

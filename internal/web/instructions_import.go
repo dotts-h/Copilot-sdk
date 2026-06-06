@@ -13,6 +13,10 @@ import (
 // a one-shot copy of the well-known instruction files in the working directory
 // into forge Instructions, so a project bootstraps its always-on guidance.
 
+// importedPriority is the default priority assigned to imported instructions —
+// mid-range, so hand-authored instructions can be ordered before or after them.
+const importedPriority = 50
+
 // importSources maps a well-known instruction file (relative to the working
 // dir) to the forge Instruction id/title it imports into.
 var importSources = []struct{ path, id, title string }{
@@ -36,7 +40,7 @@ func importInstructionFiles(dir string) []ctxforge.Instruction {
 			continue
 		}
 		out = append(out, ctxforge.Instruction{
-			ID: src.id, Title: src.title, Body: body, Priority: 50, Enabled: true,
+			ID: src.id, Title: src.title, Body: body, Priority: importedPriority, Enabled: true,
 		})
 	}
 	return out

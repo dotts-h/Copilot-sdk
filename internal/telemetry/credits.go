@@ -285,7 +285,8 @@ func (b Budget) CapExceeded(projected float64) bool {
 	return projected > b.HardCapCredits
 }
 
-// FormatUSD renders a dollar amount with cent precision.
+// FormatUSD renders a dollar amount with sub-cent (4-decimal) precision — per-turn
+// costs are often a fraction of a cent, and the CSV export relies on this width.
 func FormatUSD(v float64) string { return fmt.Sprintf("$%.4f", v) }
 
 // FormatCredits renders a credit amount with two decimals.

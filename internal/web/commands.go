@@ -69,8 +69,6 @@ func (s *Server) systemNote(text string) string {
 	return s.oobTimeline()
 }
 
-// cmdClear resets the transcript and restarts the session so the next prompt
-// opens a fresh one.
 // clearConversation resets all per-conversation state to a fresh chat. The
 // caller must hold s.mu. Shared by /clear and "+ New chat" on the sessions page.
 func (s *Server) clearConversation() {
@@ -94,20 +92,22 @@ func (s *Server) clearConversation() {
 	s.messagesSent, s.toolsUsed = 0, 0
 }
 
+// clearableRegions are the dynamic chat regions cmdClear empties out-of-band.
+// Keep in sync with the regions chatPartial renders.
+var clearableRegions = []string{"perms", "asks", "plans", "elicits", "subagents", "lanes", "status", "ctx"}
+
 func (s *Server) cmdClear() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.clearConversation()
 	s.state.AddSystem("conversation cleared")
-	return s.oobTimeline() + s.oobStat() +
-		`<div id="perms" hx-swap-oob="innerHTML"></div>` +
-		`<div id="asks" hx-swap-oob="innerHTML"></div>` +
-		`<div id="plans" hx-swap-oob="innerHTML"></div>` +
-		`<div id="elicits" hx-swap-oob="innerHTML"></div>` +
-		`<div id="subagents" hx-swap-oob="innerHTML"></div>` +
-		`<div id="lanes" hx-swap-oob="innerHTML"></div>` +
-		`<div id="status" hx-swap-oob="innerHTML"></div>` +
-		`<div id="ctx" hx-swap-oob="innerHTML"></div>`
+	var b strings.Builder
+	b.WriteString(s.oobTimeline())
+	b.WriteString(s.oobStat())
+	for _, id := range clearableRegions {
+		b.WriteString(`<div id="` + id + `" hx-swap-oob="innerHTML"></div>`)
+	}
+	return b.String()
 }
 
 // setMode moves the per-session agent mode toward target ("plan"/"autopilot"/

@@ -35,13 +35,8 @@ var funcMap = template.FuncMap{
 		}
 		return template.HTML(`<span class="off">[ ]</span>`)
 	},
-	// def returns s or a fallback when s is empty.
-	"def": func(s, fallback string) string {
-		if s == "" {
-			return fallback
-		}
-		return s
-	},
+	// def returns s or a fallback when s is empty (shared with the package func).
+	"def": def,
 }
 
 // trusted marks already-rendered HTML (produced by another renderer that has

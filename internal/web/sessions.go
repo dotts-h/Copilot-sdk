@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/dotts-h/copilot-sdk/internal/convo"
@@ -22,17 +23,24 @@ func (s *Server) sessionsPartial() string {
 	if err != nil {
 		errMsg = err.Error()
 	}
-	rows := make([]map[string]any, 0, len(metas))
+	return frag("sessionsPage", map[string]any{"Rows": s.sessionRows(metas), "Err": errMsg})
+}
+
+// sessionRows builds the per-session template rows, flagging the active session.
+// Shared by sessionsPartial and sessionsError so both renderings agree (the error
+// path used to drop the "Current" marker).
+func (s *Server) sessionRows(metas []copilot.SessionMeta) []map[string]any {
 	s.mu.Lock()
 	current := s.sessionID
 	s.mu.Unlock()
+	rows := make([]map[string]any, 0, len(metas))
 	for _, m := range metas {
 		rows = append(rows, map[string]any{
 			"ID": m.ID, "Title": sessionTitle(m), "When": humanWhen(m.Modified),
 			"Current": m.ID == current,
 		})
 	}
-	return frag("sessionsPage", map[string]any{"Rows": rows, "Err": errMsg})
+	return rows
 }
 
 // sessionTitle is the session's summary, falling back to a short id.
@@ -57,24 +65,12 @@ func humanWhen(t time.Time) string {
 	case d < time.Minute:
 		return "just now"
 	case d < time.Hour:
-		return itoaInt(int(d.Minutes())) + "m ago"
+		return strconv.Itoa(int(d.Minutes())) + "m ago"
 	case d < 24*time.Hour:
-		return itoaInt(int(d.Hours())) + "h ago"
+		return strconv.Itoa(int(d.Hours())) + "h ago"
 	default:
-		return itoaInt(int(d.Hours()/24)) + "d ago"
+		return strconv.Itoa(int(d.Hours()/24)) + "d ago"
 	}
-}
-
-func itoaInt(n int) string {
-	if n <= 0 {
-		return "0"
-	}
-	var b []byte
-	for n > 0 {
-		b = append([]byte{byte('0' + n%10)}, b...)
-		n /= 10
-	}
-	return string(b)
 }
 
 // handleSessionNew starts a fresh conversation and shows the chat page.
@@ -128,13 +124,7 @@ func (s *Server) handleSessionDelete(w http.ResponseWriter, r *http.Request) {
 // sessionsError re-renders the sessions list with a banner.
 func (s *Server) sessionsError(msg string) string {
 	metas, _ := s.client.ListSessions(context.Background())
-	rows := make([]map[string]any, 0, len(metas))
-	for _, m := range metas {
-		rows = append(rows, map[string]any{
-			"ID": m.ID, "Title": sessionTitle(m), "When": humanWhen(m.Modified),
-		})
-	}
-	return frag("sessionsPage", map[string]any{"Rows": rows, "Err": msg})
+	return frag("sessionsPage", map[string]any{"Rows": s.sessionRows(metas), "Err": msg})
 }
 
 // loadHistory rebuilds s.state from a session's normalized history events. The
