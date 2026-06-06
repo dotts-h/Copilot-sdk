@@ -11,6 +11,7 @@ issues are added or closed.
 | [0001](0001-epic-cost-awareness.md) | Epic: make cost active (Tier 1) | closed | 0002, 0003, 0004 |
 | [0005](0005-epic-orchestration.md) | Epic: make it an orchestra (Tier 2) | closed | 0006, 0010 |
 | [0007](0007-epic-polish.md) | Epic: polish that compounds (Tier 3) | closed | 0008, 0009, 0011, 0012 |
+| [0013](0013-epic-deepen-differentiators.md) | Epic: deepen the differentiators (roadmap v2) | open | 0014, 0015 |
 
 ## Issues
 
@@ -25,3 +26,5 @@ issues are added or closed.
 | [0010](0010-multi-agent-run-handoff.md) | Multi-agent run / handoff surface (item 2.1) | closed | high | 0005 | ADR-0013 |
 | [0011](0011-keybinding-surface.md) | Keybinding surface (item 3.3) | closed | low | 0007 | ADR-0014 |
 | [0012](0012-prompt-snippet-library.md) | Prompt/snippet library (item 3.4) | closed | low | 0007 | ADR-0015 |
+| [0014](0014-ledger-derived-budget-rows.md) | Ledger-derived budget rows (item A1) | open | high | 0013 | ADR-0016, TECH_DEBT #9 |
+| [0015](0015-real-parallel-workflow-lanes.md) | Real parallel workflow lanes (item B1) | open | medium | 0013 | ADR-0013, TECH_DEBT #12 |
