@@ -593,10 +593,7 @@ func (s *Server) handleSkillToggle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSkillDelete(w http.ResponseWriter, r *http.Request) {
-	if err := s.editForge(func() error { return s.forge.RemoveSkill(r.PathValue("id")) }); err != nil {
-		s.logger.Printf("remove skill: %v", err) // e.g. an agent still pins it
-	}
-	s.writePartial(w, s.skillsPartial())
+	skillCRUD.Delete(s, w, r) // a failure (e.g. an agent still pins it) is logged
 }
 
 func (s *Server) handleInstructionToggle(w http.ResponseWriter, r *http.Request) {
@@ -606,10 +603,7 @@ func (s *Server) handleInstructionToggle(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) handleInstructionDelete(w http.ResponseWriter, r *http.Request) {
-	if err := s.editForge(func() error { return s.forge.RemoveInstruction(r.PathValue("id")) }); err != nil {
-		s.logger.Printf("remove instruction: %v", err)
-	}
-	s.writePartial(w, s.instructionsPartial())
+	instructionCRUD.Delete(s, w, r)
 }
 
 func (s *Server) handleAgentSelect(w http.ResponseWriter, r *http.Request) {
