@@ -33,3 +33,25 @@ func TestSeedStarterWritesValidForge(t *testing.T) {
 		t.Errorf("persisted forge should be valid: %v", err)
 	}
 }
+
+// run with seed=true takes the write-and-exit path (no server), so it returns
+// nil after seeding rather than blocking on ListenAndServe.
+func TestRunSeedPathExitsWithoutServing(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("MY_ORCHESTRA_HOME", dir)
+
+	if err := run(dir, "127.0.0.1:0", true, false); err != nil {
+		t.Fatalf("run seed path: %v", err)
+	}
+	cfg, err := config.Load(dir)
+	if err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	forge, err := ctxforge.Load(cfg.ForgeDir)
+	if err != nil {
+		t.Fatalf("reload forge: %v", err)
+	}
+	if len(forge.Agents) == 0 {
+		t.Error("run -seed should have written a starter forge")
+	}
+}

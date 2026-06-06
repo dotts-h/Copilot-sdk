@@ -25,6 +25,17 @@ func TestStreamThenFinish(t *testing.T) {
 	}
 }
 
+func TestAddSystemAppendsNoticeTurn(t *testing.T) {
+	var c State
+	c.AddUser("hi")
+	c.AddSystem("conversation cleared")
+	committed := c.Committed()
+	last := committed[len(committed)-1]
+	if last.Role != RoleSystem || last.Text != "conversation cleared" {
+		t.Fatalf("AddSystem should append a system turn, got %+v", last)
+	}
+}
+
 func TestFinishPrefersFinalContent(t *testing.T) {
 	var c State
 	c.AppendDelta("partial")

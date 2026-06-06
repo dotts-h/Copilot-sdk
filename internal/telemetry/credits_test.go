@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"math"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -86,6 +87,41 @@ func TestPriceBookSetAndOverride(t *testing.T) {
 	pb.Set(ModelRate{Model: "gpt-5", InputPerMTok: 99, OutputPerMTok: 0, CachedInputPerMTok: 0})
 	c := Price(pb, Usage{Model: "gpt-5", InputTokens: 1_000_000})
 	approx(t, c.InputUSD, 99)
+}
+
+func TestFormatHelpers(t *testing.T) {
+	if got := FormatUSD(1.23456); got != "$1.2346" {
+		t.Errorf("FormatUSD = %q, want $1.2346 (4-decimal precision)", got)
+	}
+	if got := FormatCredits(12.5); got != "12.50 cr" {
+		t.Errorf("FormatCredits = %q, want '12.50 cr'", got)
+	}
+}
+
+func TestMeterExtraTokens(t *testing.T) {
+	m := NewMeter(DefaultPriceBook())
+	m.Record(Usage{Model: "gpt-5", InputTokens: 10, CacheWriteTokens: 7, ReasoningTokens: 5})
+	m.Record(Usage{Model: "gpt-5", CacheWriteTokens: 3, ReasoningTokens: 2})
+	cw, reasoning := m.ExtraTokens()
+	if cw != 10 || reasoning != 7 {
+		t.Fatalf("ExtraTokens = (%d, %d), want (10, 7)", cw, reasoning)
+	}
+}
+
+func TestPriceBookModels(t *testing.T) {
+	pb := NewPriceBook(ModelRate{}, ModelRate{Model: "gpt-5"}, ModelRate{Model: "claude-opus"})
+	got := pb.Models()
+	if len(got) != 2 || got[0] != "claude-opus" || got[1] != "gpt-5" {
+		t.Fatalf("Models() = %v, want sorted [claude-opus gpt-5]", got)
+	}
+}
+
+func TestModelRateString(t *testing.T) {
+	r := ModelRate{Model: "gpt-5", InputPerMTok: 1.25, CachedInputPerMTok: 0.125, OutputPerMTok: 10, PremiumMultiplier: 1}
+	got := r.String()
+	if !strings.Contains(got, "gpt-5") || !strings.Contains(got, "in=$1.2500/Mt") {
+		t.Fatalf("ModelRate.String() = %q", got)
+	}
 }
 
 func TestMeterAccumulates(t *testing.T) {
