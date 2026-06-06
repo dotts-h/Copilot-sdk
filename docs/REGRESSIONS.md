@@ -236,6 +236,33 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
   `TestRunParallelFailUnblocksWhenFailed`, `TestBranchingDemoRunSkipsLane`,
   `TestWorkflowStepConditionRoundTrip`, `TestWorkflowFormRoundTripsCondition`;
   `internal/ctxforge` `TestWorkflowValidateWhen`, `TestCompileWorkflowCarriesWhen`.
+- **A workflow run is persisted to history exactly once, on completion — and a
+  skipped lane persists with no cost.** Run history (B3 / ADR-0022) lives in a
+  **separate** `telemetry.RunStore` (`<configDir>/runs.json`, a sibling of the spend
+  ledger — same versioned-envelope + atomic temp-file+rename discipline), **not** in
+  the spend ledger: a spend row is "one metered turn," which can't represent a run's
+  start/finish/outcome nor a **branched lane that was skipped and so incurred no turn**
+  (the exact case ADR-0021 made first-class). The web adapter records a run in
+  `runFrags(run, done=true)` — the **one** completion point, reached **exactly once**
+  per run (after `run.done` flips, `handleEvent` stops routing to `handleRunEvent`, so
+  `busy` clears there too). **Don't** move `recordRun` earlier (a run could be written
+  twice or half-finished) or into a per-lane settle (a half-written run is not a
+  history row). The append is **best-effort** under `s.mu` (a disk error is logged, not
+  surfaced) and the store's `mu` is a **leaf** lock (never calls back into `s.mu`) —
+  same shape as the spend `recordUsage` append, so no new lock-order risk. `recordRun`
+  is a no-op when no store is wired (nil-safe). A skipped lane keeps its compiled
+  `AgentID` (so history shows the agent that *would* have run, never "chat (built-in)")
+  and persists `status:"skipped"` with zero `credits`. The **glyph mapping is one
+  source of truth** (`glyphFor(status string)`): `laneGlyph` (live) routes through it
+  via `laneStatusName`, and the Runs page uses it directly — so a live lane and a
+  historical lane can't drift. Adding the **Runs** top-level page also touched the
+  `pageNames` / e2e `pages` count coupling (above). Guarded by `internal/web`
+  `TestWorkflowRunRecordedOnceSequential`, `TestWorkflowRunRecordedOnceParallel`,
+  `TestWorkflowRunRecordsSkippedLane`, `TestWorkflowRunRecordingNoStoreNoPanic`,
+  `TestRunsPartialRendersStructure`, `TestRunsPartialEmpty`; `internal/telemetry`
+  `TestRunStoreAppendPersistsAndReloads`, `TestRunStoreEphemeralNeverWrites`,
+  `TestLoadRunStoreRejectsCorruptFile`, `TestLoadRunStoreToleratesNewerSchema`,
+  `TestRunRecordCarriesSkippedLane`, `TestRunStoreStampsFinishedAtWhenZero`.
 - **Keyboard shortcuts are config-backed and dispatched client-side, but the
   keymap is computed server-side.** The rebindable action set is fixed in code
   (`config.KeyActions()`); only overrides persist (`Config.KeyBindings`,

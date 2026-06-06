@@ -132,13 +132,22 @@ is unobserved and lanes are thin.
   seeded branching demo + e2e drive a real branch (a skipped lane). **Decision →
   ADR-0021. Issue [0020](issues/0020-conditional-branching-workflow-steps.md).**
 
-### B3 — Workflow run history  — **M**
+### B3 — Workflow run history  — **M**  ·  **SHIPPED (#TBD)**
 - **What:** persist each run (workflow id, agents, per-lane cost, outcome,
   timestamps) and a "Runs" view. A run is the natural unit of orchestrated spend.
 - **Why now:** runs are ephemeral today; once A2 tags ledger records with
   workflow/lane, a run-history view is mostly a query. Pairs A2 ↔ B.
 - **Touches:** `internal/telemetry` (or a sibling run-store), `internal/web`
   (`workflow.go`, a Runs partial/page — minds the `pages.length` e2e coupling).
+- **Shipped:** a **sibling** append-only `telemetry.RunStore` at
+  `<configDir>/runs.json` (versioned envelope, atomic temp-file+rename, like
+  `SpendStore`) — each `RunRecord` is `{id, workflow, name, mode, startedAt,
+  finishedAt, outcome, lanes:[{index, agentId, status incl. skipped, credits}]}`;
+  pure + unit-tested. Chosen over deriving from spend tags (which can't see a
+  cost-free skipped branch) or folding into the ledger (overloads its one-row-per-turn
+  contract). The web layer records a run **once on completion** (`recordRun` in
+  `runFrags`); a top-level **Runs** page queries it. **Decision → ADR-0022. Issue
+  [0021](issues/0021-workflow-run-history.md).**
 
 ## Tier C — extensibility & composer polish (promoted debt)
 
@@ -185,10 +194,11 @@ Paydown, not product — pull when demand appears:
 4. **C2 (textarea composer)** — small, compounding; then **C1 (MCP secrets**, lead
    with an ADR for the secrets store).
 5. **B2 / B3** — branching + run history: the bigger orchestration bets; lead each
-   with an ADR. **B2 shipped** (branching workflow steps; ADR-0021, issue 0020) —
-   `Workflow` is now real control flow. **B3 (workflow run history) is the last v2
-   item.**
-6. **Tier D** when distribution demand appears.
+   with an ADR. **Both shipped** — B2 (branching workflow steps; ADR-0021, issue 0020)
+   made `Workflow` real control flow, and **B3 (workflow run history; ADR-0022, issue
+   0019)** persists each run as a sibling run-store with a Runs view. **Roadmap v2 is
+   complete** (epic 0013 closed).
+6. **Tier D** when distribution demand appears — now the next pull (see below).
 
 Epic **[0013](issues/0013-epic-deepen-differentiators.md)** ("deepen the
 differentiators") carries A1 (0014) + B1 (0015) as the promoted build-first picks;

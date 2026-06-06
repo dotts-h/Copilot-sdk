@@ -25,7 +25,7 @@ internal/web            net/http server: handlers, SSE hub, html/template partia
 internal/convo          UI-agnostic transcript model: Turn · ToolView · State reducer (pure)
 internal/copilot        copilot.Client interface · SDKClient (Go SDK) · MockClient
 internal/ctxforge       Skill/Instruction/Agent/MCPServer/Workflow · Forge.Compile → SessionSpec
-internal/telemetry      PriceBook · Meter (concurrent) · Budget · Cost · AIU · SpendStore (persisted ledger)
+internal/telemetry      PriceBook · Meter (concurrent) · Budget · Cost · AIU · SpendStore (ledger) · RunStore (run history)
 internal/config         Config (settings + key bindings), JSON, atomic save
 ```
 
@@ -252,6 +252,19 @@ still counts as settled so the run completes. See
 [ADR-0013](adr/0013-multi-agent-workflow-run-handoff-surface.md),
 [ADR-0017](adr/0017-per-lane-tool-and-permission-surface-for-parallel-workflow-lanes.md),
 [ADR-0021](adr/0021-conditional-branching-workflow-steps-declarative-predicate.md).
+
+**Run history (B3).** A run is the natural unit of orchestrated spend, so each
+completed run is persisted to `telemetry.RunStore` (`<configDir>/runs.json`) — a
+**sibling** of the spend ledger with the same versioned-envelope + atomic-write
+discipline, *not* a merged file (a spend row is one metered turn; a run row is one
+orchestrated run, and a **skipped** branch leaves no turn yet is a first-class
+`RunRecord` lane). The web adapter records the run **once on completion**
+(`recordRun` in `runFrags`, where `busy` already clears); the **Runs** nav page
+(`runsPartial`) queries the store and renders each run's name, mode, outcome, when,
+total cost, and per-lane breakdown (agent, status incl. skipped, credits) — resolving
+agent ids to names under `forgeMu` like the Telemetry cost breakdowns. The store is the
+one IO edge; `RunRecord`/`RunLane` are pure. See
+[ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md).
 
 ## Web UI (htmx + SSE)
 

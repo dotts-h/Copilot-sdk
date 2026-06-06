@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dotts-h/copilot-sdk/internal/convo"
 	"github.com/dotts-h/copilot-sdk/internal/copilot"
@@ -130,6 +131,11 @@ type workflowRun struct {
 	cur    int // index of the running lane in sequential mode
 	done   bool
 	failed bool
+	// runID and started are stamped by the Server adapter (outside the pure engine)
+	// for run history: runID is a unique id for this run instance (distinct from id,
+	// which is the workflow definition's id), started is the launch time (ADR-0022).
+	runID   string
+	started time.Time
 }
 
 // newWorkflowRun builds a run with one pending lane per compiled step. specs are
@@ -381,6 +387,8 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	run := newWorkflowRun(wf, steps, specs)
+	run.runID = newID()
+	run.started = time.Now()
 	s.run = run
 	s.busy = true
 	s.turnStartMs = nowMs()
@@ -564,6 +572,10 @@ func (s *Server) runFrags(run *workflowRun, done bool) []fragment {
 	}
 	s.busy = false
 	s.turnStartMs = 0
+	// Persist the finished run to history. This is the one completion point — reached
+	// exactly once per run (after run.done flips, events stop routing here) — so the
+	// run is recorded once, including any skipped (branched) lanes (ADR-0022).
+	s.recordRun(run)
 	outcome := "✓ workflow " + run.name + " finished"
 	if run.failed {
 		outcome = "✗ workflow " + run.name + " stopped on a failed step"
@@ -573,6 +585,57 @@ func (s *Server) runFrags(run *workflowRun, done bool) []fragment {
 		{Event: "timeline", HTML: renderTimelineInner(&s.state)},
 		s.lanesFrag(),
 		s.statusFrag("", false),
+	}
+}
+
+// recordRun appends the finished run to the persisted run history (ADR-0022). It is
+// best-effort: a disk error is logged, never surfaced, so the run's terminal
+// fragments still render. A no-op when no run store is wired. Caller holds s.mu.
+func (s *Server) recordRun(run *workflowRun) {
+	if s.runs == nil {
+		return
+	}
+	if err := s.runs.Append(runRecord(run)); err != nil {
+		s.logger.Printf("persist run history: %v", err)
+	}
+}
+
+// runRecord maps a finished workflowRun onto a persisted RunRecord — a pure
+// translation of the in-flight run into the immutable history shape (ADR-0022). Each
+// lane carries its agent, settled status, and metered credits (zero for a skipped or
+// free lane).
+func runRecord(run *workflowRun) telemetry.RunRecord {
+	lanes := make([]telemetry.RunLane, len(run.lanes))
+	for i, l := range run.lanes {
+		lanes[i] = telemetry.RunLane{
+			Index: l.Index, AgentID: l.AgentID,
+			Status: laneStatusName(l.status), Credits: l.credits,
+		}
+	}
+	outcome := "finished"
+	if run.failed {
+		outcome = "failed"
+	}
+	return telemetry.RunRecord{
+		ID: run.runID, WorkflowID: run.id, Name: run.name, Mode: run.mode,
+		StartedAt: run.started, Outcome: outcome, Lanes: lanes,
+	}
+}
+
+// laneStatusName is the persisted/string form of a settled lane status. It is total
+// (an unsettled lane — which a finished run never has — reads as "pending").
+func laneStatusName(st laneStatus) string {
+	switch st {
+	case laneRunning:
+		return "running"
+	case laneDone:
+		return "done"
+	case laneFailed:
+		return "failed"
+	case laneSkipped:
+		return "skipped"
+	default:
+		return "pending"
 	}
 }
 
@@ -635,16 +698,25 @@ func lanePermsHTML(perms []copilot.PermissionRequest) template.HTML {
 	return trusted(b.String())
 }
 
-// laneGlyph maps a lane status to its glyph and CSS state class.
+// laneGlyph maps a live lane status to its glyph and CSS state class. It routes
+// through the status-string vocabulary (laneStatusName → glyphFor) so a live lane and
+// a persisted run-history lane (which only has the string) can never drift apart.
 func laneGlyph(st laneStatus) (glyph, state string) {
-	switch st {
-	case laneRunning:
+	return glyphFor(laneStatusName(st))
+}
+
+// glyphFor is the single source of truth mapping a lane status string to its glyph and
+// CSS state class — shared by live lanes (laneGlyph) and the persisted Runs history
+// (runs.go), so the two render identically.
+func glyphFor(status string) (glyph, state string) {
+	switch status {
+	case "running":
 		return "◐", "running"
-	case laneDone:
+	case "done":
 		return "✓", "done"
-	case laneFailed:
+	case "failed":
 		return "✗", "failed"
-	case laneSkipped:
+	case "skipped":
 		return "⊘", "skipped"
 	default:
 		return "○", "pending"

@@ -260,6 +260,26 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
 .lane-tools { margin-top: .3rem; }
 .lane-tools .turn.tool { font-size: .86rem; margin: .2rem 0; }
 .lane-perms { margin-top: .3rem; }
+/* Runs page (B3 / ADR-0022): persisted workflow-run history, reusing the lane
+   status vocabulary for each run's per-lane breakdown. */
+.run-history { list-style: none; padding: 0; margin: .6rem 0 0; display: flex;
+  flex-direction: column; gap: .5rem; }
+.run-record { border: 1px solid var(--panel); border-radius: 8px; padding: .5rem .75rem;
+  background: rgba(255,255,255,.02); }
+.run-rec-head { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+  margin-bottom: .35rem; }
+.run-glyph { color: var(--dim); }
+.run-record.run-done .run-glyph { color: var(--good); }
+.run-record.run-failed .run-glyph { color: var(--bad); }
+.run-name { font-weight: 600; color: var(--accent); }
+.run-outcome { font-size: .8rem; color: var(--dim); }
+.run-when { font-size: .8rem; margin-left: auto; }
+.run-cost { font-size: .82rem; color: var(--good); }
+.run-lanes { list-style: none; padding: 0; margin: 0; display: flex;
+  flex-direction: column; gap: .2rem; }
+.run-lane { display: flex; align-items: center; gap: .45rem; font-size: .88rem;
+  padding: .15rem .5rem; }
+.lane-cost { font-size: .8rem; margin-left: auto; }
 .lane-perms .perm { font-size: .88rem; }
 .row .run { color: var(--good); font-weight: 600; }
 .row .run:hover { color: var(--accent); }

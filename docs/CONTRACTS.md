@@ -113,6 +113,14 @@ mock session ids + `SessionID`-tagged demo events). — see
 [ADR-0013](adr/0013-multi-agent-workflow-run-handoff-surface.md),
 [ADR-0017](adr/0017-per-lane-tool-and-permission-surface-for-parallel-workflow-lanes.md)
 
+The **Runs** view (`GET /page/runs`, item B3) is a read-only history of completed
+workflow runs (most recent first) — each run's name, mode, outcome, when it ran,
+total metered cost, and a per-lane breakdown (agent, settled status incl.
+**skipped**, credits). It is a query over the persisted `telemetry.RunStore` (§4);
+adding it as a top-level nav page bumps the `pageNames` / e2e `pages` count. A run is
+recorded **once on completion** by the web adapter (`workflow.go` `recordRun`, where
+`runFrags` already clears `busy`). — see [ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md)
+
 `POST /budget/{action}` (`action` ∈ {proceed, raise, cancel}) resolves a turn the
 hard cap paused before `Send`: **proceed** dispatches the held prompt and keeps the
 cap, **raise** lifts (disables) and persists the cap then dispatches, **cancel**
@@ -236,6 +244,25 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   `Projection.Status` (no-budget / idle / exhausted / ok). Surfaced on the
   Telemetry page and (compact) in the statusline. — see
   [ADR-0019](adr/0019-budget-burn-rate-forecast-trailing-window-average.md)
+- **`telemetry.RunStore`** / **`telemetry.RunRecord`** / **`telemetry.RunLane`**
+  (`runs.go`): the persisted **workflow-run history** at `<configDir>/runs.json` — a
+  **sibling** of the spend ledger, not a merged file (each keeps its own grain: spend
+  is one row per metered turn, runs is one row per orchestrated run). On-disk shape is
+  the versioned envelope `{"version":1,"runs":[…]}`; each `RunRecord` is
+  `{id, workflow, name, mode, startedAt, finishedAt, outcome, lanes:[{index, agentId?,
+  status, credits?}]}` (JSON tags are the contract). A lane's `status` ∈ {`done`,
+  `failed`, `skipped`} — so a **branched** run's per-lane outcomes, including a
+  **skipped** lane that incurred no cost, are first-class (the reason a spend record
+  can't stand in: a branch that didn't run leaves no metered turn). `outcome` ∈
+  {`finished`, `failed`}. Written **atomically** (temp-file + rename); missing file =
+  empty, present-but-invalid = error, empty dir = ephemeral (demo/tests). **Migration
+  note:** `version` gates the schema and the `runs` array is the stable surface —
+  bumps must add fields only (older readers ignore unknown keys; newer readers
+  tolerate a higher `version`) or ship a converting migration. The web layer records a
+  run **once on completion** (`recordRun` → `Append`, best-effort: a disk error is
+  logged, not surfaced); the Runs page (§3) queries it. — see
+  [ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md),
+  [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md)
 
 ## 5. Invariants (promises that aren't a signature)
 

@@ -44,6 +44,9 @@ type Server struct {
 	meter        *telemetry.Meter
 	sessionMeter *telemetry.Meter
 	spend        *telemetry.SpendStore
+	// runs is the persisted workflow-run history (sibling of the spend ledger);
+	// a completed run is appended once on finish (ADR-0022). nil disables it.
+	runs         *telemetry.RunStore
 	allowance    float64
 	warnFraction float64 // soft-warn threshold as a fraction of the allowance
 	hardCap      float64 // hard credit ceiling; 0 disables the gate

@@ -320,6 +320,30 @@ test.describe("multi-agent workflows", () => {
     await expect(page.locator(`${sel.lanes} .lane-done`)).toHaveCount(2);
   });
 
+  // The Runs page (B3 / ADR-0022) lists persisted workflow runs, most recent first,
+  // each with a per-lane breakdown. The demo seeds a couple, and running a workflow
+  // appends one. Assert structure (a run-record row appears after a run), never
+  // figures — the demo run store is shared + append-only across the suite.
+  test("records a completed run in the Runs history", async ({ page }) => {
+    await gotoApp(page);
+    await navTo(page, "Runs");
+    await expect(page.locator("#main h2")).toContainText("Runs");
+    // The seeded demo runs render with a per-lane breakdown.
+    await expect(page.locator(".run-record").first()).toBeVisible();
+    await expect(page.locator(".run-record .run-lane").first()).toBeVisible();
+    const before = await page.locator(".run-record").count();
+
+    // Run a workflow and wait for it to finish.
+    await navTo(page, "Workflows");
+    const row = page.locator(sel.rows, { hasText: "Build & harden" });
+    await row.locator("button.run").click();
+    await expect(page.locator(`${sel.lanes} .run-status.done`)).toBeVisible({ timeout: 15_000 });
+
+    // The finished run is now in the history.
+    await navTo(page, "Runs");
+    await expect.poll(async () => page.locator(".run-record").count()).toBeGreaterThan(before);
+  });
+
   test("adds a workflow through the form", async ({ page }) => {
     await gotoApp(page);
     await navTo(page, "Workflows");

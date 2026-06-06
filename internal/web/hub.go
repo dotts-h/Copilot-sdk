@@ -30,6 +30,7 @@ type Hub struct {
 	config       *config.Config
 	meter        *telemetry.Meter
 	spend        *telemetry.SpendStore
+	runs         *telemetry.RunStore
 	allowance    float64
 	warnFraction float64
 	hardCap      float64
@@ -60,7 +61,10 @@ type Options struct {
 	Meter  *telemetry.Meter
 	// Spend is the persisted spend ledger; nil disables persistence (the trend
 	// view and CSV export render empty).
-	Spend  *telemetry.SpendStore
+	Spend *telemetry.SpendStore
+	// Runs is the persisted workflow-run history; nil disables it (the Runs page
+	// renders empty). — ADR-0022.
+	Runs   *telemetry.RunStore
 	Spec   copilot.SessionSpec
 	Logger *log.Logger
 	// Demo drives a scripted streaming reply through a MockClient so the UI can
@@ -90,7 +94,7 @@ func New(opts Options) *Hub {
 		workdir = "."
 	}
 	h := &Hub{
-		client: opts.Client, forge: opts.Forge, config: opts.Config, meter: opts.Meter, spend: opts.Spend,
+		client: opts.Client, forge: opts.Forge, config: opts.Config, meter: opts.Meter, spend: opts.Spend, runs: opts.Runs,
 		allowance: allowance, warnFraction: warnFraction, hardCap: hardCap,
 		baseSpec: opts.Spec, baseAgentID: baseAgentID, logger: lg, demo: opts.Demo, workdir: workdir,
 		lookPath: exec.LookPath,
@@ -105,7 +109,7 @@ func New(opts Options) *Hub {
 func (h *Hub) newSession(id string) *Server {
 	s := &Server{
 		hub: h, id: id,
-		client: h.client, forge: h.forge, config: h.config, meter: h.meter, spend: h.spend,
+		client: h.client, forge: h.forge, config: h.config, meter: h.meter, spend: h.spend, runs: h.runs,
 		// A per-session meter on the account-wide meter's price book, so the
 		// statusline scopes to this conversation while staying penny-consistent
 		// with the global gauge (item 3.2 / TECH_DEBT #2). h.meter is non-nil by
