@@ -311,33 +311,12 @@ func (s *Server) handleRunEvent(run *workflowRun, e copilot.Event) []fragment {
 		return []fragment{s.lanesFrag()}
 
 	case copilot.EvUsage:
-		usage := telemetry.Usage{
-			Model:            e.Usage.Model,
-			InputTokens:      e.Usage.InputTokens,
-			CachedTokens:     e.Usage.CachedTokens,
-			CacheWriteTokens: e.Usage.CacheWriteTokens,
-			OutputTokens:     e.Usage.OutputTokens,
-			ReasoningTokens:  e.Usage.ReasoningTokens,
-		}
-		cost := s.meter.Record(usage)
-		s.sessionMeter.Record(usage)
-		aiu := e.Usage.NanoAIU * 1e-9
-		s.meter.RecordReportedAIU(aiu)
+		cost := s.recordUsage(e.Usage)
 		if l != nil {
 			l.credits += cost.Credits()
 		}
-		if s.spend != nil {
-			rec := telemetry.SpendRecord{
-				SessionID: s.sessionID, Model: e.Usage.Model,
-				InputTokens: e.Usage.InputTokens, CachedTokens: e.Usage.CachedTokens,
-				OutputTokens: e.Usage.OutputTokens, USD: cost.USD(), AIU: aiu,
-			}
-			if err := s.spend.Append(rec); err != nil {
-				s.logger.Printf("persist spend: %v", err)
-			}
-		}
 		return []fragment{
-			{Event: "cost", HTML: renderCostFooter(s.meter, s.budget())},
+			{Event: "cost", HTML: renderCostFooter(s.monthToDate().Credits(), s.budget())},
 			s.lanesFrag(), s.statFrag(),
 		}
 

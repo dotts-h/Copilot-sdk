@@ -157,9 +157,9 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	keymapJSON, _ := json.Marshal(dispatch) // map marshals with sorted keys → deterministic
 	data := indexData{
 		Nav:        nav,
-		Cost:       template.HTML(renderCostFooter(s.meter, s.budget())), //nolint:gosec // internally rendered, escaped via esc()
-		Main:       template.HTML(s.chatPartial()),                       //nolint:gosec // internally rendered, escaped via esc()
-		Overlay:    template.HTML(helpOverlay(keymap)),                   //nolint:gosec // internally rendered, escaped via esc()
+		Cost:       template.HTML(renderCostFooter(s.monthToDate().Credits(), s.budget())), //nolint:gosec // internally rendered, escaped via esc()
+		Main:       template.HTML(s.chatPartial()),                                         //nolint:gosec // internally rendered, escaped via esc()
+		Overlay:    template.HTML(helpOverlay(keymap)),                                     //nolint:gosec // internally rendered, escaped via esc()
 		KeymapJSON: string(keymapJSON),
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -288,8 +288,24 @@ func (s *Server) overCap() (projected float64, capped bool) {
 	if b.HardCapCredits <= 0 {
 		return 0, false
 	}
-	projected = s.meter.Totals().Credits() + s.meter.EstimateTurn(s.spec.Model, s.ctxCurrent).Credits()
+	// The "used" baseline is the persisted month-to-date, not the in-process meter,
+	// so a mid-month restart doesn't silently re-open a cap the user already
+	// approached (ADR-0016). The next-turn estimate still comes from the live meter.
+	projected = s.monthToDate().Credits() + s.meter.EstimateTurn(s.spec.Model, s.ctxCurrent).Credits()
 	return projected, b.CapExceeded(projected)
+}
+
+// monthToDate returns the account-wide spend recorded within the current UTC
+// calendar month, read from the persisted ledger so the budget rows, the cost
+// footer, and the hard-cap baseline survive a restart (ADR-0016). Zero when no
+// ledger is wired (the offline demo / tests without one). Distinct from the
+// per-session statusline (sessionMeter) and the live token split (process meter):
+// one source per surface (see REGRESSIONS "two meters" — now three sources).
+func (s *Server) monthToDate() telemetry.Cost {
+	if s.spend == nil {
+		return telemetry.Cost{}
+	}
+	return telemetry.MonthToDate(s.spend.Records(), time.Now())
 }
 
 // budget builds the telemetry budget from this session's cached allowance, warn

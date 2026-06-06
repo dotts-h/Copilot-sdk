@@ -179,6 +179,14 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   = error. **Migration note:** `version` gates the schema and the `records` array is the
   stable surface — bumps must add fields only (older readers ignore unknown keys; newer
   readers tolerate a higher `version`) or ship a converting migration. — see [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md)
+  **Read-source (account-wide budget accounting):** the persisted ledger — not the
+  in-process `Meter` — is the source of truth for the account-wide "Total cost /
+  Monthly budget / Remaining" rows, the topbar cost footer, `/cost`, and the
+  hard-cap projection baseline. They read `telemetry.MonthToDate(records, now)` (a
+  new **pure reader** over the existing v1 `records`, UTC calendar month — no schema
+  change), so spend survives a restart. The per-session statusline (`sessionMeter`,
+  ADR-0011) and the live token split stay on the in-process meter — one source per
+  surface. — see [ADR-0016](adr/0016-ledger-is-source-of-truth-for-account-wide-budget-accounting.md)
 
 ## 5. Invariants (promises that aren't a signature)
 

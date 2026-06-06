@@ -1,7 +1,7 @@
 ---
 id: 0014
 title: Ledger-derived budget rows (roadmap v2, item A1)
-status: open
+status: closed
 severity: high
 group: 0013
 github:
@@ -32,7 +32,19 @@ promise. Source: `docs/NEXT_FEATURES.md` item A1; ADR-0016; promotes TECH_DEBT #
      `spend.json` and the trend view below them still show the month's history.
      The gauge and the ledger disagree across restarts.
 
-## Resolution (planned — not yet built)
+## Resolution (shipped)
+
+Built on `claude/next-features-research-8aBvS`: `telemetry.MonthToDate(records, now)`
+(pure, UTC calendar month) plus the read-source swap — `telemetryPartial`,
+`renderCostFooter`, `/cost`, and the hard-cap `overCap` baseline now read
+month-to-date from the persisted `SpendStore` via `Server.monthToDate()`. The
+shared `recordUsage` helper records every turn into both meters AND the ledger.
+ADR-0016 promoted to accepted; TECH_DEBT #9 paid. Guarded by `internal/telemetry`
+`TestMonthToDate` and `internal/web` `TestBudgetRowsSurviveFreshMeter` /
+`TestCapBaselineReadsLedger` / `TestCostFooterReadsLedger` /
+`TestRecordUsageHitsBothMetersAndLedger`.
+
+## Resolution (as planned)
 
 - **Pure aggregation (`internal/telemetry/history.go`):** add
   `MonthToDate(records []SpendRecord, now time.Time) Cost` beside `DailyTotals` /

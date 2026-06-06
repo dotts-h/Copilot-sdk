@@ -50,18 +50,3 @@ func TestStatlineScopesTotalsToThisSession(t *testing.T) {
 		t.Errorf("the statusline must not fold in the account-wide total: %q", got)
 	}
 }
-
-// TestTelemetryPageStaysAccountWide guards the deliberate split: while the
-// statusline is per-session, the Telemetry page keeps the account-wide meter so
-// the month-to-date / budget rows aggregate every session (TECH_DEBT #9 pairing).
-func TestTelemetryPageStaysAccountWide(t *testing.T) {
-	s, _ := newTestServer()
-	s.spec.Model = "gpt-5"
-	// Account-wide spend (another session) with nothing recorded on this session.
-	s.meter.Record(telemetry.Usage{Model: "gpt-5", InputTokens: 800_000}) // 100 cr
-
-	page := s.telemetryPartial()
-	if !strings.Contains(page, "100.00 cr") {
-		t.Errorf("the Telemetry page must report the account-wide total, not just this session: %q", page)
-	}
-}
