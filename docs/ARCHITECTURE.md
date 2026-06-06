@@ -163,7 +163,7 @@ config); the Telemetry page reads it back as a trend (spend over time, per-model
 share, and a per-agent / per-workflow cost breakdown) and a
 `GET /telemetry/export.csv` download. The store is the one IO edge in an otherwise
 pure package: `DailyTotals`/`ModelShares`/`AgentShares`/`WorkflowShares`/
-`MonthToDate`/`WriteCSV` are pure functions over a record slice. An empty dir makes
+`MonthToDate`/`Forecast`/`WriteCSV` are pure functions over a record slice. An empty dir makes
 it ephemeral (demo/tests never write to a real config directory). See
 [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md).
 
@@ -187,6 +187,18 @@ reasoning display counts, cache-hit rate) stay on the in-process meter — this-
 conversation and this-process signals the ledger doesn't carry. A single shared
 `recordUsage` helper (`session.go`) records every turn into both meters **and** the
 ledger, so no surface drifts. See [ADR-0016](adr/0016-ledger-is-source-of-truth-for-account-wide-budget-accounting.md).
+
+**Predictive (burn-rate forecast).** From the same ledger, `telemetry.Forecast`
+(a pure reader over `DailyTotals` + the `Budget` allowance) projects *when* the
+monthly allowance is exhausted at the recent spend rate — moving cost from
+**reactive** (warn at 80%, hard cap) to **predictive**. The slope is a
+trailing-7-day average (not a regression — robust on a sparse single-user
+series), "used" is month-to-date (consistent with `MonthToDate`), and every
+degenerate case is explicit in `Projection.Status` (no budget / idle / exhausted
+/ ok). The Telemetry page shows a forecast sentence ("at ~X cr/day … around
+&lt;date&gt; — ~N turns left") and the statusline a compact `cap ~Nd` cell that
+ambers when on track to blow the budget before month-end. Pure, no IO, no schema
+change. See [ADR-0019](adr/0019-budget-burn-rate-forecast-trailing-window-average.md).
 
 ## The my-ctx forge
 

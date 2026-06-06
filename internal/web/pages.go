@@ -3,8 +3,10 @@ package web
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/dotts-h/copilot-sdk/internal/config"
 	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
@@ -215,10 +217,16 @@ func (s *Server) telemetryPartial() string {
 	}
 	days, shares, hasHistory := s.spendTrend()
 	agents, workflows := s.spendShares()
+	now := time.Now()
+	var forecast map[string]any
+	if fc, ok := s.forecast(now); ok {
+		forecast = forecastView(fc, budget.AllowanceCredits, now)
+	}
 	return frag("telemetryPage", map[string]any{
 		"Rows": rows, "Width": fmt.Sprintf("%.1f%%", pct), "Models": models,
 		"Days": days, "Shares": shares, "HasHistory": hasHistory,
 		"AgentShares": agents, "WorkflowShares": workflows,
+		"Forecast": forecast,
 	})
 }
 
@@ -304,6 +312,52 @@ func shareRow(label string, credits, fraction float64) map[string]any {
 		"Label": label, "Credits": fmt.Sprintf("%.2f", credits),
 		"Pct": fmt.Sprintf("%.0f", fraction*100), "Width": fmt.Sprintf("%.1f%%", fraction*100),
 	}
+}
+
+// forecastView turns a burn-rate Projection into the Telemetry-page line (A3 /
+// ADR-0019): a human sentence plus a Warn flag that ambers the line when the
+// projected exhaustion falls within the current month (on track to blow this
+// month's budget). Each degenerate Status gets its own explanatory sentence
+// rather than a bogus date.
+func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any {
+	switch fc.Status {
+	case telemetry.ProjectionNoBudget:
+		return map[string]any{"Text": "Set a monthly budget to see a burn-rate forecast.", "Warn": false}
+	case telemetry.ProjectionIdle:
+		return map[string]any{"Text": "No recent spend to project a burn rate from.", "Warn": false}
+	case telemetry.ProjectionExhausted:
+		return map[string]any{"Text": "This month's budget is already exhausted.", "Warn": true}
+	default:
+		// Ceil so the "~N days" count matches ExhaustionDate (= today + ⌈DaysToCap⌉);
+		// rounding the count independently could print "~9 days" beside a +10-day date.
+		days := int(math.Ceil(fc.DaysToCap))
+		turns := int(math.Round(fc.TurnsToCap))
+		text := fmt.Sprintf("At ~%s/day, your %.0f cr budget runs out around %s (~%d %s, ~%d %s).",
+			telemetry.FormatCredits(fc.DailyRate), allowance,
+			fc.ExhaustionDate.UTC().Format("2006-01-02"),
+			days, plural(days, "day", "days"), turns, plural(turns, "turn", "turns"))
+		return map[string]any{"Text": text, "Warn": forecastSoon(fc.ExhaustionDate, now)}
+	}
+}
+
+// forecastSoon reports whether a projected exhaustion date falls on or before the
+// last instant of now's UTC month — i.e. the burn rate is on track to spend the
+// monthly allowance before it resets. Pure: same inputs → same answer.
+func forecastSoon(exhaust, now time.Time) bool {
+	if exhaust.IsZero() {
+		return false
+	}
+	y, m, _ := now.UTC().Date()
+	endOfMonth := time.Date(y, m+1, 1, 0, 0, 0, 0, time.UTC).Add(-time.Nanosecond)
+	return !exhaust.After(endOfMonth)
+}
+
+// plural picks the singular or plural noun for n.
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 // agentLabel resolves an agent id to its display name for the cost breakdown,

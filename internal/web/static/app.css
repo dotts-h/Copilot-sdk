@@ -282,6 +282,8 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
 .stat-mode { color: var(--warn); text-transform: uppercase; letter-spacing: .03em;
   border: 1px solid var(--warn); border-radius: 4px; padding: 0 .3rem; }
 .stat-est { color: var(--accent); }
+.stat-forecast { color: var(--dim); }
+.stat-forecast.warn { color: var(--warn); font-weight: 600; }
 .stat-cost { color: var(--fg); }
 .stat-cost.warn { color: var(--warn); font-weight: 600; }
 
@@ -333,6 +335,10 @@ table.shortcuts th { padding-right: 1.25rem; }
 .overlay-close { margin-top: 1rem; background: none; border: 1px solid var(--subtle);
   color: var(--fg); border-radius: 6px; padding: .3rem .9rem; cursor: pointer; }
 .overlay-close:hover, .overlay-close:focus-visible { border-color: var(--accent); }
+
+/* Burn-rate forecast line (Telemetry page, A3). */
+.forecast { margin: .6rem 0 0; font-size: .9rem; color: var(--fg); }
+.forecast.warn { color: var(--warn); }
 
 /* Spend-history trend view (Telemetry page). */
 .page h4 { color: var(--dim); margin: 1rem 0 .4rem; font-size: .85rem; font-weight: 600;

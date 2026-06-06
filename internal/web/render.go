@@ -3,8 +3,10 @@ package web
 import (
 	"fmt"
 	"html"
+	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dotts-h/copilot-sdk/internal/convo"
 	"github.com/dotts-h/copilot-sdk/internal/copilot"
@@ -354,6 +356,10 @@ func renderStatline(s *Server) string {
 	// Soft-warn: turn the cost item amber once this session's spend crosses the
 	// budget threshold (the account-wide banner stays the topbar cost footer).
 	costWarn := s.budget().Warned(totals.Credits())
+	// Compact burn-rate cell: account-wide projection off the ledger (ADR-0019),
+	// shown only when there's a finite projection to make. Ambers when on track to
+	// exhaust the monthly allowance before the month resets.
+	hasForecast, fShort, fWarn, fTitle := statlineForecast(s, time.Now())
 	return frag("statline", map[string]any{
 		"Model": def(s.spec.Model, "default"), "Mode": s.mode,
 		"HasCtx": s.ctxLimit > 0, "CtxPct": ctxPct,
@@ -364,7 +370,26 @@ func renderStatline(s *Server) string {
 		"HasEst": s.ctxCurrent > 0, "Est": telemetry.FormatCredits(est.Credits()),
 		"CostWarn": costWarn,
 		"Credits":  telemetry.FormatCredits(totals.Credits()), "USD": telemetry.FormatUSD(totals.USD()),
+		"HasForecast": hasForecast, "Forecast": fShort, "ForecastWarn": fWarn, "ForecastTitle": fTitle,
 	})
+}
+
+// statlineForecast builds the compact statusline burn-rate cell from the
+// account-wide ledger projection (ADR-0019). It surfaces only a finite OK
+// projection ("cap ~Nd"); every degenerate Status (no budget, idle, exhausted)
+// leaves the cell off so the statusline stays uncluttered (the Telemetry page
+// carries the explanatory text). The title spells out the rate, date, and turns.
+func statlineForecast(s *Server, now time.Time) (show bool, short string, warn bool, title string) {
+	fc, ok := s.forecast(now)
+	if !ok || fc.Status != telemetry.ProjectionOK {
+		return false, "", false, ""
+	}
+	// Ceil to match the ExhaustionDate (= today + ⌈DaysToCap⌉) named in the title.
+	short = fmt.Sprintf("cap ~%dd", int(math.Ceil(fc.DaysToCap)))
+	title = fmt.Sprintf("at ~%s/day, budget runs out around %s (~%d turns left)",
+		telemetry.FormatCredits(fc.DailyRate), fc.ExhaustionDate.UTC().Format("2006-01-02"),
+		int(math.Round(fc.TurnsToCap)))
+	return true, short, forecastSoon(fc.ExhaustionDate, now), title
 }
 
 // humanTokens renders a token count compactly (1.5k, 128.0k, 2.5M).

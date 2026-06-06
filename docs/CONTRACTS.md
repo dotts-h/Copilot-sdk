@@ -212,6 +212,13 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   change), so spend survives a restart. The per-session statusline (`sessionMeter`,
   ADR-0011) and the live token split stay on the in-process meter — one source per
   surface. — see [ADR-0016](adr/0016-ledger-is-source-of-truth-for-account-wide-budget-accounting.md)
+  **Forecast (predictive):** `telemetry.Forecast(daily []DayTotal, budget Budget,
+  now time.Time) Projection` is another **pure reader** (no schema change) over the
+  same ledger — a trailing-7-day-average burn rate projecting days/turns to the
+  monthly allowance and an exhaustion date, with degenerate cases explicit in
+  `Projection.Status` (no-budget / idle / exhausted / ok). Surfaced on the
+  Telemetry page and (compact) in the statusline. — see
+  [ADR-0019](adr/0019-budget-burn-rate-forecast-trailing-window-average.md)
 
 ## 5. Invariants (promises that aren't a signature)
 

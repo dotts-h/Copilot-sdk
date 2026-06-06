@@ -376,6 +376,10 @@ test.describe("persisted spend history + trends", () => {
     // without any live turn. (The store is append-only and shared across the
     // suite, so assert structure, not exact figures.)
     const main = page.locator("#main");
+    // The predictive burn-rate line: from the seeded ledger the page projects when
+    // the budget is reached (or hints to set one). Assert the label, never figures
+    // — the shared append-only demo ledger grows as the suite runs (A3 / ADR-0019).
+    await expect(main).toContainText("Forecast");
     await expect(main).toContainText("Spend history");
     await expect(main).toContainText("Spend over time");
     await expect(main).toContainText("Per-model share");
