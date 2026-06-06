@@ -132,7 +132,8 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		return append(s.timelineFragments(), s.statusFrag("", false))
 
 	case copilot.EvUsage:
-		s.recordUsage(e.Usage)
+		// Attribute the chat turn to the active agent persona (no workflow owns it).
+		s.recordUsage(e.Usage, spendTag{agentID: s.agentID})
 		return []fragment{
 			{Event: "cost", HTML: renderCostFooter(s.monthToDate().Credits(), s.budget())},
 			s.statFrag(),
@@ -248,6 +249,16 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 	}
 }
 
+// spendTag attributes a metered turn to the agent persona (and, when a workflow
+// run owns the turn, the workflow + lane within it) that incurred it, so the
+// ledger answers "which agent / which workflow burned the budget" (ADR-0018). Its
+// zero value — no agent, no workflow — is a plain unattributed chat turn.
+type spendTag struct {
+	agentID    string
+	workflowID string
+	laneIndex  int
+}
+
 // recordUsage folds one metered turn into both meters and appends a SpendRecord
 // to the persisted ledger, returning the priced cost. It is the single
 // spend-recording path shared by the chat reducer (EvUsage above) and the
@@ -255,9 +266,10 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 // account-wide meter (live token split), the per-session meter (statusline,
 // ADR-0011), AND the ledger (account-wide budget accounting, ADR-0016) — drop any
 // one and that surface silently drifts (REGRESSIONS "two meters", now three
-// sources). Ledger persistence is best-effort: a disk error is logged, not
-// surfaced, so the live meters and stream are unaffected. Caller holds s.mu.
-func (s *Server) recordUsage(u copilot.UsageData) telemetry.Cost {
+// sources). The tag additively attributes the record to the agent/workflow that
+// spent it (ADR-0018). Ledger persistence is best-effort: a disk error is logged,
+// not surfaced, so the live meters and stream are unaffected. Caller holds s.mu.
+func (s *Server) recordUsage(u copilot.UsageData, tag spendTag) telemetry.Cost {
 	usage := telemetry.Usage{
 		Model:            u.Model,
 		InputTokens:      u.InputTokens,
@@ -279,6 +291,9 @@ func (s *Server) recordUsage(u copilot.UsageData) telemetry.Cost {
 			OutputTokens: u.OutputTokens,
 			USD:          cost.USD(),
 			AIU:          aiu,
+			AgentID:      tag.agentID,
+			WorkflowID:   tag.workflowID,
+			LaneIndex:    tag.laneIndex,
 		}
 		if err := s.spend.Append(rec); err != nil {
 			s.logger.Printf("persist spend: %v", err)

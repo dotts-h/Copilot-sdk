@@ -62,7 +62,7 @@ wrong (in-process) source.
 - **Decision → ADR-0016** (ledger is the source of truth for account-wide
   accounting; written first per ADR-0004). **Issue [0014](issues/0014-ledger-derived-budget-rows.md).**
 
-### A2 — Cost attribution: per-agent / per-workflow / per-session rollups  — **M/L**
+### A2 — Cost attribution: per-agent / per-workflow / per-session rollups  — **M/L**  ·  **SHIPPED (#TBD)**
 - **What:** `SpendRecord` already carries `SessionID`; tag it additively with the
   active **agent id** (and workflow/lane id when a run owns the turn) and add a
   "Cost by agent / workflow" breakdown on Telemetry (a pure aggregation like
@@ -74,6 +74,10 @@ wrong (in-process) source.
 - **Touches:** `internal/telemetry` (`SpendRecord` `+agentId`/`+workflowId`,
   versioned-additive; an `AgentShares` aggregation), `internal/web` (`session.go`
   `EvUsage` record-tagging, `workflow.go` `handleRunEvent`, `telemetryPartial`).
+- **Shipped:** schema v2 additive `agent`/`workflow`/`lane` tags + pure
+  `AgentShares`/`WorkflowShares` (over a shared `shareBy`); `recordUsage` takes a
+  `spendTag`; "Cost by agent / workflow" on Telemetry; CSV columns appended.
+  **Decision → ADR-0018. Issue [0016](issues/0016-cost-attribution-rollups.md).**
 
 ### A3 — Budget burn-rate projection / forecast  — **S/M**
 - **What:** from `DailyTotals` + the allowance, project *"at this rate you reach

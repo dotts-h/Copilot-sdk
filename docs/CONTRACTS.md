@@ -138,8 +138,12 @@ autocomplete (a snippet menu entry carries its body, inserted client-side by
 [ADR-0015](adr/0015-prompt-snippet-library-forge-backed-composer-insertion.md)
 
 `GET /telemetry/export.csv` streams the full persisted spend ledger as a CSV
-attachment (header `at,session,model,input,cached,output,usd,credits,aiu`; one row
-per metered turn). Empty (header only) when no ledger is wired. — see [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md)
+attachment (header `at,session,model,input,cached,output,usd,credits,aiu,agent,workflow,lane`;
+one row per metered turn). The `agent,workflow,lane` attribution columns are
+**appended at the end** so the pre-v2 column positions are unchanged
+(backward-compatible header bump). Empty (header only) when no ledger is wired. —
+see [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md),
+[ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md)
 
 ## 4. Persisted schemas (forge + config)
 
@@ -187,12 +191,19 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   — see [ADR-0014](adr/0014-keybinding-surface-config-backed-keymap-with-minimal-js-dispatch.md)
 - **`telemetry.SpendStore`** / **`telemetry.SpendRecord`** (`history.go`): the persisted
   spend ledger at `<configDir>/spend.json`. On-disk shape is a versioned envelope
-  `{"version":1,"records":[…]}`; each record is
-  `{at, session?, model, in, cached, out, usd, aiu?}` (JSON tags are the contract).
-  Written **atomically** (temp-file + rename); missing file = empty, present-but-invalid
-  = error. **Migration note:** `version` gates the schema and the `records` array is the
-  stable surface — bumps must add fields only (older readers ignore unknown keys; newer
-  readers tolerate a higher `version`) or ship a converting migration. — see [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md)
+  `{"version":2,"records":[…]}`; each record is
+  `{at, session?, model, in, cached, out, usd, aiu?, agent?, workflow?, lane?}` (JSON
+  tags are the contract). Written **atomically** (temp-file + rename); missing file =
+  empty, present-but-invalid = error. **Migration note:** `version` gates the schema and
+  the `records` array is the stable surface — bumps must add fields only (older readers
+  ignore unknown keys; newer readers tolerate a higher `version`) or ship a converting
+  migration. **v2** added the additive `agent`/`workflow`/`lane` attribution tags
+  (`omitempty`): a v1 file loads unchanged (empty tags) and a v1 reader ignores the new
+  keys and tolerates `version:2`. `agent` is the active persona id (empty = built-in
+  chat); `workflow`+`lane` are set only when a workflow run owned the turn. The pure
+  `AgentShares` / `WorkflowShares` aggregations (cousins of `ModelShares`) roll spend up
+  by tag. — see [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md),
+  [ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md)
   **Read-source (account-wide budget accounting):** the persisted ledger — not the
   in-process `Meter` — is the source of truth for the account-wide "Total cost /
   Monthly budget / Remaining" rows, the topbar cost footer, `/cost`, and the

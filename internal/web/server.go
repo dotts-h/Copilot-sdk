@@ -63,6 +63,7 @@ type Server struct {
 	elicits     []copilot.ElicitRequest // pending elicitation forms (EvElicitation)
 	subagents   []copilot.SubagentInfo  // sub-agents currently running (activity indicator)
 	mode        string                  // agent mode for outgoing prompts: "" | "plan" | "autopilot" | "interactive"
+	agentID     string                  // active agent persona id, tagged onto each turn's SpendRecord for cost attribution (ADR-0018); "" = built-in chat
 	live        liveKind
 	sessionID   string
 	pending     []string     // file paths queued via /attach for the next prompt
@@ -662,7 +663,7 @@ func (s *Server) handleAgentSelect(w http.ResponseWriter, r *http.Request) {
 	// Compile the agent's full persona (system message + instructions + skill
 	// prompts) plus model/effort/tool-allowlist + enabled MCP servers into the live
 	// spec and restart the session so the selection takes effect on the next prompt.
-	s.applyAgentSpec(c)
+	s.applyAgentSpec(c, compileID)
 	s.writePartial(w, s.agentsPartial())
 }
 

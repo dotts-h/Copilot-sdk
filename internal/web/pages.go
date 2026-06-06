@@ -214,9 +214,11 @@ func (s *Server) telemetryPartial() string {
 		})
 	}
 	days, shares, hasHistory := s.spendTrend()
+	agents, workflows := s.spendShares()
 	return frag("telemetryPage", map[string]any{
 		"Rows": rows, "Width": fmt.Sprintf("%.1f%%", pct), "Models": models,
 		"Days": days, "Shares": shares, "HasHistory": hasHistory,
+		"AgentShares": agents, "WorkflowShares": workflows,
 	})
 }
 
@@ -266,6 +268,64 @@ func (s *Server) spendTrend() (days, shares []map[string]any, hasHistory bool) {
 		})
 	}
 	return days, shares, true
+}
+
+// spendShares builds the per-agent and per-workflow cost breakdowns for the
+// Telemetry page from the persisted ledger — the orchestration-aware "which agent
+// / which workflow burned my budget" view (ADR-0018). Agent/workflow ids are
+// resolved to display names under forgeMu (falling back to the raw id when a
+// persona was renamed or deleted; an empty agent id is the built-in chat). Both
+// lists are empty when no ledger is wired or it holds no relevant records.
+func (s *Server) spendShares() (agents, workflows []map[string]any) {
+	agents, workflows = []map[string]any{}, []map[string]any{}
+	if s.spend == nil {
+		return agents, workflows
+	}
+	records := s.spend.Records()
+	if len(records) == 0 {
+		return agents, workflows
+	}
+	s.hub.forgeMu.Lock()
+	defer s.hub.forgeMu.Unlock()
+	for _, a := range telemetry.AgentShares(records) {
+		agents = append(agents, shareRow(s.agentLabel(a.AgentID), a.Credits, a.Fraction))
+	}
+	for _, w := range telemetry.WorkflowShares(records) {
+		workflows = append(workflows, shareRow(s.workflowLabel(w.WorkflowID), w.Credits, w.Fraction))
+	}
+	return agents, workflows
+}
+
+// shareRow is the template shape shared by every spend-breakdown bar (per-model,
+// per-agent, per-workflow): a label, a credit total, and a fraction rendered as a
+// percentage and a bar width.
+func shareRow(label string, credits, fraction float64) map[string]any {
+	return map[string]any{
+		"Label": label, "Credits": fmt.Sprintf("%.2f", credits),
+		"Pct": fmt.Sprintf("%.0f", fraction*100), "Width": fmt.Sprintf("%.1f%%", fraction*100),
+	}
+}
+
+// agentLabel resolves an agent id to its display name for the cost breakdown,
+// falling back to the raw id (a since-renamed/deleted agent) and labelling the
+// empty-agent bucket as the built-in chat. Caller holds forgeMu.
+func (s *Server) agentLabel(id string) string {
+	if id == "" {
+		return "chat (built-in)"
+	}
+	if a := s.forge.Agent(id); a != nil {
+		return a.Name
+	}
+	return id
+}
+
+// workflowLabel resolves a workflow id to its display name, falling back to the
+// raw id when the workflow was renamed or deleted. Caller holds forgeMu.
+func (s *Server) workflowLabel(id string) string {
+	if w := s.forge.Workflow(id); w != nil {
+		return w.Name
+	}
+	return id
 }
 
 // handleSpendExport streams the full persisted spend ledger as a CSV download,

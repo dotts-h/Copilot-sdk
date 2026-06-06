@@ -166,6 +166,115 @@ func TestModelSharesEmpty(t *testing.T) {
 	}
 }
 
+func TestSpendRecordRoundTripsAttributionTags(t *testing.T) {
+	// A v2 record carries the additive agent/workflow/lane tags through a
+	// persist + reload cycle, and a non-first lane index round-trips too.
+	dir := t.TempDir()
+	s, err := LoadSpendStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := SpendRecord{
+		Model: "gpt-5", USD: 0.5,
+		AgentID: "builder", WorkflowID: "ship", LaneIndex: 2,
+	}
+	if err := s.Append(rec); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := LoadSpendStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := reloaded.Records()
+	if len(got) != 1 {
+		t.Fatalf("reloaded %d records, want 1", len(got))
+	}
+	if got[0].AgentID != "builder" || got[0].WorkflowID != "ship" || got[0].LaneIndex != 2 {
+		t.Fatalf("attribution tags lost on round trip: %+v", got[0])
+	}
+}
+
+func TestSpendStoreReadsV1RecordWithoutTags(t *testing.T) {
+	// Backward-readable: a v1 file (no agent/workflow/lane keys, version 1) still
+	// loads — older records read back with empty/zero attribution tags.
+	dir := t.TempDir()
+	body := `{"version":1,"records":[{"at":"2026-06-05T10:00:00Z","session":"s1","model":"gpt-5","in":100,"out":50,"usd":0.1}]}`
+	if err := os.WriteFile(filepath.Join(dir, "spend.json"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s, err := LoadSpendStore(dir)
+	if err != nil {
+		t.Fatalf("v1 file should still be readable: %v", err)
+	}
+	recs := s.Records()
+	if len(recs) != 1 {
+		t.Fatalf("want 1 record, got %d", len(recs))
+	}
+	if recs[0].AgentID != "" || recs[0].WorkflowID != "" || recs[0].LaneIndex != 0 {
+		t.Fatalf("a v1 record should read back with empty attribution: %+v", recs[0])
+	}
+	if recs[0].Model != "gpt-5" || recs[0].USD != 0.1 {
+		t.Fatalf("v1 fields lost: %+v", recs[0])
+	}
+}
+
+func TestAgentShares(t *testing.T) {
+	recs := []SpendRecord{
+		{AgentID: "builder", USD: 0.60},
+		{AgentID: "sdet", USD: 0.20},
+		{AgentID: "builder", USD: 0.20},
+		{AgentID: "", USD: 0.0}, // empty-agent (built-in chat) bucket, zero spend
+	}
+	got := AgentShares(recs)
+	// builder, sdet, and the empty-agent bucket — every turn has an agent.
+	if len(got) != 3 {
+		t.Fatalf("want 3 agent buckets, got %d: %+v", len(got), got)
+	}
+	// Sorted by spend desc → builder leads.
+	if got[0].AgentID != "builder" {
+		t.Fatalf("biggest spender should lead: %+v", got)
+	}
+	approx(t, got[0].Fraction, 0.80) // 0.80 of 1.00
+	approx(t, got[1].Fraction, 0.20)
+	approx(t, got[0].Credits, 80)
+}
+
+func TestAgentSharesDeterministicTieBreak(t *testing.T) {
+	// Equal spend ties break by agent id, so the order is deterministic.
+	recs := []SpendRecord{{AgentID: "zeta", USD: 0.5}, {AgentID: "alpha", USD: 0.5}}
+	got := AgentShares(recs)
+	if len(got) != 2 || got[0].AgentID != "alpha" || got[1].AgentID != "zeta" {
+		t.Fatalf("ties should break by agent id: %+v", got)
+	}
+}
+
+func TestWorkflowSharesExcludeNonWorkflowSpend(t *testing.T) {
+	recs := []SpendRecord{
+		{WorkflowID: "ship", USD: 0.30},
+		{WorkflowID: "review", USD: 0.10},
+		{WorkflowID: "ship", USD: 0.10},
+		{WorkflowID: "", USD: 5.00}, // plain chat spend — excluded from the workflow view
+	}
+	got := WorkflowShares(recs)
+	if len(got) != 2 {
+		t.Fatalf("non-workflow spend must be excluded: got %d buckets %+v", len(got), got)
+	}
+	if got[0].WorkflowID != "ship" {
+		t.Fatalf("biggest workflow should lead: %+v", got)
+	}
+	// Fractions are relative to workflow-attributed spend (0.40 + 0.10 = 0.50), not
+	// the 5.50 grand total — so ship is 0.40/0.50 = 0.80.
+	approx(t, got[0].Fraction, 0.80)
+	approx(t, got[1].Fraction, 0.20)
+}
+
+func TestWorkflowSharesEmpty(t *testing.T) {
+	// Records that are all plain chat (no workflow) yield no workflow shares.
+	if got := WorkflowShares([]SpendRecord{{USD: 1}}); len(got) != 0 {
+		t.Fatalf("all-chat records should yield no workflow shares, got %+v", got)
+	}
+}
+
 func TestWriteCSV(t *testing.T) {
 	recs := []SpendRecord{
 		{At: day("2026-06-05T10:00:00Z"), SessionID: "s1", Model: "gpt-5", InputTokens: 1200, CachedTokens: 200, OutputTokens: 340, USD: 0.5, AIU: 0.012},
@@ -192,6 +301,34 @@ func TestWriteCSV(t *testing.T) {
 	}
 	if rows[1][7] != "50" { // credits = 0.5 / 0.01
 		t.Fatalf("credits column = %q, want 50", rows[1][7])
+	}
+}
+
+func TestWriteCSVAppendsAttributionColumns(t *testing.T) {
+	// The attribution columns are appended at the end so the pre-v2 column order is
+	// unchanged (backward-compatible header — CONTRACTS §3).
+	recs := []SpendRecord{
+		{At: day("2026-06-05T10:00:00Z"), Model: "gpt-5", USD: 0.5, AgentID: "builder", WorkflowID: "ship", LaneIndex: 1},
+	}
+	var buf bytes.Buffer
+	if err := WriteCSV(&buf, recs); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := csv.NewReader(&buf).ReadAll()
+	if err != nil {
+		t.Fatalf("CSV is not parseable: %v", err)
+	}
+	want := []string{"at", "session", "model", "input", "cached", "output", "usd", "credits", "aiu", "agent", "workflow", "lane"}
+	if len(rows[0]) != len(want) {
+		t.Fatalf("header width = %d, want %d: %+v", len(rows[0]), len(want), rows[0])
+	}
+	for i, h := range want {
+		if rows[0][i] != h {
+			t.Fatalf("header[%d] = %q, want %q", i, rows[0][i], h)
+		}
+	}
+	if rows[1][9] != "builder" || rows[1][10] != "ship" || rows[1][11] != "1" {
+		t.Fatalf("attribution columns wrong: agent=%q workflow=%q lane=%q", rows[1][9], rows[1][10], rows[1][11])
 	}
 }
 

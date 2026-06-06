@@ -160,10 +160,22 @@ The live `Meter` is in-memory and resets on restart; a persisted, append-only
 behind it. Each metered turn appends a `SpendRecord` to `<configDir>/spend.json`
 (a versioned JSON document written atomically — temp-file + rename — exactly like
 config); the Telemetry page reads it back as a trend (spend over time, per-model
-share) and a `GET /telemetry/export.csv` download. The store is the one IO edge
-in an otherwise pure package: `DailyTotals`/`ModelShares`/`MonthToDate`/`WriteCSV`
-are pure functions over a record slice. An empty dir makes it ephemeral (demo/tests
-never write to a real config directory). See [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md).
+share, and a per-agent / per-workflow cost breakdown) and a
+`GET /telemetry/export.csv` download. The store is the one IO edge in an otherwise
+pure package: `DailyTotals`/`ModelShares`/`AgentShares`/`WorkflowShares`/
+`MonthToDate`/`WriteCSV` are pure functions over a record slice. An empty dir makes
+it ephemeral (demo/tests never write to a real config directory). See
+[ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md).
+
+**Attribution (orchestration-aware cost).** Each `SpendRecord` is tagged
+additively (schema v2) with the **agent** persona that incurred it and, when a
+workflow run owned the turn, the **workflow id + lane index** — so the ledger
+answers *"which agent / which workflow burned the budget?"* across time. The chat
+reducer tags the active `Server.agentID`; the workflow-lane reducer tags the run +
+lane through the same `recordUsage`. `AgentShares` (empty-agent bucket = built-in
+chat, included) and `WorkflowShares` (non-workflow spend excluded) roll the tags
+up for the Telemetry breakdown. v1 ledgers read back with empty tags. See
+[ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md).
 
 **One source per surface (three now).** The account-wide budget accounting —
 the "Total cost / Monthly budget / Remaining" rows, the topbar cost footer,

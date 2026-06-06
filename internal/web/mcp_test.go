@@ -207,7 +207,7 @@ func TestEnabledMCPServerReachesSessionSpec(t *testing.T) {
 	s.hub.forgeMu.Lock()
 	c := s.compiledSpec("")
 	s.hub.forgeMu.Unlock()
-	s.applyAgentSpec(c)
+	s.applyAgentSpec(c, "")
 
 	s.mu.Lock()
 	got := s.spec.MCPServers
