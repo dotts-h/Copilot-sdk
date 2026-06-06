@@ -1,175 +1,152 @@
-# Next-features research — my-orchestra (roadmap v2)
+# Next-features research — my-orchestra (roadmap v3)
 
 > Research deliverable, not a commitment. Fresh pass — code re-read **2026-06-06**.
-> Roadmap **v1** (items 1.1–3.4) is shipped and exhausted (epics 0001/0005/0007 all
-> closed); this supersedes it. Grounds the *next* candidates in the current
-> codebase, `docs/TECH_DEBT.md`, and the product's two differentiators:
-> **cost-awareness** (the meter) and **orchestration** (the name). Each item names
-> the seam/files it touches, a rough effort (S/M/L), and a "why now." The
-> build-first picks are promoted to `docs/issues/` under epic **0013**; the rest
-> stay candidates here until promoted. Architectural choices are recorded as ADRs.
+> Roadmap **v1** (items 1.1–3.4, epics 0001/0005/0007) and **v2** (epic 0013:
+> A1/B1/A2/A3/C2/B2/B3) are both shipped and closed; this supersedes them (their
+> items are summarized in the appendices below). Grounds the *next* candidates in the
+> current code, `docs/TECH_DEBT.md`, and the product's two differentiators —
+> **cost-awareness** (the meter) and **orchestration** (the name). Each item names the
+> seam/files it touches, a rough effort (S/M/L), and a "why now." The build-first picks
+> are promoted to `docs/issues/` under epic **0022**; the rest stay candidates here
+> until promoted. Architectural choices are recorded as ADRs.
 
 ## Where the product is now
 
-Chat is at parity and beyond (streaming text/reasoning split, tool timeline, inline
-permissions, ask_user, plan review, elicitation, subagents, compaction, attachments,
-slash commands, forge CRUD for skills/instructions/agents/**MCP**/**workflows**/
-**snippets**, SDK-backed session resume, Settings, a live statusline + Telemetry
-page, keybindings, a Wails desktop shell, a full Go + Playwright pyramid). Both
-differentiators are **active** but **shallow**:
+Both differentiators are now **deep**, not shallow. **Cost** is accountable *across
+time* (the ledger is the source of truth for account-wide rows — they survive restart,
+ADR-0016), *attributable* per agent/workflow/lane (ADR-0018), and *predictive* (a
+trailing-window burn-rate forecast, ADR-0019). **Orchestration** has *sequential* +
+*parallel* + *branching* lanes (ADR-0013/0017/0021), each lane surfaces its own tool
+timeline + inline permissions, and every run is *persisted history* in a sibling
+`RunStore` with a Runs view (ADR-0022). The chat loop, forge CRUD (skills/instructions/
+agents/MCP/workflows/snippets), session resume, keybindings, a desktop shell, and a full
+Go + Playwright pyramid are all in place.
 
-- **Cost (the meter)** is active end to end — pre-flight estimate (ADR-0007),
-  soft-warn + hard-cap guardrails (ADR-0008), a persisted append-only ledger with
-  trends (ADR-0009), a per-session statusline meter (ADR-0011). **But** the
-  account-wide accounting rows still read the **live in-process meter**, so
-  "remaining this month" resets on restart (TECH_DEBT #9, confirmed at
-  `pages.go:183` `telemetryPartial` → `s.meter.Totals()`), and spend is not
-  attributed to the agent/workflow that incurred it.
-- **Orchestration (the name)** exists — a forge `Workflow` runs as lanes,
-  sequential handoff or parallel fan-out (ADR-0013). **But** only the *sequential*
-  path is end-to-end; *parallel* is model/engine-only and unobserved offline
-  (TECH_DEBT #12, `MockClient` returns one session id), and a lane surfaces only
-  message + usage (no per-lane tool timeline / inline permission).
+So v3 is not about deepening *within* a differentiator — it's about **reach and
+convergence**:
 
-So v2 is not about new surfaces — it's about making the two differentiators **deep
-and accountable**: cost that survives time and attributes to *who spent it*, and
-orchestration whose parallel half is actually observable. Candidates below are
-ranked by value × fit; tech-debt paydown that's now worth promoting is folded in
-where it advances a differentiator.
+- **Extensibility is gated.** MCP is how a user grows the agent's tools, but the MCP
+  page is **key-free**: no secrets/`Env` editor, so the highest-value servers (GitHub,
+  web search) can't be set up from the UI — only by hand-editing `forge.json`
+  (TECH_DEBT #10; confirmed `mcp.go` `renderMCPServerForm` has no `Env` field,
+  `handleMCPServerUpdate:129` only *preserves* it). The blocker was always *where
+  secrets live*; now decided in **ADR-0020** (env-var-reference indirection, no secret
+  at rest, following the `config.GitHubTokenEnv` precedent).
+- **The two stores never meet.** B3 persists runs (`RunStore`) and A2 tags spend per
+  workflow (`SpendStore`), but no view **joins** them: Runs is a flat log with no
+  duration (`runs.go` `runRow` renders only `StartedAt`, never `FinishedAt`) and no
+  roll-up; `WorkflowShares` shows spend but not run count / avg duration / failure rate.
+  The cost ⋈ orchestration convergence is one pure reader away — exactly the
+  aggregations ADR-0022 deferred.
+
+Candidates below are ranked by value × fit; tech-debt paydown that advances a
+differentiator is folded in where it earns its place.
 
 ---
 
-## Tier A — close the cost-accountability loop (the meter's promise)
+## Tier E — open extensibility (the gate to key-requiring MCP servers)
 
-v1 made cost *active*; v2 makes it *accountable across time* and *attributable
-across agents*. The ledger (`SpendStore`) already records every turn with `At` +
-`SessionID` and survives restart — the account-wide reads just still point at the
-wrong (in-process) source.
+### E1 / C1 — MCP secrets / Env editor  — **M**  ·  *promotes TECH_DEBT #10*  ·  **BUILD FIRST**
+- **What:** a masked `Env` editor on the MCP form. A secret row persists only a
+  `${VAR}` **reference**, resolved from the environment at session start in the single
+  forge→seam translation (`web.MCPServerSpecs`) behind a lookup seam — **no secret at
+  rest**. Unblocks key-requiring curated servers (GitHub, web search). The page
+  preflight (already PATH-probing `command` behind `s.lookPath`) also flags an
+  unresolved reference.
+- **Why now:** MCP is the product's extensibility surface and this is its one gate; the
+  key decision (where secrets live) is now settled in ADR-0020, so it's build-ready.
+  Highest-value carried candidate across v1→v3.
+- **Touches:** `internal/ctxforge` (`MCPServer.Env` value semantics — additive, no
+  schema change), `internal/web` (`mcp.go` form + `MCPServerSpecs` resolution,
+  `forms.go` masked field), CONTRACTS §4 (lands with the build).
+- **Decision → [ADR-0020](adr/0020-mcp-secrets-via-env-var-reference-indirection.md)**
+  (written first, ADR-0004). **Issue [0019](issues/0019-mcp-secrets-env-editor.md)**
+  (claims the reserved 0019/ADR-0020).
 
-### A1 — Ledger-derived budget rows  — **M**  ·  *promotes TECH_DEBT #9*  ·  **BUILD FIRST**
-- **What:** the Telemetry "Total cost / Monthly budget / Remaining" rows, the cost
-  footer, and the hard-cap projection baseline read **month-to-date from
-  `SpendStore`** (a new pure `telemetry.MonthToDate(records, now)`, UTC calendar
-  month) instead of the live `Meter`, so they survive restart. The per-session
-  statusline (`sessionMeter`, ADR-0011) and the live token split stay on the
-  in-process meter — one source per surface.
-- **Why now:** the last restart-amnesiac gap in the headline promise ("never
-  surprises you on the bill"); ADR-0009 explicitly deferred exactly this. The
-  ledger already exists, is atomic, and tags every record — only the *read* moves.
-- **Touches:** `internal/telemetry` (`history.go`: `MonthToDate`, pure + tested),
-  `internal/web` (`pages.go` `telemetryPartial`, `render.go` `renderCostFooter`,
-  `server.go` `budget()` / `overCap`), CONTRACTS §4 + ARCHITECTURE note.
-- **Decision → ADR-0016** (ledger is the source of truth for account-wide
-  accounting; written first per ADR-0004). **Issue [0014](issues/0014-ledger-derived-budget-rows.md).**
+## Tier F — converge cost ⋈ orchestration (join the two stores)
 
-### A2 — Cost attribution: per-agent / per-workflow / per-session rollups  — **M/L**  ·  **SHIPPED (#TBD)**
-- **What:** `SpendRecord` already carries `SessionID`; tag it additively with the
-  active **agent id** (and workflow/lane id when a run owns the turn) and add a
-  "Cost by agent / workflow" breakdown on Telemetry (a pure aggregation like
-  `ModelShares`). Answers *"which agent is burning my budget?"* — orchestration-
-  aware cost, where the two differentiators meet.
-- **Why now:** builds directly on A1's ledger queries; workflows already meter
-  per-lane cost (ADR-0013) but don't *persist* the attribution. Schema bump is
-  additive (CONTRACTS §4 migration rules).
-- **Touches:** `internal/telemetry` (`SpendRecord` `+agentId`/`+workflowId`,
-  versioned-additive; an `AgentShares` aggregation), `internal/web` (`session.go`
-  `EvUsage` record-tagging, `workflow.go` `handleRunEvent`, `telemetryPartial`).
-- **Shipped:** schema v2 additive `agent`/`workflow`/`lane` tags + pure
-  `AgentShares`/`WorkflowShares` (over a shared `shareBy`); `recordUsage` takes a
-  `spendTag`; "Cost by agent / workflow" on Telemetry; CSV columns appended.
-  **Decision → ADR-0018. Issue [0016](issues/0016-cost-attribution-rollups.md).**
+### F1 / V1 — Run-history aggregations + Runs duration  — **S**  ·  **BUILD FIRST**
+- **What:** a pure `RunAggregates(records) []RunAggregate` (run count, avg cost, avg
+  duration, failure rate per workflow) + a `RunRecord.Duration()` helper over the
+  existing `RunStore` records (**no schema change**); a duration column + a per-workflow
+  summary on the Runs page, joining the run and spend stores.
+- **Why now:** the exact pure-reader follow-on ADR-0022 deferred ("records carry enough
+  to compute them later without a schema change"); the convergence of the two
+  differentiators; lowest-risk build on B3.
+- **Touches:** `internal/telemetry` (`runs.go`: `RunAggregates`, `Duration` — pure +
+  tested, a cousin of `*Shares`), `internal/web` (`runs.go` `runRow`/`runsPartial`).
+- **No ADR** (decision pre-blessed by ADR-0022). **Issue
+  [0023](issues/0023-workflow-run-aggregations.md).**
 
-### A3 — Budget burn-rate projection / forecast  — **S/M**  ·  **SHIPPED (#TBD)**
-- **What:** from `DailyTotals` + the allowance, project *"at this rate you reach
-  your cap in ~N turns / by <date>"* — on Telemetry and (compact) in the
-  statusline. Turns cost from **reactive** (warn at 80%) to **predictive**.
-- **Why now:** A1 puts month-to-date on a real time series and `DailyTotals`
-  already gives the slope; a pure function, no new IO.
-- **Touches:** `internal/telemetry` (a pure `Forecast` over `DailyTotals` +
-  `Budget`), `internal/web` (`telemetryPartial`, optional statusline cell).
-- **Shipped:** pure `telemetry.Forecast` → `Projection` (trailing-7-day-average
-  burn rate; days/turns-to-cap + exhaustion date; degenerate cases explicit in
-  `Status`: no-budget / idle / exhausted / ok); a Telemetry-page forecast line +
-  a compact `cap ~Nd` statusline cell (ambers when on track to exceed the budget
-  before month-end). **Decision → ADR-0019. Issue [0017](issues/0017-budget-burn-rate-forecast.md).**
+### F2 / V4 — Workflow list "last run" + cost badges  — **M**  ·  *candidate*
+- **What:** each row on the Workflows page (today name + step summary only,
+  `workflow.go` `workflowsPartial:787`) gains a last-run outcome glyph + age, a run
+  count, and total spend — joining `RunStore.Records()` and `WorkflowShares` keyed by
+  workflow id. Makes the page diagnostic, not just navigational.
+- **Why now:** reuses F1's aggregations + the existing `WorkflowShares`; turns the
+  orchestration entry point into a cost-aware dashboard. **Touches:** `internal/web`
+  (`workflow.go` `workflowsPartial`), `internal/telemetry` (F1's readers).
 
-## Tier B — deepen orchestration (the name)
+### F3 / V7 — Per-workflow / per-agent burn-rate forecast  — **M**  ·  *candidate*
+- **What:** a bucketed `Forecast` variant (`forecast.go` is account-wide only) that
+  projects *"at this pace, the `review` workflow burns its share by <date>"* from
+  `DailyTotals` bucketed by the A2 `agent`/`workflow` tag. Trajectory, not just the
+  historical share `AgentShares`/`WorkflowShares` already show.
+- **Why now:** where cost prediction (A3) and attribution (A2) compound; pure reader,
+  no schema change. **Touches:** `internal/telemetry` (`forecast.go` bucketed variant),
+  `internal/web` (`pages.go` `spendShares`).
 
-The differentiated half of "orchestra" is still mostly on paper: parallel fan-out
-is unobserved and lanes are thin.
+## Tier G — complete the cost surface (small, self-contained)
 
-### B1 — Real parallel workflow lanes  — **M/L**  ·  *promotes TECH_DEBT #12*  ·  **BUILD-FIRST (orchestration)**
-- **What:** give `MockClient` distinct session ids + `SessionID`-tagged demo events
-  so a browser-driven **parallel** run drives concurrent lanes; surface per-lane
-  **tool cards + inline permissions** in each lane (today a lane folds only message
-  + usage).
-- **Why now:** parallel fan-out is the orchestration payoff and is currently
-  undrivable offline (no demo/e2e). The run state machine + `SessionID` routing
-  already exist (`workflow.go` `laneFor`); this makes them *exercised*, not just
-  unit-tested. Clears TECH_DEBT #12.
-- **Touches:** `internal/copilot` (`mock.go`: distinct ids per `CreateSession`),
-  `internal/web` (`workflow.go` `handleRunEvent` per-lane tool/permission render,
-  `demo.go` `SessionID`-tagged parallel demo, lanes templates/CSS), `e2e/` parallel
-  spec. **Extends ADR-0013. Issue [0015](issues/0015-real-parallel-workflow-lanes.md).**
+### G1 / V2 — Settings price-override editor  — **S**  ·  *candidate*
+- **What:** a per-model rate table on the Settings page for
+  `config.TelemetryConfig.PriceOverrides` (loaded at startup, applied to the price book,
+  but the **only** cost knob with no UI — `settings.go` `renderSettingsForm` omits it by
+  design). Three numeric fields per model; closes the last hand-edit-JSON cost step.
+- **Why now:** as new models arrive, rate tweaks shouldn't require editing `config.json`;
+  small and entirely additive. **Touches:** `internal/web` (`settings.go`, `forms.go`),
+  `internal/config` (already has the field + validation hook).
 
-### B2 — Conditional / branching workflow steps  — **L**  ·  **SHIPPED (#TBD)**
-- **What:** a step gated on the prior lane's outcome (e.g. *"if the review lane
-  flags issues, run the fix agent"*). Moves `Workflow` from a fixed pipe to real
-  control flow — a `When`/predicate on `WorkflowStep`, pure additions to
-  `workflowRun` + `CompileWorkflow`.
-- **Why now:** sequential + parallel are the primitives; branching is the first
-  genuinely *orchestration*-shaped capability beyond fan-out/handoff. **Needs an
-  ADR** (declarative predicate vs free-form condition model).
-- **Touches:** `internal/ctxforge` (`workflow.go`: `WorkflowStep.When` +
-  validation), `internal/web` (`workflow.go` state machine), an ADR.
-- **Shipped:** a declarative `WorkflowStep.When` (`StepCondition{Step, Condition,
-  Value}`; `succeeded`/`failed`/`output-contains`/`always`, gating on a strictly-prior
-  step → acyclic by construction) — pure, `Validate`-able, additive (`omitempty`,
-  nil = always). The pure `workflowRun` engine gained a `laneSkipped` status and
-  `evalWhen`/`evalPending`/`advance`: an unsatisfied step is **skipped** (rendered
-  distinctly), not failed, and a skipped lane still terminates the run; works in both
-  sequential (walk-and-skip) and parallel (launch-when-dependency-settles) modes. A
-  seeded branching demo + e2e drive a real branch (a skipped lane). **Decision →
-  ADR-0021. Issue [0020](issues/0020-conditional-branching-workflow-steps.md).**
+### G2 / V5 — Per-session cost on the Sessions page  — **M**  ·  *candidate*
+- **What:** a pure `SessionShares(records)` aggregation (parallel to `AgentShares`) so
+  the Sessions picker (today title + age only, `sessions.go`) shows total credits + turn
+  count per session — `SpendRecord` already carries `SessionID`. A cost-aware session
+  picker.
+- **Why now:** the session id is already tagged on every record; pure reader, no schema
+  change. **Touches:** `internal/telemetry` (`history.go` `SessionShares`),
+  `internal/web` (`sessions.go` `sessionRows`).
 
-### B3 — Workflow run history  — **M**  ·  **SHIPPED (#TBD)**
-- **What:** persist each run (workflow id, agents, per-lane cost, outcome,
-  timestamps) and a "Runs" view. A run is the natural unit of orchestrated spend.
-- **Why now:** runs are ephemeral today; once A2 tags ledger records with
-  workflow/lane, a run-history view is mostly a query. Pairs A2 ↔ B.
-- **Touches:** `internal/telemetry` (or a sibling run-store), `internal/web`
-  (`workflow.go`, a Runs partial/page — minds the `pages.length` e2e coupling).
-- **Shipped:** a **sibling** append-only `telemetry.RunStore` at
-  `<configDir>/runs.json` (versioned envelope, atomic temp-file+rename, like
-  `SpendStore`) — each `RunRecord` is `{id, workflow, name, mode, startedAt,
-  finishedAt, outcome, lanes:[{index, agentId, status incl. skipped, credits}]}`;
-  pure + unit-tested. Chosen over deriving from spend tags (which can't see a
-  cost-free skipped branch) or folding into the ledger (overloads its one-row-per-turn
-  contract). The web layer records a run **once on completion** (`recordRun` in
-  `runFrags`); a top-level **Runs** page queries it. **Decision → ADR-0022. Issue
-  [0021](issues/0021-workflow-run-history.md).**
+### G3 / V9 — Telemetry spend-window selector  — **S**  ·  *candidate*
+- **What:** the trend view hardcodes a 14-day window (`pages.go` `spendTrend:249`); add a
+  30/90-day selector threaded through `DailyTotals` truncation + re-scale. Users with
+  months of history can't see the full picture today. **Touches:** `internal/web`
+  (`pages.go` `spendTrend`, `server.go` `handlePage`).
 
-## Tier C — extensibility & composer polish (promoted debt)
+## Tier H — paydown that advances the architecture
 
-### C1 — MCP secrets / Env editor  — **M**  ·  *promotes TECH_DEBT #10*
-- **What:** a masked secrets store + `Env` editing on the MCP form, unblocking
-  **key-requiring** curated servers (GitHub, web search). `MCPServer.Env` already
-  exists and is preserved across edits but is not UI-editable (`mcp.go:33`).
-- **Why now:** the MCP page (ADR-0010) shipped key-free *because* there's no
-  secrets surface; this is the gate to the highest-value MCP servers — and MCP is
-  how users grow the agent's tools. **Needs an ADR** (where secrets live — not
-  plaintext in `forge.json`).
-- **Touches:** `internal/ctxforge` (`MCPServer.Env`), `internal/web` (`mcp.go`
-  form, `forms.go` masked field), a new secrets store, an ADR.
+### H1 — Generic `telemetry.AppendOnlyStore[T]`  — **M**  ·  *candidate (debt)*
+- **What:** extract the duplicated `SpendStore`/`RunStore` machinery (versioned
+  envelope, atomic temp-file+rename, missing=empty / invalid=error / empty-dir=ephemeral,
+  `Append`/`Records`/`Count`) into one generic store; the two stores become thin typed
+  wrappers. Flagged in the B3 review, deferred then as scope creep.
+- **Why now:** the duplication is now real (two near-identical files, `history.go` +
+  `runs.go`) and a third store (if any future persisted history appears) would triple it;
+  paying it down keeps the persistence discipline single-sourced. Pure, dependency-free.
+  Best done as a **precursor** to F1/G2 (which add readers, not stores) or standalone.
+  **Touches:** `internal/telemetry` (new `store.go` generic; `history.go`/`runs.go`
+  rewrap). Needs care: the on-disk JSON tags (`records` vs `runs`) are the stable
+  contract and must not change — a refactor-only paydown, guarded by the existing
+  round-trip/atomic/migration tests.
 
-### C2 — Textarea composer  — **S**  ·  *promotes TECH_DEBT #15*
-- **What:** switch the composer `<input>` to a `<textarea>` (Enter-to-send,
-  Shift-Enter newline), fixing the multi-line snippet flatten on insert
-  (`fillSnippet`) and enabling multi-line prompts generally.
-- **Why now:** snippets (ADR-0015) shipped with a known flatten limit; small,
-  self-contained, compounding UX win the snippet library already wants.
-- **Touches:** `internal/web` (`templates/index.html` composer, `fillSnippet`, the
-  `keydown` handler's Enter/Shift-Enter), `e2e/` composer spec. Clears TECH_DEBT #15.
+## Tier I — small surface polish (pull opportunistically)
+
+- **V3 — surface `SubagentInfo.Description`** (S, orchestration): the SDK populates it
+  (`normalize.go:89`) but `renderSubagents` (`render.go:283`) drops it — show it as a
+  chip tooltip/subline so concurrent sub-agents during a parallel run say *what* they're
+  doing.
+- **V10 — keybinding live-apply** (S, polish): TECH_DEBT #13 — a rebind takes effect only
+  on the next full page load; an OOB swap of `<body data-keymap>` + the help overlay on
+  the Settings POST closes it.
 
 ## Tier D — platform / distribution (carried, unchanged)
 
@@ -177,31 +154,30 @@ Paydown, not product — pull when demand appears:
 - **Desktop installers** (.dmg/.msi/.deb/AppImage) via `wails3 package` — TECH_DEBT #5.
 - **Wails v3 stable migration** when it lands — TECH_DEBT #6 (pinned to `alpha.98`).
 - **On-disk `SKILL.md` folder model** — TECH_DEBT #1; deferred pending real demand.
-- **First-party embedded MCP server** (zero external runtime) — TECH_DEBT #11.
+- **First-party embedded MCP server** (zero external runtime) — TECH_DEBT #11. *Note:*
+  once C1 (E1) ships, key-requiring stdio servers still need `npx`/`uvx` on PATH — an
+  embedded server would be the zero-dependency complement.
 
 ---
 
 ## Recommended sequencing
 
-1. **A1 — ledger-derived budget rows** *(BUILD FIRST)*. Completes the cost
-   differentiator's headline promise; M; reuses `SpendStore`; grounded in ADR-0016;
-   unblocks A2/A3. → issue **0014**.
-2. **B1 — real parallel lanes**. Completes the orchestration differentiator's
-   unobserved half; M/L; engine already exists. → issue **0015**.
-3. **A2 → A3** — cost attribution, then forecast: per-agent/per-workflow spend, then
-   predictive burn-rate. The two differentiators meet in A2. **Both shipped**
-   (A2 ADR-0018 #41; A3 ADR-0019) — Tier A's cost-accountability loop is now closed.
-4. **C2 (textarea composer)** — small, compounding; then **C1 (MCP secrets**, lead
-   with an ADR for the secrets store).
-5. **B2 / B3** — branching + run history: the bigger orchestration bets; lead each
-   with an ADR. **Both shipped** — B2 (branching workflow steps; ADR-0021, issue 0020)
-   made `Workflow` real control flow, and **B3 (workflow run history; ADR-0022, issue
-   0019)** persists each run as a sibling run-store with a Runs view. **Roadmap v2 is
-   complete** (epic 0013 closed).
-6. **Tier D** when distribution demand appears — now the next pull (see below).
+1. **C1 / E1 — MCP secrets / Env editor** *(BUILD FIRST)*. Opens the extensibility
+   story; M; key decision settled (ADR-0020); claims the reserved 0019/ADR-0020. →
+   issue **0019**.
+2. **V1 / F1 — run-history aggregations + Runs duration** *(BUILD FIRST)*. The cost ⋈
+   orchestration convergence; S; pure readers pre-blessed by ADR-0022; lowest risk. →
+   issue **0023**. (Optionally land **H1** `AppendOnlyStore[T]` just before, as a clean
+   precursor.)
+3. **F2 / F3** — workflow last-run badges, then bucketed forecast: extend the
+   convergence once F1's readers exist.
+4. **G1 → G2 → G3** — complete the cost surface (price-override editor, per-session cost,
+   window selector): small, self-contained, compounding.
+5. **I / V3, V10** — opportunistic polish.
+6. **Tier D** when distribution demand appears.
 
-Epic **[0013](issues/0013-epic-deepen-differentiators.md)** ("deepen the
-differentiators") carries A1 (0014) + B1 (0015) as the promoted build-first picks;
+Epic **[0022](issues/0022-epic-extensibility-and-convergence.md)** ("extensibility &
+convergence") carries C1 (0019) + V1 (0023) as the promoted build-first picks;
 everything else stays a candidate here until promoted.
 
 Each item: write the failing test first, keep domain logic pure
@@ -210,6 +186,30 @@ Each item: write the failing test first, keep domain logic pure
 updates into the same feature branch (ADR-0004).
 
 ---
+
+## Numbering (reconciled 2026-06-06)
+
+Highest on disk before this pass: issues → **0021**, ADRs → **0022** (issue **0019** /
+**ADR-0020** were RESERVED for C1 and unused). This pass **claims the reservation**: C1
+takes issue **0019** + **ADR-0020**. The v3 epic takes **0022** and the run-aggregations
+issue takes **0023** (next free after 0021). No ADR is consumed by the aggregations item
+(its decision is pre-blessed by ADR-0022).
+
+---
+
+## Appendix — roadmap v2 (shipped, epic 0013, for context)
+
+| item | feature | ADR | issue |
+|------|---------|-----|-------|
+| A1 | Ledger-derived budget rows (survive restart) | 0016 | 0014 |
+| B1 | Real parallel workflow lanes (per-lane tools/perms) | 0017 | 0015 |
+| A2 | Cost attribution — per-agent/workflow/lane rollups | 0018 | 0016 |
+| A3 | Budget burn-rate forecast | 0019 | 0017 |
+| C2 | Textarea composer (Enter sends, Shift-Enter newline) | — | 0018 |
+| B2 | Conditional / branching workflow steps | 0021 | 0020 |
+| B3 | Workflow run history (sibling run store + Runs view) | 0022 | 0021 |
+
+Epic 0013 ("deepen the differentiators") — **closed**.
 
 ## Appendix — roadmap v1 (shipped, for context)
 

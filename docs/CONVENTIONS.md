@@ -88,6 +88,29 @@ Exact commands CI enforces (`.github/workflows/ci.yml`, `Makefile`):
   libwebkitgtk-6.0-dev libsoup-3.0-dev`; then `make desktop` / `make run-desktop`.
   macOS/Windows ship the webview.
 
+## Subagent model routing
+
+When a session spawns subagents, spend the right model per task: **retrieval →
+cheap; judgment → strong.** Pass the model per call (the `Agent` tool's `model`).
+Default subagents inherit the parent (opus) — override **down** for mechanical
+work, and **never downgrade a correctness-critical reviewer**.
+
+| Task type | Model |
+|-----------|-------|
+| retrieval / "where is X" / grep fan-out | haiku |
+| read-many-and-summarize, gather context | sonnet |
+| test authoring from a clear spec | sonnet |
+| mechanical refactor / codemod | sonnet |
+| code review (bug hunting) / security review | opus (sonnet at low/medium effort) |
+| architecture / planning / ADR decisions | opus |
+| research synthesis / adversarial verify | opus → sonnet for fan-out legs |
+
+This repo's `Explore`/`Plan` agents are **built-in** (no `.claude/agents/` files),
+so there is no `model:` frontmatter to set — routing is per-call only. If custom
+agents are ever added under `.claude/agents/`, set `model:` frontmatter on them:
+search/retrieval agents → sonnet (haiku for pure file-finding); planning/
+architecture → opus.
+
 ## Naming & style
 
 - Branches: `feat/…`, `docs/…`, `fix/…` (kebab, scope-prefixed).
