@@ -6,6 +6,7 @@ import (
 
 	"github.com/dotts-h/copilot-sdk/internal/convo"
 	"github.com/dotts-h/copilot-sdk/internal/copilot"
+	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
 
@@ -290,51 +291,53 @@ func (s *Server) cmdAgent(arg string) string {
 	return s.systemNote("agent → " + name + " (" + shown + ", new session)")
 }
 
-// compiledForge holds the forge-compiled session inputs for one agent selection:
-// the model/effort, the system message (agent persona + enabled instructions +
-// active skill prompts), the tool allowlist, and the enabled MCP servers.
-type compiledForge struct {
-	model, effort, systemMessage string
-	tools                        []string
-	mcpServers                   []copilot.MCPServer
+// SeamSpec translates a forge-compiled SessionSpec into the copilot seam's
+// SessionSpec, mapping the system message, tool allowlist, and enabled MCP
+// servers and applying the config defaults for an unset model/effort (the
+// built-in chat agent and the no-agent case carry no model of their own).
+// Streaming is always on. It is the single forge→seam translation shared by the
+// startup path (bootstrap.Build), the agent-restart path (compiledSpec), and each
+// workflow lane (workflowLaneSpec) — so a newly added spec field can't be dropped
+// on one path and not another (the class of bug behind REGRESSIONS #13/#15).
+func SeamSpec(cs ctxforge.SessionSpec, defModel, defEffort string) copilot.SessionSpec {
+	spec := copilot.SessionSpec{
+		Model: cs.Model, ReasoningEffort: cs.ReasoningEffort,
+		SystemMessage: cs.SystemMessage, Streaming: true,
+		AllowedTools: cs.AllowedTools, MCPServers: MCPServerSpecs(cs.MCPServers),
+	}
+	if spec.Model == "" {
+		spec.Model = defModel
+	}
+	if spec.ReasoningEffort == "" {
+		spec.ReasoningEffort = defEffort
+	}
+	return spec
 }
 
-// compiledSpec compiles the forge for agentID into the session inputs to apply.
-// Model/effort fall back to the config defaults when the compiled spec leaves them
-// empty — the built-in chat agent and the no-agent case carry no model of their
-// own. The caller must hold s.hub.forgeMu.
-func (s *Server) compiledSpec(agentID string) compiledForge {
+// compiledSpec compiles the forge for agentID into the seam SessionSpec to apply.
+// The caller must hold s.hub.forgeMu.
+func (s *Server) compiledSpec(agentID string) copilot.SessionSpec {
 	cspec, err := s.forge.Compile(agentID)
 	if err != nil {
 		s.logger.Printf("compile agent %q: %v", agentID, err)
 	}
-	c := compiledForge{
-		model: cspec.Model, effort: cspec.ReasoningEffort,
-		systemMessage: cspec.SystemMessage, tools: cspec.AllowedTools,
-		mcpServers: MCPServerSpecs(cspec.MCPServers),
-	}
-	if c.model == "" {
-		c.model = s.config.DefaultModel
-	}
-	if c.effort == "" {
-		c.effort = s.config.ReasoningEffort
-	}
-	return c
+	return SeamSpec(cspec, s.config.DefaultModel, s.config.ReasoningEffort)
 }
 
-// applyAgentSpec applies a compiled forge to this session's spec and restarts the
-// session. An empty model leaves the current one; a non-empty model overrides it.
-// Returns the resulting model for status messages.
-func (s *Server) applyAgentSpec(c compiledForge) string {
+// applyAgentSpec applies a compiled spec to this session and restarts it. An
+// empty model leaves the current one; a non-empty model overrides it. Streaming
+// is owned by the live spec, so it is not overwritten here. Returns the resulting
+// model for status messages.
+func (s *Server) applyAgentSpec(c copilot.SessionSpec) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if c.model != "" {
-		s.spec.Model = c.model
+	if c.Model != "" {
+		s.spec.Model = c.Model
 	}
-	s.spec.ReasoningEffort = c.effort
-	s.spec.SystemMessage = c.systemMessage
-	s.spec.AllowedTools = c.tools
-	s.spec.MCPServers = c.mcpServers
+	s.spec.ReasoningEffort = c.ReasoningEffort
+	s.spec.SystemMessage = c.SystemMessage
+	s.spec.AllowedTools = c.AllowedTools
+	s.spec.MCPServers = c.MCPServers
 	s.sessionID = ""
 	return s.spec.Model
 }
