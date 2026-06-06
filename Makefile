@@ -4,7 +4,7 @@ PKG := ./...
 VERSION ?= dev
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: all build run desktop run-desktop test bench cover lint fmt vet fuzz tidy clean e2e e2e-install
+.PHONY: all build run desktop run-desktop test bench cover lint fmt vet fuzz tidy clean e2e e2e-install codemap
 
 all: lint test build
 
@@ -47,6 +47,9 @@ cover:
 
 fuzz:
 	go test ./internal/telemetry -run x -fuzz FuzzPriceNeverNegativeOrNaN -fuzztime 20s
+
+codemap:
+	bash scripts/codemap.sh
 
 fmt:
 	gofmt -w ./cmd ./internal
