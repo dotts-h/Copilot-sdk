@@ -11,6 +11,10 @@ Module: `github.com/dotts-h/copilot-sdk` · app *my-orchestra*.
 - Branch from `main`; never commit directly to `main`.
 - Write a failing test first, then the smallest code to pass it. Keep changes small.
 - Before pushing, run the gates locally: `make lint && make test`.
+- **Self-review the diff before pushing:** run `/code-review` (always) and, for UI
+  changes, `/verify` or `make run`/`make e2e` to exercise the behavior. Audits
+  done *before* coding don't catch what the resulting diff introduces — this is
+  cheap insurance, not optional. — see [RETROS 0001](RETROS/0001-quality-and-architecture-hardening.md)
 - Open a PR; **CI must be green** (lint, race tests + coverage floor, fuzz, build matrix) before merge.
 - Merge with `--no-ff`, push `origin/main`, then delete the local branch.
 - **Fold supporting docs into the feature branch** — ADRs, REGRESSIONS, TECH_DEBT, and
@@ -76,6 +80,10 @@ Exact commands CI enforces (`.github/workflows/ci.yml`, `Makefile`):
 - **Go 1.25+** required (the Wails v3 desktop dep raised the module floor from 1.24).
 - `jq` is **not** installed; use `python3` for JSON.
 - Run the app: `make run`. Benchmarks: `make bench`. Tidy modules: `make tidy`.
+- **Navigate by the map, not by reading everything:** read [CODEMAP.md](CODEMAP.md)
+  (per-package `type`/`func` index) to find the file/symbol you need, then read
+  that window. Regenerate it with `make codemap` after adding/moving top-level
+  declarations. — see [RETROS 0001](RETROS/0001-quality-and-architecture-hardening.md)
 - Desktop build deps (Linux, Wails v3 GTK4 backend): `pkg-config libgtk-4-dev
   libwebkitgtk-6.0-dev libsoup-3.0-dev`; then `make desktop` / `make run-desktop`.
   macOS/Windows ship the webview.

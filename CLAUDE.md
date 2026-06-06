@@ -5,10 +5,14 @@ canonical rules live in the docs below — read them before acting.
 
 - **Conventions (the constitution):** [docs/CONVENTIONS.md](docs/CONVENTIONS.md) —
   workflow, architecture invariants, quality gates, environment facts.
+- **Codebase map (navigate first):** [docs/CODEMAP.md](docs/CODEMAP.md) —
+  per-package `type`/`func` index; read it to find a symbol instead of opening
+  files. Regenerate with `make codemap`.
 - **Contracts (stable promises):** [docs/CONTRACTS.md](docs/CONTRACTS.md) —
   the `copilot.Client` seam, HTTP routes, event vocabulary.
 - **Decisions (why):** [docs/adr/](docs/adr/) — one record per decision.
 - **Learnings & dead-ends:** [docs/REGRESSIONS.md](docs/REGRESSIONS.md).
+- **Retrospectives (process learnings):** [docs/RETROS/](docs/RETROS/).
 - **Tech-debt register:** [docs/TECH_DEBT.md](docs/TECH_DEBT.md).
 - **Architecture overview:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - **Skills program:** [SKILLS_PLAN.md](SKILLS_PLAN.md).
