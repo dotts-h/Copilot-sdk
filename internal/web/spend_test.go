@@ -66,6 +66,80 @@ func TestUsagePersistsSpendRecord(t *testing.T) {
 	}
 }
 
+func TestUsageTagsActiveAgent(t *testing.T) {
+	s, store := newSpendServer(t)
+	s.agentID = "builder" // the active agent persona
+	s.handleEvent(copilot.Event{Type: copilot.EvUsage, Usage: copilot.UsageData{
+		Model: "gpt-5", InputTokens: 1000, OutputTokens: 200,
+	}})
+	rec := store.Records()[0]
+	if rec.AgentID != "builder" {
+		t.Fatalf("chat turn should be tagged with the active agent, got %q", rec.AgentID)
+	}
+	// A plain chat turn carries no workflow attribution.
+	if rec.WorkflowID != "" || rec.LaneIndex != 0 {
+		t.Fatalf("chat turn must not carry workflow attribution: %+v", rec)
+	}
+}
+
+func TestWorkflowUsageTagsWorkflowAndLane(t *testing.T) {
+	s, store := newSpendServer(t)
+	// A parallel run whose lanes have distinct backing session ids, so the EvUsage
+	// routes to lane 1 by SessionID (run id "w", lane agent "b", index 1).
+	run := twoStepRun(ctxforge.WorkflowParallel)
+	s.mu.Lock()
+	s.run = run
+	s.busy = true
+	run.start()
+	run.lanes[0].sessionID = "s0"
+	run.lanes[1].sessionID = "s1"
+	s.mu.Unlock()
+
+	s.handleEvent(copilot.Event{Type: copilot.EvUsage, SessionID: "s1", Usage: copilot.UsageData{
+		Model: "gpt-5", InputTokens: 1000, OutputTokens: 200,
+	}})
+	rec := store.Records()[0]
+	if rec.WorkflowID != "w" || rec.LaneIndex != 1 || rec.AgentID != "b" {
+		t.Fatalf("workflow turn should be tagged with workflow id + lane index + lane agent: %+v", rec)
+	}
+}
+
+func TestTelemetryPageShowsAttributionBreakdown(t *testing.T) {
+	s, store := newSpendServer(t)
+	s.forge.Agents = []ctxforge.Agent{{ID: "builder", Name: "Builder", Model: "gpt-5"}}
+	s.forge.Workflows = []ctxforge.Workflow{{ID: "ship", Name: "Ship", Mode: ctxforge.WorkflowSequential}}
+	for _, r := range []telemetry.SpendRecord{
+		{At: day("2026-06-04T10:00:00Z"), Model: "gpt-5", USD: 0.20, AgentID: "builder"},
+		{At: day("2026-06-05T10:00:00Z"), Model: "gpt-5", USD: 0.30, AgentID: "builder", WorkflowID: "ship", LaneIndex: 0},
+		{At: day("2026-06-05T11:00:00Z"), Model: "gpt-5", USD: 0.10}, // plain chat, empty agent
+	} {
+		if err := store.Append(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	html := s.telemetryPartial()
+	for _, want := range []string{"Cost by agent", "Builder", "chat (built-in)", "Cost by workflow", "Ship"} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("telemetry page missing %q\n%s", want, html)
+		}
+	}
+}
+
+func TestNewSessionSeedsActiveAgentFromConfig(t *testing.T) {
+	// A new session inherits the launch-time active agent, so its first chat turn
+	// attributes spend correctly even before any /agent switch.
+	hub := New(Options{
+		Client: copilot.NewMockClient(),
+		Forge:  &ctxforge.Forge{},
+		Config: &config.Config{DefaultModel: "gpt-5", DefaultAgent: "builder"},
+		Meter:  telemetry.NewMeter(telemetry.DefaultPriceBook()),
+		Logger: log.New(io.Discard, "", 0),
+	})
+	if got := hub.newSession("seed").agentID; got != "builder" {
+		t.Fatalf("session should seed the active agent from config, got %q", got)
+	}
+}
+
 func TestUsageWithoutLedgerDoesNotPanic(t *testing.T) {
 	s, _ := newTestServer() // no Spend wired (s.spend == nil)
 	s.handleEvent(copilot.Event{Type: copilot.EvUsage, Usage: copilot.UsageData{

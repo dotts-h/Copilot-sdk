@@ -373,7 +373,14 @@ func (s *Server) handleRunEvent(run *workflowRun, e copilot.Event) []fragment {
 		return []fragment{s.lanesFrag()}
 
 	case copilot.EvUsage:
-		cost := s.recordUsage(e.Usage)
+		// A workflow run owns the turn: attribute the spend to the run and, when the
+		// event routed to a lane, that lane's agent + index (ADR-0018).
+		tag := spendTag{workflowID: run.id}
+		if l != nil {
+			tag.agentID = l.AgentID
+			tag.laneIndex = l.Index
+		}
+		cost := s.recordUsage(e.Usage, tag)
 		if l != nil {
 			l.credits += cost.Credits()
 		}

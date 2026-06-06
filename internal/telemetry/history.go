@@ -18,8 +18,9 @@ import (
 // restart — turning the live in-memory Meter (a gauge) into an accountable
 // record. It mirrors config's persistence discipline: a versioned JSON document
 // written atomically (temp-file + rename), missing-file = empty, present-but-
-// invalid = error. The aggregation helpers (DailyTotals, ModelShares, WriteCSV)
-// are pure functions over a record slice — the SpendStore is the only IO edge,
+// invalid = error. The aggregation helpers (DailyTotals, ModelShares,
+// AgentShares, WorkflowShares, WriteCSV) are pure functions over a record slice
+// — the SpendStore is the only IO edge,
 // keeping the rest of the package dependency-free and unit-testable. — ADR-0009.
 
 // SpendRecord is one append-only ledger entry: the metered cost of a single
@@ -37,6 +38,17 @@ type SpendRecord struct {
 	// AIU is GitHub's authoritative cost in AI units, when the runtime reported
 	// it (zero for the offline mock / unreported turns).
 	AIU float64 `json:"aiu,omitempty"`
+	// AgentID attributes the turn to the active agent persona that incurred it
+	// (empty = the built-in chat agent / no persona). WorkflowID and LaneIndex are
+	// set additionally when a multi-agent workflow run owned the turn, naming the
+	// run and the lane within it. All three are additive, schema-v2 tags (older
+	// readers ignore them; older records read back empty) so the ledger answers
+	// "which agent / which workflow burned the budget." — ADR-0018.
+	AgentID    string `json:"agent,omitempty"`
+	WorkflowID string `json:"workflow,omitempty"`
+	// LaneIndex is meaningful only alongside a non-empty WorkflowID; its zero value
+	// (the first lane, or a non-workflow turn) is correct, so it omits cleanly.
+	LaneIndex int `json:"lane,omitempty"`
 }
 
 // Credits expresses the record's USD cost in GitHub AI Credits (1 cr = $0.01).
@@ -49,8 +61,11 @@ const (
 	spendFile = "spend.json"
 	// SpendSchemaVersion is the on-disk schema version. Bumps must keep the
 	// "records" array readable by older code (additive fields only) or ship a
-	// migration — see CONTRACTS.md §4 and docs/REGRESSIONS.md.
-	SpendSchemaVersion = 1
+	// migration — see CONTRACTS.md §4 and docs/REGRESSIONS.md. v2 added the
+	// additive agent/workflow/lane attribution tags (ADR-0018): older v1 readers
+	// ignore the new keys and tolerate the higher version; v1 records read back
+	// with empty tags.
+	SpendSchemaVersion = 2
 )
 
 // spendDoc is the on-disk envelope: a version tag plus the record array.
@@ -205,6 +220,49 @@ func MonthToDate(records []SpendRecord, now time.Time) Cost {
 	return Cost{InputUSD: usd}
 }
 
+// share is one group's slice of the total persisted spend — the shape behind the
+// ModelShare/AgentShare/WorkflowShare breakdowns, which differ only in their key.
+type share struct {
+	Key      string
+	USD      float64
+	Credits  float64
+	Fraction float64 // share of the included total in [0,1]
+}
+
+// shareBy totals spend per group (keyed by keyOf) and computes each group's
+// fraction of the included whole, sorted by spend descending (ties broken by key
+// for determinism). When includeEmpty is false, records whose key is "" are
+// skipped entirely and excluded from the total — used by WorkflowShares so the
+// "no workflow" chat spend doesn't swamp the per-workflow view. Pure: same
+// records → same result.
+func shareBy(records []SpendRecord, keyOf func(SpendRecord) string, includeEmpty bool) []share {
+	by := map[string]float64{}
+	var total float64
+	for _, r := range records {
+		k := keyOf(r)
+		if k == "" && !includeEmpty {
+			continue
+		}
+		by[k] += r.USD
+		total += r.USD
+	}
+	out := make([]share, 0, len(by))
+	for k, usd := range by {
+		s := share{Key: k, USD: usd, Credits: usd / USDPerCredit}
+		if total > 0 {
+			s.Fraction = usd / total
+		}
+		out = append(out, s)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].USD != out[j].USD {
+			return out[i].USD > out[j].USD
+		}
+		return out[i].Key < out[j].Key
+	})
+	return out
+}
+
 // ModelShare is one model's slice of the total persisted spend.
 type ModelShare struct {
 	Model    string
@@ -217,31 +275,57 @@ type ModelShare struct {
 // whole, sorted by spend descending (ties broken by model name for
 // determinism). Pure: same records → same result.
 func ModelShares(records []SpendRecord) []ModelShare {
-	byModel := map[string]*ModelShare{}
-	var total float64
-	for _, r := range records {
-		m := byModel[r.Model]
-		if m == nil {
-			m = &ModelShare{Model: r.Model}
-			byModel[r.Model] = m
-		}
-		m.USD += r.USD
-		total += r.USD
+	groups := shareBy(records, func(r SpendRecord) string { return r.Model }, true)
+	out := make([]ModelShare, len(groups))
+	for i, g := range groups {
+		out[i] = ModelShare{Model: g.Key, USD: g.USD, Credits: g.Credits, Fraction: g.Fraction}
 	}
-	out := make([]ModelShare, 0, len(byModel))
-	for _, m := range byModel {
-		m.Credits = m.USD / USDPerCredit
-		if total > 0 {
-			m.Fraction = m.USD / total
-		}
-		out = append(out, *m)
+	return out
+}
+
+// AgentShare is one agent persona's slice of the total persisted spend. An empty
+// AgentID is spend incurred with no agent persona (the built-in chat agent) — the
+// caller labels it for display.
+type AgentShare struct {
+	AgentID  string
+	USD      float64
+	Credits  float64
+	Fraction float64 // share of total spend in [0,1]
+}
+
+// AgentShares totals spend per agent persona and computes each agent's fraction
+// of all recorded spend (the empty-agent bucket included, since every turn has an
+// agent), sorted by spend descending. Answers "which agent is burning my budget?"
+// (ADR-0018). Pure: same records → same result.
+func AgentShares(records []SpendRecord) []AgentShare {
+	groups := shareBy(records, func(r SpendRecord) string { return r.AgentID }, true)
+	out := make([]AgentShare, len(groups))
+	for i, g := range groups {
+		out[i] = AgentShare{AgentID: g.Key, USD: g.USD, Credits: g.Credits, Fraction: g.Fraction}
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].USD != out[j].USD {
-			return out[i].USD > out[j].USD
-		}
-		return out[i].Model < out[j].Model
-	})
+	return out
+}
+
+// WorkflowShare is one workflow run-definition's slice of workflow-attributed
+// spend.
+type WorkflowShare struct {
+	WorkflowID string
+	USD        float64
+	Credits    float64
+	Fraction   float64 // share of workflow-attributed spend in [0,1]
+}
+
+// WorkflowShares totals spend per workflow across the records that a workflow run
+// owned (turns with no workflow are excluded, so the fraction is each workflow's
+// share of orchestrated — not all — spend), sorted by spend descending. The
+// orchestration-aware half of cost attribution (ADR-0018). Pure: same records →
+// same result.
+func WorkflowShares(records []SpendRecord) []WorkflowShare {
+	groups := shareBy(records, func(r SpendRecord) string { return r.WorkflowID }, false)
+	out := make([]WorkflowShare, len(groups))
+	for i, g := range groups {
+		out[i] = WorkflowShare{WorkflowID: g.Key, USD: g.USD, Credits: g.Credits, Fraction: g.Fraction}
+	}
 	return out
 }
 
@@ -250,7 +334,10 @@ func ModelShares(records []SpendRecord) []ModelShare {
 // formula. Deterministic for the same input.
 func WriteCSV(w io.Writer, records []SpendRecord) error {
 	cw := csv.NewWriter(w)
-	if err := cw.Write([]string{"at", "session", "model", "input", "cached", "output", "usd", "credits", "aiu"}); err != nil {
+	// New attribution columns (agent/workflow/lane) are appended at the end so the
+	// pre-v2 column positions are unchanged — a backward-compatible header bump
+	// (CONTRACTS §3). — ADR-0018.
+	if err := cw.Write([]string{"at", "session", "model", "input", "cached", "output", "usd", "credits", "aiu", "agent", "workflow", "lane"}); err != nil {
 		return err
 	}
 	for _, r := range records {
@@ -264,6 +351,9 @@ func WriteCSV(w io.Writer, records []SpendRecord) error {
 			csvFloat(r.USD),
 			csvFloat(r.Credits()),
 			csvFloat(r.AIU),
+			r.AgentID,
+			r.WorkflowID,
+			strconv.Itoa(r.LaneIndex),
 		}
 		if err := cw.Write(row); err != nil {
 			return err

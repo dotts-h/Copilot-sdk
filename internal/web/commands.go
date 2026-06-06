@@ -269,7 +269,7 @@ func (s *Server) cmdAgent(arg string) string {
 		// reach the session, just without an agent persona.
 		c := s.compiledSpec("")
 		s.hub.forgeMu.Unlock()
-		s.applyAgentSpec(c)
+		s.applyAgentSpec(c, "")
 		return s.systemNote("agent cleared (new session)")
 	}
 
@@ -284,10 +284,11 @@ func (s *Server) cmdAgent(arg string) string {
 	if err := s.config.Save(); err != nil {
 		s.logger.Printf("save config: %v", err)
 	}
-	c := s.compiledSpec(agent.ID)
+	agentID := agent.ID
+	c := s.compiledSpec(agentID)
 	s.hub.forgeMu.Unlock()
 
-	shown := s.applyAgentSpec(c)
+	shown := s.applyAgentSpec(c, agentID)
 	return s.systemNote("agent → " + name + " (" + shown + ", new session)")
 }
 
@@ -326,9 +327,11 @@ func (s *Server) compiledSpec(agentID string) copilot.SessionSpec {
 
 // applyAgentSpec applies a compiled spec to this session and restarts it. An
 // empty model leaves the current one; a non-empty model overrides it. Streaming
-// is owned by the live spec, so it is not overwritten here. Returns the resulting
-// model for status messages.
-func (s *Server) applyAgentSpec(c copilot.SessionSpec) string {
+// is owned by the live spec, so it is not overwritten here. agentID is the id of
+// the agent now active (empty = the no-agent / built-in chat case); it is recorded
+// so subsequent turns attribute their spend to it (ADR-0018). Returns the
+// resulting model for status messages.
+func (s *Server) applyAgentSpec(c copilot.SessionSpec, agentID string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if c.Model != "" {
@@ -338,6 +341,7 @@ func (s *Server) applyAgentSpec(c copilot.SessionSpec) string {
 	s.spec.SystemMessage = c.SystemMessage
 	s.spec.AllowedTools = c.AllowedTools
 	s.spec.MCPServers = c.MCPServers
+	s.agentID = agentID
 	s.sessionID = ""
 	return s.spec.Model
 }

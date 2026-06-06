@@ -34,6 +34,7 @@ type Hub struct {
 	warnFraction float64
 	hardCap      float64
 	baseSpec     copilot.SessionSpec
+	baseAgentID  string // the launch-time active agent id (config.DefaultAgent), seeded onto each new session for spend attribution
 	logger       *log.Logger
 	demo         bool
 	workdir      string // base dir scanned by "import project instructions"
@@ -77,10 +78,12 @@ func New(opts Options) *Hub {
 		lg = log.Default()
 	}
 	var allowance, warnFraction, hardCap float64
+	var baseAgentID string
 	if opts.Config != nil {
 		allowance = opts.Config.Telemetry.MonthlyCreditAllowance
 		warnFraction = opts.Config.Telemetry.WarnFraction
 		hardCap = opts.Config.Telemetry.HardCapCredits
+		baseAgentID = opts.Config.DefaultAgent
 	}
 	workdir := opts.Workdir
 	if workdir == "" {
@@ -89,7 +92,7 @@ func New(opts Options) *Hub {
 	h := &Hub{
 		client: opts.Client, forge: opts.Forge, config: opts.Config, meter: opts.Meter, spend: opts.Spend,
 		allowance: allowance, warnFraction: warnFraction, hardCap: hardCap,
-		baseSpec: opts.Spec, logger: lg, demo: opts.Demo, workdir: workdir,
+		baseSpec: opts.Spec, baseAgentID: baseAgentID, logger: lg, demo: opts.Demo, workdir: workdir,
 		lookPath: exec.LookPath,
 		sessions: map[string]*Server{}, byCopilot: map[string]*Server{},
 	}
@@ -113,6 +116,7 @@ func (h *Hub) newSession(id string) *Server {
 		lookPath: h.lookPath,
 		logger:   h.logger, demo: h.demo,
 		spec:           h.baseSpec,
+		agentID:        h.baseAgentID,
 		sessionStartMs: nowMs(),
 		subs:           make(map[chan fragment]struct{}),
 	}

@@ -102,6 +102,26 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
   `TestTelemetryPageStaysAccountWide`, `TestBudgetRowsSurviveFreshMeter`,
   `TestCapBaselineReadsLedger`, `TestCostFooterReadsLedger`,
   `TestRecordUsageHitsBothMetersAndLedger`; `internal/telemetry` `TestMonthToDate`.
+- **Spend attribution rides the same `recordUsage`; the active agent id is mirrored
+  under `s.mu`, not read from `config`.** Each turn is tagged additively (schema v2)
+  with the agent (and workflow id + lane index when a run owns it) via a `spendTag`
+  passed to `recordUsage` (item A2 / ADR-0018). The chat reducer passes
+  `s.agentID`; the workflow reducer passes `run.id` + `lane.AgentID`/`lane.Index`.
+  **Do not** read `config.DefaultAgent` inside `recordUsage` to get the agent — that
+  inverts the established `forgeMu → s.mu` lock order (it runs under `s.mu`) and
+  races the shared config; `Server.agentID` is the `s.mu`-guarded mirror, seeded from
+  `config.DefaultAgent` at `newSession` and updated in `applyAgentSpec` (the single
+  session-restart point). The schema bump is **additive** — keep the fields
+  `omitempty` and never rename; a v1 ledger must still load (empty tags) and v1
+  readers must tolerate `version:2`. The CSV header appends `agent,workflow,lane`
+  at the **end** — never reorder the pre-v2 columns. `WorkflowShares` **excludes**
+  non-workflow spend (its fraction is of orchestrated spend, not the grand total);
+  `AgentShares` **includes** the empty-agent bucket (built-in chat) — don't
+  "normalize" the two to the same denominator. Guarded by `internal/web`
+  `TestUsageTagsActiveAgent`, `TestWorkflowUsageTagsWorkflowAndLane`,
+  `TestNewSessionSeedsActiveAgentFromConfig`, `TestTelemetryPageShowsAttributionBreakdown`;
+  `internal/telemetry` `TestSpendRecordRoundTripsAttributionTags`,
+  `TestSpendStoreReadsV1RecordWithoutTags`, `TestAgentShares`, `TestWorkflowSharesExcludeNonWorkflowSpend`.
 - **The MCP page's PATH preflight is the one impurity — keep it behind the seam.**
   Whether a curated stdio server's `Command` (`npx`/`uvx`) resolves depends on the
   host, so `mcpServersPartial` calls `exec.LookPath` through the `s.lookPath` seam

@@ -379,7 +379,12 @@ test.describe("persisted spend history + trends", () => {
     await expect(main).toContainText("Spend history");
     await expect(main).toContainText("Spend over time");
     await expect(main).toContainText("Per-model share");
-    // At least one day bar and one model-share bar are present.
+    // The orchestration-aware cost attribution view: spend broken down by the
+    // agent that incurred it and by the workflow that owned it (A2 / ADR-0018).
+    // The demo ledger seeds agent ids and a couple of workflow-owned turns.
+    await expect(main).toContainText("Cost by agent");
+    await expect(main).toContainText("Cost by workflow");
+    // At least one day bar and one share bar are present.
     await expect(page.locator("#main ul.trend .trend-row").first()).toBeVisible();
 
     // The export link downloads a CSV with the documented header.
