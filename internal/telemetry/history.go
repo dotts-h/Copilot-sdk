@@ -181,6 +181,30 @@ func DailyTotals(records []SpendRecord) []DayTotal {
 	return out
 }
 
+// MonthToDate sums the spend recorded within now's UTC calendar month — the
+// account-wide "this month" total that the budget rows, the cost footer, and the
+// hard-cap baseline read from the persisted ledger so they survive a restart
+// (ADR-0016), rather than from the restart-amnesiac in-process Meter. Pure: same
+// records + now → same result, no IO. The UTC calendar month matches the flat
+// monthly-allowance mental model; a configurable billing-anchor day is a later,
+// additive tweak over this same pure window.
+//
+// The ledger persists only each turn's total USD (not the input/cached/output
+// split — see SpendRecord), so the month total is returned through Cost's
+// USD()/Credits() accessors (the only fields the account-wide surfaces read); the
+// per-component breakdown is not meaningful for an aggregate.
+func MonthToDate(records []SpendRecord, now time.Time) Cost {
+	y, m, _ := now.UTC().Date()
+	var usd float64
+	for _, r := range records {
+		ry, rm, _ := r.At.UTC().Date()
+		if ry == y && rm == m {
+			usd += r.USD
+		}
+	}
+	return Cost{InputUSD: usd}
+}
+
 // ModelShare is one model's slice of the total persisted spend.
 type ModelShare struct {
 	Model    string

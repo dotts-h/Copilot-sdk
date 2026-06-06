@@ -161,9 +161,20 @@ behind it. Each metered turn appends a `SpendRecord` to `<configDir>/spend.json`
 (a versioned JSON document written atomically — temp-file + rename — exactly like
 config); the Telemetry page reads it back as a trend (spend over time, per-model
 share) and a `GET /telemetry/export.csv` download. The store is the one IO edge
-in an otherwise pure package: `DailyTotals`/`ModelShares`/`WriteCSV` are pure
-functions over a record slice. An empty dir makes it ephemeral (demo/tests never
-write to a real config directory). See [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md).
+in an otherwise pure package: `DailyTotals`/`ModelShares`/`MonthToDate`/`WriteCSV`
+are pure functions over a record slice. An empty dir makes it ephemeral (demo/tests
+never write to a real config directory). See [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md).
+
+**One source per surface (three now).** The account-wide budget accounting —
+the "Total cost / Monthly budget / Remaining" rows, the topbar cost footer,
+`/cost`, and the hard-cap projection baseline — reads **month-to-date from the
+ledger** (`telemetry.MonthToDate`, UTC calendar month), so "remaining this month"
+survives a restart rather than resetting with the process. The **per-session
+statusline** (`sessionMeter`, ADR-0011) and the **live token split** (cache-write /
+reasoning display counts, cache-hit rate) stay on the in-process meter — this-
+conversation and this-process signals the ledger doesn't carry. A single shared
+`recordUsage` helper (`session.go`) records every turn into both meters **and** the
+ledger, so no surface drifts. See [ADR-0016](adr/0016-ledger-is-source-of-truth-for-account-wide-budget-accounting.md).
 
 ## The my-ctx forge
 

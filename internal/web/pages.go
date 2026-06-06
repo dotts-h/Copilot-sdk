@@ -180,15 +180,19 @@ func (s *Server) chatPartial() string {
 }
 
 func (s *Server) telemetryPartial() string {
-	totals := s.meter.Totals()
+	// Account-wide budget accounting reads month-to-date from the persisted ledger
+	// so "remaining this month" survives a restart (ADR-0016). The live token split
+	// and per-model table below stay on the in-process meter — one source per
+	// surface (see REGRESSIONS "two meters", now three sources).
+	month := s.monthToDate()
 	in, cached, out := s.meter.TotalTokens()
 	budget := s.budget()
-	frac := budget.FractionUsed(totals.Credits())
+	frac := budget.FractionUsed(month.Credits())
 
 	rows := [][2]string{
-		{"Total cost", fmt.Sprintf("%s (%s)", telemetry.FormatCredits(totals.Credits()), telemetry.FormatUSD(totals.USD()))},
-		{"Monthly budget", fmt.Sprintf("%.2f of %.0f cr", totals.Credits(), budget.AllowanceCredits)},
-		{"Remaining", telemetry.FormatCredits(budget.Remaining(totals.Credits()))},
+		{"Total cost", fmt.Sprintf("%s (%s)", telemetry.FormatCredits(month.Credits()), telemetry.FormatUSD(month.USD()))},
+		{"Monthly budget", fmt.Sprintf("%.2f of %.0f cr", month.Credits(), budget.AllowanceCredits)},
+		{"Remaining", telemetry.FormatCredits(budget.Remaining(month.Credits()))},
 	}
 	if s.hardCap > 0 {
 		rows = append(rows, [2]string{"Hard cap", fmt.Sprintf("%.0f cr — a turn projected to exceed it pauses for confirmation", s.hardCap)})

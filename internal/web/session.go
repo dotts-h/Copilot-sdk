@@ -132,39 +132,9 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		return append(s.timelineFragments(), s.statusFrag("", false))
 
 	case copilot.EvUsage:
-		usage := telemetry.Usage{
-			Model:            e.Usage.Model,
-			InputTokens:      e.Usage.InputTokens,
-			CachedTokens:     e.Usage.CachedTokens,
-			CacheWriteTokens: e.Usage.CacheWriteTokens,
-			OutputTokens:     e.Usage.OutputTokens,
-			ReasoningTokens:  e.Usage.ReasoningTokens,
-		}
-		cost := s.meter.Record(usage)
-		// Fold the same turn into this conversation's own meter so the statusline
-		// reflects *this* session, not every session's combined spend (item 3.2).
-		s.sessionMeter.Record(usage)
-		aiu := e.Usage.NanoAIU * 1e-9
-		s.meter.RecordReportedAIU(aiu)
-		// Persist the turn to the append-only ledger so spend survives a restart
-		// and feeds the Telemetry trend view. Best-effort: a disk error is logged,
-		// not surfaced — the live meter and stream are unaffected.
-		if s.spend != nil {
-			rec := telemetry.SpendRecord{
-				SessionID:    s.sessionID,
-				Model:        e.Usage.Model,
-				InputTokens:  e.Usage.InputTokens,
-				CachedTokens: e.Usage.CachedTokens,
-				OutputTokens: e.Usage.OutputTokens,
-				USD:          cost.USD(),
-				AIU:          aiu,
-			}
-			if err := s.spend.Append(rec); err != nil {
-				s.logger.Printf("persist spend: %v", err)
-			}
-		}
+		s.recordUsage(e.Usage)
 		return []fragment{
-			{Event: "cost", HTML: renderCostFooter(s.meter, s.budget())},
+			{Event: "cost", HTML: renderCostFooter(s.monthToDate().Credits(), s.budget())},
 			s.statFrag(),
 		}
 
@@ -276,6 +246,45 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 	default:
 		return nil
 	}
+}
+
+// recordUsage folds one metered turn into both meters and appends a SpendRecord
+// to the persisted ledger, returning the priced cost. It is the single
+// spend-recording path shared by the chat reducer (EvUsage above) and the
+// workflow-lane reducer (workflow.go handleRunEvent): every turn must land in the
+// account-wide meter (live token split), the per-session meter (statusline,
+// ADR-0011), AND the ledger (account-wide budget accounting, ADR-0016) — drop any
+// one and that surface silently drifts (REGRESSIONS "two meters", now three
+// sources). Ledger persistence is best-effort: a disk error is logged, not
+// surfaced, so the live meters and stream are unaffected. Caller holds s.mu.
+func (s *Server) recordUsage(u copilot.UsageData) telemetry.Cost {
+	usage := telemetry.Usage{
+		Model:            u.Model,
+		InputTokens:      u.InputTokens,
+		CachedTokens:     u.CachedTokens,
+		CacheWriteTokens: u.CacheWriteTokens,
+		OutputTokens:     u.OutputTokens,
+		ReasoningTokens:  u.ReasoningTokens,
+	}
+	cost := s.meter.Record(usage)
+	s.sessionMeter.Record(usage)
+	aiu := u.NanoAIU * 1e-9
+	s.meter.RecordReportedAIU(aiu)
+	if s.spend != nil {
+		rec := telemetry.SpendRecord{
+			SessionID:    s.sessionID,
+			Model:        u.Model,
+			InputTokens:  u.InputTokens,
+			CachedTokens: u.CachedTokens,
+			OutputTokens: u.OutputTokens,
+			USD:          cost.USD(),
+			AIU:          aiu,
+		}
+		if err := s.spend.Append(rec); err != nil {
+			s.logger.Printf("persist spend: %v", err)
+		}
+	}
+	return cost
 }
 
 // timelineFragments re-renders the whole #timeline and resets the live-kind to

@@ -194,3 +194,52 @@ func TestWriteCSV(t *testing.T) {
 		t.Fatalf("credits column = %q, want 50", rows[1][7])
 	}
 }
+
+func TestMonthToDate(t *testing.T) {
+	now := day("2026-06-15T12:00:00Z")
+	tests := []struct {
+		name    string
+		records []SpendRecord
+		wantUSD float64
+	}{
+		{
+			name:    "empty ledger sums to zero",
+			records: nil,
+			wantUSD: 0,
+		},
+		{
+			name: "single month sums every turn",
+			records: []SpendRecord{
+				{At: day("2026-06-01T00:00:00Z"), USD: 0.10},
+				{At: day("2026-06-09T10:00:00Z"), USD: 0.20},
+				{At: day("2026-06-15T11:59:59Z"), USD: 0.30},
+			},
+			wantUSD: 0.60,
+		},
+		{
+			name: "month boundary is inclusive at both edges (UTC)",
+			records: []SpendRecord{
+				{At: day("2026-06-01T00:00:00Z"), USD: 0.10}, // first instant of the month
+				{At: day("2026-06-30T23:59:59Z"), USD: 0.25}, // last instant of the month
+			},
+			wantUSD: 0.35,
+		},
+		{
+			name: "prior and following months are excluded",
+			records: []SpendRecord{
+				{At: day("2026-05-31T23:59:59Z"), USD: 1.00}, // prior month
+				{At: day("2026-06-10T10:00:00Z"), USD: 0.40}, // in month
+				{At: day("2026-07-01T00:00:00Z"), USD: 2.00}, // following month
+				{At: day("2025-06-15T10:00:00Z"), USD: 5.00}, // same month, prior year
+			},
+			wantUSD: 0.40,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := MonthToDate(tc.records, now)
+			approx(t, got.USD(), tc.wantUSD)
+			approx(t, got.Credits(), tc.wantUSD/USDPerCredit)
+		})
+	}
+}

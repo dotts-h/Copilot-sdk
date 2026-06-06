@@ -344,13 +344,15 @@ func (s *Server) applyAgentSpec(c copilot.SessionSpec) string {
 
 // cmdCost appends a one-line credit summary and refreshes the ambient cost meter.
 func (s *Server) cmdCost() string {
-	totals := s.meter.Totals()
+	// Account-wide "remaining this month" reads the persisted ledger, matching the
+	// footer it re-renders (ADR-0016), so /cost survives a restart too.
+	credits := s.monthToDate().Credits()
 	budget := s.budget()
 	note := fmt.Sprintf("cost: %s of %.0f cr · remaining %s",
-		telemetry.FormatCredits(totals.Credits()), budget.AllowanceCredits,
-		telemetry.FormatCredits(budget.Remaining(totals.Credits())))
+		telemetry.FormatCredits(credits), budget.AllowanceCredits,
+		telemetry.FormatCredits(budget.Remaining(credits)))
 	return s.systemNote(note) +
-		`<div id="cost-footer" hx-swap-oob="innerHTML">` + renderCostFooter(s.meter, budget) + `</div>`
+		`<div id="cost-footer" hx-swap-oob="innerHTML">` + renderCostFooter(credits, budget) + `</div>`
 }
 
 // cmdAttach queues a file path to ride along with the next prompt.

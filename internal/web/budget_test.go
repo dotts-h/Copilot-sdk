@@ -6,19 +6,27 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dotts-h/copilot-sdk/internal/config"
 	"github.com/dotts-h/copilot-sdk/internal/copilot"
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
 
-// recordSpend folds a single priced usage into both the account-wide and the
-// per-session meter (as the real EvUsage reducer does) so tests can drive the
-// budget past a threshold on either gauge.
+// recordSpend folds a single priced usage into both meters and the persisted
+// ledger (as the real EvUsage reducer does via recordUsage) so tests can drive
+// the budget past a threshold on every surface: the statusline reads the session
+// meter, the live token split reads the process meter, and the cost footer /
+// Telemetry rows / cap baseline read month-to-date from the ledger (ADR-0016 —
+// three sources now, see REGRESSIONS).
 func recordSpend(s *Server, inputTokens int64) {
 	u := telemetry.Usage{Model: "gpt-5", InputTokens: inputTokens}
-	s.meter.Record(u)
+	cost := s.meter.Record(u)
 	s.sessionMeter.Record(u)
+	if s.spend == nil {
+		s.spend, _ = telemetry.LoadSpendStore("")
+	}
+	_ = s.spend.Append(telemetry.SpendRecord{At: time.Now().UTC(), Model: "gpt-5", USD: cost.USD()})
 }
 
 func TestStatlineTurnsAmberOverSoftThreshold(t *testing.T) {
@@ -46,7 +54,7 @@ func TestCostFooterWarnsOverSoftThreshold(t *testing.T) {
 	s.warnFraction = 0.8
 	recordSpend(s, 700_000) // $0.875 = 87.5 cr → 87.5%
 
-	got := renderCostFooter(s.meter, s.budget())
+	got := renderCostFooter(s.monthToDate().Credits(), s.budget())
 	if !strings.Contains(got, "warn") {
 		t.Errorf("cost footer should carry a warn marker over the soft threshold: %q", got)
 	}

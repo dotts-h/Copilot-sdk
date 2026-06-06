@@ -1,6 +1,6 @@
 # 0016. The persisted ledger is the source of truth for account-wide budget accounting
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-06-06
 - Deciders: Horia
 - Related: `internal/telemetry` (`SpendStore`, `SpendRecord`, `DailyTotals`,
@@ -13,11 +13,12 @@
   [ADR-0011](0011-per-session-telemetry-meter-for-the-statusline.md),
   issue [0014](../issues/0014-ledger-derived-budget-rows.md)
 
-> **Proposed, not built.** This record is the architectural pick from the
-> 2026-06-06 next-features research pass that grounds the build-first item
-> (A1 / issue 0014). It is written first (ADR-0004 lead-with-a-decision) so the
-> next build session inherits the decision, not a blank page. Promote to
-> `accepted` when 0014 ships.
+> **Shipped (A1 / issue 0014).** Written first as the architectural pick from the
+> 2026-06-06 next-features research pass (ADR-0004 lead-with-a-decision), then
+> built: `telemetry.MonthToDate` plus the read-source swap on the account-wide
+> surfaces. Guarded by `internal/telemetry` `TestMonthToDate` and `internal/web`
+> `TestBudgetRowsSurviveFreshMeter` / `TestCapBaselineReadsLedger` /
+> `TestCostFooterReadsLedger` / `TestRecordUsageHitsBothMetersAndLedger`.
 
 ## Context
 

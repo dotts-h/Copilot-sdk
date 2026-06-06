@@ -379,11 +379,12 @@ func humanTokens(n int64) string {
 	}
 }
 
-// renderCostFooter renders the ambient credit/budget meter. It turns amber and
-// shows a warning glyph once spend crosses the soft threshold (Budget.Warned),
-// making the topbar itself the ambient over-budget banner.
-func renderCostFooter(meter *telemetry.Meter, budget telemetry.Budget) string {
-	credits := meter.Totals().Credits()
+// renderCostFooter renders the ambient credit/budget meter from the account-wide
+// month-to-date credits (ledger-derived, ADR-0016 — callers pass
+// s.monthToDate().Credits(), not the in-process meter). It turns amber and shows a
+// warning glyph once spend crosses the soft threshold (Budget.Warned), making the
+// topbar itself the ambient over-budget banner.
+func renderCostFooter(credits float64, budget telemetry.Budget) string {
 	frac := budget.FractionUsed(credits)
 	pct := frac * 100
 	if pct > 100 {
