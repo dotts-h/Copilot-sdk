@@ -37,6 +37,7 @@ export const pages = [
   { slug: "agents", label: "Agents", landmark: "h2" },
   { slug: "workflows", label: "Workflows", landmark: "h2" },
   { slug: "mcp", label: "MCP", landmark: "h2" },
+  { slug: "snippets", label: "Snippets", landmark: "h2" },
   { slug: "models", label: "Models", landmark: "h2" },
   { slug: "settings", label: "Settings", landmark: "h2" },
   { slug: "help", label: "Help", landmark: "h2" },

@@ -284,6 +284,37 @@ test.describe("multi-agent workflows", () => {
   });
 });
 
+test.describe("prompt/snippet library", () => {
+  // The demo seeds a couple of snippets (review-pr, explain).
+  test("adds a snippet through the form", async ({ page }) => {
+    await gotoApp(page);
+    await navTo(page, "Snippets");
+    await expect(page.locator("#main h2")).toContainText("Snippets");
+    const before = await page.locator(sel.rows).count();
+    await page.locator(`#main button.add`).click();
+    await expect(page.locator(`#main form[hx-post="/snippets"]`)).toBeVisible();
+    // Unique id so reruns against the shared demo session don't collide.
+    const id = `e2e-snip-${Date.now()}`;
+    await page.fill(`#main input[name="id"]`, id);
+    await page.fill(`#main input[name="name"]`, "E2E snippet");
+    await page.fill(`#main textarea[name="body"]`, "Do the E2E thing.");
+    await page.locator(`#main button[type=submit]`).click();
+    await expect(page.locator(sel.rows)).toHaveCount(before + 1);
+    await expect(page.locator("#main")).toContainText("E2E snippet");
+  });
+
+  test("inserts a snippet body into the composer from the autocomplete", async ({ page }) => {
+    await gotoApp(page);
+    // Typing the snippet trigger prefix surfaces it as a snippet entry.
+    await page.locator(sel.prompt).pressSequentially("/expl", { delay: 60 });
+    const item = page.locator(`${sel.cmdMenu} .cmd-snippet`).first();
+    await expect(item).toBeVisible({ timeout: 5_000 });
+    await item.click();
+    // The composer now holds the snippet body (not the "/trigger"), ready to edit.
+    await expect(page.locator(sel.prompt)).toHaveValue(/Explain what the selected code does/);
+  });
+});
+
 test.describe("slash commands", () => {
   test("typing '/' opens the command autocomplete menu", async ({ page }) => {
     await gotoApp(page);

@@ -257,6 +257,18 @@ func SeedForge(forge *ctxforge.Forge) {
 			},
 		})
 	}
+	if len(forge.Snippets) == 0 {
+		// A couple of representative library prompts so the composer autocomplete
+		// and the Snippets page have something to drive out of the box (item 3.4).
+		_ = forge.AddSnippet(ctxforge.Snippet{
+			ID: "review-pr", Name: "Review this PR",
+			Body: "Review the current diff for correctness and style, then summarise the risks.",
+		})
+		_ = forge.AddSnippet(ctxforge.Snippet{
+			ID: "explain", Name: "Explain this code",
+			Body: "Explain what the selected code does, step by step, and note any edge cases.",
+		})
+	}
 	if len(forge.MCPServers) == 0 {
 		// Curated, well-known stdio MCP servers, seeded DISABLED by default (ADR
 		// 0010). All are key-free (no secrets UI yet) and external processes, so the

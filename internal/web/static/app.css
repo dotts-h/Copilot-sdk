@@ -411,3 +411,6 @@ p.ok { color: var(--good); margin: 0 0 .6rem; }
 .cmd-name { color: var(--accent); font-weight: 600; }
 .cmd-args { color: var(--accent2); font-size: .85rem; }
 .cmd-desc { color: var(--dim); font-size: .82rem; margin-left: auto; }
+.cmd-tag { font-size: .68rem; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--accent2); border: 1px solid var(--subtle); border-radius: 4px;
+  padding: 0 .3rem; }
