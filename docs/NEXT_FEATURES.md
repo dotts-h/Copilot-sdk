@@ -112,7 +112,7 @@ is unobserved and lanes are thin.
   `demo.go` `SessionID`-tagged parallel demo, lanes templates/CSS), `e2e/` parallel
   spec. **Extends ADR-0013. Issue [0015](issues/0015-real-parallel-workflow-lanes.md).**
 
-### B2 — Conditional / branching workflow steps  — **L**
+### B2 — Conditional / branching workflow steps  — **L**  ·  **SHIPPED (#TBD)**
 - **What:** a step gated on the prior lane's outcome (e.g. *"if the review lane
   flags issues, run the fix agent"*). Moves `Workflow` from a fixed pipe to real
   control flow — a `When`/predicate on `WorkflowStep`, pure additions to
@@ -122,6 +122,15 @@ is unobserved and lanes are thin.
   ADR** (declarative predicate vs free-form condition model).
 - **Touches:** `internal/ctxforge` (`workflow.go`: `WorkflowStep.When` +
   validation), `internal/web` (`workflow.go` state machine), an ADR.
+- **Shipped:** a declarative `WorkflowStep.When` (`StepCondition{Step, Condition,
+  Value}`; `succeeded`/`failed`/`output-contains`/`always`, gating on a strictly-prior
+  step → acyclic by construction) — pure, `Validate`-able, additive (`omitempty`,
+  nil = always). The pure `workflowRun` engine gained a `laneSkipped` status and
+  `evalWhen`/`evalPending`/`advance`: an unsatisfied step is **skipped** (rendered
+  distinctly), not failed, and a skipped lane still terminates the run; works in both
+  sequential (walk-and-skip) and parallel (launch-when-dependency-settles) modes. A
+  seeded branching demo + e2e drive a real branch (a skipped lane). **Decision →
+  ADR-0021. Issue [0020](issues/0020-conditional-branching-workflow-steps.md).**
 
 ### B3 — Workflow run history  — **M**
 - **What:** persist each run (workflow id, agents, per-lane cost, outcome,
@@ -176,7 +185,9 @@ Paydown, not product — pull when demand appears:
 4. **C2 (textarea composer)** — small, compounding; then **C1 (MCP secrets**, lead
    with an ADR for the secrets store).
 5. **B2 / B3** — branching + run history: the bigger orchestration bets; lead each
-   with an ADR.
+   with an ADR. **B2 shipped** (branching workflow steps; ADR-0021, issue 0020) —
+   `Workflow` is now real control flow. **B3 (workflow run history) is the last v2
+   item.**
 6. **Tier D** when distribution demand appears.
 
 Epic **[0013](issues/0013-epic-deepen-differentiators.md)** ("deepen the

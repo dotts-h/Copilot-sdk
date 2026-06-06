@@ -2,8 +2,10 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"html/template"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/dotts-h/copilot-sdk/internal/convo"
@@ -30,7 +32,15 @@ const (
 	laneRunning
 	laneDone
 	laneFailed
+	laneSkipped // a gated step whose predicate was unsatisfied (B2 / ADR-0021)
 )
+
+// settled reports whether a lane has reached a terminal status (done, failed, or
+// skipped) — the predicate evaluator and allSettled both key off this, so a skipped
+// lane counts as settled and a branching run still terminates.
+func settled(st laneStatus) bool {
+	return st == laneDone || st == laneFailed || st == laneSkipped
+}
 
 // lane is one step of a running workflow: its agent, task prompt, compiled spec,
 // the backing copilot session, the accumulated output, and live status/cost.
@@ -48,6 +58,7 @@ type lane struct {
 	tools     []*convo.ToolView           // this lane's own tool-execution timeline (B1)
 	toolIdx   map[string]int              // tool-call id -> index into tools
 	perms     []copilot.PermissionRequest // this lane's pending inline permission requests (B1)
+	when      *ctxforge.StepCondition     // optional predicate gating this step (B2 / ADR-0021)
 }
 
 // toolStart records a tool-execution start on the lane's own timeline. Mirrors
@@ -129,30 +140,101 @@ func newWorkflowRun(wf ctxforge.Workflow, steps []ctxforge.CompiledStep, specs [
 	for i, st := range steps {
 		lanes[i] = &lane{
 			Index: i, AgentID: st.AgentID, AgentName: st.AgentName,
-			Prompt: st.Prompt, spec: specs[i], status: lanePending,
+			Prompt: st.Prompt, spec: specs[i], status: lanePending, when: st.When,
 		}
 	}
 	return &workflowRun{id: wf.ID, name: wf.Name, mode: wf.EffectiveMode(), lanes: lanes}
 }
 
 // start marks the lanes to launch first and returns their indices: the first lane
-// in sequential mode, every lane in parallel mode.
+// in sequential mode; in parallel mode every lane whose predicate is already
+// runnable (ungated, or whose dependency has settled — none have at start, so the
+// ungated lanes), leaving gated lanes pending until their dependency settles (B2).
 func (r *workflowRun) start() []int {
 	if len(r.lanes) == 0 {
 		r.done = true
 		return nil
 	}
 	if r.mode == ctxforge.WorkflowParallel {
-		idxs := make([]int, len(r.lanes))
-		for i, l := range r.lanes {
-			l.status = laneRunning
-			idxs[i] = i
-		}
-		return idxs
+		return r.evalPending()
 	}
 	r.cur = 0
 	r.lanes[0].status = laneRunning
 	return []int{0}
+}
+
+// evalWhen evaluates lane l's predicate against the run's settled lanes. satisfied
+// reports whether the step should run; ready reports whether the predicate's
+// dependency has settled yet (always true for a nil/always predicate). A lane with
+// ready=false must wait — its dependency is still pending or running. Pure: it reads
+// only prior lanes' settled status/output (ADR-0021). The referenced step is a
+// strictly-prior, validated index, so dep is always in range.
+func (r *workflowRun) evalWhen(l *lane) (satisfied, ready bool) {
+	w := l.when
+	if w == nil || w.Condition == ctxforge.CondAlways {
+		return true, true
+	}
+	dep := r.lanes[w.Step-1] // 1-based, validated to reference a prior step
+	if !settled(dep.status) {
+		return false, false
+	}
+	switch w.Condition {
+	case ctxforge.CondSucceeded:
+		return dep.status == laneDone, true
+	case ctxforge.CondFailed:
+		return dep.status == laneFailed, true
+	case ctxforge.CondOutputContains:
+		return strings.Contains(strings.ToLower(dep.text), strings.ToLower(w.Value)), true
+	}
+	return true, true
+}
+
+// skipDetail is the one-line reason shown on a skipped lane.
+func skipDetail(w *ctxforge.StepCondition) string {
+	if w == nil {
+		return "skipped"
+	}
+	switch w.Condition {
+	case ctxforge.CondOutputContains:
+		return fmt.Sprintf("skipped — step %d output did not contain %q", w.Step, w.Value)
+	case ctxforge.CondSucceeded:
+		return fmt.Sprintf("skipped — step %d did not succeed", w.Step)
+	case ctxforge.CondFailed:
+		return fmt.Sprintf("skipped — step %d did not fail", w.Step)
+	}
+	return "skipped"
+}
+
+// evalPending (parallel) launches every pending lane whose dependency has settled
+// and whose predicate is satisfied, skipping the unsatisfied ones. It loops to a
+// fixpoint so a skip — itself a settle — can unblock or cascade to further lanes.
+// Returns the indices to launch.
+func (r *workflowRun) evalPending() []int {
+	var launch []int
+	for {
+		progressed := false
+		for _, l := range r.lanes {
+			if l.status != lanePending {
+				continue
+			}
+			sat, ready := r.evalWhen(l)
+			if !ready {
+				continue
+			}
+			if sat {
+				l.status = laneRunning
+				launch = append(launch, l.Index)
+			} else {
+				l.status = laneSkipped
+				l.detail = skipDetail(l.when)
+			}
+			progressed = true
+		}
+		if !progressed {
+			break
+		}
+	}
+	return launch
 }
 
 // handoffPrompt is the prompt to Send for lane idx. In a sequential run every step
@@ -163,11 +245,15 @@ func (r *workflowRun) handoffPrompt(idx int) string {
 	if r.mode == ctxforge.WorkflowParallel || idx == 0 {
 		return l.Prompt
 	}
-	prev := r.lanes[idx-1]
-	if strings.TrimSpace(prev.text) == "" {
-		return l.Prompt
+	// Hand off from the nearest prior lane that actually ran and produced output,
+	// stepping over skipped (or empty) lanes from a branch (B2).
+	for j := idx - 1; j >= 0; j-- {
+		prev := r.lanes[j]
+		if prev.status == laneDone && strings.TrimSpace(prev.text) != "" {
+			return l.Prompt + "\n\n--- Handoff from " + prev.AgentName + " ---\n" + strings.TrimSpace(prev.text)
+		}
 	}
-	return l.Prompt + "\n\n--- Handoff from " + prev.AgentName + " ---\n" + strings.TrimSpace(prev.text)
+	return l.Prompt
 }
 
 // laneFor resolves the lane an event belongs to: by its copilot session id when
@@ -198,50 +284,63 @@ func (r *workflowRun) laneFor(sessionID string) *lane {
 func (l *lane) appendText(s string) { l.text += s }
 
 // finishLane marks a lane done and advances the run, returning the lane indices to
-// launch next (the next step in sequential mode once the current one completes;
-// none in parallel until every lane is finished). It sets done when the run is over.
+// launch next. It sets done when the run is over.
 func (r *workflowRun) finishLane(l *lane, detail string) []int {
 	if l.status == laneRunning {
 		l.status = laneDone
 	}
 	l.detail = detail
-	if r.mode == ctxforge.WorkflowParallel {
-		if r.allSettled() {
-			r.done = true
-		}
-		return nil
-	}
-	// Sequential: hand off to the next pending lane.
-	next := l.Index + 1
-	if next >= len(r.lanes) {
-		r.done = true
-		return nil
-	}
-	r.cur = next
-	r.lanes[next].status = laneRunning
-	return []int{next}
+	return r.advance(l)
 }
 
-// failLane marks a lane failed. A sequential run aborts (the chain is broken); a
-// parallel run lets the surviving lanes finish. Returns done.
-func (r *workflowRun) failLane(l *lane, msg string) bool {
+// failLane marks a lane failed and advances the run, returning the lane indices to
+// launch next. A sequential run aborts (the chain is broken) and launches nothing; a
+// parallel run lets the surviving lanes finish and may now unblock a `when failed`
+// gated lane (B2). Returns the indices to launch (nil for the sequential abort).
+func (r *workflowRun) failLane(l *lane, msg string) []int {
 	l.status = laneFailed
 	l.detail = msg
+	if r.mode != ctxforge.WorkflowParallel {
+		r.done = true
+		r.failed = true
+		return nil
+	}
+	return r.advance(l)
+}
+
+// advance runs the post-settle transition after lane l reached a terminal status.
+// Sequential: walk forward to the next runnable step, skipping unsatisfied gated
+// ones, and run the first satisfied one (or finish). Parallel: re-evaluate pending
+// lanes (run-or-skip to a fixpoint) and finish once every lane has settled. Returns
+// the lane indices to launch next.
+func (r *workflowRun) advance(l *lane) []int {
 	if r.mode == ctxforge.WorkflowParallel {
+		launch := r.evalPending()
 		if r.allSettled() {
 			r.done = true
 		}
-	} else {
-		r.done = true
-		r.failed = true
+		return launch
 	}
-	return r.done
+	for next := l.Index + 1; next < len(r.lanes); next++ {
+		nl := r.lanes[next]
+		if sat, _ := r.evalWhen(nl); sat { // priors are settled in sequential, so ready
+			r.cur = next
+			nl.status = laneRunning
+			return []int{next}
+		}
+		nl.status = laneSkipped
+		nl.detail = skipDetail(nl.when)
+	}
+	r.done = true
+	return nil
 }
 
-// allSettled reports whether every lane has finished (done or failed).
+// allSettled reports whether every lane has reached a terminal status (done,
+// failed, or skipped) — a skipped lane counts as settled so a branching run still
+// terminates.
 func (r *workflowRun) allSettled() bool {
 	for _, l := range r.lanes {
-		if l.status == lanePending || l.status == laneRunning {
+		if !settled(l.status) {
 			return false
 		}
 	}
@@ -347,8 +446,11 @@ func (s *Server) startLane(run *workflowRun, idx int) {
 // laneError fails a lane and broadcasts the resulting lane/status fragments.
 func (s *Server) laneError(run *workflowRun, l *lane, err error) {
 	s.mu.Lock()
-	done := run.failLane(l, "✗ "+err.Error())
-	frags := s.runFrags(run, done)
+	next := run.failLane(l, "✗ "+err.Error())
+	if len(next) > 0 {
+		go s.launchLanes(run, next)
+	}
+	frags := s.runFrags(run, run.done)
 	s.mu.Unlock()
 	s.broadcast(frags)
 }
@@ -439,8 +541,11 @@ func (s *Server) handleRunEvent(run *workflowRun, e copilot.Event) []fragment {
 		if e.Err != nil {
 			msg = e.Err.Error()
 		}
-		done := run.failLane(l, "✗ "+msg)
-		return s.runFrags(run, done)
+		next := run.failLane(l, "✗ "+msg)
+		if len(next) > 0 {
+			go s.launchLanes(run, next)
+		}
+		return s.runFrags(run, run.done)
 
 	default:
 		// Reasoning and context events from a sub-run are not surfaced per-lane
@@ -539,6 +644,8 @@ func laneGlyph(st laneStatus) (glyph, state string) {
 		return "✓", "done"
 	case laneFailed:
 		return "✗", "failed"
+	case laneSkipped:
+		return "⊘", "skipped"
 	default:
 		return "○", "pending"
 	}
@@ -641,16 +748,22 @@ func renderWorkflowForm(w ctxforge.Workflow, isNew bool, errMsg string) string {
 		textField("Name", "name", w.Name, true),
 		textField("Description", "description", w.Description, false),
 		selectField("Mode", "mode", mode, workflowModeOpts),
-		textArea("Steps (one per line: agentID: prompt)", "steps", stepsToText(w.Steps), true),
+		textArea("Steps (one per line: agentID [step N condition value]: prompt)", "steps", stepsToText(w.Steps), true),
 	)
 }
 
-// stepsToText renders a workflow's steps as the textarea's "agentID: prompt"
-// lines, the inverse of stepsFromText.
+// stepsToText renders a workflow's steps as the textarea's "agentID: prompt" lines
+// (with an optional "[step N condition value]" predicate prefix on a gated step),
+// the inverse of stepsFromText.
 func stepsToText(steps []ctxforge.WorkflowStep) string {
 	var b strings.Builder
 	for _, st := range steps {
 		b.WriteString(st.AgentID)
+		if cond := formatStepCondition(st.When); cond != "" {
+			b.WriteString(" [")
+			b.WriteString(cond)
+			b.WriteString("]")
+		}
 		b.WriteString(": ")
 		b.WriteString(st.Prompt)
 		b.WriteString("\n")
@@ -658,9 +771,10 @@ func stepsToText(steps []ctxforge.WorkflowStep) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// stepsFromText parses the steps textarea: one "agentID: prompt" per non-blank
-// line. A line with no colon is treated as an agent id with an empty prompt, so
-// Validate surfaces a clear "prompt is required" rather than silently dropping it.
+// stepsFromText parses the steps textarea: one "agentID [predicate]: prompt" per
+// non-blank line, where the bracketed predicate is optional. A line with no colon is
+// treated as an agent id with an empty prompt, so Validate surfaces a clear "prompt
+// is required" rather than silently dropping it.
 func stepsFromText(raw string) []ctxforge.WorkflowStep {
 	var steps []ctxforge.WorkflowStep
 	for _, line := range strings.Split(raw, "\n") {
@@ -668,12 +782,83 @@ func stepsFromText(raw string) []ctxforge.WorkflowStep {
 		if line == "" {
 			continue
 		}
-		agent, prompt, _ := strings.Cut(line, ":")
+		head, prompt := splitStepLine(line)
+		agentPart := strings.TrimSpace(head)
+		var when *ctxforge.StepCondition
+		if i := strings.IndexByte(agentPart, '['); i >= 0 {
+			if j := strings.IndexByte(agentPart, ']'); j > i {
+				when = parseStepCondition(agentPart[i+1 : j])
+			}
+			agentPart = strings.TrimSpace(agentPart[:i])
+		}
 		steps = append(steps, ctxforge.WorkflowStep{
-			AgentID: strings.TrimSpace(agent), Prompt: strings.TrimSpace(prompt),
+			AgentID: agentPart, Prompt: strings.TrimSpace(prompt), When: when,
 		})
 	}
 	return steps
+}
+
+// splitStepLine splits a step line into its "agentID [predicate]" head and prompt
+// at the separator colon. The colon is the first one AFTER any closing "]", so an
+// output-contains value inside the bracket may itself contain a colon without
+// derailing the split; with no bracket it is the first colon (as before). A line
+// with no qualifying colon is all head (empty prompt), so Validate surfaces a clear
+// "prompt is required".
+func splitStepLine(line string) (head, prompt string) {
+	sep := strings.IndexByte(line, ':')
+	if b := strings.IndexByte(line, '['); b >= 0 {
+		if c := strings.IndexByte(line, ']'); c > b {
+			if rel := strings.IndexByte(line[c:], ':'); rel >= 0 {
+				sep = c + rel
+			} else {
+				sep = -1
+			}
+		}
+	}
+	if sep < 0 {
+		return line, ""
+	}
+	return line[:sep], line[sep+1:]
+}
+
+// formatStepCondition renders a predicate as the bracket body for stepsToText: ""
+// for a nil predicate (ungated), "always", or "step N condition [value]".
+func formatStepCondition(c *ctxforge.StepCondition) string {
+	if c == nil {
+		return ""
+	}
+	if c.Condition == ctxforge.CondAlways {
+		return ctxforge.CondAlways
+	}
+	s := fmt.Sprintf("step %d %s", c.Step, c.Condition)
+	if c.Condition == ctxforge.CondOutputContains && c.Value != "" {
+		s += " " + c.Value
+	}
+	return s
+}
+
+// parseStepCondition parses the bracket body from a step line back into a predicate
+// ("always", or "step N condition [value...]"). A malformed body is kept as a raw
+// condition so the whole-forge Validate surfaces the error rather than silently
+// dropping the predicate. An empty body yields nil (ungated).
+func parseStepCondition(spec string) *ctxforge.StepCondition {
+	spec = strings.TrimSpace(spec)
+	if spec == "" {
+		return nil
+	}
+	if spec == ctxforge.CondAlways {
+		return &ctxforge.StepCondition{Condition: ctxforge.CondAlways}
+	}
+	fields := strings.Fields(spec)
+	if len(fields) >= 3 && fields[0] == "step" {
+		n, _ := strconv.Atoi(fields[1])
+		return &ctxforge.StepCondition{
+			Step:      n,
+			Condition: fields[2],
+			Value:     strings.TrimSpace(strings.Join(fields[3:], " ")),
+		}
+	}
+	return &ctxforge.StepCondition{Condition: spec}
 }
 
 func workflowFromForm(r *http.Request, id string) ctxforge.Workflow {

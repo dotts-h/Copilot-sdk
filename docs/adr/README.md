@@ -23,3 +23,4 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0017 | [Per-lane tool + permission surface for parallel workflow lanes](0017-per-lane-tool-and-permission-surface-for-parallel-workflow-lanes.md) | accepted |
 | 0018 | [Additive agent/workflow attribution tags on spend records](0018-additive-attribution-tags-on-spend-records.md) | accepted |
 | 0019 | [Budget burn-rate forecast: a trailing-window average over the daily ledger](0019-budget-burn-rate-forecast-trailing-window-average.md) | accepted |
+| 0021 | [Conditional / branching workflow steps — a declarative step predicate](0021-conditional-branching-workflow-steps-declarative-predicate.md) | accepted |

@@ -215,6 +215,27 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
   with `trusted()` — so the `trusted()` wrap is safe only because each fragment
   self-escaped (ADR-0001). Guarded by `internal/web` `TestWorkflowLanesEscapeModelText`,
   `TestWorkflowLaneToolTextEscaped`.
+- **A branching step is *skipped*, not failed, and a skipped lane still terminates
+  the run.** A `WorkflowStep.When` predicate (B2 / ADR-0021) gates a step on a
+  strictly-prior step's settled outcome; an unsatisfied step becomes `laneSkipped`
+  (a fifth terminal lane status), **not** `laneFailed`. Two invariants the engine
+  must keep: (1) `settled()` (and thus `allSettled()`) counts `laneSkipped` as
+  settled, so a run whose last lane skips still reaches `done` — **don't** treat skip
+  as a non-terminal/pending state or the run hangs; and (2) the `When.Step` reference
+  is validated to be **strictly prior** (1-based, `[1, i]`), which forbids
+  self/forward references and makes a cycle structurally impossible — so `evalWhen`'s
+  `r.lanes[Step-1]` is always in range and the run always terminates (no graph walk
+  needed). A sequential **hard failure** still aborts the chain (ADR-0013 semantics);
+  a skip does not. `failLane` returns `[]int` (not a bool) so a **parallel** failure
+  can unblock a `when failed` lane — don't revert it to a bool or that branch never
+  launches. **Form parser:** the steps textarea splits a line on the colon **after**
+  the optional `[predicate]` bracket (`splitStepLine`), so an `output-contains` value
+  containing a colon round-trips — don't go back to `strings.Cut(line, ":")` on the
+  first colon (it truncates the predicate and mangles the prompt). Guarded by
+  `internal/web` `TestRunSequentialSkipsUnsatisfied`, `TestRunParallelGatedRunsAndSkips`,
+  `TestRunParallelFailUnblocksWhenFailed`, `TestBranchingDemoRunSkipsLane`,
+  `TestWorkflowStepConditionRoundTrip`, `TestWorkflowFormRoundTripsCondition`;
+  `internal/ctxforge` `TestWorkflowValidateWhen`, `TestCompileWorkflowCarriesWhen`.
 - **Keyboard shortcuts are config-backed and dispatched client-side, but the
   keymap is computed server-side.** The rebindable action set is fixed in code
   (`config.KeyActions()`); only overrides persist (`Config.KeyBindings`,

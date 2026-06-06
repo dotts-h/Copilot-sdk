@@ -296,6 +296,30 @@ test.describe("multi-agent workflows", () => {
     await expect(page.locator(`${sel.lanes} .lane-done`)).toHaveCount(2);
   });
 
+  // The demo seeds a sequential BRANCHING "Review, then fix" workflow (B2 /
+  // ADR-0021): step 1 (sdet) reviews, step 2 (builder) runs only if the review
+  // output contains "issues", step 3 runs only if it says "perfect". The demo lane
+  // echoes the prompt's first line, so the review output contains "issues" — the fix
+  // step RUNS and the celebrate step SKIPS. Assert structure (a skipped lane), never
+  // timing.
+  test("runs the branching workflow and skips the unsatisfied lane", async ({ page }) => {
+    await gotoApp(page);
+    await navTo(page, "Workflows");
+    const row = page.locator(sel.rows, { hasText: "Review, then fix" });
+    await expect(row).toBeVisible();
+    await row.locator("button.run").click();
+
+    // The run lands on the chat page with three lanes.
+    await expect(page.locator(`${sel.lanes} .workflow-run`)).toBeVisible();
+    await expect(page.locator(`${sel.lanes} .lane`)).toHaveCount(3);
+    // The run finishes; the gated fix lane ran (done) and the celebrate lane skipped.
+    await expect(page.locator(`${sel.lanes} .run-status.done`)).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator(`${sel.lanes} .lane-skipped`)).toHaveCount(1);
+    await expect(page.locator(`${sel.lanes} .lane-skipped`)).toContainText("skipped");
+    // Two lanes ran to completion (the review + the satisfied fix step).
+    await expect(page.locator(`${sel.lanes} .lane-done`)).toHaveCount(2);
+  });
+
   test("adds a workflow through the form", async ({ page }) => {
     await gotoApp(page);
     await navTo(page, "Workflows");
