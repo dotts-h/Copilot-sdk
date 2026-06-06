@@ -2,6 +2,7 @@ package copilot
 
 import (
 	"context"
+	"fmt"
 	"sync"
 )
 
@@ -43,7 +44,10 @@ func NewMockClient() *MockClient {
 	return &MockClient{events: make(chan Event, 256)}
 }
 
-// CreateSession implements Client.
+// CreateSession implements Client. Each call returns a DISTINCT session id
+// ("mock-session-1", "mock-session-2", …) so concurrent workflow lanes can be
+// routed by the event's SessionID (web.workflowRun.laneFor) — a single shared id
+// would make parallel lanes indistinguishable offline (issue 0015 / TECH_DEBT #12).
 func (m *MockClient) CreateSession(context.Context, SessionSpec) (string, error) {
 	if m.CreateErr != nil {
 		return "", m.CreateErr
@@ -51,7 +55,7 @@ func (m *MockClient) CreateSession(context.Context, SessionSpec) (string, error)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.sessions++
-	return "mock-session", nil
+	return fmt.Sprintf("mock-session-%d", m.sessions), nil
 }
 
 // Send implements Client.

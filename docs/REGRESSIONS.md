@@ -137,22 +137,41 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
   chat transcript.** While `s.run != nil && !s.run.done`, `handleEvent` dispatches
   to `handleRunEvent`, which attributes each event to a lane **by copilot
   `SessionID`, falling back to the sole running lane** when the id is empty (the
-  mock/offline case, where a sequential run has exactly one lane active). So a
-  sequential run is fully testable offline; a **parallel** run needs real
-  `SessionID`s to disambiguate concurrent lanes (the `MockClient` returns one id,
-  so the offline demo/e2e drive only the sequential path — the parallel engine
-  logic is unit-tested directly). Normal `/send` is **refused with a note** during a
-  run (it doesn't queue behind the lanes), and `/clear` resets `s.run`. Adding the
-  Workflows nav page also touched the `pageNames`/e2e-`pages` count coupling (below).
-  Guarded by `internal/web` `TestRun*` (pure engine, both modes),
-  `TestWorkflowRunReducerSequential`, `TestWorkflowLanesEscapeModelText`,
-  `TestSendBlockedDuringWorkflowRun`; `internal/ctxforge` `TestCompileWorkflow`,
-  `TestForgeValidateWorkflowAgentReference`.
-- **Workflow lane text is model/forge-originated → HTML-escaped.** Agent names and a
-  lane's streamed output reach the browser through the same escaped paths as chat
-  (committed lane output via the server-side markdown renderer; names/detail via
-  `richtext`/`html/template` auto-escaping), per ADR-0001. Guarded by
-  `internal/web` `TestWorkflowLanesEscapeModelText`.
+  case where a sequential run has exactly one lane active). The `MockClient` now
+  hands out **distinct** ids per `CreateSession` (`mock-session-N`) and the demo
+  lane (`streamDemoLane`) tags its events with the lane's id, so a **parallel** run
+  drives concurrent lanes offline too (B1/ADR-0017) — the empty-id fallback is no
+  longer the only offline path. **Don't revert `CreateSession` to a constant id**:
+  two concurrent lanes would then share one id and `laneFor` could not disambiguate
+  them. Normal `/send` is **refused with a note** during a run (it doesn't queue
+  behind the lanes), and `/clear` resets `s.run`. Adding the Workflows nav page also
+  touched the `pageNames`/e2e-`pages` count coupling (below). Guarded by
+  `internal/web` `TestRun*` (pure engine, both modes), `TestWorkflowRunReducerSequential`,
+  `TestWorkflowRunReducerParallelRoutesBySessionID`, `TestParallelDemoRunDrivesConcurrentLanes`,
+  `TestWorkflowLanesEscapeModelText`, `TestSendBlockedDuringWorkflowRun`;
+  `internal/copilot` `TestCreateSessionReturnsDistinctIDs`; `internal/ctxforge`
+  `TestCompileWorkflow`, `TestForgeValidateWorkflowAgentReference`.
+- **A lane surfaces its own tool timeline + inline permissions, not just output.**
+  `handleRunEvent` reduces a lane's `EvToolStart/Progress/End` + `EvPermission` onto
+  per-lane state (`lane.tools`/`lane.perms`); `renderLanes` reuses the chat
+  `renderToolCard`/`renderPermForm` so a sub-run's tools and a file-write diff
+  review render identically inside the lane card. A lane permission is answered over
+  the **shared `/perm/{id}` route**: `handlePerm` is lane-aware — it drops the
+  request from whichever lane holds it (`dropLanePerm`) and refreshes `#lanes`
+  out-of-band instead of the timeline. Lane permissions are **per-lane**, not a
+  cross-lane FIFO (ADR-0017). Don't drop the `handlePerm` lane branch or a lane
+  permission would respond on the seam but never clear from the panel. Guarded by
+  `internal/web` `TestWorkflowLaneSurfacesToolTimeline`, `TestWorkflowLaneInlinePermission`,
+  `TestStreamDemoLaneTagsSessionID`.
+- **Workflow lane text (output, tool args/results, permission diffs) is
+  model/forge-originated → HTML-escaped.** Agent names and a lane's streamed output
+  reach the browser through the same escaped paths as chat (committed lane output
+  via the server-side markdown renderer; names/detail via `richtext`/`html/template`
+  auto-escaping); per-lane tool cards and permission forms are composed from the
+  already-escaping `renderToolCard`/`renderPermForm` before the lane card wraps them
+  with `trusted()` — so the `trusted()` wrap is safe only because each fragment
+  self-escaped (ADR-0001). Guarded by `internal/web` `TestWorkflowLanesEscapeModelText`,
+  `TestWorkflowLaneToolTextEscaped`.
 - **Keyboard shortcuts are config-backed and dispatched client-side, but the
   keymap is computed server-side.** The rebindable action set is fixed in code
   (`config.KeyActions()`); only overrides persist (`Config.KeyBindings`,

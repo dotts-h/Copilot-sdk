@@ -457,12 +457,34 @@ func (s *Server) handlePerm(w http.ResponseWriter, r *http.Request) {
 	}
 	s.mu.Lock()
 	s.dropPerm(id)
-	s.state.AddSystem("permission " + verb)
-	oob := s.oobTimeline()
+	// A permission may belong to a workflow lane (B1) rather than the chat
+	// transcript; if so, drop it from the lane and refresh #lanes out-of-band
+	// instead of the timeline (the lane card renders the inline form).
+	laneOOB := s.dropLanePerm(id)
+	oob := laneOOB
+	if oob == "" {
+		s.state.AddSystem("permission " + verb)
+		oob = s.oobTimeline()
+	}
 	s.mu.Unlock()
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write([]byte(oob))
+}
+
+// dropLanePerm removes a resolved permission from whatever active-run lane holds
+// it, returning an out-of-band #lanes refresh — or "" when no active run owns it
+// (a plain chat permission). Caller holds s.mu.
+func (s *Server) dropLanePerm(id string) string {
+	if s.run == nil {
+		return ""
+	}
+	for _, l := range s.run.lanes {
+		if l.dropPerm(id) {
+			return `<div id="lanes" hx-swap-oob="innerHTML">` + renderLanes(s.run) + `</div>`
+		}
+	}
+	return ""
 }
 
 // handleAsk answers a pending ask_user request via the client's inputBridge,

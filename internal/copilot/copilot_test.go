@@ -75,6 +75,29 @@ func TestMockClient(t *testing.T) {
 	}
 }
 
+// TestCreateSessionReturnsDistinctIDs guards the contract that each CreateSession
+// hands back a distinct, non-empty session id. Parallel workflow lanes are routed
+// by the event's SessionID (workflow.go laneFor), so a single shared id would make
+// concurrent lanes indistinguishable offline — the blocker B1/issue 0015 clears.
+func TestCreateSessionReturnsDistinctIDs(t *testing.T) {
+	m := NewMockClient()
+	defer m.Close()
+	a, err := m.CreateSession(context.Background(), SessionSpec{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := m.CreateSession(context.Background(), SessionSpec{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a == "" || b == "" {
+		t.Fatalf("session ids must be non-empty: %q %q", a, b)
+	}
+	if a == b {
+		t.Fatalf("CreateSession must return distinct ids for SessionID-keyed lane routing, got %q twice", a)
+	}
+}
+
 // newTestSDKClient builds an SDKClient with its channels wired but no live
 // runtime, so the pure event-translation logic can be tested without the CLI.
 func newTestSDKClient() *SDKClient {

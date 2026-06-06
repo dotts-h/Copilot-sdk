@@ -199,6 +199,145 @@ func TestWorkflowRunReducerSequential(t *testing.T) {
 	}
 }
 
+// startParallelRun installs a two-step parallel run on s with both lanes running
+// and distinct backing session ids, so a test can drive two concurrent lanes via
+// SessionID-tagged events (the parallel path the offline mock can now exercise).
+func startParallelRun(s *Server) *workflowRun {
+	run := twoStepRun(ctxforge.WorkflowParallel)
+	s.mu.Lock()
+	s.run = run
+	s.busy = true
+	run.start()
+	run.lanes[0].sessionID = "s0"
+	run.lanes[1].sessionID = "s1"
+	s.mu.Unlock()
+	return run
+}
+
+func TestWorkflowRunReducerParallelRoutesBySessionID(t *testing.T) {
+	s, _ := newTestServer()
+	run := startParallelRun(s)
+
+	// Two concurrent lanes commit distinct output, each tagged by its session id;
+	// attribution must follow the SessionID, not arrival order or a running-lane
+	// guess (which is ambiguous with two lanes active).
+	s.handleEvent(copilot.Event{Type: copilot.EvMessage, SessionID: "s1", Text: "beta out"})
+	s.handleEvent(copilot.Event{Type: copilot.EvMessage, SessionID: "s0", Text: "alpha out"})
+	if run.lanes[0].text != "alpha out" || run.lanes[1].text != "beta out" {
+		t.Fatalf("message must attribute to the lane named by SessionID: %q / %q",
+			run.lanes[0].text, run.lanes[1].text)
+	}
+
+	// Usage attributes only to the lane that incurred it.
+	s.handleEvent(copilot.Event{Type: copilot.EvUsage, SessionID: "s0",
+		Usage: copilot.UsageData{Model: "gpt-5", InputTokens: 1000, OutputTokens: 200}})
+	if run.lanes[0].credits <= 0 || run.lanes[1].credits != 0 {
+		t.Fatalf("usage must attribute to lane 0 only: %v / %v",
+			run.lanes[0].credits, run.lanes[1].credits)
+	}
+
+	// Each lane idles independently; the run completes only when both settle.
+	s.handleEvent(copilot.Event{Type: copilot.EvIdle, SessionID: "s0"})
+	if run.done {
+		t.Fatal("run must not finish until every parallel lane settles")
+	}
+	s.handleEvent(copilot.Event{Type: copilot.EvIdle, SessionID: "s1"})
+	if !run.done {
+		t.Fatal("run should finish once both parallel lanes idle")
+	}
+	if run.lanes[0].status != laneDone || run.lanes[1].status != laneDone {
+		t.Fatalf("both lanes should be done: %v / %v", run.lanes[0].status, run.lanes[1].status)
+	}
+}
+
+func TestWorkflowLaneSurfacesToolTimeline(t *testing.T) {
+	s, _ := newTestServer()
+	run := startParallelRun(s)
+
+	s.handleEvent(copilot.Event{Type: copilot.EvToolStart, SessionID: "s0", Tool: "bash",
+		ToolCall: &copilot.ToolCall{ID: "t0", Name: "bash", Args: "go test ./..."}})
+	lanes := fragFor(s, copilot.Event{Type: copilot.EvToolEnd, SessionID: "s0",
+		ToolCall: &copilot.ToolCall{ID: "t0", Result: "ok", Success: true}}, "lanes")
+	if !strings.Contains(lanes, "bash") || !strings.Contains(lanes, "go test") {
+		t.Fatalf("a lane should surface its own tool card in the lanes panel: %q", lanes)
+	}
+	// The tool attributes to lane 0 by SessionID, never to the other lane.
+	if len(run.lanes[0].tools) != 1 || len(run.lanes[1].tools) != 0 {
+		t.Fatalf("tool must attribute to lane 0: %d / %d",
+			len(run.lanes[0].tools), len(run.lanes[1].tools))
+	}
+	if !run.lanes[0].tools[0].Done {
+		t.Error("the tool should be marked done after EvToolEnd")
+	}
+}
+
+func TestWorkflowLaneInlinePermission(t *testing.T) {
+	s, _ := newTestServer()
+	run := startParallelRun(s)
+
+	lanes := fragFor(s, copilot.Event{Type: copilot.EvPermission, SessionID: "s1",
+		Permission: &copilot.PermissionRequest{ID: "p1", Kind: "write", Detail: "write file: x.go"}}, "lanes")
+	if !strings.Contains(lanes, "/perm/p1") {
+		t.Fatalf("a lane should surface an inline permission form: %q", lanes)
+	}
+	if len(run.lanes[1].perms) != 1 || len(run.lanes[0].perms) != 0 {
+		t.Fatalf("permission must attribute to lane 1: %d / %d",
+			len(run.lanes[1].perms), len(run.lanes[0].perms))
+	}
+
+	// Answering via /perm/{id} responds on the seam, drops the form from the lane,
+	// and refreshes #lanes out-of-band.
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+	resp, err := http.PostForm(srv.URL+"/perm/p1", url.Values{"approve": {"1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), `id="lanes"`) {
+		t.Errorf("answering a lane permission should refresh #lanes OOB: %q", string(body))
+	}
+	s.mu.Lock()
+	remaining := len(run.lanes[1].perms)
+	s.mu.Unlock()
+	if remaining != 0 {
+		t.Errorf("the answered permission should be dropped from the lane: %d", remaining)
+	}
+}
+
+func TestWorkflowLaneToolTextEscaped(t *testing.T) {
+	s, _ := newTestServer()
+	startParallelRun(s)
+	lanes := fragFor(s, copilot.Event{Type: copilot.EvToolStart, SessionID: "s0", Tool: "bash",
+		ToolCall: &copilot.ToolCall{ID: "t0", Name: "bash", Args: "<script>x</script>"}}, "lanes")
+	if strings.Contains(lanes, "<script>") {
+		t.Fatalf("lane tool args must be HTML-escaped (ADR-0001): %q", lanes)
+	}
+}
+
+func TestStreamDemoLaneTagsSessionID(t *testing.T) {
+	m := copilot.NewMockClient()
+	streamDemoLane(m, "sess-x", "do the thing")
+	m.Close()
+	var sawTagged, sawIdle, sawTool bool
+	for e := range m.Events() {
+		if e.SessionID != "sess-x" {
+			t.Fatalf("every demo lane event must carry the lane's session id; got %q on %v", e.SessionID, e.Type)
+		}
+		sawTagged = true
+		switch e.Type {
+		case copilot.EvIdle:
+			sawIdle = true
+		case copilot.EvToolStart:
+			sawTool = true
+		}
+	}
+	if !sawTagged || !sawIdle || !sawTool {
+		t.Fatalf("demo lane should emit tagged tool+idle events: tagged=%v tool=%v idle=%v", sawTagged, sawTool, sawIdle)
+	}
+}
+
 func TestSendBlockedDuringWorkflowRun(t *testing.T) {
 	hub, mock := newWorkflowHub()
 	s := hub.newSession("t")
@@ -311,6 +450,81 @@ func TestWorkflowRunHandlerStartsLanes(t *testing.T) {
 	s.mu.Unlock()
 	if !running {
 		t.Error("a run should be active after starting the workflow")
+	}
+}
+
+// TestParallelDemoRunDrivesConcurrentLanes is the end-to-end proof B1 exists for:
+// in demo mode the mock hands out distinct session ids and streamDemoLane tags its
+// events with them, so a PARALLEL run drives two concurrent lanes through the real
+// handler → pump → reducer path — each settling to done with its own tool timeline
+// and a distinct backing session id. This is the offline coverage the sequential-
+// only demo could not give (issue 0015 / TECH_DEBT #12).
+func TestParallelDemoRunDrivesConcurrentLanes(t *testing.T) {
+	mock := copilot.NewMockClient()
+	forge := &ctxforge.Forge{}
+	_ = forge.AddAgent(ctxforge.Agent{ID: "builder", Name: "Builder", Model: "gpt-5"})
+	_ = forge.AddAgent(ctxforge.Agent{ID: "sdet", Name: "SDET", Model: "gpt-5"})
+	_ = forge.AddWorkflow(ctxforge.Workflow{
+		ID: "par", Name: "Par", Mode: ctxforge.WorkflowParallel,
+		Steps: []ctxforge.WorkflowStep{
+			{AgentID: "builder", Prompt: "review for correctness"},
+			{AgentID: "sdet", Prompt: "review for coverage"},
+		},
+	})
+	hub := New(Options{
+		Client: mock, Forge: forge, Demo: true,
+		Config: &config.Config{DefaultModel: "gpt-5"},
+		Meter:  telemetry.NewMeter(telemetry.DefaultPriceBook()),
+		Logger: log.New(io.Discard, "", 0),
+	})
+	s := hub.newSession("t")
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	resp, err := http.Post(srv.URL+"/workflows/par/run", "application/x-www-form-urlencoded", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		s.mu.Lock()
+		done := s.run != nil && s.run.done
+		s.mu.Unlock()
+		if done {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.run == nil || !s.run.done {
+		t.Fatal("the parallel demo run should finish once both lanes settle")
+	}
+	for i, l := range s.run.lanes {
+		if l.status != laneDone {
+			t.Errorf("lane %d should be done, got %v", i, l.status)
+		}
+		if len(l.tools) == 0 {
+			t.Errorf("lane %d should surface its own tool card", i)
+		}
+		if len(l.perms) == 0 {
+			t.Errorf("lane %d should surface its inline permission", i)
+		}
+		if l.credits <= 0 {
+			t.Errorf("lane %d should accrue its own metered cost", i)
+		}
+		if l.sessionID == "" {
+			t.Errorf("lane %d should have a backing session id", i)
+		}
+	}
+	if s.run.lanes[0].sessionID == s.run.lanes[1].sessionID {
+		t.Fatalf("parallel lanes must have distinct session ids, both = %q", s.run.lanes[0].sessionID)
+	}
+	if s.busy {
+		t.Error("busy should clear when the parallel run finishes")
 	}
 }
 

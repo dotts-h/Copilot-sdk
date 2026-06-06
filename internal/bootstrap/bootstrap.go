@@ -248,6 +248,18 @@ func SeedForge(forge *ctxforge.Forge) {
 				{AgentID: "sdet", Prompt: "Review and harden the previous step with adversarial tests."},
 			},
 		})
+		// A representative PARALLEL fan-out: Builder and SDET review the same change
+		// at once. With the mock now handing out distinct session ids and the demo
+		// lane tagging its events with them (B1 / issue 0015), this drives two
+		// concurrent lanes offline — the parallel path the demo/e2e couldn't reach.
+		_ = forge.AddWorkflow(ctxforge.Workflow{
+			ID: "parallel-review", Name: "Parallel review", Mode: ctxforge.WorkflowParallel,
+			Description: "Builder and SDET review the same change at once (fan-out).",
+			Steps: []ctxforge.WorkflowStep{
+				{AgentID: "builder", Prompt: "Review this change for correctness and design."},
+				{AgentID: "sdet", Prompt: "Review this change for test coverage and edge cases."},
+			},
+		})
 	}
 	if len(forge.Snippets) == 0 {
 		// A couple of representative library prompts so the composer autocomplete

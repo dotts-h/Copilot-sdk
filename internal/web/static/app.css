@@ -253,6 +253,12 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
 .lane-output { margin-top: .3rem; }
 .lane-output summary { cursor: pointer; color: var(--dim); font-size: .84rem; }
 .lane-body { font-size: .92rem; margin-top: .3rem; }
+/* per-lane tool timeline + inline permissions (B1): each lane shows its own
+   sub-run activity, reusing the chat tool card / permission form, scaled down. */
+.lane-tools { margin-top: .3rem; }
+.lane-tools .turn.tool { font-size: .86rem; margin: .2rem 0; }
+.lane-perms { margin-top: .3rem; }
+.lane-perms .perm { font-size: .88rem; }
 .row .run { color: var(--good); font-weight: 600; }
 .row .run:hover { color: var(--accent); }
 
