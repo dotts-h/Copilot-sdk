@@ -278,6 +278,12 @@ func SeedForge(forge *ctxforge.Forge) {
 			ID: "explain", Name: "Explain this code",
 			Body: "Explain what the selected code does, step by step, and note any edge cases.",
 		})
+		// A multi-line body so the composer (a <textarea> since C2) and its e2e can
+		// prove that inserting a snippet keeps its line breaks (TECH_DEBT #15).
+		_ = forge.AddSnippet(ctxforge.Snippet{
+			ID: "checklist", Name: "Review checklist",
+			Body: "Review checklist:\n1. Correctness and edge cases\n2. Tests and coverage\n3. Naming and docs",
+		})
 	}
 	if len(forge.MCPServers) == 0 {
 		// Curated, well-known stdio MCP servers, seeded DISABLED by default (ADR

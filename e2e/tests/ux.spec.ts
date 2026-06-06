@@ -33,6 +33,37 @@ test("Enter submits the composer from the keyboard", async ({ page }) => {
   await expect(page.locator(sel.userTurn).filter({ hasText: "sent with enter" }).last()).toBeVisible();
 });
 
+// The composer is a <textarea> (C2 / TECH_DEBT #15): Shift-Enter inserts a newline
+// instead of sending, so a multi-line prompt can be composed before submitting.
+test("Shift-Enter inserts a newline instead of sending", async ({ page }) => {
+  await gotoApp(page);
+  const turnsBefore = await page.locator(sel.userTurn).count();
+  const box = page.locator(sel.prompt);
+  await box.click();
+  await box.pressSequentially("first line");
+  await box.press("Shift+Enter");
+  await box.pressSequentially("second line");
+  // The value spans two lines and nothing was sent.
+  await expect(box).toHaveValue("first line\nsecond line");
+  expect(await page.locator(sel.userTurn).count()).toBe(turnsBefore);
+  // A plain Enter then sends the whole multi-line prompt.
+  await box.press("Enter");
+  await expect(page.locator(sel.userTurn).filter({ hasText: "second line" }).last()).toBeVisible();
+});
+
+// REGRESSIONS: a bound keybinding character typed in the textarea is text, not a
+// shortcut (the keydown dispatcher ignores INPUT/TEXTAREA/SELECT/contenteditable).
+test("typing a bound keybinding char in the composer is text, not an action", async ({ page }) => {
+  await gotoApp(page);
+  const box = page.locator(sel.prompt);
+  await box.click();
+  // 'n' is the default newChat binding and 't' the goto-Telemetry binding; typed
+  // in the composer they must stay literal and not navigate or reset the chat.
+  await box.pressSequentially("note: t and n stay literal", { delay: 20 });
+  await expect(box).toHaveValue("note: t and n stay literal");
+  await expect(page.locator(sel.composer)).toBeVisible();
+});
+
 test("nav links are keyboard reachable and operable", async ({ page }) => {
   await gotoApp(page);
   const telemetry = page.locator(sel.nav, { hasText: /^Telemetry$/ });

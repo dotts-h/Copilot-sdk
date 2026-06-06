@@ -23,7 +23,7 @@ _Last generated: 2026-06-06 (UTC)._
 
 ## internal/bootstrap
 
-### bootstrap.go (309 LOC)
+### bootstrap.go (315 LOC)
 - L34: `func Build(configDir string, demo bool) (srv *web.Hub, close func(), err error)`
 - L102: `func demoClient(forge *ctxforge.Forge, spec *copilot.SessionSpec) (copilot.Client, func())`
 - L142: `func seedSpend(store *telemetry.SpendStore)`
@@ -31,7 +31,7 @@ _Last generated: 2026-06-06 (UTC)._
 - L183: `func ServeLocal(h http.Handler) (port int, stop func(), err error)`
 - L195: `func DefaultConfigDir() string`
 - L209: `func SeedForge(forge *ctxforge.Forge)`
-- L297: `func curatedMCPServers() []ctxforge.MCPServer`
+- L303: `func curatedMCPServers() []ctxforge.MCPServer`
 
 ## internal/config
 
