@@ -76,6 +76,119 @@ func TestWorkflowValidate(t *testing.T) {
 	}
 }
 
+// a step's When predicate is validated for a known condition, a strictly-prior
+// step reference (no self/forward → no cycle), and a value for output-contains.
+func TestWorkflowValidateWhen(t *testing.T) {
+	base := func(steps ...WorkflowStep) Workflow {
+		return Workflow{ID: "wf", Name: "WF", Mode: WorkflowSequential, Steps: steps}
+	}
+	tests := []struct {
+		name    string
+		wf      Workflow
+		wantErr string
+	}{
+		{
+			name: "valid output-contains on a prior step",
+			wf: base(
+				WorkflowStep{AgentID: "a", Prompt: "review"},
+				WorkflowStep{AgentID: "b", Prompt: "fix", When: &StepCondition{
+					Step: 1, Condition: CondOutputContains, Value: "issues"}},
+			),
+		},
+		{
+			name: "valid succeeded predicate",
+			wf: base(
+				WorkflowStep{AgentID: "a", Prompt: "p"},
+				WorkflowStep{AgentID: "b", Prompt: "q", When: &StepCondition{Step: 1, Condition: CondSucceeded}},
+			),
+		},
+		{
+			name: "valid always needs no step",
+			wf: base(
+				WorkflowStep{AgentID: "a", Prompt: "p", When: &StepCondition{Condition: CondAlways}},
+			),
+		},
+		{
+			name: "unknown condition",
+			wf: base(
+				WorkflowStep{AgentID: "a", Prompt: "p"},
+				WorkflowStep{AgentID: "b", Prompt: "q", When: &StepCondition{Step: 1, Condition: "maybe"}},
+			),
+			wantErr: "invalid condition",
+		},
+		{
+			name: "self reference is forward",
+			wf: base(
+				WorkflowStep{AgentID: "a", Prompt: "p"},
+				WorkflowStep{AgentID: "b", Prompt: "q", When: &StepCondition{Step: 2, Condition: CondSucceeded}},
+			),
+			wantErr: "prior step",
+		},
+		{
+			name: "forward reference",
+			wf: base(
+				WorkflowStep{AgentID: "a", Prompt: "p", When: &StepCondition{Step: 2, Condition: CondSucceeded}},
+				WorkflowStep{AgentID: "b", Prompt: "q"},
+			),
+			wantErr: "prior step",
+		},
+		{
+			name: "first step cannot gate on a prior",
+			wf: base(
+				WorkflowStep{AgentID: "a", Prompt: "p", When: &StepCondition{Step: 1, Condition: CondSucceeded}},
+			),
+			wantErr: "prior step",
+		},
+		{
+			name: "output-contains needs a value",
+			wf: base(
+				WorkflowStep{AgentID: "a", Prompt: "p"},
+				WorkflowStep{AgentID: "b", Prompt: "q", When: &StepCondition{Step: 1, Condition: CondOutputContains}},
+			),
+			wantErr: "value is required",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.wf.Validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Validate() = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Validate() = %v, want error containing %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// CompileWorkflow carries each step's predicate through to the compiled step so the
+// run engine can evaluate branching without re-reading the forge.
+func TestCompileWorkflowCarriesWhen(t *testing.T) {
+	f := New("")
+	_ = f.AddAgent(Agent{ID: "a", Name: "A", Model: "gpt-5"})
+	_ = f.AddAgent(Agent{ID: "b", Name: "B", Model: "gpt-5"})
+	when := &StepCondition{Step: 1, Condition: CondOutputContains, Value: "issues"}
+	_ = f.AddWorkflow(Workflow{ID: "br", Name: "Br", Mode: WorkflowSequential,
+		Steps: []WorkflowStep{
+			{AgentID: "a", Prompt: "review"},
+			{AgentID: "b", Prompt: "fix", When: when},
+		}})
+
+	_, steps, err := f.CompileWorkflow("br")
+	if err != nil {
+		t.Fatalf("CompileWorkflow: %v", err)
+	}
+	if steps[0].When != nil {
+		t.Errorf("step 0 should have no predicate, got %+v", steps[0].When)
+	}
+	if steps[1].When == nil || steps[1].When.Condition != CondOutputContains || steps[1].When.Step != 1 {
+		t.Errorf("step 1 predicate not carried: %+v", steps[1].When)
+	}
+}
+
 func TestWorkflowEffectiveMode(t *testing.T) {
 	if got := (Workflow{}).EffectiveMode(); got != WorkflowSequential {
 		t.Errorf("empty mode = %q, want sequential", got)

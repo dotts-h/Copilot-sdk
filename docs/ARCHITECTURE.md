@@ -225,7 +225,7 @@ Determinism (stable sort, ordered de-dup) means the same forge always yields the
 same context — important for reproducibility and for snapshotting in tests.
 
 A fifth entity, **Workflow**, composes agents into a multi-agent run: an ordered
-list of `WorkflowStep{AgentID, Prompt}` plus a `Mode` (sequential | parallel).
+list of `WorkflowStep{AgentID, Prompt, When?}` plus a `Mode` (sequential | parallel).
 `CompileWorkflow(id)` reuses `Compile` to produce one `SessionSpec` per step;
 the web layer runs each step as a **lane** — a sub-run on the seam's
 `CreateSession`/`Send` lifecycle, watched in a dedicated panel. Sequential mode
@@ -235,9 +235,23 @@ and inline file-write permissions, not just output + cost. The parallel path is 
 exercised offline — `MockClient.CreateSession` returns distinct ids and the demo
 lane tags its events with them — so the demo/e2e drive concurrent lanes. The run
 logic is a pure `workflowRun` state machine (`internal/web/workflow.go`),
-unit-tested with no client. See
+unit-tested with no client.
+
+**Branching (control flow, B2).** A step may carry a `When` predicate
+(`StepCondition{Step, Condition, Value}`) gating it on a prior step's settled
+outcome (`succeeded` / `failed` / `output-contains` / `always`) — moving a workflow
+from a fixed pipe to real control flow (e.g. *"run the fix agent only if the review
+flagged issues"*). `Step` references a **strictly-prior** step (1-based), so a
+dependency cycle is structurally impossible and the run always terminates. The
+engine evaluates the predicate as a pure function over settled lanes (`evalWhen`):
+in sequential mode `advance` walks forward, running the first satisfied step and
+**skipping** unsatisfied ones; in parallel mode `evalPending` launches every lane
+whose dependency has settled (to a fixpoint), run-or-skip. An unsatisfied step is
+**skipped** (`laneSkipped`, rendered distinctly), not failed, and a skipped lane
+still counts as settled so the run completes. See
 [ADR-0013](adr/0013-multi-agent-workflow-run-handoff-surface.md),
-[ADR-0017](adr/0017-per-lane-tool-and-permission-surface-for-parallel-workflow-lanes.md).
+[ADR-0017](adr/0017-per-lane-tool-and-permission-surface-for-parallel-workflow-lanes.md),
+[ADR-0021](adr/0021-conditional-branching-workflow-steps-declarative-predicate.md).
 
 ## Web UI (htmx + SSE)
 

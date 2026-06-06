@@ -266,6 +266,23 @@ func SeedForge(forge *ctxforge.Forge) {
 				{AgentID: "sdet", Prompt: "Review this change for test coverage and edge cases."},
 			},
 		})
+		// A representative BRANCHING workflow (B2 / ADR-0021): the SDET reviews and
+		// flags issues, then the Builder's fix step runs only IF the review output
+		// mentions "issues", while a celebrate step runs only if it says "perfect".
+		// The demo lane echoes the prompt's first line, so the review output contains
+		// "issues" — the fix step RUNS and the celebrate step SKIPS, driving a real
+		// branch (a skipped lane) offline for the demo/e2e.
+		_ = forge.AddWorkflow(ctxforge.Workflow{
+			ID: "review-then-fix", Name: "Review, then fix", Mode: ctxforge.WorkflowSequential,
+			Description: "SDET reviews; the Builder fixes only if the review flags issues.",
+			Steps: []ctxforge.WorkflowStep{
+				{AgentID: "sdet", Prompt: "Review this change and flag any issues you find."},
+				{AgentID: "builder", Prompt: "Apply fixes for the flagged issues.",
+					When: &ctxforge.StepCondition{Step: 1, Condition: ctxforge.CondOutputContains, Value: "issues"}},
+				{AgentID: "builder", Prompt: "Nothing to fix — record that the change is perfect.",
+					When: &ctxforge.StepCondition{Step: 1, Condition: ctxforge.CondOutputContains, Value: "perfect"}},
+			},
+		})
 	}
 	if len(forge.Snippets) == 0 {
 		// A couple of representative library prompts so the composer autocomplete

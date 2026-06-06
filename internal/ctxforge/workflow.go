@@ -31,6 +31,26 @@ type WorkflowStep struct {
 	// Prompt is the task handed to the step's agent. In a sequential run the prior
 	// step's output is appended as a handoff section before the step runs.
 	Prompt string `json:"prompt"`
+	// When is an optional predicate gating the step on a prior step's outcome (B2):
+	// the step runs only when the predicate is satisfied, else it is skipped. A nil
+	// When (the on-disk default) means the step always runs, so a pre-B2 workflow
+	// reads and behaves exactly as before. — see ADR-0021.
+	When *StepCondition `json:"when,omitempty"`
+}
+
+// StepCondition is a declarative predicate gating a WorkflowStep on a prior step's
+// settled outcome. It is pure data — no expression engine — so it Validates without
+// a forge or a client and evaluates as a pure function over prior lanes (ADR-0021).
+type StepCondition struct {
+	// Step is the 1-based index of the prior step this predicate reads. It must be
+	// strictly less than the gated step's own position (no self/forward reference),
+	// which makes a dependency cycle structurally impossible. Ignored for CondAlways.
+	Step int `json:"step,omitempty"`
+	// Condition is the predicate kind: succeeded | failed | output-contains | always.
+	Condition string `json:"condition"`
+	// Value is the substring matched (case-insensitively) for CondOutputContains;
+	// unused by the other conditions.
+	Value string `json:"value,omitempty"`
 }
 
 // Workflow run modes.
@@ -38,6 +58,19 @@ const (
 	WorkflowSequential = "sequential"
 	WorkflowParallel   = "parallel"
 )
+
+// Step predicate conditions (WorkflowStep.When.Condition).
+const (
+	CondAlways         = "always"          // runs unconditionally (same as a nil When)
+	CondSucceeded      = "succeeded"       // the referenced prior step's lane finished done
+	CondFailed         = "failed"          // the referenced prior step's lane finished failed
+	CondOutputContains = "output-contains" // the referenced prior step's output contains Value
+)
+
+// validConditions is the accepted predicate set.
+var validConditions = map[string]bool{
+	CondAlways: true, CondSucceeded: true, CondFailed: true, CondOutputContains: true,
+}
 
 // validWorkflowModes is the accepted set; "" reads as sequential so older
 // forge.json files (and a blank form select) stay valid.
@@ -76,6 +109,32 @@ func (w Workflow) Validate() error {
 		if strings.TrimSpace(st.Prompt) == "" {
 			return fmt.Errorf("workflow %q step %d: prompt is required", w.ID, i+1)
 		}
+		if err := st.When.validate(w.ID, i); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validate checks a step predicate: a nil predicate (always runs) is valid; a
+// non-nil one needs a known condition, a value for output-contains, and — for the
+// step-reading conditions — a strictly-prior step (1-based) so no self/forward
+// reference can form a cycle. i is the gated step's 0-based index.
+func (c *StepCondition) validate(wfID string, i int) error {
+	if c == nil {
+		return nil
+	}
+	if !validConditions[c.Condition] {
+		return fmt.Errorf("workflow %q step %d: invalid condition %q (want succeeded, failed, output-contains or always)", wfID, i+1, c.Condition)
+	}
+	if c.Condition == CondAlways {
+		return nil
+	}
+	if c.Step < 1 || c.Step > i {
+		return fmt.Errorf("workflow %q step %d: when.step must reference a prior step (1..%d), got %d", wfID, i+1, i, c.Step)
+	}
+	if c.Condition == CondOutputContains && strings.TrimSpace(c.Value) == "" {
+		return fmt.Errorf("workflow %q step %d: output-contains value is required", wfID, i+1)
 	}
 	return nil
 }
@@ -89,6 +148,9 @@ type CompiledStep struct {
 	AgentName string
 	Prompt    string
 	Spec      SessionSpec
+	// When carries the step's predicate (or nil) so the run engine can evaluate
+	// branching without re-reading the forge (ADR-0021).
+	When *StepCondition
 }
 
 // CompileWorkflow resolves a workflow by id and compiles each step's agent into a
@@ -111,7 +173,7 @@ func (f *Forge) CompileWorkflow(id string) (Workflow, []CompiledStep, error) {
 			name = a.Name
 		}
 		steps = append(steps, CompiledStep{
-			AgentID: st.AgentID, AgentName: name, Prompt: st.Prompt, Spec: spec,
+			AgentID: st.AgentID, AgentName: name, Prompt: st.Prompt, Spec: spec, When: st.When,
 		})
 	}
 	return *w, steps, nil

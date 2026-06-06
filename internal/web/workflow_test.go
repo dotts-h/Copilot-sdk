@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -89,11 +90,11 @@ func TestRunParallelStartsAllNoHandoff(t *testing.T) {
 func TestRunSequentialFailAborts(t *testing.T) {
 	r := twoStepRun(ctxforge.WorkflowSequential)
 	r.start()
-	if done := r.failLane(r.lanes[0], "boom"); !done {
-		t.Fatal("a failed step aborts a sequential run")
+	if next := r.failLane(r.lanes[0], "boom"); next != nil {
+		t.Fatalf("a failed step aborts a sequential run, launching nothing: %v", next)
 	}
-	if !r.failed {
-		t.Error("run should be marked failed")
+	if !r.done || !r.failed {
+		t.Errorf("run should be done and failed: done=%v failed=%v", r.done, r.failed)
 	}
 	if r.lanes[1].status != lanePending {
 		t.Error("the next sequential lane should never start after a failure")
@@ -103,12 +104,123 @@ func TestRunSequentialFailAborts(t *testing.T) {
 func TestRunParallelFailLetsOthersFinish(t *testing.T) {
 	r := twoStepRun(ctxforge.WorkflowParallel)
 	r.start()
-	if done := r.failLane(r.lanes[0], "boom"); done {
+	if next := r.failLane(r.lanes[0], "boom"); next != nil {
+		t.Fatalf("a plain failed lane launches nothing while another runs: %v", next)
+	}
+	if r.done {
 		t.Fatal("one failed lane should not end a parallel run while another runs")
 	}
 	r.finishLane(r.lanes[1], "done")
 	if !r.done {
 		t.Fatal("run ends once every lane settles")
+	}
+}
+
+// --- branching (B2): predicate gating, skip, and acyclic launch ordering ---
+
+func TestRunSequentialSkipsUnsatisfied(t *testing.T) {
+	wf := ctxforge.Workflow{ID: "w", Name: "W", Mode: ctxforge.WorkflowSequential}
+	steps := []ctxforge.CompiledStep{
+		{AgentID: "a", AgentName: "Alpha", Prompt: "review"},
+		{AgentID: "b", AgentName: "Beta", Prompt: "fix",
+			When: &ctxforge.StepCondition{Step: 1, Condition: ctxforge.CondOutputContains, Value: "issues"}},
+		{AgentID: "c", AgentName: "Gamma", Prompt: "celebrate",
+			When: &ctxforge.StepCondition{Step: 1, Condition: ctxforge.CondOutputContains, Value: "perfect"}},
+	}
+	r := newWorkflowRun(wf, steps, []copilot.SessionSpec{{}, {}, {}})
+
+	if got := r.start(); len(got) != 1 || got[0] != 0 {
+		t.Fatalf("start = %v, want [0]", got)
+	}
+	r.lanes[0].appendText("found issues to address")
+
+	// Alpha settles → Beta (contains "issues") runs; Gamma is left pending.
+	next := r.finishLane(r.lanes[0], "done")
+	if len(next) != 1 || next[0] != 1 {
+		t.Fatalf("finishLane(0) = %v, want [1] (Beta runs)", next)
+	}
+	if r.lanes[1].status != laneRunning {
+		t.Fatalf("Beta should run when its predicate is satisfied: %v", r.lanes[1].status)
+	}
+	// Beta settles → walk to Gamma → its predicate ("perfect") is unsatisfied → skip
+	// → run is done (a skipped final lane still terminates).
+	r.lanes[1].appendText("fixed")
+	if next := r.finishLane(r.lanes[1], "done"); next != nil {
+		t.Fatalf("finishLane(1) launched %v, want nil (Gamma skips)", next)
+	}
+	if r.lanes[2].status != laneSkipped {
+		t.Fatalf("Gamma should be skipped, got %v", r.lanes[2].status)
+	}
+	if !r.done || r.failed {
+		t.Errorf("a run ending in a skip should be done and not failed: done=%v failed=%v", r.done, r.failed)
+	}
+	if !r.allSettled() {
+		t.Error("a skipped lane must count as settled so the run terminates")
+	}
+}
+
+func TestRunParallelGatedRunsAndSkips(t *testing.T) {
+	wf := ctxforge.Workflow{ID: "w", Name: "W", Mode: ctxforge.WorkflowParallel}
+	steps := []ctxforge.CompiledStep{
+		{AgentID: "a", AgentName: "Alpha", Prompt: "review"}, // ungated
+		{AgentID: "b", AgentName: "Beta", Prompt: "ship",
+			When: &ctxforge.StepCondition{Step: 1, Condition: ctxforge.CondSucceeded}},
+		{AgentID: "c", AgentName: "Gamma", Prompt: "rollback",
+			When: &ctxforge.StepCondition{Step: 1, Condition: ctxforge.CondFailed}},
+	}
+	r := newWorkflowRun(wf, steps, []copilot.SessionSpec{{}, {}, {}})
+
+	// start launches only the ungated lane; gated lanes wait for their dependency.
+	if got := r.start(); len(got) != 1 || got[0] != 0 {
+		t.Fatalf("parallel start = %v, want [0] only (gated lanes wait)", got)
+	}
+	if r.lanes[1].status != lanePending || r.lanes[2].status != lanePending {
+		t.Fatal("gated lanes must stay pending until their dependency settles")
+	}
+	// Alpha succeeds → Beta (when succeeded) runs; Gamma (when failed) skips.
+	next := r.finishLane(r.lanes[0], "done")
+	if len(next) != 1 || next[0] != 1 {
+		t.Fatalf("Alpha success should launch Beta only: %v", next)
+	}
+	if r.lanes[2].status != laneSkipped {
+		t.Fatalf("Gamma (when failed) should skip when Alpha succeeded: %v", r.lanes[2].status)
+	}
+	if r.done {
+		t.Fatal("run must not be done while Beta runs")
+	}
+	if next := r.finishLane(r.lanes[1], "done"); next != nil {
+		t.Fatalf("finishing Beta launches nothing: %v", next)
+	}
+	if !r.done {
+		t.Fatal("run is done once Beta settles and Gamma is skipped")
+	}
+}
+
+func TestRunParallelFailUnblocksWhenFailed(t *testing.T) {
+	wf := ctxforge.Workflow{ID: "w", Name: "W", Mode: ctxforge.WorkflowParallel}
+	steps := []ctxforge.CompiledStep{
+		{AgentID: "a", AgentName: "Alpha", Prompt: "build"},
+		{AgentID: "b", AgentName: "Beta", Prompt: "rollback",
+			When: &ctxforge.StepCondition{Step: 1, Condition: ctxforge.CondFailed}},
+	}
+	r := newWorkflowRun(wf, steps, []copilot.SessionSpec{{}, {}})
+	if got := r.start(); len(got) != 1 || got[0] != 0 {
+		t.Fatalf("start = %v, want [0]", got)
+	}
+	// Alpha fails → Beta (when failed) is unblocked and launched (parallel).
+	next := r.failLane(r.lanes[0], "boom")
+	if len(next) != 1 || next[0] != 1 {
+		t.Fatalf("a failed dependency should launch the when-failed lane: %v", next)
+	}
+	if r.lanes[1].status != laneRunning {
+		t.Fatalf("Beta should run after Alpha fails: %v", r.lanes[1].status)
+	}
+	if r.done {
+		t.Fatal("run must not be done while Beta runs")
+	}
+	r.finishLane(r.lanes[1], "done")
+	if !r.done {
+		t.Fatal("run is done once Beta settles")
 	}
 }
 
@@ -582,5 +694,131 @@ func TestWorkflowCreateAndParseSteps(t *testing.T) {
 	}
 	if wf.Steps[0].AgentID != "builder" || wf.Steps[0].Prompt != "do A" {
 		t.Errorf("step 0 parsed wrong: %+v", wf.Steps[0])
+	}
+}
+
+// --- branching (B2): the demo run skips a lane, and the form round-trips a When ---
+
+// TestBranchingDemoRunSkipsLane drives a seeded branching workflow through the real
+// handler → pump → reducer path in demo mode: step 1's output gates step 2 (which
+// RUNS, since the demo output contains "issues") and step 3 (which SKIPS, since the
+// output lacks "perfect"), and the skipped lane lets the run terminate. This is the
+// offline proof a branch evaluates without timing (issue 0020 / ADR-0021).
+func TestBranchingDemoRunSkipsLane(t *testing.T) {
+	mock := copilot.NewMockClient()
+	forge := &ctxforge.Forge{}
+	_ = forge.AddAgent(ctxforge.Agent{ID: "builder", Name: "Builder", Model: "gpt-5"})
+	_ = forge.AddAgent(ctxforge.Agent{ID: "sdet", Name: "SDET", Model: "gpt-5"})
+	_ = forge.AddWorkflow(ctxforge.Workflow{
+		ID: "br", Name: "Br", Mode: ctxforge.WorkflowSequential,
+		Steps: []ctxforge.WorkflowStep{
+			{AgentID: "sdet", Prompt: "Review and flag any issues."},
+			{AgentID: "builder", Prompt: "Apply fixes for the flagged issues.",
+				When: &ctxforge.StepCondition{Step: 1, Condition: ctxforge.CondOutputContains, Value: "issues"}},
+			{AgentID: "builder", Prompt: "Nothing to do.",
+				When: &ctxforge.StepCondition{Step: 1, Condition: ctxforge.CondOutputContains, Value: "perfect"}},
+		},
+	})
+	hub := New(Options{
+		Client: mock, Forge: forge, Demo: true,
+		Config: &config.Config{DefaultModel: "gpt-5"},
+		Meter:  telemetry.NewMeter(telemetry.DefaultPriceBook()),
+		Logger: log.New(io.Discard, "", 0),
+	})
+	s := hub.newSession("t")
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	resp, err := http.Post(srv.URL+"/workflows/br/run", "application/x-www-form-urlencoded", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		s.mu.Lock()
+		done := s.run != nil && s.run.done
+		s.mu.Unlock()
+		if done {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.run == nil || !s.run.done {
+		t.Fatal("the branching demo run should finish")
+	}
+	if s.run.lanes[0].status != laneDone {
+		t.Errorf("step 1 should run: %v", s.run.lanes[0].status)
+	}
+	if s.run.lanes[1].status != laneDone {
+		t.Errorf("step 2 (output contains issues) should run: %v", s.run.lanes[1].status)
+	}
+	if s.run.lanes[2].status != laneSkipped {
+		t.Errorf("step 3 (output contains perfect) should skip: %v", s.run.lanes[2].status)
+	}
+	html := renderLanes(s.run)
+	if !strings.Contains(html, "lane-skipped") || !strings.Contains(html, "skipped") {
+		t.Errorf("a skipped lane should render its skipped state: %q", html)
+	}
+	if s.busy {
+		t.Error("busy should clear when the branching run finishes")
+	}
+}
+
+// the steps textarea round-trips a predicate as a "[step N condition value]" prefix,
+// so editing a branching workflow in the form doesn't lose its When.
+func TestWorkflowStepConditionRoundTrip(t *testing.T) {
+	steps := []ctxforge.WorkflowStep{
+		{AgentID: "a", Prompt: "review"},
+		{AgentID: "b", Prompt: "fix", When: &ctxforge.StepCondition{
+			Step: 1, Condition: ctxforge.CondOutputContains, Value: "issues here"}},
+		{AgentID: "c", Prompt: "done", When: &ctxforge.StepCondition{
+			Step: 2, Condition: ctxforge.CondSucceeded}},
+		// An output-contains value with a colon must survive: the separator colon is
+		// the one after the predicate's "]", not the first colon on the line.
+		{AgentID: "d", Prompt: "ship", When: &ctxforge.StepCondition{
+			Step: 1, Condition: ctxforge.CondOutputContains, Value: "error: fatal"}},
+	}
+	got := stepsFromText(stepsToText(steps))
+	if !reflect.DeepEqual(got, steps) {
+		t.Fatalf("round-trip mismatch:\n got %+v\nwant %+v", got, steps)
+	}
+}
+
+// the create form parses a bracketed predicate into a WorkflowStep.When, and the
+// edit form renders it back so a save doesn't drop it.
+func TestWorkflowFormRoundTripsCondition(t *testing.T) {
+	hub, _ := newWorkflowHub()
+	s := hub.newSession("t")
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	form := url.Values{
+		"id": {"br"}, "name": {"Br"}, "mode": {"sequential"},
+		"steps": {"builder: review\nsdet [step 1 output-contains issues]: harden"},
+	}
+	resp, err := http.PostForm(srv.URL+"/workflows", form)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	s.hub.forgeMu.Lock()
+	wf := s.forge.Workflow("br")
+	s.hub.forgeMu.Unlock()
+	if wf == nil || len(wf.Steps) != 2 {
+		t.Fatalf("workflow not created: %+v", wf)
+	}
+	w := wf.Steps[1].When
+	if w == nil || w.Step != 1 || w.Condition != ctxforge.CondOutputContains || w.Value != "issues" {
+		t.Fatalf("predicate not parsed from form: %+v", w)
+	}
+	edit := renderWorkflowForm(*wf, false, "")
+	if !strings.Contains(edit, "[step 1 output-contains issues]") {
+		t.Errorf("edit form should render the predicate prefix so it isn't lost: %q", edit)
 	}
 }

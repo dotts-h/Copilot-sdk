@@ -164,12 +164,29 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
 - **`ctxforge.Workflow`** / **`ctxforge.WorkflowStep`** (`workflow.go`): a multi-agent
   run. `Workflow` is `{id, name, description, mode, steps}` where `mode` ∈
   {`sequential`, `parallel`} (`""` reads as sequential); each `WorkflowStep` is
-  `{agentId, prompt}`. Persisted under the additive `workflows` key on `forge.json`
-  (omitempty, so older files read clean). `Validate` enforces id slug, name, a valid
-  mode, ≥1 step, and each step's agent+prompt; **whole-forge Validate** additionally
-  enforces step→agent referential integrity (the `agentId` must resolve, the built-in
-  `chat` agent included), like agent→skill. `CompileWorkflow` reuses `Compile` to
-  produce a `SessionSpec` per step, deterministically. — see [ADR-0013](adr/0013-multi-agent-workflow-run-handoff-surface.md)
+  `{agentId, prompt, when?}`. Persisted under the additive `workflows` key on
+  `forge.json` (omitempty, so older files read clean). `Validate` enforces id slug,
+  name, a valid mode, ≥1 step, and each step's agent+prompt; **whole-forge Validate**
+  additionally enforces step→agent referential integrity (the `agentId` must resolve,
+  the built-in `chat` agent included), like agent→skill. `CompileWorkflow` reuses
+  `Compile` to produce a `SessionSpec` per step, deterministically (and carries each
+  step's `when` into the compiled step). — see [ADR-0013](adr/0013-multi-agent-workflow-run-handoff-surface.md)
+- **`ctxforge.WorkflowStep.When`** / **`ctxforge.StepCondition`** (`workflow.go`): the
+  optional **branching** predicate gating a step on a prior step's settled outcome
+  (B2). `StepCondition` is `{step, condition, value?}`: `step` is the **1-based index
+  of a strictly-prior step** the predicate reads, `condition` ∈ {`succeeded`,
+  `failed`, `output-contains`, `always`}, and `value` is the (case-insensitive)
+  substring for `output-contains`. **Additive + backward-readable:** `when` is
+  `omitempty` and a nil `When` means *always runs*, so a pre-B2 workflow loads and
+  behaves identically and a v1 reader ignores the key. `Workflow.Validate` checks the
+  predicate purely (known condition; a strictly-prior `step` for the step-reading
+  conditions — which forbids self/forward references and so makes a dependency cycle
+  structurally impossible; a non-empty `value` for `output-contains`). An unsatisfied
+  step is **skipped** (a distinct, terminal lane state — `laneSkipped`, rendered with
+  a `⊘` glyph and `lane-skipped` class), **not** failed; a skipped lane counts as
+  settled so the run still terminates. Predicate evaluation is a pure function over
+  prior lanes' settled status/output in the `workflowRun` engine. — see
+  [ADR-0021](adr/0021-conditional-branching-workflow-steps-declarative-predicate.md)
 - **`ctxforge.Snippet`** (`snippet.go`): `{id, name, body}` — a saved, reusable
   composer prompt (a one-shot user prompt, **not** system-message context like a
   Skill, so it carries no model/effort/tools/enabled and is never `Compile`d).

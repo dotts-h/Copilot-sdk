@@ -240,12 +240,14 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
 .lane-running { border-left-color: var(--accent2); }
 .lane-done { border-left-color: var(--good); }
 .lane-failed { border-left-color: var(--bad); }
+.lane-skipped { border-left-color: var(--dim); opacity: .7; }
 .lane-head { display: flex; align-items: center; gap: .45rem; font-size: .9rem; }
 .lane-glyph { color: var(--dim); }
 .lane-running .lane-glyph { color: var(--accent2); display: inline-block;
   animation: spin 1.1s linear infinite; }
 .lane-done .lane-glyph { color: var(--good); }
 .lane-failed .lane-glyph { color: var(--bad); }
+.lane-skipped .lane-glyph { color: var(--dim); }
 .lane-step { color: var(--dim); font-size: .82rem; }
 .lane-agent { color: var(--accent2); font-weight: 600; }
 .lane-state { color: var(--dim); font-size: .8rem; }
