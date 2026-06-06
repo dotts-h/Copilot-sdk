@@ -131,45 +131,42 @@ func (f *Forge) Workflow(id string) *Workflow {
 // Referential integrity (steps → agents) is enforced by a whole-forge validate,
 // with the append rolled back if it leaves the forge invalid — mirroring AddAgent.
 func (f *Forge) AddWorkflow(w Workflow) error {
-	if err := w.Validate(); err != nil {
-		return err
-	}
-	if f.Workflow(w.ID) != nil {
-		return fmt.Errorf("workflow %q already exists", w.ID)
-	}
-	f.Workflows = append(f.Workflows, w)
-	if err := f.Validate(); err != nil {
-		f.Workflows = f.Workflows[:len(f.Workflows)-1]
-		return err
-	}
-	return nil
+	return f.mutate(func() error {
+		if err := w.Validate(); err != nil {
+			return err
+		}
+		if f.Workflow(w.ID) != nil {
+			return fmt.Errorf("workflow %q already exists", w.ID)
+		}
+		f.Workflows = append(f.Workflows, w)
+		return nil
+	})
 }
 
 // UpdateWorkflow replaces the workflow identified by id with w, then validates the
 // whole forge and rolls back to the prior value if the result is invalid (e.g. a
 // step now references an unknown agent).
 func (f *Forge) UpdateWorkflow(id string, w Workflow) error {
-	cur := f.Workflow(id)
-	if cur == nil {
-		return fmt.Errorf("unknown workflow %q", id)
-	}
-	old := *cur
-	*cur = w
-	if err := f.Validate(); err != nil {
-		*cur = old
-		return err
-	}
-	return nil
+	return f.mutate(func() error {
+		cur := f.Workflow(id)
+		if cur == nil {
+			return fmt.Errorf("unknown workflow %q", id)
+		}
+		*cur = w
+		return nil
+	})
 }
 
 // RemoveWorkflow deletes the workflow with the given id. Nothing within the forge
-// references a workflow, so no rollback is needed.
+// references a workflow; it routes through mutate for uniform discipline.
 func (f *Forge) RemoveWorkflow(id string) error {
-	for i := range f.Workflows {
-		if f.Workflows[i].ID == id {
-			f.Workflows = append(f.Workflows[:i], f.Workflows[i+1:]...)
-			return nil
+	return f.mutate(func() error {
+		for i := range f.Workflows {
+			if f.Workflows[i].ID == id {
+				f.Workflows = append(f.Workflows[:i], f.Workflows[i+1:]...)
+				return nil
+			}
 		}
-	}
-	return fmt.Errorf("unknown workflow %q", id)
+		return fmt.Errorf("unknown workflow %q", id)
+	})
 }
