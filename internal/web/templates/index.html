@@ -52,6 +52,19 @@
       input.focus();
     }
 
+    // fillSnippet inserts a saved snippet's body into the composer, ready to edit
+    // before sending, and clears the autocomplete menu. The body rides in the
+    // button's data-body attribute (HTML-escaped by the server); reading it back
+    // as a string and assigning it to input.value never parses it as HTML.
+    function fillSnippet(btn) {
+      var input = document.querySelector('#composer input[name=prompt]');
+      if (!input) return;
+      input.value = btn.getAttribute('data-body') || '';
+      var menu = document.getElementById('cmd-menu');
+      if (menu) menu.innerHTML = '';
+      input.focus();
+    }
+
     // --- keyboard shortcuts (item 3.3) ---
     // The server renders the active action→key map onto <body data-keymap>; we
     // build the reverse (key→action) and dispatch on keydown. Shortcuts are

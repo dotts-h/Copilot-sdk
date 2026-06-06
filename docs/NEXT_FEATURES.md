@@ -151,10 +151,17 @@ Settings — and dispatched by a small vanilla-JS `keydown` handler that reads
 action to an existing affordance. Escape-first throughout (ADR-0001); editing
 reuses `editConfig` rollback-on-invalid.
 
-### 3.4 Prompt/snippet library  — **M**
+### 3.4 Prompt/snippet library  — **M** ✅ shipped (ADR-0015, issue 0012)
 Saved, reusable prompts insertable from the composer (a lighter cousin of skills,
-which are system-message context, not one-shot prompts). Persist in the forge or
-config; surface via the autocomplete that already powers slash commands.
+which are system-message context, not one-shot prompts). Shipped as a forge entity
+(`ctxforge.Snippet` = `{id, name, body}`, additive `snippets` key, pure-validated)
+with a Snippets CRUD page (no toggle — a snippet is never `Compile`d). Snippets
+surface in the existing `/` autocomplete: a marked menu entry whose `data-body`
+`fillSnippet` inserts into the composer for editing, plus an **expand-and-send**
+fallback for a bare `/trigger`. Built-in commands / nav slugs always win over a
+same-named snippet (`isReservedCommand`), and all snippet text is HTML-escaped
+(ADR-0001). **This closes Tier-3 epic 0007 and exhausts the validated roadmap** —
+the next session is a fresh next-features research pass.
 
 ## Tier 4 — platform / distribution (from the debt register)
 
@@ -190,8 +197,13 @@ config; surface via the autocomplete that already powers slash commands.
 5. **3.3 (keybinding surface)** ✅ shipped (ADR-0014): a config-backed keymap
    (fixed action set + persisted overrides, pure-validated) surfaced in a help
    overlay + the Help page + a Settings section, dispatched by a small vanilla-JS
-   `keydown` handler. **The validated roadmap is now down to 3.4 (prompt/snippet
-   library)** — build it next, or kick off a fresh next-features research pass.
+   `keydown` handler.
+6. **3.4 (prompt/snippet library)** ✅ shipped (ADR-0015): a forge `Snippet`
+   entity + a Snippets CRUD page; snippets surface in the composer's `/`
+   autocomplete and insert their body (`fillSnippet`), with a bare `/trigger`
+   expanding-and-sending. **This was the last validated roadmap item — Tier-3 epic
+   0007 is closed and the backlog is exhausted. The next session should run a fresh
+   next-features research pass.**
 
 Each item: write the failing test first, keep domain logic pure, run
 `make lint && make test` (coverage floor 65%), and fold its ADR/CONTRACTS/

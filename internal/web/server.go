@@ -196,10 +196,18 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// A leading "/" routes to a composer command instead of the model.
+	// A leading "/" is a composer command — unless it names a saved snippet, in
+	// which case a bare "/trigger" expands to the snippet body and sends it like a
+	// normal prompt (item 3.4). Reserved command/page slugs always win (see
+	// snippetExpansion), so "/clear" can't be hijacked.
 	if strings.HasPrefix(prompt, "/") {
-		_, _ = w.Write([]byte(s.runCommand(prompt)))
-		return
+		name, args, _ := parseCommand(prompt)
+		if body, ok := s.snippetExpansion(name, args); ok {
+			prompt = body
+		} else {
+			_, _ = w.Write([]byte(s.runCommand(prompt)))
+			return
+		}
 	}
 
 	// A multi-agent workflow run owns the turn; normal prompts don't queue behind

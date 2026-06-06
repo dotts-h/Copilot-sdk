@@ -85,6 +85,7 @@ for the streaming/turn routes (`/events`, `/send`, the `/perm|ask|plan|elicit/{i
 | Agents | `GET /agents/new` · `GET /agents/{id}/edit` · `POST /agents` · `POST /agents/{id}` · `POST /agents/{id}/select` · `POST /agents/{id}/delete` |
 | MCP servers | `GET /mcp/new` · `GET /mcp/{id}/edit` · `POST /mcp` · `POST /mcp/{id}` · `POST /mcp/{id}/toggle` · `POST /mcp/{id}/delete` |
 | Workflows | `GET /workflows/new` · `GET /workflows/{id}/edit` · `POST /workflows` · `POST /workflows/{id}` · `POST /workflows/{id}/run` · `POST /workflows/{id}/delete` |
+| Snippets | `GET /snippets/new` · `GET /snippets/{id}/edit` · `POST /snippets` · `POST /snippets/{id}` · `POST /snippets/{id}/delete` |
 | Sessions | `POST /sessions/new` · `POST /sessions/{id}/resume` · `POST /sessions/{id}/delete` |
 | Settings | `POST /settings` · `POST /models/{id}/select` · `POST /effort/{value}/select` |
 
@@ -113,6 +114,14 @@ as the compact form or the **diff review lane** (item 3.1): both post `approve=1
 to the same route. The review lane is a richer affordance on the existing seam,
 **not** a new gate — distinct from `/budget/{action}` above, which is app-level
 because it pauses before `Send`. — see [ADR-0012](adr/0012-diff-review-lane-for-file-write-permissions.md)
+
+The `/snippets…` group (item 3.4) is CRUD for the prompt/snippet library
+(mirroring skills, **minus toggle** — a snippet is never compiled into a session).
+There is no run/insert route: insertion rides the existing `GET /commands`
+autocomplete (a snippet menu entry carries its body, inserted client-side by
+`fillSnippet`) and `POST /send` (a bare `/trigger` expands-and-sends via
+`snippetExpansion`; reserved command/page slugs always win). — see
+[ADR-0015](adr/0015-prompt-snippet-library-forge-backed-composer-insertion.md)
 
 `GET /telemetry/export.csv` streams the full persisted spend ledger as a CSV
 attachment (header `at,session,model,input,cached,output,usd,credits,aiu`; one row
@@ -143,6 +152,13 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   enforces step→agent referential integrity (the `agentId` must resolve, the built-in
   `chat` agent included), like agent→skill. `CompileWorkflow` reuses `Compile` to
   produce a `SessionSpec` per step, deterministically. — see [ADR-0013](adr/0013-multi-agent-workflow-run-handoff-surface.md)
+- **`ctxforge.Snippet`** (`snippet.go`): `{id, name, body}` — a saved, reusable
+  composer prompt (a one-shot user prompt, **not** system-message context like a
+  Skill, so it carries no model/effort/tools/enabled and is never `Compile`d).
+  Persisted under the additive `snippets` key on `forge.json` (omitempty, so older
+  files read clean). `Validate` enforces a slug id, a name, and a body; managed via
+  the Snippets page (validated builders, rollback-on-invalid). The `id` doubles as
+  the composer `/trigger`. — see [ADR-0015](adr/0015-prompt-snippet-library-forge-backed-composer-insertion.md)
 - **`config.Config`** / **`config.TelemetryConfig`** (`config.go`): user settings + pricing
   overrides (`DefaultPriceBook`). `TelemetryConfig.WarnFraction` (soft-warn threshold,
   `[0,1]`) and `TelemetryConfig.HardCapCredits` (absolute credit ceiling, `>= 0`,

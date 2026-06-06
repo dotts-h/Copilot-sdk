@@ -254,6 +254,12 @@ func (h *Hub) Handler() http.Handler {
 	route("POST /workflows/{id}/run", (*Server).handleWorkflowRun)
 	route("POST /workflows/{id}/delete", (*Server).handleWorkflowDelete)
 
+	route("GET /snippets/new", (*Server).handleSnippetNew)
+	route("GET /snippets/{id}/edit", (*Server).handleSnippetEdit)
+	route("POST /snippets", (*Server).handleSnippetCreate)
+	route("POST /snippets/{id}", (*Server).handleSnippetUpdate)
+	route("POST /snippets/{id}/delete", (*Server).handleSnippetDelete)
+
 	route("POST /sessions/new", (*Server).handleSessionNew)
 	route("POST /sessions/{id}/resume", (*Server).handleSessionResume)
 	route("POST /sessions/{id}/delete", (*Server).handleSessionDelete)

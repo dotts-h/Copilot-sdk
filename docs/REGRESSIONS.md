@@ -161,6 +161,27 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
   `TestKeymap*`/`TestKeyBinding*`, `internal/web` `TestIndexRendersKeymapAndOverlay`/
   `TestHelpPageListsShortcuts`/`TestSettingsFormHasKeybindingFields`/
   `TestSettingsSaveAppliesKeybindingOverride`.
+- **Snippets share the `/` namespace with commands — built-ins always win.** A
+  prompt/snippet library entry (item 3.4) surfaces in the composer autocomplete by
+  its `id` as a `/trigger`, but a snippet whose id equals a built-in command or a
+  nav-page slug must never shadow it. `isReservedCommand` (`internal/web/
+  autocomplete.go`) gates this at **both** menu time (`matchSnippets` skips a
+  reserved id) and submit time (`snippetExpansion` returns false for a reserved
+  name, so `handleSend` falls through to `runCommand`). Drop either guard and a
+  user could redefine `/clear`. The snippet **body** reaches the browser only as an
+  `html/template`-escaped `data-body` attribute and is read back as a plain string
+  by `fillSnippet` (never parsed as HTML) — ADR-0001 escape-first holds. Guarded by
+  `internal/web` `TestReservedCommandBeatsSnippet`, `TestCommandsMenuEscapesSnippetBody`,
+  `TestSlashSnippetExpandsAndSends`, `TestUnknownSlashIsNotSent`. The demo seeds
+  snippets (`review-pr`, `explain`) so the page/autocomplete are self-contained
+  offline; e2e asserts the insert path, not exact figures — same family as the
+  self-contained-demo gotcha above.
+- **The composer is a single-line `<input>` — inserted multi-line snippets flatten.**
+  An `<input type=text>` value-sanitises away newlines, so a snippet body with line
+  breaks inserted via `fillSnippet` collapses to one line in the composer (TECH_DEBT
+  #15). The **expand-and-send** path (`snippetExpansion` in `handleSend`) does *not*
+  go through the input, so a bare `/trigger` sends the body with newlines intact —
+  don't "fix" a flattened-insert test by asserting newlines survive the input.
 - **Go's `regexp` is RE2 — no backreferences.** A pattern like `([-*_])( *\1){2,}`
   panics at `MustCompile` ("invalid escape sequence: \1"). For repeated-char
   matching (e.g. the markdown horizontal rule), scan the string directly

@@ -1,14 +1,14 @@
 ---
 id: 0007
 title: "Epic: polish that compounds (Tier 3)"
-status: open
+status: closed
 severity: medium
 group:
 github:
 links:
   adr:
   prs: []
-  issues: [0008, 0009, 0011]
+  issues: [0008, 0009, 0011, 0012]
   regression:
 assets: []
 ---
@@ -34,15 +34,19 @@ surface, and a prompt/snippet library. Each reuses existing primitives. Source:
       A config-backed keymap (fixed action set + persisted overrides, pure-validated)
       surfaced in a help overlay + the Help page + a Settings section, dispatched by
       a small vanilla-JS `keydown` handler reading `<body data-keymap>`.
-- [ ] **3.4 — Prompt/snippet library** — saved, reusable prompts insertable from the
-      composer via the slash-command autocomplete.
+- [x] **3.4 — Prompt/snippet library** → [0012](0012-prompt-snippet-library.md)
+      (ADR-0015). `ctxforge.Snippet` (forge entity, additive `snippets` key) + a
+      Snippets CRUD page; snippets surface in the composer's `/` autocomplete and
+      insert their body (`fillSnippet`), with a bare `/trigger` expanding-and-
+      sending. Reserved commands always win; all text HTML-escaped.
 
 ## Status
 
-3.2 (ADR-0011, closes TECH_DEBT #2), 3.1 (ADR-0012, diff review lane), and 3.3
-(ADR-0014, keybinding surface) have shipped; 2.1 (multi-agent run / handoff)
-shipped under Tier-2 epic 0005 (ADR-0013). The one remaining Tier-3 follow-on
-under this epic is **3.4 (prompt/snippet library)**.
+**Epic closed.** 3.2 (ADR-0011, closes TECH_DEBT #2), 3.1 (ADR-0012, diff review
+lane), 3.3 (ADR-0014, keybinding surface), and 3.4 (ADR-0015, prompt/snippet
+library) have all shipped; 2.1 (multi-agent run / handoff) shipped under Tier-2
+epic 0005 (ADR-0013). 3.4 was the last child — the validated Tier-3 backlog is
+exhausted; further work needs a fresh next-features research pass.
 
 ## Notes
 
