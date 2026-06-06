@@ -55,7 +55,12 @@ fragments. **Stability: stable** — the wire vocabulary between runtime and UI.
 **`Event` shape** (`copilot.go`): `Type, SessionID, Text, Tool, ToolCall*, Usage, Context,
 Permission*, Input*, Plan*, Elicit*, Subagent*, Err`. Pointer fields are set only for the
 matching event type (e.g. `Permission` for `EvPermission`). `SessionID` is empty for
-`MockClient` events; a single-session consumer may ignore it.
+a bare `MockClient.Emit` (the chat demo); a single-session consumer may ignore it.
+**Exception:** the workflow-lane demo (`web.streamDemoLane`) tags every emitted
+event with its lane's backing session id so a **parallel** run's concurrent lanes
+are disambiguated by `SessionID` (`web.workflowRun.laneFor`) — paired with
+`MockClient.CreateSession` now returning a **distinct** id per call. — see
+[ADR-0017](adr/0017-per-lane-tool-and-permission-surface-for-parallel-workflow-lanes.md)
 
 **`PermissionRequest`** (`copilot.go:50`): `ID, Kind, Detail` plus the write-only
 `FileName, Intention, Diff` — set from `sdk.PermissionRequestWrite` for file-write
@@ -101,7 +106,12 @@ workflow's steps into one `SessionSpec` each and launches them as **lanes** —
 sequential handoff (each lane's output feeds the next) or parallel fan-out — each a
 sub-run on the seam's `CreateSession`/`Send` lifecycle. Run progress streams over
 the `lanes` SSE event; the run response lands the user on the chat page where the
-`#lanes` panel renders. — see [ADR-0013](adr/0013-multi-agent-workflow-run-handoff-surface.md)
+`#lanes` panel renders. Each lane card surfaces its **own** tool timeline and
+inline file-write permissions (reusing the chat `renderToolCard`/`renderPermForm`),
+not just output + cost; a parallel run drives concurrent lanes offline (distinct
+mock session ids + `SessionID`-tagged demo events). — see
+[ADR-0013](adr/0013-multi-agent-workflow-run-handoff-surface.md),
+[ADR-0017](adr/0017-per-lane-tool-and-permission-surface-for-parallel-workflow-lanes.md)
 
 `POST /budget/{action}` (`action` ∈ {proceed, raise, cancel}) resolves a turn the
 hard cap paused before `Send`: **proceed** dispatches the held prompt and keeps the
@@ -114,6 +124,10 @@ as the compact form or the **diff review lane** (item 3.1): both post `approve=1
 to the same route. The review lane is a richer affordance on the existing seam,
 **not** a new gate — distinct from `/budget/{action}` above, which is app-level
 because it pauses before `Send`. — see [ADR-0012](adr/0012-diff-review-lane-for-file-write-permissions.md)
+The same route also answers a **workflow-lane** permission (B1): `handlePerm` is
+lane-aware — it drops the request from whichever lane holds it and refreshes
+`#lanes` out-of-band instead of the chat timeline. Lane permissions are per-lane,
+not a cross-lane FIFO. — see [ADR-0017](adr/0017-per-lane-tool-and-permission-surface-for-parallel-workflow-lanes.md)
 
 The `/snippets…` group (item 3.4) is CRUD for the prompt/snippet library
 (mirroring skills, **minus toggle** — a snippet is never compiled into a session).

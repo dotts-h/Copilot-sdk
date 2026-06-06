@@ -1,15 +1,15 @@
 ---
 id: 0015
 title: Real parallel workflow lanes (roadmap v2, item B1)
-status: open
+status: closed
 severity: medium
 group: 0013
 github:
 links:
-  adr: ../adr/0013-multi-agent-workflow-run-handoff-surface.md
+  adr: ../adr/0017-per-lane-tool-and-permission-surface-for-parallel-workflow-lanes.md
   prs: []
   issues: [0013]
-  regression:
+  regression: ../REGRESSIONS.md
 assets: []
 ---
 
@@ -33,7 +33,28 @@ extends ADR-0013.
      can only drive the sequential path; the parallel engine logic is unit-tested
      directly but never browser-driven, and a lane shows only message + usage.
 
-## Resolution (planned — not yet built)
+## Resolution (shipped — ADR-0017)
+
+- **Distinct lane identities:** `MockClient.CreateSession` now returns distinct
+  ids (`mock-session-N`); `streamDemoLane(sid, …)` tags every event with the
+  lane's id, so a seeded **parallel** demo workflow (`parallel-review`) drives
+  concurrent lanes through the unchanged `SessionID`-keyed `laneFor`.
+- **Per-lane tool + permission surface:** `handleRunEvent` reduces
+  `EvToolStart/Progress/End` + `EvPermission` onto per-lane state; `renderLanes`
+  surfaces each lane's own tool timeline and inline permission by reusing the chat
+  `renderToolCard`/`renderPermForm` (all escaped, ADR-0001). `handlePerm` is
+  lane-aware: a lane permission is answered over the shared `/perm/{id}` route,
+  dropped from the lane, and `#lanes` refreshed out-of-band. Permissions are
+  **per-lane**, not a cross-lane FIFO (the open question — recorded in ADR-0017).
+- **Browser-drivable parallel demo:** the seeded parallel workflow + a new
+  `e2e/tests/e2e.spec.ts` spec assert two concurrent lanes, per-lane tool cards,
+  and inline permission forms (structure, not figures — shared demo session).
+- **Invariants held:** `SessionID`-keyed attribution (REGRESSIONS "a workflow run
+  owns the turn") and lane-text escaping (ADR-0001); no seam method added.
+
+See ADR-0017 and the guard tests listed in TECH_DEBT #12 (Paid).
+
+## Resolution (planned — superseded by the above)
 
 - **Distinct lane identities (`internal/copilot/mock.go`):** give each
   `CreateSession` a distinct session id so `SessionID`-keyed lane routing

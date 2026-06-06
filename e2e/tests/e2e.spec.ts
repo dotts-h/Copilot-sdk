@@ -267,6 +267,35 @@ test.describe("multi-agent workflows", () => {
     await expect(page.locator(`${sel.lanes} .lane-done`).first()).toBeVisible();
   });
 
+  // The demo seeds a PARALLEL "Parallel review" workflow (builder ‖ sdet). With
+  // the mock handing out distinct session ids and the demo lanes tagging their
+  // events with them (B1 / issue 0015), running it drives two concurrent lanes —
+  // each surfacing its own tool card and inline permission, not just output.
+  test("runs the parallel workflow as concurrent lanes with per-lane tools and permissions", async ({
+    page,
+  }) => {
+    await gotoApp(page);
+    await navTo(page, "Workflows");
+    const row = page.locator(sel.rows, { hasText: "Parallel review" });
+    await expect(row).toBeVisible();
+    await row.locator("button.run").click();
+
+    // The run lands on the chat page; both fan-out lanes render at once.
+    await expect(page.locator(`${sel.lanes} .workflow-run`)).toBeVisible();
+    await expect(page.locator(`${sel.lanes} .lane`)).toHaveCount(2);
+    // The header reports the parallel mode.
+    await expect(page.locator(`${sel.lanes} .run-mode`)).toContainText("parallel");
+    // Each lane surfaces its own tool timeline and an inline permission form
+    // (structure, not figures — the shared demo session).
+    await expect(page.locator(`${sel.lanes} .lane-tools .turn.tool`).first()).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.locator(`${sel.lanes} .lane-perms form.perm`).first()).toBeVisible();
+    // Both lanes settle and the run reports finished.
+    await expect(page.locator(`${sel.lanes} .run-status.done`)).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator(`${sel.lanes} .lane-done`)).toHaveCount(2);
+  });
+
   test("adds a workflow through the form", async ({ page }) => {
     await gotoApp(page);
     await navTo(page, "Workflows");

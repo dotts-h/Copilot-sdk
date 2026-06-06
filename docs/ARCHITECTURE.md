@@ -205,9 +205,15 @@ list of `WorkflowStep{AgentID, Prompt}` plus a `Mode` (sequential | parallel).
 `CompileWorkflow(id)` reuses `Compile` to produce one `SessionSpec` per step;
 the web layer runs each step as a **lane** — a sub-run on the seam's
 `CreateSession`/`Send` lifecycle, watched in a dedicated panel. Sequential mode
-hands each lane's output to the next; parallel fans them out. The run logic is a
-pure `workflowRun` state machine (`internal/web/workflow.go`), unit-tested with no
-client. See [ADR-0013](adr/0013-multi-agent-workflow-run-handoff-surface.md).
+hands each lane's output to the next; parallel fans them out, each lane attributed
+by the event's `SessionID` (`laneFor`). A lane card surfaces its own tool timeline
+and inline file-write permissions, not just output + cost. The parallel path is now
+exercised offline — `MockClient.CreateSession` returns distinct ids and the demo
+lane tags its events with them — so the demo/e2e drive concurrent lanes. The run
+logic is a pure `workflowRun` state machine (`internal/web/workflow.go`),
+unit-tested with no client. See
+[ADR-0013](adr/0013-multi-agent-workflow-run-handoff-surface.md),
+[ADR-0017](adr/0017-per-lane-tool-and-permission-surface-for-parallel-workflow-lanes.md).
 
 ## Web UI (htmx + SSE)
 

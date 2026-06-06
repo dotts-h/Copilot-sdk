@@ -20,3 +20,4 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0014 | [Keybinding surface: a config-backed keymap with minimal JS dispatch](0014-keybinding-surface-config-backed-keymap-with-minimal-js-dispatch.md) | accepted |
 | 0015 | [Prompt/snippet library: forge-backed composer insertion](0015-prompt-snippet-library-forge-backed-composer-insertion.md) | accepted |
 | 0016 | [The persisted ledger is the source of truth for account-wide budget accounting](0016-ledger-is-source-of-truth-for-account-wide-budget-accounting.md) | proposed |
+| 0017 | [Per-lane tool + permission surface for parallel workflow lanes](0017-per-lane-tool-and-permission-surface-for-parallel-workflow-lanes.md) | accepted |

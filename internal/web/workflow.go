@@ -2,9 +2,11 @@ package web
 
 import (
 	"context"
+	"html/template"
 	"net/http"
 	"strings"
 
+	"github.com/dotts-h/copilot-sdk/internal/convo"
 	"github.com/dotts-h/copilot-sdk/internal/copilot"
 	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
@@ -39,10 +41,70 @@ type lane struct {
 	Prompt    string
 	spec      copilot.SessionSpec
 	status    laneStatus
-	text      string  // accumulated assistant output (deltas, replaced by the full message)
-	detail    string  // one-line summary on completion (cost) or the error message
-	sessionID string  // backing copilot session id, for SessionID-keyed event routing
-	credits   float64 // metered cost attributed to this lane
+	text      string                      // accumulated assistant output (deltas, replaced by the full message)
+	detail    string                      // one-line summary on completion (cost) or the error message
+	sessionID string                      // backing copilot session id, for SessionID-keyed event routing
+	credits   float64                     // metered cost attributed to this lane
+	tools     []*convo.ToolView           // this lane's own tool-execution timeline (B1)
+	toolIdx   map[string]int              // tool-call id -> index into tools
+	perms     []copilot.PermissionRequest // this lane's pending inline permission requests (B1)
+}
+
+// toolStart records a tool-execution start on the lane's own timeline. Mirrors
+// convo.State.ToolStart but lives on the lane, since each parallel sub-run has its
+// own interleaved tool activity (B1 / issue 0015).
+func (l *lane) toolStart(id, name, args string) {
+	if name == "" {
+		return
+	}
+	if l.toolIdx == nil {
+		l.toolIdx = map[string]int{}
+	}
+	l.tools = append(l.tools, &convo.ToolView{ID: id, Name: name, Args: args})
+	if id != "" {
+		l.toolIdx[id] = len(l.tools) - 1
+	}
+}
+
+// toolProgress updates a running lane tool's latest progress message.
+func (l *lane) toolProgress(id, msg string) {
+	if tv := l.toolByID(id); tv != nil {
+		tv.Progress = msg
+	}
+}
+
+// toolEnd marks a lane tool finished, recording its result and success.
+func (l *lane) toolEnd(id, result string, success bool) {
+	if tv := l.toolByID(id); tv != nil {
+		tv.Done = true
+		tv.Failed = !success
+		tv.Progress = ""
+		if result != "" {
+			tv.Result = result
+		}
+	}
+}
+
+func (l *lane) toolByID(id string) *convo.ToolView {
+	if id == "" || l.toolIdx == nil {
+		return nil
+	}
+	if i, ok := l.toolIdx[id]; ok && i < len(l.tools) {
+		return l.tools[i]
+	}
+	return nil
+}
+
+// dropPerm removes a resolved permission from the lane, reporting whether it held
+// one with that id.
+func (l *lane) dropPerm(id string) bool {
+	for i := range l.perms {
+		if l.perms[i].ID == id {
+			l.perms = append(l.perms[:i], l.perms[i+1:]...)
+			return true
+		}
+	}
+	return false
 }
 
 // workflowRun is a workflow in flight: the lanes and the sequential cursor. It is
@@ -277,7 +339,7 @@ func (s *Server) startLane(run *workflowRun, idx int) {
 	}
 	if s.demo {
 		if mock, ok := s.client.(*copilot.MockClient); ok {
-			go streamDemoLane(mock, prompt)
+			go streamDemoLane(mock, cid, prompt)
 		}
 	}
 }
@@ -330,6 +392,38 @@ func (s *Server) handleRunEvent(run *workflowRun, e copilot.Event) []fragment {
 		}
 		return s.runFrags(run, run.done)
 
+	case copilot.EvToolStart:
+		if l == nil {
+			return nil
+		}
+		args := ""
+		if e.ToolCall != nil {
+			args = e.ToolCall.Args
+		}
+		l.toolStart(toolID(e), e.Tool, args)
+		return []fragment{s.lanesFrag()}
+
+	case copilot.EvToolProgress:
+		if l == nil || e.ToolCall == nil {
+			return nil
+		}
+		l.toolProgress(e.ToolCall.ID, e.ToolCall.Progress)
+		return []fragment{s.lanesFrag()}
+
+	case copilot.EvToolEnd:
+		if l == nil || e.ToolCall == nil {
+			return nil
+		}
+		l.toolEnd(e.ToolCall.ID, e.ToolCall.Result, e.ToolCall.Success)
+		return []fragment{s.lanesFrag()}
+
+	case copilot.EvPermission:
+		if l == nil || e.Permission == nil {
+			return nil
+		}
+		l.perms = append(l.perms, *e.Permission)
+		return []fragment{s.lanesFrag()}
+
 	case copilot.EvError:
 		if l == nil {
 			return []fragment{s.lanesFrag()}
@@ -342,8 +436,9 @@ func (s *Server) handleRunEvent(run *workflowRun, e copilot.Event) []fragment {
 		return s.runFrags(run, done)
 
 	default:
-		// Reasoning, tool, permission, and context events from a sub-run are not
-		// surfaced per-lane (the lane shows its output + cost); ignore them.
+		// Reasoning and context events from a sub-run are not surfaced per-lane
+		// (the lane shows output, its tool timeline, inline permissions, and cost);
+		// ignore them.
 		return nil
 	}
 }
@@ -396,11 +491,36 @@ func renderLanes(run *workflowRun) string {
 			"Step": l.Index + 1, "Agent": l.AgentName, "Glyph": glyph, "State": state,
 			"Output": l.text, "HasOutput": strings.TrimSpace(l.text) != "",
 			"Detail": l.detail, "HasDetail": l.detail != "",
+			"Tools": laneToolsHTML(l.tools), "HasTools": len(l.tools) > 0,
+			"Perms": lanePermsHTML(l.perms), "HasPerms": len(l.perms) > 0,
 		}
 	}
 	return frag("workflowLanes", map[string]any{
 		"Name": run.name, "Mode": run.mode, "Running": !run.done, "Lanes": lanes,
 	})
+}
+
+// laneToolsHTML renders a lane's own tool-execution timeline by reusing the chat
+// tool card (so a sub-run's tools look identical to a chat turn's). The result is
+// a composed-from-escaped-fragments HTML string — its args/results pass through
+// the same richtext escaping as the chat timeline (ADR-0001).
+func laneToolsHTML(tools []*convo.ToolView) template.HTML {
+	var b strings.Builder
+	for _, tv := range tools {
+		b.WriteString(renderToolCard(tv))
+	}
+	return trusted(b.String())
+}
+
+// lanePermsHTML renders a lane's pending inline permission requests by reusing the
+// chat permission form (the compact form or the diff review lane), so a lane's
+// permissions are answerable in place via the same /perm/{id} flow (ADR-0012).
+func lanePermsHTML(perms []copilot.PermissionRequest) template.HTML {
+	var b strings.Builder
+	for _, p := range perms {
+		b.WriteString(renderPermForm(p))
+	}
+	return trusted(b.String())
 }
 
 // laneGlyph maps a lane status to its glyph and CSS state class.
@@ -418,18 +538,51 @@ func laneGlyph(st laneStatus) (glyph, state string) {
 }
 
 // streamDemoLane emits a scripted sub-run for one workflow lane so the lanes
-// surface is exercised offline (sequential mode, one lane active at a time). It
-// mirrors a real lane turn: a short streamed answer, usage, and idle.
-func streamDemoLane(m *copilot.MockClient, prompt string) {
+// surface is exercised offline. Every event is tagged with the lane's backing
+// session id (sid) so a PARALLEL run drives concurrent lanes that the reducer
+// disambiguates by SessionID (workflow.go laneFor) — the offline mock can now
+// cover the parallel path, not just sequential (B1 / issue 0015). It mirrors a
+// real lane turn: a tool execution, an inline file-write permission, a short
+// streamed answer, usage, and idle — so each lane shows its own tool timeline and
+// inline permission, not just output + cost. Permissions don't block in demo mode.
+func streamDemoLane(m *copilot.MockClient, sid, prompt string) {
+	emit := func(e copilot.Event) {
+		e.SessionID = sid
+		m.Emit(e)
+	}
+
+	// A tool execution as a first-class per-lane timeline entry.
+	emit(copilot.Event{Type: copilot.EvToolStart, Tool: "bash",
+		ToolCall: &copilot.ToolCall{ID: sid + "-tool", Name: "bash", Args: "go test ./..."}})
+	emit(copilot.Event{Type: copilot.EvToolEnd,
+		ToolCall: &copilot.ToolCall{ID: sid + "-tool", Result: "ok\tgithub.com/dotts-h/copilot-sdk", Success: true}})
+
+	// An inline file-write permission, rendered as a diff review lane inside this
+	// lane's card. Nothing blocks on the decision in demo mode; submitting it
+	// exercises the /perm route and refreshes #lanes.
+	emit(copilot.Event{Type: copilot.EvPermission, Permission: &copilot.PermissionRequest{
+		ID: sid + "-perm", Kind: "write", Detail: "write file: internal/lane.go",
+		FileName: "internal/lane.go", Intention: "apply the change for this lane",
+		Diff: "--- a/internal/lane.go\n" +
+			"+++ b/internal/lane.go\n" +
+			"@@ -1,3 +1,4 @@\n" +
+			" package internal\n" +
+			" \n" +
+			"-func todo() {}\n" +
+			"+// done by the lane\n" +
+			"+func done() {}\n",
+	}})
+
+	// The streamed answer.
 	reply := "Handled: " + firstLine(prompt)
 	for _, tok := range tokenize(reply) {
-		m.Emit(copilot.Event{Type: copilot.EvMessageDelta, Text: tok})
+		emit(copilot.Event{Type: copilot.EvMessageDelta, Text: tok})
 	}
-	m.Emit(copilot.Event{Type: copilot.EvMessage, Text: reply})
-	m.Emit(copilot.Event{Type: copilot.EvUsage, Usage: copilot.UsageData{
+	emit(copilot.Event{Type: copilot.EvMessage, Text: reply})
+	emit(copilot.Event{Type: copilot.EvUsage, Usage: copilot.UsageData{
 		Model: "gpt-5", InputTokens: 600, OutputTokens: 120,
 	}})
-	m.Emit(copilot.Event{Type: copilot.EvIdle})
+	emit(copilot.Event{Type: copilot.EvIdle})
 }
 
 // firstLine returns the first non-empty line of s, trimmed and bounded, for a
