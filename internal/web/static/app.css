@@ -279,6 +279,11 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
   flex-direction: column; gap: .2rem; }
 .run-lane { display: flex; align-items: center; gap: .45rem; font-size: .88rem;
   padding: .15rem .5rem; }
+/* A skipped run-history lane stays full-opacity (unlike a live lane's .7 dim): the
+   history view favours legibility, and the live dim composites .lane-agent/.lane-state
+   below the 4.5:1 AA contrast floor (axe). The compound selector outweighs
+   .lane-skipped's opacity. */
+.run-lane.lane-skipped { opacity: 1; }
 .lane-cost { font-size: .8rem; margin-left: auto; }
 .lane-perms .perm { font-size: .88rem; }
 .row .run { color: var(--good); font-weight: 600; }
