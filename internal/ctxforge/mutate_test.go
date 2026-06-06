@@ -102,6 +102,30 @@ func TestUpdateAgentUnknownSkillRollsBack(t *testing.T) {
 	}
 }
 
+// TestMutateRollbackPreservesOrder guards the uniform mutate() rollback: a
+// failed RemoveSkill (the skill is pinned by an agent) must restore every skill
+// in its original position, not just keep the count. This covers the snapshot/
+// restore path that replaced the per-method manual reinsertion.
+func TestMutateRollbackPreservesOrder(t *testing.T) {
+	f := New(t.TempDir())
+	for _, id := range []string{"a", "b", "c"} {
+		if err := f.AddSkill(Skill{ID: id, Name: id, Prompt: "p", Enabled: true}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Pin the middle skill so removing it must roll back.
+	if err := f.AddAgent(Agent{ID: "ag", Name: "Ag", Model: "gpt-5", ReasoningEffort: "high", Skills: []string{"b"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.RemoveSkill("b"); err == nil {
+		t.Fatal("expected dangling-reference error removing a pinned skill")
+	}
+	got := []string{f.Skills[0].ID, f.Skills[1].ID, f.Skills[2].ID}
+	if got[0] != "a" || got[1] != "b" || got[2] != "c" {
+		t.Fatalf("rollback should preserve skill order, got %v", got)
+	}
+}
+
 func TestUpdateInstruction(t *testing.T) {
 	f := New(t.TempDir())
 	_ = f.AddInstruction(sampleInstruction())

@@ -64,23 +64,15 @@ func Build(configDir string, demo bool) (srv *web.Hub, close func(), err error) 
 		}
 	}
 
-	spec := copilot.SessionSpec{Model: cfg.DefaultModel, ReasoningEffort: cfg.ReasoningEffort, Streaming: true}
 	// Compile the configured default agent (or just the enabled global
 	// instructions/skills when none) so the very first session carries the same
-	// persona an explicit agent selection would apply later.
-	if cspec, err := forge.Compile(cfg.DefaultAgent); err != nil {
+	// persona an explicit agent selection would apply later. SeamSpec is the same
+	// forge→seam translation the agent-restart and workflow-lane paths use.
+	cspec, err := forge.Compile(cfg.DefaultAgent)
+	if err != nil {
 		log.Printf("compile default agent %q: %v", cfg.DefaultAgent, err)
-	} else {
-		spec.SystemMessage = cspec.SystemMessage
-		spec.AllowedTools = cspec.AllowedTools
-		spec.MCPServers = web.MCPServerSpecs(cspec.MCPServers)
-		if cspec.Model != "" {
-			spec.Model = cspec.Model
-		}
-		if cspec.ReasoningEffort != "" {
-			spec.ReasoningEffort = cspec.ReasoningEffort
-		}
 	}
+	spec := web.SeamSpec(cspec, cfg.DefaultModel, cfg.ReasoningEffort)
 
 	var client copilot.Client
 	var closeFn func()

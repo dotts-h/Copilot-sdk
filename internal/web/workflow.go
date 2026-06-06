@@ -234,24 +234,14 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 }
 
 // workflowLaneSpec translates a forge-compiled step spec into the seam's
-// SessionSpec, applying the config defaults for an unset model/effort (the
-// built-in chat agent carries none of its own) — mirroring compiledSpec. Caller
-// holds forgeMu (it reads s.config).
+// SessionSpec via the shared SeamSpec translation. Caller holds forgeMu (it reads
+// s.config).
 func (s *Server) workflowLaneSpec(cs ctxforge.SessionSpec) copilot.SessionSpec {
-	spec := copilot.SessionSpec{
-		Model: cs.Model, ReasoningEffort: cs.ReasoningEffort,
-		SystemMessage: cs.SystemMessage, Streaming: true,
-		AllowedTools: cs.AllowedTools, MCPServers: MCPServerSpecs(cs.MCPServers),
-	}
+	var defModel, defEffort string
 	if s.config != nil {
-		if spec.Model == "" {
-			spec.Model = s.config.DefaultModel
-		}
-		if spec.ReasoningEffort == "" {
-			spec.ReasoningEffort = s.config.ReasoningEffort
-		}
+		defModel, defEffort = s.config.DefaultModel, s.config.ReasoningEffort
 	}
-	return spec
+	return SeamSpec(cs, defModel, defEffort)
 }
 
 // launchLanes starts each given lane's sub-run concurrently.

@@ -48,8 +48,11 @@ Two implementations:
 
 - **`SDKClient`** — wraps the official SDK. It creates a `sdk.Client`, opens
   sessions, registers an `On(...)` handler, and **normalizes** the SDK's rich
-  event stream into a compact `Event` the UI understands. This is the only file
-  that knows the SDK exists.
+  event stream into a compact `Event` the UI understands. It is the only
+  component that imports the SDK, split across three same-package files by
+  responsibility: `sdkclient.go` (session lifecycle + `Client` impl),
+  `normalize.go` (the pure SDK→`Event` translation), and `handlers.go` (the
+  sync↔async permission/input/plan/elicit bridges).
 - **`MockClient`** — in-memory. Records `Send`/`Abort` calls and lets a test push
   arbitrary events. Powers the offline mode and every web/convo unit test.
 
@@ -107,9 +110,16 @@ are safe.
 The Skills/Instructions/Agents pages toggle (`POST /skills/{id}/toggle`), select
 (`POST /agents/{id}/select`), and delete (`POST /{kind}/{id}/delete`) entities,
 each swapping the affected fragment back over htmx. Construction goes through
-pure, validated builder functions; saves **roll back** the in-memory forge if
-validation fails, so `forge.json` is never written in a bad state. Add/edit
-forms are a tracked follow-up (see `docs/WEB_UI_PLAN.md`).
+pure, validated builder functions; **every** `Add*`/`Update*`/`Remove*` routes
+through one `Forge.mutate(apply)` that snapshots the forge, applies the change,
+runs a whole-forge `Validate`, and **rolls back** on failure — so `forge.json` is
+never written in a bad state and referential checks (agent→skill, workflow→agent)
+are enforced uniformly. The web add/edit form lifecycle (New/Edit/Create/Update/
+Delete) for the uniform entities is a generic `forgeCRUD[T]` (skills,
+instructions, agents, snippets); the lock/lookup/list-fallback and
+save-or-re-render-on-error logic lives once. The forge→seam `SessionSpec`
+translation (startup, agent-restart, workflow lane) is the single pure
+`web.SeamSpec`.
 
 ### Slash commands (planned)
 

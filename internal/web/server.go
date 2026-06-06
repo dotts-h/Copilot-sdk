@@ -593,10 +593,7 @@ func (s *Server) handleSkillToggle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSkillDelete(w http.ResponseWriter, r *http.Request) {
-	if err := s.editForge(func() error { return s.forge.RemoveSkill(r.PathValue("id")) }); err != nil {
-		s.logger.Printf("remove skill: %v", err) // e.g. an agent still pins it
-	}
-	s.writePartial(w, s.skillsPartial())
+	skillCRUD.Delete(s, w, r) // a failure (e.g. an agent still pins it) is logged
 }
 
 func (s *Server) handleInstructionToggle(w http.ResponseWriter, r *http.Request) {
@@ -606,10 +603,7 @@ func (s *Server) handleInstructionToggle(w http.ResponseWriter, r *http.Request)
 }
 
 func (s *Server) handleInstructionDelete(w http.ResponseWriter, r *http.Request) {
-	if err := s.editForge(func() error { return s.forge.RemoveInstruction(r.PathValue("id")) }); err != nil {
-		s.logger.Printf("remove instruction: %v", err)
-	}
-	s.writePartial(w, s.instructionsPartial())
+	instructionCRUD.Delete(s, w, r)
 }
 
 func (s *Server) handleAgentSelect(w http.ResponseWriter, r *http.Request) {
@@ -743,66 +737,55 @@ func (s *Server) subagentsFrag() fragment {
 // nowMs returns the current time in epoch milliseconds.
 func nowMs() int64 { return time.Now().UnixMilli() }
 
-// dropPerm removes a resolved permission from the queue. Caller must hold s.mu.
-func (s *Server) dropPerm(id string) {
-	for i := range s.perms {
-		if s.perms[i].ID == id {
-			s.perms = append(s.perms[:i], s.perms[i+1:]...)
-			return
+// dropByID returns sl with the first element whose key matches id removed (the
+// original slice if none matches). The pending-request queues all share this
+// "splice-out by id" shape, differing only in element type and key accessor.
+func dropByID[T any](sl []T, id string, key func(T) string) []T {
+	for i := range sl {
+		if key(sl[i]) == id {
+			return append(sl[:i], sl[i+1:]...)
 		}
 	}
+	return sl
 }
 
-// dropInput removes a resolved ask_user request. Caller must hold s.mu.
-func (s *Server) dropInput(id string) {
-	for i := range s.inputs {
-		if s.inputs[i].ID == id {
-			s.inputs = append(s.inputs[:i], s.inputs[i+1:]...)
-			return
-		}
-	}
-}
-
-// dropPlan removes a resolved plan review. Caller must hold s.mu.
-func (s *Server) dropPlan(id string) {
-	for i := range s.plans {
-		if s.plans[i].ID == id {
-			s.plans = append(s.plans[:i], s.plans[i+1:]...)
-			return
-		}
-	}
-}
-
-// findElicit returns a copy of the pending elicitation with the given id and
-// whether it was found. Caller must hold s.mu.
-func (s *Server) findElicit(id string) (copilot.ElicitRequest, bool) {
-	for _, e := range s.elicits {
-		if e.ID == id {
+// findByID returns the first element whose key matches id, and whether one was
+// found.
+func findByID[T any](sl []T, id string, key func(T) string) (T, bool) {
+	for _, e := range sl {
+		if key(e) == id {
 			return e, true
 		}
 	}
-	return copilot.ElicitRequest{}, false
+	var zero T
+	return zero, false
 }
 
-// dropElicit removes a resolved elicitation form. Caller must hold s.mu.
+func permID(p copilot.PermissionRequest) string { return p.ID }
+func inputID(p copilot.InputRequest) string     { return p.ID }
+func planID(p copilot.PlanRequest) string       { return p.ID }
+func elicitID(e copilot.ElicitRequest) string   { return e.ID }
+func subagentKey(a copilot.SubagentInfo) string { return a.ToolCallID }
+
+// The drop* / findElicit helpers below keep their names (callers are unchanged);
+// each is a one-line binding of dropByID/findByID to its queue. Caller holds s.mu.
+
+func (s *Server) dropPerm(id string)  { s.perms = dropByID(s.perms, id, permID) }
+func (s *Server) dropInput(id string) { s.inputs = dropByID(s.inputs, id, inputID) }
+func (s *Server) dropPlan(id string)  { s.plans = dropByID(s.plans, id, planID) }
 func (s *Server) dropElicit(id string) {
-	for i := range s.elicits {
-		if s.elicits[i].ID == id {
-			s.elicits = append(s.elicits[:i], s.elicits[i+1:]...)
-			return
-		}
-	}
+	s.elicits = dropByID(s.elicits, id, elicitID)
 }
 
-// dropSubagent removes a finished sub-agent by its parent tool-call id. Caller
-// must hold s.mu.
+// findElicit returns a copy of the pending elicitation with the given id and
+// whether it was found.
+func (s *Server) findElicit(id string) (copilot.ElicitRequest, bool) {
+	return findByID(s.elicits, id, elicitID)
+}
+
+// dropSubagent removes a finished sub-agent by its parent tool-call id.
 func (s *Server) dropSubagent(toolCallID string) {
-	for i := range s.subagents {
-		if s.subagents[i].ToolCallID == toolCallID {
-			s.subagents = append(s.subagents[:i], s.subagents[i+1:]...)
-			return
-		}
-	}
+	s.subagents = dropByID(s.subagents, toolCallID, subagentKey)
 }
 
 // firstNonEmpty returns the first non-empty, trimmed string in vals, or "".

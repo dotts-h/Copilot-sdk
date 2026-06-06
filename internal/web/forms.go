@@ -81,24 +81,8 @@ func renderSkillForm(s ctxforge.Skill, isNew bool, errMsg string) string {
 	)
 }
 
-func (s *Server) handleSkillNew(w http.ResponseWriter, r *http.Request) {
-	s.writePartial(w, renderSkillForm(ctxforge.Skill{Enabled: true}, true, ""))
-}
-
-func (s *Server) handleSkillEdit(w http.ResponseWriter, r *http.Request) {
-	s.hub.forgeMu.Lock()
-	sk := s.forge.Skill(r.PathValue("id"))
-	var form string
-	if sk != nil {
-		form = renderSkillForm(*sk, false, "")
-	}
-	s.hub.forgeMu.Unlock()
-	if form == "" {
-		s.writePartial(w, s.skillsPartial())
-		return
-	}
-	s.writePartial(w, form)
-}
+func (s *Server) handleSkillNew(w http.ResponseWriter, r *http.Request)  { skillCRUD.New(s, w, r) }
+func (s *Server) handleSkillEdit(w http.ResponseWriter, r *http.Request) { skillCRUD.Edit(s, w, r) }
 
 func skillFromForm(r *http.Request, id string) ctxforge.Skill {
 	return ctxforge.Skill{
@@ -111,24 +95,8 @@ func skillFromForm(r *http.Request, id string) ctxforge.Skill {
 	}
 }
 
-func (s *Server) handleSkillCreate(w http.ResponseWriter, r *http.Request) {
-	sk := skillFromForm(r, strings.TrimSpace(r.FormValue("id")))
-	if err := s.editForge(func() error { return s.forge.AddSkill(sk) }); err != nil {
-		s.writePartial(w, renderSkillForm(sk, true, err.Error()))
-		return
-	}
-	s.writePartial(w, s.skillsPartial())
-}
-
-func (s *Server) handleSkillUpdate(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	sk := skillFromForm(r, id)
-	if err := s.editForge(func() error { return s.forge.UpdateSkill(id, sk) }); err != nil {
-		s.writePartial(w, renderSkillForm(sk, false, err.Error()))
-		return
-	}
-	s.writePartial(w, s.skillsPartial())
-}
+func (s *Server) handleSkillCreate(w http.ResponseWriter, r *http.Request) { skillCRUD.Create(s, w, r) }
+func (s *Server) handleSkillUpdate(w http.ResponseWriter, r *http.Request) { skillCRUD.Update(s, w, r) }
 
 // --- instruction form ---
 
@@ -147,22 +115,10 @@ func renderInstructionForm(in ctxforge.Instruction, isNew bool, errMsg string) s
 }
 
 func (s *Server) handleInstructionNew(w http.ResponseWriter, r *http.Request) {
-	s.writePartial(w, renderInstructionForm(ctxforge.Instruction{Enabled: true}, true, ""))
+	instructionCRUD.New(s, w, r)
 }
-
 func (s *Server) handleInstructionEdit(w http.ResponseWriter, r *http.Request) {
-	s.hub.forgeMu.Lock()
-	in := s.forge.Instruction(r.PathValue("id"))
-	var form string
-	if in != nil {
-		form = renderInstructionForm(*in, false, "")
-	}
-	s.hub.forgeMu.Unlock()
-	if form == "" {
-		s.writePartial(w, s.instructionsPartial())
-		return
-	}
-	s.writePartial(w, form)
+	instructionCRUD.Edit(s, w, r)
 }
 
 func instructionFromForm(r *http.Request, id string) ctxforge.Instruction {
@@ -177,22 +133,10 @@ func instructionFromForm(r *http.Request, id string) ctxforge.Instruction {
 }
 
 func (s *Server) handleInstructionCreate(w http.ResponseWriter, r *http.Request) {
-	in := instructionFromForm(r, strings.TrimSpace(r.FormValue("id")))
-	if err := s.editForge(func() error { return s.forge.AddInstruction(in) }); err != nil {
-		s.writePartial(w, renderInstructionForm(in, true, err.Error()))
-		return
-	}
-	s.writePartial(w, s.instructionsPartial())
+	instructionCRUD.Create(s, w, r)
 }
-
 func (s *Server) handleInstructionUpdate(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	in := instructionFromForm(r, id)
-	if err := s.editForge(func() error { return s.forge.UpdateInstruction(id, in) }); err != nil {
-		s.writePartial(w, renderInstructionForm(in, false, err.Error()))
-		return
-	}
-	s.writePartial(w, s.instructionsPartial())
+	instructionCRUD.Update(s, w, r)
 }
 
 // --- agent form ---
@@ -220,24 +164,8 @@ func renderAgentForm(a ctxforge.Agent, isNew bool, errMsg string) string {
 	)
 }
 
-func (s *Server) handleAgentNew(w http.ResponseWriter, r *http.Request) {
-	s.writePartial(w, renderAgentForm(ctxforge.Agent{ReasoningEffort: "medium"}, true, ""))
-}
-
-func (s *Server) handleAgentEdit(w http.ResponseWriter, r *http.Request) {
-	s.hub.forgeMu.Lock()
-	a := s.forge.Agent(r.PathValue("id"))
-	var form string
-	if a != nil {
-		form = renderAgentForm(*a, false, "")
-	}
-	s.hub.forgeMu.Unlock()
-	if form == "" {
-		s.writePartial(w, s.agentsPartial())
-		return
-	}
-	s.writePartial(w, form)
-}
+func (s *Server) handleAgentNew(w http.ResponseWriter, r *http.Request)  { agentCRUD.New(s, w, r) }
+func (s *Server) handleAgentEdit(w http.ResponseWriter, r *http.Request) { agentCRUD.Edit(s, w, r) }
 
 func agentFromForm(r *http.Request, id string) ctxforge.Agent {
 	return ctxforge.Agent{
@@ -252,24 +180,8 @@ func agentFromForm(r *http.Request, id string) ctxforge.Agent {
 	}
 }
 
-func (s *Server) handleAgentCreate(w http.ResponseWriter, r *http.Request) {
-	a := agentFromForm(r, strings.TrimSpace(r.FormValue("id")))
-	if err := s.editForge(func() error { return s.forge.AddAgent(a) }); err != nil {
-		s.writePartial(w, renderAgentForm(a, true, err.Error()))
-		return
-	}
-	s.writePartial(w, s.agentsPartial())
-}
-
-func (s *Server) handleAgentUpdate(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	a := agentFromForm(r, id)
-	if err := s.editForge(func() error { return s.forge.UpdateAgent(id, a) }); err != nil {
-		s.writePartial(w, renderAgentForm(a, false, err.Error()))
-		return
-	}
-	s.writePartial(w, s.agentsPartial())
-}
+func (s *Server) handleAgentCreate(w http.ResponseWriter, r *http.Request) { agentCRUD.Create(s, w, r) }
+func (s *Server) handleAgentUpdate(w http.ResponseWriter, r *http.Request) { agentCRUD.Update(s, w, r) }
 
 // parseCSV splits a comma-separated list into trimmed, non-empty entries.
 func parseCSV(s string) []string {

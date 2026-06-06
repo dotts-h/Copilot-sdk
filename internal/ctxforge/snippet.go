@@ -44,44 +44,44 @@ func (f *Forge) Snippet(id string) *Snippet {
 	return nil
 }
 
-// AddSnippet validates and appends a snippet, rejecting duplicate IDs. Nothing
-// within the forge references a snippet, so no whole-forge rollback is needed.
+// AddSnippet validates and appends a snippet, rejecting duplicate IDs.
 func (f *Forge) AddSnippet(s Snippet) error {
-	if err := s.Validate(); err != nil {
-		return err
-	}
-	if f.Snippet(s.ID) != nil {
-		return fmt.Errorf("snippet %q already exists", s.ID)
-	}
-	f.Snippets = append(f.Snippets, s)
-	return nil
+	return f.mutate(func() error {
+		if err := s.Validate(); err != nil {
+			return err
+		}
+		if f.Snippet(s.ID) != nil {
+			return fmt.Errorf("snippet %q already exists", s.ID)
+		}
+		f.Snippets = append(f.Snippets, s)
+		return nil
+	})
 }
 
 // UpdateSnippet replaces the snippet identified by id with s, then validates the
 // whole forge and rolls back to the prior value if the result is invalid (e.g. a
 // blank name, or a rename that collides with another id).
 func (f *Forge) UpdateSnippet(id string, s Snippet) error {
-	cur := f.Snippet(id)
-	if cur == nil {
-		return fmt.Errorf("unknown snippet %q", id)
-	}
-	old := *cur
-	*cur = s
-	if err := f.Validate(); err != nil {
-		*cur = old
-		return err
-	}
-	return nil
+	return f.mutate(func() error {
+		cur := f.Snippet(id)
+		if cur == nil {
+			return fmt.Errorf("unknown snippet %q", id)
+		}
+		*cur = s
+		return nil
+	})
 }
 
 // RemoveSnippet deletes the snippet with the given id. Nothing within the forge
-// references a snippet, so no rollback is needed.
+// references a snippet; it routes through mutate for uniform discipline.
 func (f *Forge) RemoveSnippet(id string) error {
-	for i := range f.Snippets {
-		if f.Snippets[i].ID == id {
-			f.Snippets = append(f.Snippets[:i], f.Snippets[i+1:]...)
-			return nil
+	return f.mutate(func() error {
+		for i := range f.Snippets {
+			if f.Snippets[i].ID == id {
+				f.Snippets = append(f.Snippets[:i], f.Snippets[i+1:]...)
+				return nil
+			}
 		}
-	}
-	return fmt.Errorf("unknown snippet %q", id)
+		return fmt.Errorf("unknown snippet %q", id)
+	})
 }

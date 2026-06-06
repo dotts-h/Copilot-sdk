@@ -3,6 +3,7 @@ package web
 import (
 	"html"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -72,7 +73,7 @@ func renderMarkdown(src string) string {
 		// ATX heading.
 		if m := mdHeading.FindStringSubmatch(line); m != nil {
 			level := len(m[1])
-			b.WriteString("<h" + itoa(level) + ">" + inline(m[2]) + "</h" + itoa(level) + ">")
+			b.WriteString("<h" + strconv.Itoa(level) + ">" + inline(m[2]) + "</h" + strconv.Itoa(level) + ">")
 			i++
 			continue
 		}
@@ -175,7 +176,7 @@ func inline(s string) string {
 	var ph []string
 	stash := func(htmlFrag string) string {
 		ph = append(ph, htmlFrag)
-		return "\x00" + itoa(len(ph)-1) + "\x00"
+		return "\x00" + strconv.Itoa(len(ph)-1) + "\x00"
 	}
 
 	// Inline code first — its contents are already escaped and must be opaque.
@@ -200,7 +201,7 @@ func inline(s string) string {
 
 	// Restore stashed fragments.
 	for idx := len(ph) - 1; idx >= 0; idx-- {
-		s = strings.ReplaceAll(s, "\x00"+itoa(idx)+"\x00", ph[idx])
+		s = strings.ReplaceAll(s, "\x00"+strconv.Itoa(idx)+"\x00", ph[idx])
 	}
 	return s
 }
@@ -215,21 +216,4 @@ func safeURL(url string) bool {
 		}
 	}
 	return true
-}
-
-// itoa avoids importing strconv for the single-digit cases used here.
-func itoa(n int) string {
-	if n >= 0 && n < 10 {
-		return string(rune('0' + n))
-	}
-	// Fall back for multi-digit placeholder indices.
-	var digits []byte
-	if n == 0 {
-		return "0"
-	}
-	for n > 0 {
-		digits = append([]byte{byte('0' + n%10)}, digits...)
-		n /= 10
-	}
-	return string(digits)
 }

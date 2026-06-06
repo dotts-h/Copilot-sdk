@@ -187,16 +187,65 @@ func (f *Forge) HasOwnChatAgent() bool {
 	return false
 }
 
-// AddSkill validates and appends a skill, rejecting duplicate IDs.
-func (f *Forge) AddSkill(s Skill) error {
-	if err := s.Validate(); err != nil {
+// forgeState is a shallow snapshot of every entity slice, used to roll a failed
+// mutation back to the exact pre-mutation forge.
+type forgeState struct {
+	skills       []Skill
+	instructions []Instruction
+	agents       []Agent
+	mcpServers   []MCPServer
+	workflows    []Workflow
+	snippets     []Snippet
+}
+
+func (f *Forge) snapshot() forgeState {
+	return forgeState{
+		skills:       append([]Skill(nil), f.Skills...),
+		instructions: append([]Instruction(nil), f.Instructions...),
+		agents:       append([]Agent(nil), f.Agents...),
+		mcpServers:   append([]MCPServer(nil), f.MCPServers...),
+		workflows:    append([]Workflow(nil), f.Workflows...),
+		snippets:     append([]Snippet(nil), f.Snippets...),
+	}
+}
+
+func (f *Forge) restore(s forgeState) {
+	f.Skills, f.Instructions, f.Agents = s.skills, s.instructions, s.agents
+	f.MCPServers, f.Workflows, f.Snippets = s.mcpServers, s.workflows, s.snippets
+}
+
+// mutate applies a forge mutation, then validates the whole forge and rolls the
+// forge back to its pre-mutation state if apply errored or the result is invalid.
+// This is the single discipline every Add/Update/Remove builder shares: an
+// element edit can never leave the in-memory forge (or the next Save) broken, and
+// referential checks (agent→skill, workflow→agent) are enforced uniformly rather
+// than per-kind. Validate is O(n) over a handful of entities, so the whole-forge
+// check on every mutation is cheap.
+func (f *Forge) mutate(apply func() error) error {
+	snap := f.snapshot()
+	if err := apply(); err != nil {
+		f.restore(snap)
 		return err
 	}
-	if f.Skill(s.ID) != nil {
-		return fmt.Errorf("skill %q already exists", s.ID)
+	if err := f.Validate(); err != nil {
+		f.restore(snap)
+		return err
 	}
-	f.Skills = append(f.Skills, s)
 	return nil
+}
+
+// AddSkill validates and appends a skill, rejecting duplicate IDs.
+func (f *Forge) AddSkill(s Skill) error {
+	return f.mutate(func() error {
+		if err := s.Validate(); err != nil {
+			return err
+		}
+		if f.Skill(s.ID) != nil {
+			return fmt.Errorf("skill %q already exists", s.ID)
+		}
+		f.Skills = append(f.Skills, s)
+		return nil
+	})
 }
 
 // Instruction returns the instruction with the given ID, or nil.
@@ -211,81 +260,71 @@ func (f *Forge) Instruction(id string) *Instruction {
 
 // AddInstruction validates and appends an instruction, rejecting duplicate IDs.
 func (f *Forge) AddInstruction(in Instruction) error {
-	if err := in.Validate(); err != nil {
-		return err
-	}
-	if f.Instruction(in.ID) != nil {
-		return fmt.Errorf("instruction %q already exists", in.ID)
-	}
-	f.Instructions = append(f.Instructions, in)
-	return nil
+	return f.mutate(func() error {
+		if err := in.Validate(); err != nil {
+			return err
+		}
+		if f.Instruction(in.ID) != nil {
+			return fmt.Errorf("instruction %q already exists", in.ID)
+		}
+		f.Instructions = append(f.Instructions, in)
+		return nil
+	})
 }
 
 // AddAgent validates and appends an agent, rejecting duplicate IDs. Referential
-// integrity (skill references) is enforced by a whole-forge validate, with the
-// append rolled back if it leaves the forge invalid.
+// integrity (skill references) is enforced by mutate's whole-forge validate.
 func (f *Forge) AddAgent(a Agent) error {
-	if err := a.Validate(); err != nil {
-		return err
-	}
-	if f.Agent(a.ID) != nil {
-		return fmt.Errorf("agent %q already exists", a.ID)
-	}
-	f.Agents = append(f.Agents, a)
-	if err := f.Validate(); err != nil {
-		f.Agents = f.Agents[:len(f.Agents)-1]
-		return err
-	}
-	return nil
+	return f.mutate(func() error {
+		if err := a.Validate(); err != nil {
+			return err
+		}
+		if f.Agent(a.ID) != nil {
+			return fmt.Errorf("agent %q already exists", a.ID)
+		}
+		f.Agents = append(f.Agents, a)
+		return nil
+	})
 }
 
 // UpdateSkill replaces the skill identified by id with s, then validates the
 // whole forge and rolls back to the prior value if the result is invalid (e.g. a
 // rename collides with another id, or a referenced field becomes invalid).
 func (f *Forge) UpdateSkill(id string, s Skill) error {
-	cur := f.Skill(id)
-	if cur == nil {
-		return fmt.Errorf("unknown skill %q", id)
-	}
-	old := *cur
-	*cur = s
-	if err := f.Validate(); err != nil {
-		*cur = old
-		return err
-	}
-	return nil
+	return f.mutate(func() error {
+		cur := f.Skill(id)
+		if cur == nil {
+			return fmt.Errorf("unknown skill %q", id)
+		}
+		*cur = s
+		return nil
+	})
 }
 
 // UpdateInstruction replaces the instruction identified by id, rolling back on
 // an invalid result.
 func (f *Forge) UpdateInstruction(id string, in Instruction) error {
-	cur := f.Instruction(id)
-	if cur == nil {
-		return fmt.Errorf("unknown instruction %q", id)
-	}
-	old := *cur
-	*cur = in
-	if err := f.Validate(); err != nil {
-		*cur = old
-		return err
-	}
-	return nil
+	return f.mutate(func() error {
+		cur := f.Instruction(id)
+		if cur == nil {
+			return fmt.Errorf("unknown instruction %q", id)
+		}
+		*cur = in
+		return nil
+	})
 }
 
 // UpdateAgent replaces the agent identified by id, rolling back on an invalid
 // result (e.g. a skill reference that does not resolve).
 func (f *Forge) UpdateAgent(id string, a Agent) error {
-	cur := f.Agent(id)
-	if cur == nil {
-		return fmt.Errorf("unknown agent %q", id)
-	}
-	old := *cur
-	*cur = a
-	if err := f.Validate(); err != nil {
-		*cur = old
-		return err
-	}
-	return nil
+	return f.mutate(func() error {
+		cur := f.Agent(id)
+		if cur == nil {
+			return fmt.Errorf("unknown agent %q", id)
+		}
+		*cur = a
+		return nil
+	})
 }
 
 // ToggleSkill flips a skill's Enabled flag, returning the new state.
@@ -308,49 +347,48 @@ func (f *Forge) ToggleInstruction(id string) (bool, error) {
 	return in.Enabled, nil
 }
 
-// RemoveSkill deletes the skill with the given id. It re-validates the whole
+// RemoveSkill deletes the skill with the given id. mutate re-validates the whole
 // forge and rolls back if the removal would orphan a reference (an agent that
 // pins the skill), so the caller gets a clear error instead of a forge that
 // later fails to save.
 func (f *Forge) RemoveSkill(id string) error {
-	for i := range f.Skills {
-		if f.Skills[i].ID == id {
-			removed := f.Skills[i]
-			f.Skills = append(f.Skills[:i], f.Skills[i+1:]...)
-			if err := f.Validate(); err != nil {
-				f.Skills = append(f.Skills, Skill{})
-				copy(f.Skills[i+1:], f.Skills[i:])
-				f.Skills[i] = removed
-				return err
+	return f.mutate(func() error {
+		for i := range f.Skills {
+			if f.Skills[i].ID == id {
+				f.Skills = append(f.Skills[:i], f.Skills[i+1:]...)
+				return nil
 			}
-			return nil
 		}
-	}
-	return fmt.Errorf("unknown skill %q", id)
+		return fmt.Errorf("unknown skill %q", id)
+	})
 }
 
 // RemoveInstruction deletes the instruction with the given id.
 func (f *Forge) RemoveInstruction(id string) error {
-	for i := range f.Instructions {
-		if f.Instructions[i].ID == id {
-			f.Instructions = append(f.Instructions[:i], f.Instructions[i+1:]...)
-			return nil
+	return f.mutate(func() error {
+		for i := range f.Instructions {
+			if f.Instructions[i].ID == id {
+				f.Instructions = append(f.Instructions[:i], f.Instructions[i+1:]...)
+				return nil
+			}
 		}
-	}
-	return fmt.Errorf("unknown instruction %q", id)
+		return fmt.Errorf("unknown instruction %q", id)
+	})
 }
 
 // RemoveAgent deletes the agent with the given id. Nothing references an agent
-// within the forge (the active-agent pointer lives in config), so no rollback
-// is needed.
+// within the forge (the active-agent pointer lives in config), but it routes
+// through mutate for uniform rollback discipline like every other builder.
 func (f *Forge) RemoveAgent(id string) error {
-	for i := range f.Agents {
-		if f.Agents[i].ID == id {
-			f.Agents = append(f.Agents[:i], f.Agents[i+1:]...)
-			return nil
+	return f.mutate(func() error {
+		for i := range f.Agents {
+			if f.Agents[i].ID == id {
+				f.Agents = append(f.Agents[:i], f.Agents[i+1:]...)
+				return nil
+			}
 		}
-	}
-	return fmt.Errorf("unknown agent %q", id)
+		return fmt.Errorf("unknown agent %q", id)
+	})
 }
 
 // MCPServer returns the MCP server with the given ID, or nil.
@@ -365,31 +403,30 @@ func (f *Forge) MCPServer(id string) *MCPServer {
 
 // AddMCPServer validates and appends an MCP server, rejecting duplicate IDs.
 func (f *Forge) AddMCPServer(m MCPServer) error {
-	if err := m.Validate(); err != nil {
-		return err
-	}
-	if f.MCPServer(m.ID) != nil {
-		return fmt.Errorf("mcpServer %q already exists", m.ID)
-	}
-	f.MCPServers = append(f.MCPServers, m)
-	return nil
+	return f.mutate(func() error {
+		if err := m.Validate(); err != nil {
+			return err
+		}
+		if f.MCPServer(m.ID) != nil {
+			return fmt.Errorf("mcpServer %q already exists", m.ID)
+		}
+		f.MCPServers = append(f.MCPServers, m)
+		return nil
+	})
 }
 
 // UpdateMCPServer replaces the server identified by id with m, then validates the
 // whole forge and rolls back to the prior value if the result is invalid (e.g. a
 // rename collides with another id).
 func (f *Forge) UpdateMCPServer(id string, m MCPServer) error {
-	cur := f.MCPServer(id)
-	if cur == nil {
-		return fmt.Errorf("unknown mcpServer %q", id)
-	}
-	old := *cur
-	*cur = m
-	if err := f.Validate(); err != nil {
-		*cur = old
-		return err
-	}
-	return nil
+	return f.mutate(func() error {
+		cur := f.MCPServer(id)
+		if cur == nil {
+			return fmt.Errorf("unknown mcpServer %q", id)
+		}
+		*cur = m
+		return nil
+	})
 }
 
 // ToggleMCPServer flips a server's Enabled flag, returning the new state.
@@ -403,15 +440,17 @@ func (f *Forge) ToggleMCPServer(id string) (bool, error) {
 }
 
 // RemoveMCPServer deletes the server with the given id. Nothing within the forge
-// references an MCP server, so no rollback is needed.
+// references an MCP server; it routes through mutate for uniform discipline.
 func (f *Forge) RemoveMCPServer(id string) error {
-	for i := range f.MCPServers {
-		if f.MCPServers[i].ID == id {
-			f.MCPServers = append(f.MCPServers[:i], f.MCPServers[i+1:]...)
-			return nil
+	return f.mutate(func() error {
+		for i := range f.MCPServers {
+			if f.MCPServers[i].ID == id {
+				f.MCPServers = append(f.MCPServers[:i], f.MCPServers[i+1:]...)
+				return nil
+			}
 		}
-	}
-	return fmt.Errorf("unknown mcpServer %q", id)
+		return fmt.Errorf("unknown mcpServer %q", id)
+	})
 }
 
 // SessionSpec is the compiled, ready-to-use context for a Copilot SDK session.

@@ -60,24 +60,8 @@ func renderSnippetForm(sn ctxforge.Snippet, isNew bool, errMsg string) string {
 	)
 }
 
-func (s *Server) handleSnippetNew(w http.ResponseWriter, r *http.Request) {
-	s.writePartial(w, renderSnippetForm(ctxforge.Snippet{}, true, ""))
-}
-
-func (s *Server) handleSnippetEdit(w http.ResponseWriter, r *http.Request) {
-	s.hub.forgeMu.Lock()
-	sn := s.forge.Snippet(r.PathValue("id"))
-	var form string
-	if sn != nil {
-		form = renderSnippetForm(*sn, false, "")
-	}
-	s.hub.forgeMu.Unlock()
-	if form == "" {
-		s.writePartial(w, s.snippetsPartial())
-		return
-	}
-	s.writePartial(w, form)
-}
+func (s *Server) handleSnippetNew(w http.ResponseWriter, r *http.Request)  { snippetCRUD.New(s, w, r) }
+func (s *Server) handleSnippetEdit(w http.ResponseWriter, r *http.Request) { snippetCRUD.Edit(s, w, r) }
 
 func snippetFromForm(r *http.Request, id string) ctxforge.Snippet {
 	return ctxforge.Snippet{
@@ -88,27 +72,11 @@ func snippetFromForm(r *http.Request, id string) ctxforge.Snippet {
 }
 
 func (s *Server) handleSnippetCreate(w http.ResponseWriter, r *http.Request) {
-	sn := snippetFromForm(r, strings.TrimSpace(r.FormValue("id")))
-	if err := s.editForge(func() error { return s.forge.AddSnippet(sn) }); err != nil {
-		s.writePartial(w, renderSnippetForm(sn, true, err.Error()))
-		return
-	}
-	s.writePartial(w, s.snippetsPartial())
+	snippetCRUD.Create(s, w, r)
 }
-
 func (s *Server) handleSnippetUpdate(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	sn := snippetFromForm(r, id)
-	if err := s.editForge(func() error { return s.forge.UpdateSnippet(id, sn) }); err != nil {
-		s.writePartial(w, renderSnippetForm(sn, false, err.Error()))
-		return
-	}
-	s.writePartial(w, s.snippetsPartial())
+	snippetCRUD.Update(s, w, r)
 }
-
 func (s *Server) handleSnippetDelete(w http.ResponseWriter, r *http.Request) {
-	if err := s.editForge(func() error { return s.forge.RemoveSnippet(r.PathValue("id")) }); err != nil {
-		s.logger.Printf("remove snippet: %v", err)
-	}
-	s.writePartial(w, s.snippetsPartial())
+	snippetCRUD.Delete(s, w, r)
 }
