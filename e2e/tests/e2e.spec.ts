@@ -342,6 +342,19 @@ test.describe("prompt/snippet library", () => {
     // The composer now holds the snippet body (not the "/trigger"), ready to edit.
     await expect(page.locator(sel.prompt)).toHaveValue(/Explain what the selected code does/);
   });
+
+  // C2 / TECH_DEBT #15: the composer is a <textarea>, so inserting a multi-line
+  // snippet keeps its line breaks (the old single-line <input> flattened them).
+  test("inserts a multi-line snippet keeping its line breaks", async ({ page }) => {
+    await gotoApp(page);
+    // The demo seeds a multi-line "checklist" snippet.
+    await page.locator(sel.prompt).pressSequentially("/checkl", { delay: 60 });
+    const item = page.locator(`${sel.cmdMenu} .cmd-snippet`).first();
+    await expect(item).toBeVisible({ timeout: 5_000 });
+    await item.click();
+    // The inserted value still contains newlines — it did not flatten to one line.
+    await expect(page.locator(sel.prompt)).toHaveValue(/Review checklist:\n1\. .+\n2\. /);
+  });
 });
 
 test.describe("slash commands", () => {

@@ -249,12 +249,29 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
   snippets (`review-pr`, `explain`) so the page/autocomplete are self-contained
   offline; e2e asserts the insert path, not exact figures — same family as the
   self-contained-demo gotcha above.
-- **The composer is a single-line `<input>` — inserted multi-line snippets flatten.**
-  An `<input type=text>` value-sanitises away newlines, so a snippet body with line
-  breaks inserted via `fillSnippet` collapses to one line in the composer (TECH_DEBT
-  #15). The **expand-and-send** path (`snippetExpansion` in `handleSend`) does *not*
-  go through the input, so a bare `/trigger` sends the body with newlines intact —
-  don't "fix" a flattened-insert test by asserting newlines survive the input.
+- **The composer is a `<textarea>` — Enter sends, Shift-Enter is a newline, and an
+  inserted multi-line snippet keeps its line breaks.** Item C2 (issue 0018) switched
+  the composer from a single-line `<input name="prompt">` to a `<textarea
+  name="prompt">`, paying down TECH_DEBT #15 (an `<input type=text>` value-sanitised
+  away newlines, flattening a multi-line `fillSnippet` insert). **The old flatten
+  gotcha inverts:** a textarea preserves newlines, so the snippet-insert test now
+  *asserts* the line breaks survive (`e2e.spec.ts` "inserts a multi-line snippet
+  keeping its line breaks"; the server has always carried the newlines in the
+  `data-body` attribute — `TestCommandsMenuPreservesMultilineSnippetBody`). Three
+  things the textarea must keep coexisting: (1) a textarea inserts a newline on Enter
+  natively, so `composerKeydown` intercepts a **bare** Enter and `form.requestSubmit()`s
+  (firing the `submit` event htmx hooks) while Shift-Enter / any modifier / IME
+  composition falls through to a newline; (2) the form's `hx-on::after-request` keeps
+  the REGRESSIONS #8 `event.target === this` guard (don't wipe the field on the
+  autocomplete GET) and now refocuses the **textarea** (`querySelector('textarea')`,
+  not `'input'`); (3) the body-level `keydown` dispatcher already skips
+  `INPUT/TEXTAREA/SELECT/contenteditable`, so typing a bound shortcut char in the
+  composer stays text, not an action (`ux.spec.ts` "typing a bound keybinding char …
+  is text"). `autosize` accounts for the `border-box` borders `scrollHeight` omits
+  (else a permanent 1–2px scrollbar). All four former `#composer input[name=prompt]`
+  selectors route through one `composer()` helper. Guarded by `internal/web`
+  `TestComposerRendersTextarea` / `TestComposerKeydownAndAutosizeWired` /
+  `TestCommandsMenuPreservesMultilineSnippetBody`.
 - **Go's `regexp` is RE2 — no backreferences.** A pattern like `([-*_])( *\1){2,}`
   panics at `MustCompile` ("invalid escape sequence: \1"). For repeated-char
   matching (e.g. the markdown horizontal rule), scan the string directly

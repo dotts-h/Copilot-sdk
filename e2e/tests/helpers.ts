@@ -3,7 +3,7 @@ import { Page, expect } from "@playwright/test";
 // Central selector map so a markup change is a one-line fix, not a sweep.
 export const sel = {
   composer: "#composer",
-  prompt: "#composer input[name=prompt]",
+  prompt: "#composer textarea[name=prompt]",
   send: "#composer button[type=submit]",
   timeline: "#timeline",
   userTurn: ".turn.user",

@@ -41,27 +41,67 @@
   {{.Overlay}}
 
   <script>
+    // composer() returns the composer's prompt field. It is a <textarea> (not a
+    // single-line <input>) so multi-line prompts and inserted multi-line snippets
+    // keep their newlines (TECH_DEBT #15 / ADR-0015).
+    function composer() {
+      return document.querySelector('#composer textarea[name=prompt]');
+    }
+
+    // autosize grows the composer to fit its content (capped by a CSS max-height,
+    // past which it scrolls), so an inserted multi-line snippet is visible. Resets
+    // to one row when the field is emptied (after a send, or on first render).
+    function autosize(el) {
+      if (!el) return;
+      el.style.height = 'auto';
+      // box-sizing is border-box (app.css), so add the borders scrollHeight omits,
+      // else the field keeps a permanent 1–2px scrollbar.
+      var border = el.offsetHeight - el.clientHeight;
+      el.style.height = (el.scrollHeight + border) + 'px';
+    }
+
+    // composerKeydown restores Enter-to-send: a <textarea> inserts a newline on
+    // Enter natively, so we intercept a bare Enter and submit the form through htmx
+    // (requestSubmit fires the 'submit' event htmx hooks). Shift-Enter (and any
+    // modifier) falls through to the textarea's native newline. The IME composition
+    // guard avoids submitting mid-composition.
+    function composerKeydown(e) {
+      // keyCode 229 is the IME "still composing" sentinel some engines report on the
+      // confirming Enter even when isComposing has already flipped false.
+      if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && !e.isComposing && e.keyCode !== 229) {
+        e.preventDefault();
+        var form = document.getElementById('composer');
+        if (form && form.requestSubmit) { form.requestSubmit(); }
+        else if (form) { form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); }
+        return false;
+      }
+      return true;
+    }
+
     // fillCmd places a chosen slash command into the composer and clears the
     // autocomplete menu, leaving a trailing space ready for arguments.
     function fillCmd(name) {
-      var input = document.querySelector('#composer input[name=prompt]');
+      var input = composer();
       if (!input) return;
       input.value = '/' + name + ' ';
       var menu = document.getElementById('cmd-menu');
       if (menu) menu.innerHTML = '';
+      autosize(input);
       input.focus();
     }
 
     // fillSnippet inserts a saved snippet's body into the composer, ready to edit
     // before sending, and clears the autocomplete menu. The body rides in the
     // button's data-body attribute (HTML-escaped by the server); reading it back
-    // as a string and assigning it to input.value never parses it as HTML.
+    // as a string and assigning it to input.value never parses it as HTML. The
+    // textarea preserves the body's newlines (TECH_DEBT #15).
     function fillSnippet(btn) {
-      var input = document.querySelector('#composer input[name=prompt]');
+      var input = composer();
       if (!input) return;
       input.value = btn.getAttribute('data-body') || '';
       var menu = document.getElementById('cmd-menu');
       if (menu) menu.innerHTML = '';
+      autosize(input);
       input.focus();
     }
 
@@ -88,7 +128,7 @@
         var close = o.querySelector('.overlay-close');
         if (close) close.focus();
       } else {
-        var input = document.querySelector('#composer input[name=prompt]');
+        var input = composer();
         if (input) input.focus();
       }
     }
@@ -104,7 +144,7 @@
           toggleHelpOverlay();
           break;
         case 'focusComposer': {
-          var input = document.querySelector('#composer input[name=prompt]');
+          var input = composer();
           if (input) { input.focus(); } else { navClick('chat'); }
           break;
         }

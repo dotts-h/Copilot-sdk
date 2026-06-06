@@ -11,7 +11,7 @@ issues are added or closed.
 | [0001](0001-epic-cost-awareness.md) | Epic: make cost active (Tier 1) | closed | 0002, 0003, 0004 |
 | [0005](0005-epic-orchestration.md) | Epic: make it an orchestra (Tier 2) | closed | 0006, 0010 |
 | [0007](0007-epic-polish.md) | Epic: polish that compounds (Tier 3) | closed | 0008, 0009, 0011, 0012 |
-| [0013](0013-epic-deepen-differentiators.md) | Epic: deepen the differentiators (roadmap v2) | open | 0014, 0015, 0016, 0017 |
+| [0013](0013-epic-deepen-differentiators.md) | Epic: deepen the differentiators (roadmap v2) | open | 0014, 0015, 0016, 0017, 0018 |
 
 ## Issues
 
@@ -30,3 +30,4 @@ issues are added or closed.
 | [0015](0015-real-parallel-workflow-lanes.md) | Real parallel workflow lanes (item B1) | closed | medium | 0013 | ADR-0013, TECH_DEBT #12 |
 | [0016](0016-cost-attribution-rollups.md) | Cost attribution — per-agent/per-workflow rollups (item A2) | closed | high | 0013 | ADR-0018 |
 | [0017](0017-budget-burn-rate-forecast.md) | Budget burn-rate projection / forecast (item A3) | closed | medium | 0013 | ADR-0019 |
+| [0018](0018-textarea-composer.md) | Textarea composer — Enter sends, Shift-Enter newline (item C2) | closed | low | 0013 | TECH_DEBT #15 |
