@@ -64,6 +64,20 @@ func Build(configDir string, demo bool) (srv *web.Hub, close func(), err error) 
 		}
 	}
 
+	// Persisted workflow-run history (sibling of the spend ledger; survives restart,
+	// feeds the Runs page). Demo uses an ephemeral, pre-seeded store so the Runs page
+	// renders deterministically offline (ADR-0022).
+	var runs *telemetry.RunStore
+	if demo {
+		runs, _ = telemetry.LoadRunStore("")
+		seedRuns(runs)
+	} else {
+		runs, err = telemetry.LoadRunStore(configDir)
+		if err != nil {
+			return nil, nil, fmt.Errorf("load run history: %w", err)
+		}
+	}
+
 	// Compile the configured default agent (or just the enabled global
 	// instructions/skills when none) so the very first session carries the same
 	// persona an explicit agent selection would apply later. SeamSpec is the same
@@ -88,6 +102,7 @@ func Build(configDir string, demo bool) (srv *web.Hub, close func(), err error) 
 		Config: cfg,
 		Meter:  meter,
 		Spend:  spend,
+		Runs:   runs,
 		Spec:   spec,
 		Demo:   demo,
 		Logger: log.New(os.Stderr, "web: ", log.LstdFlags),
@@ -151,6 +166,36 @@ func seedSpend(store *telemetry.SpendStore) {
 		{At: at(1), SessionID: "demo-sess-1", Model: "gpt-5", InputTokens: 2200, CachedTokens: 600, OutputTokens: 520, USD: 0.026, AgentID: "builder", WorkflowID: "build-and-harden", LaneIndex: 0},
 		{At: at(0), SessionID: "demo-sess-1", Model: "claude-sonnet-4-6", InputTokens: 1400, OutputTokens: 360, USD: 0.022, AgentID: "sdet", WorkflowID: "build-and-harden", LaneIndex: 1},
 		{At: at(0), SessionID: "demo-sess-1", Model: "claude-haiku-4-5", InputTokens: 800, OutputTokens: 150, USD: 0.004, AgentID: "builder"},
+	} {
+		_ = store.Append(r)
+	}
+}
+
+// seedRuns pre-loads the demo's ephemeral run history with a couple of completed
+// workflow runs so the Runs page renders offline — including a branched run with a
+// skipped lane (the per-lane outcome a spend record can't express, ADR-0022).
+// Deterministic shape; timestamps are relative to now so they read as recent.
+func seedRuns(store *telemetry.RunStore) {
+	now := time.Now()
+	for _, r := range []telemetry.RunRecord{
+		{
+			ID: "run-demo-1", WorkflowID: "build-and-harden", Name: "Build & harden",
+			Mode: "sequential", StartedAt: now.Add(-26 * time.Hour),
+			FinishedAt: now.Add(-26 * time.Hour).Add(2 * time.Minute), Outcome: "finished",
+			Lanes: []telemetry.RunLane{
+				{Index: 0, AgentID: "builder", Status: "done", Credits: 2.6},
+				{Index: 1, AgentID: "sdet", Status: "done", Credits: 2.2},
+			},
+		},
+		{
+			ID: "run-demo-2", WorkflowID: "review-and-fix", Name: "Review & fix",
+			Mode: "sequential", StartedAt: now.Add(-3 * time.Hour),
+			FinishedAt: now.Add(-3 * time.Hour).Add(90 * time.Second), Outcome: "finished",
+			Lanes: []telemetry.RunLane{
+				{Index: 0, AgentID: "sdet", Status: "done", Credits: 1.8},
+				{Index: 1, AgentID: "builder", Status: "skipped"}, // the review found no issues, so the fix branch skipped
+			},
+		},
 	} {
 		_ = store.Append(r)
 	}
