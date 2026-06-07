@@ -1,8 +1,13 @@
 name: CI
 
+# Triggers run CI exactly once per change: `pull_request` validates a branch while a
+# PR is open, and `push` validates `main` on merge. A feature branch is NOT listed
+# under `push` — listing it there ran the whole pipeline TWICE per push (the push
+# event AND the pull_request event, on different `github.ref`s the concurrency group
+# can't dedup). — see docs/CONVENTIONS.md "Quality gates"
 on:
   push:
-    branches: [main, "claude/**"]
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
