@@ -75,6 +75,14 @@ Exact commands CI enforces (`.github/workflows/ci.yml`, `Makefile`):
 - **CI runs once per change.** `ci.yml`/`e2e.yml` trigger on `pull_request` (the open PR)
   and `push: [main]` (merge) — **never** list a feature branch (`claude/**`) under `push`,
   which doubles every run. `pages.yml`/`desktop.yml` are `main`-only and path-filtered.
+- **Workflow guard (self-enforcing):** `scripts/check-workflows.sh` fails if a workflow
+  re-introduces a feature-branch `push` trigger (the double-run) or the release
+  version-resolution bug (`${GITHUB_REF_NAME:-…}`, which tags a dispatched release after
+  the branch). It runs in CI (the lint job) **and** in `make lint`, so these two regressions
+  can't land. To also catch them locally in a Claude Code session (before push), opt in by
+  adding a `PostToolUse` hook to `.claude/settings.json` that runs
+  `scripts/hook-check-workflows.sh` (matcher `Edit|Write|MultiEdit`) — the agent can't edit
+  that file (it enables an external plugin marketplace), so wire it by hand.
 
 ## Docs & comments — one fact, one home
 

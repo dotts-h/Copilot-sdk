@@ -4,7 +4,7 @@ PKG := ./...
 VERSION ?= dev
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: all build run desktop run-desktop test bench cover lint fmt vet fuzz tidy clean e2e e2e-install codemap
+.PHONY: all build run desktop run-desktop test bench cover lint fmt vet fuzz tidy clean e2e e2e-install codemap check-workflows
 
 all: lint test build
 
@@ -57,7 +57,10 @@ fmt:
 vet:
 	go vet $(PKG)
 
-lint: vet
+check-workflows:
+	bash scripts/check-workflows.sh
+
+lint: vet check-workflows
 	@unformatted=$$(gofmt -l ./cmd ./internal); \
 	if [ -n "$$unformatted" ]; then echo "gofmt needed:"; echo "$$unformatted"; exit 1; fi
 	@command -v golangci-lint >/dev/null 2>&1 && golangci-lint run --timeout=5m || echo "golangci-lint not installed; skipping"
