@@ -206,6 +206,35 @@ func TestRunsSummaryShowsTotalAndAvgCredits(t *testing.T) {
 	}
 }
 
+func TestRunsPartialRendersLaneShares(t *testing.T) {
+	// The "Cost by lane" roll-up (V14) is the finest orchestration-attribution grain:
+	// which lane in a workflow costs / fails most. It renders below the per-workflow
+	// summary, resolving the lane's agent id to a display name under forgeMu (like the
+	// run rows). A skipped lane contributes zero cost.
+	s, _ := newTestServer()
+	_ = s.forge.AddAgent(ctxforge.Agent{ID: "builder", Name: "Builder", Model: "gpt-5"})
+	rs := withRunStore(s)
+	_ = rs.Append(telemetry.RunRecord{
+		ID: "r1", WorkflowID: "build-and-harden", Name: "Build & harden", Mode: "sequential",
+		StartedAt: time.Date(2026, 6, 6, 10, 0, 0, 0, time.UTC), Outcome: "finished",
+		Lanes: []telemetry.RunLane{
+			{Index: 0, AgentID: "builder", Status: "done", Credits: 2.6},
+			{Index: 1, AgentID: "fixer", Status: "skipped"},
+		},
+	})
+	html := s.runsPartial(defaultSpendWindow)
+	for _, sub := range []string{
+		"Cost by lane",              // the section heading
+		`class="trend lane-shares"`, // the list
+		`class="trend-row lane-share-row"`,
+		"Builder", // the lane's agent id resolved to its display name
+	} {
+		if !strings.Contains(html, sub) {
+			t.Errorf("runs partial missing lane-share %q\n%s", sub, html)
+		}
+	}
+}
+
 func TestRunsPartialSlicesToWindow(t *testing.T) {
 	// The Runs page mirrors the Telemetry trend's 14/30/90-day window selector (V12):
 	// a clamped ?window= slices the run history (anchored to the most recent run) so a

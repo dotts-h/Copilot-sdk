@@ -353,6 +353,37 @@ Ranked by value × fit; all are pure readers / presentation-layer compositions o
 > TECH_DEBT #8 stays deferred to its (unmet) volume trigger. On V14's merge epic 0031
 > closes — then scope epic 0032 from a fresh value×fit pass.
 
+> **v6 update (after V14):** **V14 shipped** (issue 0037) — `telemetry.LaneShares`
+> rolls the run history up **per (workflow, lane)** to `LaneShare{WorkflowID, LaneIndex,
+> AgentID, Runs, Failures, Credits, Fraction}` (a skipped lane adds zero cost, a failed
+> lane counts as a failure), sorted by credits descending (ties → workflow id asc, then
+> lane index asc — a deterministic total order); the Runs page renders a **"Cost by
+> lane"** share list below the per-workflow summary, resolving ids → labels under
+> `forgeMu`. The per-lane cousin of `RunAggregates` — the finest
+> orchestration-attribution grain — a pure telemetry reader (returns ids; the web layer
+> resolves labels), **no schema change, no new store, no ADR**. **Epic 0031 is now
+> EXHAUSTED — all four children (V11/V13/V12/V14) shipped — and is CLOSED:** the Runs /
+> orchestration surface has reached cost-surface parity (windowed, exportable, total &
+> per-workflow & **per-lane** roll-ups). TECH_DEBT #8 stays deferred to its (unmet)
+> volume trigger.
+>
+> **→ Next: epic 0032 (roadmap v7).** With **both** persisted surfaces now mature *and*
+> at parity, a fresh value×fit pass finds the leverage is no longer *within* either
+> surface but in **converging them** — the cost ledger (`SpendStore`) and the run history
+> (`RunStore`) are still **two separate stores answering overlapping questions** (a
+> workflow's spend lives in *both*: as `WorkflowShares` over metered turns and as
+> `RunAggregates.TotalCredits` over recorded runs), reconciled **nowhere**. The two
+> figures can **diverge** (a turn metered outside a recorded run; a run whose lanes
+> metered under a different attribution) and a user has no way to see — or trust — that
+> they agree. **Epic 0032 — cost⋈run reconciliation:** a pure cross-store reader that
+> joins the two roll-ups per workflow and surfaces the **delta** (ledger spend vs.
+> recorded-run spend), so orchestrated spend is not just *accountable* on each surface but
+> *reconcilable* across them — the natural convergence of the now-mature cost +
+> orchestration surfaces. First child: a `telemetry.WorkflowReconcile`-style reader over
+> *both* record slices, surfaced on the Telemetry or Runs page as a per-workflow
+> ledger-vs-runs comparison. (A demand-gated Tier-D pick supersedes this only if concrete
+> demand has appeared; none has, so the convergence pick leads.)
+
 ---
 
 ## Appendix — roadmap v2 (shipped, epic 0013, for context)

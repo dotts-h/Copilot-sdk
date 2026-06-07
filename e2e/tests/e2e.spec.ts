@@ -390,6 +390,12 @@ test.describe("multi-agent workflows", () => {
     // average — a Total cost cell per row.
     await expect(page.locator(".run-summary-totalcost").first()).toBeVisible();
     await expect(page.locator(".run-record .run-duration").first()).toBeVisible();
+    // The "Cost by lane" roll-up (V14) — the finest orchestration-attribution grain
+    // (which lane in a workflow costs / fails most) — renders below the per-workflow
+    // summary as a share list with at least one lane row. Structure only; the demo run
+    // store is shared + append-only across the suite, so figures are not stable.
+    await expect(page.locator("#main ul.lane-shares")).toBeVisible();
+    await expect(page.locator("#main .lane-share-row").first()).toBeVisible();
 
     // The run history exports as a CSV (the orchestration sibling of the spend export):
     // the link is present and the route streams a CSV with the documented header.
