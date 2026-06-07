@@ -267,6 +267,11 @@ _Last generated: 2026-06-07 (UTC)._
 
 ## internal/telemetry
 
+### bucketforecast.go (89 LOC)
+- L28: `type BucketProjection struct`
+- L39: `func DailyTotalsBy(records []SpendRecord, keyOf func(SpendRecord) string, includeEmpty bool) map[string][]DayTotal`
+- L68: `func BucketForecasts(records []SpendRecord, budget Budget, now time.Time, keyOf func(SpendRecord) string, includeEmpty bool) []BucketProjection`
+
 ### credits.go (293 LOC)
 - L11: `type Usage struct`
 - L27: `func (u Usage) TotalTokens() int64`
@@ -492,7 +497,7 @@ _Last generated: 2026-06-07 (UTC)._
 - L333: `func (s *Server) handleMCPServerToggle(w http.ResponseWriter, r *http.Request)`
 - L339: `func (s *Server) handleMCPServerDelete(w http.ResponseWriter, r *http.Request)`
 
-### pages.go (509 LOC)
+### pages.go (574 LOC)
 - L38: `func (s *Server) renderPage(slug string) string`
 - L72: `func renderShortcuts(keymap []config.ResolvedKey) string`
 - L86: `func helpOverlay(keymap []config.ResolvedKey) string`
@@ -500,22 +505,27 @@ _Last generated: 2026-06-07 (UTC)._
 - L155: `func (s *Server) chatPartial() string`
 - L187: `func (s *Server) telemetryPartial() string`
 - L239: `func (s *Server) spendTrend() (days, shares []map[string]any, hasHistory bool)`
-- L290: `func (s *Server) spendShares() (agents, workflows []map[string]any)`
-- L313: `func shareRow(label string, credits, fraction float64) map[string]any`
-- L325: `func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any`
-- L349: `func forecastSoon(exhaust, now time.Time) bool`
-- L359: `func plural(n int, one, many string) string`
-- L369: `func (s *Server) agentLabel(id string) string`
-- L381: `func (s *Server) workflowLabel(id string) string`
-- L391: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
-- L403: `func (s *Server) skillsPartial() string`
-- L415: `func (s *Server) instructionsPartial() string`
-- L428: `func (s *Server) agentsPartial() string`
-- L452: `func addData(kind, noun string) map[string]any { return map[string]any{"Kind": kind, "Noun": noun} }`
-- L458: `func (s *Server) modelsPartial() string`
-- L488: `func (s *Server) settingsPartial() string`
-- L492: `func def(s, fallback string) string`
-- L500: `func truncate(s string, n int) string`
+- L295: `func (s *Server) spendShares(now time.Time) (agents, workflows []map[string]any)`
+- L325: `func agentKey(r telemetry.SpendRecord) string    { return r.AgentID }`
+- L326: `func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }`
+- L332: `func bucketTrajectories(bs []telemetry.BucketProjection, now time.Time) map[string]string`
+- L348: `func bucketTrajectoryText(p telemetry.Projection, now time.Time) string`
+- L367: `func daysLeftInMonth(now time.Time) int`
+- L378: `func shareRow(label string, credits, fraction float64) map[string]any`
+- L390: `func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any`
+- L414: `func forecastSoon(exhaust, now time.Time) bool`
+- L424: `func plural(n int, one, many string) string`
+- L434: `func (s *Server) agentLabel(id string) string`
+- L446: `func (s *Server) workflowLabel(id string) string`
+- L456: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
+- L468: `func (s *Server) skillsPartial() string`
+- L480: `func (s *Server) instructionsPartial() string`
+- L493: `func (s *Server) agentsPartial() string`
+- L517: `func addData(kind, noun string) map[string]any { return map[string]any{"Kind": kind, "Noun": noun} }`
+- L523: `func (s *Server) modelsPartial() string`
+- L553: `func (s *Server) settingsPartial() string`
+- L557: `func def(s, fallback string) string`
+- L565: `func truncate(s string, n int) string`
 
 ### render.go (444 LOC)
 - L25: `func esc(s string) string`

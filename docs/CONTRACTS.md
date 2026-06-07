@@ -176,6 +176,20 @@ one row per metered turn). The `agent,workflow,lane` attribution columns are
 see [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md),
 [ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md)
 
+The **Telemetry page** (`GET /page/telemetry`) reads the persisted ledger account-wide
+(month-to-date budget rows, the spend-over-time trend, per-model / per-agent / per-workflow
+shares — ADR-0009/0016/0018) plus the account-wide burn-rate **Forecast** line (ADR-0019). The
+per-agent / per-workflow "Cost by …" share bars each carry a per-bucket burn **trajectory** (F3):
+a `li.trajectory` line — *"at ~X cr/day, on pace for ~Y cr this month"* (or the Idle sentence, or
+none when no budget) — built by `spendShares(now)` joining `telemetry.BucketForecasts` (§4) onto
+each share row keyed by raw agent/workflow id under `forgeMu`, with **one** `now` threaded into
+both the per-bucket `Forecast` and the month projection. It is a **pure-reader composition** over
+the existing ledger (no schema change, no new IO); a wired-but-degenerate bucket (idle / too-new /
+no budget) renders its explanatory sentence or no line, never a bogus date. Values flow through
+`html/template` (ADR-0001). — see
+[ADR-0019](adr/0019-budget-burn-rate-forecast-trailing-window-average.md),
+[ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md)
+
 ## 4. Persisted schemas (forge + config)
 
 **Producer/consumer:** `internal/ctxforge` and `internal/config`; written to disk.
@@ -274,6 +288,22 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   `Projection.Status` (no-budget / idle / exhausted / ok). Surfaced on the
   Telemetry page and (compact) in the statusline. — see
   [ADR-0019](adr/0019-budget-burn-rate-forecast-trailing-window-average.md)
+  **Bucketed forecast (predictive ⋈ attributable — F3):** `telemetry.DailyTotalsBy(records
+  []SpendRecord, keyOf func(SpendRecord) string, includeEmpty bool) map[string][]DayTotal`
+  buckets the daily series by the A2 agent/workflow tag (mirroring `shareBy`'s `keyOf`;
+  `includeEmpty=false` skips the empty-key bucket, like `WorkflowShares`), and
+  `telemetry.BucketForecasts(records, budget, now, keyOf, includeEmpty) []BucketProjection`
+  runs the **same `Forecast` slope unchanged** over each bucket's own daily series, returning
+  `BucketProjection{Key, Credits, Projection}` sorted by spend descending then key ascending (a
+  total, deterministic order, like the `*Shares` readers). Reusing `Forecast` per bucket keeps
+  the ADR-0019 slope single-sourced — its denominator is **elapsed observed days clamped to the
+  bucket's own ledger age**, so a single-day bucket clamps to one day, not a mostly-absent week.
+  **Per-bucket framing:** a bucket has no own allowance, so the account-wide `Projection`
+  fields `DaysToCap`/`ExhaustionDate` are **not** surfaced per bucket — the Telemetry view
+  reads only the bucket's `DailyRate`/`UsedCredits` (rate + a month projection, no per-bucket
+  cap). Another **pure reader**, no schema change. — see
+  [ADR-0019](adr/0019-budget-burn-rate-forecast-trailing-window-average.md),
+  [ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md)
 - **`telemetry.RunStore`** / **`telemetry.RunRecord`** / **`telemetry.RunLane`**
   (`runs.go`): the persisted **workflow-run history** at `<configDir>/runs.json` — a
   **sibling** of the spend ledger, not a merged file (each keeps its own grain: spend
