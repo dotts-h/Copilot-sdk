@@ -344,7 +344,7 @@ _Last generated: 2026-06-07 (UTC)._
 - L177: `func normalizeModel(m string) string`
 - L185: `func (r ModelRate) String() string`
 
-### runs.go (260 LOC)
+### runs.go (335 LOC)
 - L25: `type RunLane struct`
 - L36: `type RunRecord struct`
 - L51: `func (r RunRecord) Credits() float64`
@@ -355,9 +355,11 @@ _Last generated: 2026-06-07 (UTC)._
 - L120: `type RunAggregate struct`
 - L143: `func (a RunAggregate) FailureRate() float64`
 - L159: `func RunAggregates(records []RunRecord) []RunAggregate`
-- L214: `func WriteRunsCSV(w io.Writer, records []RunRecord) error`
-- L244: `func csvTime(t time.Time) string`
-- L255: `func laterRun(s2, f2, s1, f1 time.Time) bool`
+- L214: `type LaneShare struct`
+- L232: `func LaneShares(records []RunRecord) []LaneShare`
+- L289: `func WriteRunsCSV(w io.Writer, records []RunRecord) error`
+- L319: `func csvTime(t time.Time) string`
+- L330: `func laterRun(s2, f2, s1, f1 time.Time) bool`
 
 ### store.go (185 LOC)
 - L41: `type AppendOnlyStore[T any] struct`
@@ -571,13 +573,14 @@ _Last generated: 2026-06-07 (UTC)._
 - L437: `func renderBudgetForm(projected, capCredits float64) string`
 - L446: `func clampLines(s string, n int) string`
 
-### runs.go (162 LOC)
+### runs.go (188 LOC)
 - L28: `func (s *Server) runsPartial(window int) string`
-- L56: `func windowRuns(records []telemetry.RunRecord, window int) []telemetry.RunRecord`
-- L85: `func (s *Server) runSummaryRow(a telemetry.RunAggregate) map[string]any`
-- L101: `func (s *Server) runRow(r telemetry.RunRecord) map[string]any`
-- L129: `func humanDuration(d time.Duration) string`
-- L157: `func runOutcomeGlyph(outcome string) (glyph, state string)`
+- L62: `func windowRuns(records []telemetry.RunRecord, window int) []telemetry.RunRecord`
+- L91: `func (s *Server) runSummaryRow(a telemetry.RunAggregate) map[string]any`
+- L110: `func (s *Server) laneShareRow(l telemetry.LaneShare) map[string]any`
+- L127: `func (s *Server) runRow(r telemetry.RunRecord) map[string]any`
+- L155: `func humanDuration(d time.Duration) string`
+- L183: `func runOutcomeGlyph(outcome string) (glyph, state string)`
 
 ### server.go (880 LOC)
 - L27: `type Server struct`

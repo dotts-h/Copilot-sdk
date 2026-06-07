@@ -202,6 +202,79 @@ func RunAggregates(records []RunRecord) []RunAggregate {
 	return out
 }
 
+// LaneShare is one (workflow, lane)'s slice of the run history: the lane's agent,
+// how many runs included it, how many of those failed, the total metered credits it
+// burned, and its fraction of all lane spend. The finest orchestration-attribution
+// grain — a per-lane cousin of RunAggregate (which rolls up per workflow) — answering
+// "which lane in a workflow costs / fails most?". A skipped lane contributes zero
+// credits (RunLane.Credits is already zero for it) but still counts as a run; a lane
+// whose Status is "failed" counts as a failure. AgentID is the raw id (the caller
+// resolves it to a display label), the latest one seen for that lane in chronological
+// (append) order — so a since-reassigned lane reads under its current agent.
+type LaneShare struct {
+	WorkflowID string
+	LaneIndex  int
+	AgentID    string
+	Runs       int
+	Failures   int
+	Credits    float64
+	Fraction   float64 // share of total lane credits in [0,1]
+}
+
+// LaneShares rolls a run history up per (workflow, lane) — the finest attribution
+// grain, below RunAggregates' per-workflow roll-up — sorted by credits descending so
+// the costliest lane reads first (ties broken by workflow id ascending, then lane
+// index ascending, a total order over the unique key for full determinism regardless
+// of input order). A skipped lane adds zero cost (RunLane.Credits is zero) but still
+// counts toward Runs; a lane whose Status is "failed" counts as a failure. Fraction is
+// each lane's share of all lane credits (0 when the history metered nothing). Empty
+// history → empty slice. Pure: same records → same result.
+func LaneShares(records []RunRecord) []LaneShare {
+	type key struct {
+		workflow string
+		lane     int
+	}
+	by := map[key]*LaneShare{}
+	var total float64
+	for _, r := range records {
+		for _, l := range r.Lanes {
+			k := key{r.WorkflowID, l.Index}
+			sh := by[k]
+			if sh == nil {
+				sh = &LaneShare{WorkflowID: r.WorkflowID, LaneIndex: l.Index}
+				by[k] = sh
+			}
+			sh.AgentID = l.AgentID // chronological append order ⇒ the latest agent wins
+			sh.Runs++
+			if l.Status == "failed" {
+				sh.Failures++
+			}
+			sh.Credits += l.Credits
+			total += l.Credits
+		}
+	}
+	out := make([]LaneShare, 0, len(by))
+	for _, sh := range by {
+		if total > 0 {
+			sh.Fraction = sh.Credits / total
+		}
+		out = append(out, *sh)
+	}
+	// Credits desc, then workflow id asc, then lane index asc — a total order over the
+	// unique (workflow, lane) key, so the result is fully deterministic regardless of
+	// map iteration order.
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Credits != out[j].Credits {
+			return out[i].Credits > out[j].Credits
+		}
+		if out[i].WorkflowID != out[j].WorkflowID {
+			return out[i].WorkflowID < out[j].WorkflowID
+		}
+		return out[i].LaneIndex < out[j].LaneIndex
+	})
+	return out
+}
+
 // WriteRunsCSV writes the run history as CSV for export — the orchestration sibling
 // of the spend ledger's WriteCSV. It flattens to **one row per lane** (the run-level
 // columns repeated on each), so a branched run's SKIPPED lane — which leaves no spend

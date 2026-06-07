@@ -28,6 +28,7 @@ import (
 func (s *Server) runsPartial(window int) string {
 	rows := []map[string]any{}
 	summary := []map[string]any{}
+	laneShares := []map[string]any{}
 	if s.runs != nil {
 		records := windowRuns(s.runs.Records(), window)
 		s.hub.forgeMu.Lock()
@@ -37,13 +38,18 @@ func (s *Server) runsPartial(window int) string {
 		for _, a := range telemetry.RunAggregates(records) {
 			summary = append(summary, s.runSummaryRow(a))
 		}
+		for _, l := range telemetry.LaneShares(records) {
+			laneShares = append(laneShares, s.laneShareRow(l))
+		}
 		s.hub.forgeMu.Unlock()
 	}
 	windows := make([]map[string]any, 0, len(spendWindows))
 	for _, w := range spendWindows {
 		windows = append(windows, map[string]any{"Value": w, "Active": w == window})
 	}
-	return frag("runsPage", map[string]any{"Rows": rows, "Summary": summary, "Windows": windows})
+	return frag("runsPage", map[string]any{
+		"Rows": rows, "Summary": summary, "LaneShares": laneShares, "Windows": windows,
+	})
 }
 
 // windowRuns slices a run history to the records started within `window` days of the
@@ -92,6 +98,26 @@ func (s *Server) runSummaryRow(a telemetry.RunAggregate) map[string]any {
 		"TotalCredits": telemetry.FormatCredits(a.TotalCredits),
 		"AvgCredits":   telemetry.FormatCredits(a.AvgCredits),
 		"AvgDuration":  humanDuration(a.AvgDuration),
+	}
+}
+
+// laneShareRow builds the template shape for one "Cost by lane" breakdown row (V14):
+// the finest orchestration-attribution grain — which lane in a workflow costs / fails
+// most. The lane is named by its workflow, its step (lane index + 1), and its agent;
+// the workflow and agent ids resolve to display names via workflowLabel/agentLabel —
+// caller holds forgeMu. Pct/Width render the lane's credit fraction as a percentage
+// and a meter bar, mirroring the Telemetry cost-share rows.
+func (s *Server) laneShareRow(l telemetry.LaneShare) map[string]any {
+	return map[string]any{
+		"Workflow":    s.workflowLabel(l.WorkflowID),
+		"Step":        l.LaneIndex + 1,
+		"Agent":       s.agentLabel(l.AgentID),
+		"Runs":        l.Runs,
+		"Failures":    l.Failures,
+		"HasFailures": l.Failures > 0,
+		"Credits":     fmt.Sprintf("%.2f", l.Credits),
+		"Pct":         fmt.Sprintf("%.0f", l.Fraction*100),
+		"Width":       fmt.Sprintf("%.1f%%", l.Fraction*100),
 	}
 }
 

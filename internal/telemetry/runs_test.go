@@ -352,6 +352,86 @@ func TestRunRecordCarriesSkippedLane(t *testing.T) {
 	}
 }
 
+func TestLaneSharesGrouping(t *testing.T) {
+	// LaneShares rolls a run history up per (workflow, lane) — the finest
+	// orchestration-attribution grain, answering "which lane in a workflow costs /
+	// fails most?". A skipped lane contributes zero cost (like RunAggregate); the
+	// order is by credits descending so the costliest lane reads first. Input order is
+	// shuffled to prove the roll-up is order-independent.
+	records := []RunRecord{
+		// beta: one run, one lane, 4 credits.
+		{WorkflowID: "beta", Name: "Beta", Lanes: []RunLane{
+			{Index: 0, AgentID: "b0", Status: "done", Credits: 4},
+		}},
+		// alpha: two runs, two lanes each. Lane 0 is the costly one (3 + 2);
+		// lane 1 succeeds once then skips (1 + 0).
+		{WorkflowID: "alpha", Name: "Alpha", Lanes: []RunLane{
+			{Index: 0, AgentID: "a0", Status: "done", Credits: 3},
+			{Index: 1, AgentID: "a1", Status: "done", Credits: 1},
+		}},
+		{WorkflowID: "alpha", Name: "Alpha", Lanes: []RunLane{
+			{Index: 0, AgentID: "a0", Status: "failed", Credits: 2},
+			{Index: 1, AgentID: "a1", Status: "skipped"}, // a skipped lane adds zero cost
+		}},
+	}
+	got := LaneShares(records)
+	if len(got) != 3 {
+		t.Fatalf("want 3 lane shares, got %d: %+v", len(got), got)
+	}
+	// Credits desc: (alpha,0)=5, (beta,0)=4, (alpha,1)=1.
+	if got[0].WorkflowID != "alpha" || got[0].LaneIndex != 0 {
+		t.Fatalf("share[0] = %+v, want alpha lane 0 (costliest)", got[0])
+	}
+	if got[1].WorkflowID != "beta" || got[1].LaneIndex != 0 {
+		t.Fatalf("share[1] = %+v, want beta lane 0", got[1])
+	}
+	if got[2].WorkflowID != "alpha" || got[2].LaneIndex != 1 {
+		t.Fatalf("share[2] = %+v, want alpha lane 1", got[2])
+	}
+	// alpha lane 0: two runs, one failed, credits 3+2=5, agent resolved to its latest.
+	l0 := got[0]
+	if l0.Runs != 2 || l0.Failures != 1 || l0.AgentID != "a0" {
+		t.Fatalf("alpha lane 0 runs/failures/agent = %d/%d/%q, want 2/1/a0", l0.Runs, l0.Failures, l0.AgentID)
+	}
+	approx(t, l0.Credits, 5)
+	approx(t, l0.Fraction, 0.5) // 5 of 10 total lane credits
+	// alpha lane 1: the skipped second run adds neither a failure nor any cost.
+	l1 := got[2]
+	if l1.Runs != 2 || l1.Failures != 0 {
+		t.Fatalf("alpha lane 1 runs/failures = %d/%d, want 2/0 (skip is not a failure)", l1.Runs, l1.Failures)
+	}
+	approx(t, l1.Credits, 1) // the skipped run added nothing
+	approx(t, l1.Fraction, 0.1)
+}
+
+func TestLaneSharesDeterministicOrder(t *testing.T) {
+	// Lanes with EQUAL credits tie-break by workflow id ascending, then lane index
+	// ascending — a stable total order over the unique (workflow, lane) key,
+	// regardless of input order.
+	mk := func(wf string, lane int) RunRecord {
+		return RunRecord{WorkflowID: wf, Lanes: []RunLane{{Index: lane, Status: "done", Credits: 1}}}
+	}
+	for _, order := range [][]RunRecord{
+		{mk("zeta", 1), mk("zeta", 0), mk("alpha", 0)},
+		{mk("alpha", 0), mk("zeta", 0), mk("zeta", 1)},
+	} {
+		got := LaneShares(order)
+		if len(got) != 3 {
+			t.Fatalf("want 3 lane shares, got %d", len(got))
+		}
+		if got[0].WorkflowID != "alpha" || got[1].WorkflowID != "zeta" || got[1].LaneIndex != 0 ||
+			got[2].WorkflowID != "zeta" || got[2].LaneIndex != 1 {
+			t.Fatalf("equal-credit ties must sort by workflow asc then lane asc; got %+v", got)
+		}
+	}
+}
+
+func TestLaneSharesEmpty(t *testing.T) {
+	if got := LaneShares(nil); len(got) != 0 {
+		t.Fatalf("empty history should roll up to no lane shares, got %+v", got)
+	}
+}
+
 func TestWriteRunsCSV(t *testing.T) {
 	// The runs export flattens to one row per lane (run-level columns repeated), so a
 	// branched run's SKIPPED lane — which leaves no spend record and so can't appear in

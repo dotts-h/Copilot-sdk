@@ -8,7 +8,7 @@ github:
 links:
   adr:
   prs: [59, 61, 62]
-  issues: [0034, 0035, 0036]
+  issues: [0034, 0035, 0036, 0037]
   regression:
 assets: []
 ---
@@ -79,11 +79,16 @@ negative-value, so #8 stays a candidate, deferred to its trigger. The v6 epic is
       `runsPage` template gained the same 14/30/90-day `window-row` selector as the
       Telemetry trend. **Third child.**
 
-### Candidate next children (not yet promoted — pick from the v6 research)
-
-- **V14 — Per-lane cost roll-up** (M): a `LaneShares`-style pure reader keyed by
-  (workflow, lane) over the run history, surfacing *"which lane in this workflow costs /
-  fails most?"* — the finest orchestration-attribution grain, currently unsurfaced.
+- [ ] **V14 — Per-lane cost roll-up** (M; pure reader + UI composition) →
+      [0037](0037-runs-per-lane-cost-rollup.md) (no ADR — a pure telemetry reader returning
+      ids, the web layer resolves labels, no cross-package seam). `telemetry.LaneShares`
+      rolls the run history up **per (workflow, lane)** — the per-lane cousin of
+      `RunAggregates` — to `LaneShare{WorkflowID, LaneIndex, AgentID, Runs, Failures,
+      Credits, Fraction}`, sorted by credits descending (a skipped lane adds zero cost, a
+      failed lane counts as a failure), and the Runs page renders a "Cost by lane" share
+      list below the per-workflow summary, resolving ids → labels under `forgeMu`. The
+      finest orchestration-attribution grain — *which lane in a workflow costs / fails
+      most?*. **Fourth and final child** — on its merge epic 0031 closes.
 
 ## Status
 
@@ -94,9 +99,11 @@ summary, 0035)** shipped next in **PR #61** — a pure presentation-layer slice 
 `RunAggregate.TotalCredits` beside the average. Third child **V12 (Runs time-window
 selector, 0036)** shipped next — a pure UI slice threading a clamped `?window=` through
 `runsPartial` (reusing `clampWindow`) and mirroring the Telemetry trend's 14/30/90-day
-selector on the Runs page. The one remaining candidate child (**V14 — per-lane cost
-roll-up**, the one new analytical reader) stays in the v6 research until promoted; on its
-merge epic 0031 closes.
+selector on the Runs page. The fourth and final child **V14 (per-lane cost roll-up,
+0037)** is now in flight — `telemetry.LaneShares` rolls the run history up per
+(workflow, lane) (the per-lane cousin of `RunAggregates`, the one new analytical reader)
+and the Runs page renders a "Cost by lane" share list below the per-workflow summary. On
+its merge this epic **closes** (its last child shipped).
 
 ## Notes
 

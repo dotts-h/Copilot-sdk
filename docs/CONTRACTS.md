@@ -158,6 +158,12 @@ into `#main`. A presentation-layer slice over the existing v1 records — no sch
 no new reader in telemetry. It is a
 query over the persisted `telemetry.RunStore` (§4) and its pure `RunAggregates`
 roll-up; adding it as a top-level nav page bumps the `pageNames` / e2e `pages` count.
+Below the per-workflow summary the page renders a **"Cost by lane"** share list (V14)
+from `telemetry.LaneShares` (§4) — the per-lane cousin of `RunAggregates`, keyed by
+(workflow, lane) and sorted by credits descending — resolving each lane's workflow/agent
+ids to display names under `forgeMu` (like the run rows), so *which lane in a workflow
+costs / fails most* reads at the finest grain. A pure reader + UI composition over the
+existing v1 records — no schema change, no new store, no ADR.
 A run is recorded **once on completion** by the web adapter (`workflow.go`
 `recordRun`, where `runFrags` already clears `busy`). — see
 [ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md)
@@ -479,6 +485,20 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   so a branched run's **skipped** lane (which leaves no spend record) is first-class.
   Streamed by `GET /runs/export.csv` (§3); pure (the writer is the only IO), no schema
   change, no ADR. — see
+  [ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md)
+  **Per-lane roll-up (pure reader — V14):** `telemetry.LaneShares(records []RunRecord)
+  []LaneShare` is the **per-lane cousin** of `RunAggregates` — it rolls the run history up
+  **per (workflow, lane)** to `LaneShare{WorkflowID, LaneIndex, AgentID, Runs, Failures,
+  Credits, Fraction}`, sorted by **credits descending** (ties → workflow id ascending then
+  lane index ascending, a total deterministic order). A skipped lane adds **zero cost**
+  (`RunLane.Credits` is zero) but still counts toward `Runs`; a lane whose `Status` is
+  `"failed"` counts as a failure; `Fraction` is each lane's share of all lane credits (0
+  when nothing metered); `AgentID` is the **raw id** (latest seen, chronological) — the
+  web layer resolves it to a label. Empty history → empty slice. The finest
+  orchestration-attribution grain (*which lane in a workflow costs / fails most?*), below
+  `RunAggregates`' per-workflow roll-up. **Pure** over the existing v1 records — no schema
+  change, no cross-package seam, no ADR; the Runs page (§3) renders it as a "Cost by lane"
+  share list. — see
   [ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md)
 
 ## 5. Invariants (promises that aren't a signature)
