@@ -232,7 +232,15 @@ buttons (the active window marked) that re-fetch `GET /page/telemetry?window=N` 
 trend slices `DailyTotals` to the chosen window **first**, **then** computes the bar-scaling
 `maxUSD` over what's shown — the scaling stays **window-local** so an off-window all-time peak can
 never shrink the visible bars (REGRESSIONS #14, now asserted per window). It is a presentation-layer
-slice over the existing pure reader (no schema change, no new store). — see
+slice over the existing pure reader (no schema change, no new store). Below "Cost by workflow" the
+page renders a **"Ledger vs runs"** reconciliation table (V15) from `telemetry.WorkflowReconcile`
+(§4) — the pure cross-store reader that joins the per-workflow ledger spend (the `WorkflowShares`
+grain) against the workflow's recorded-run spend (the `RunAggregates` grain) and surfaces their
+**delta** — resolving workflow ids → display names under `forgeMu` (like the share rows) and
+**ambering** a non-trivial delta (a turn metered outside a recorded run, or a run metered under a
+different attribution). It renders only when **both** a spend store and a run store are wired (the
+reconciliation needs two sides). A pure-reader composition over the two existing stores (no schema
+change, no new store, no ADR). — see
 [ADR-0019](adr/0019-budget-burn-rate-forecast-trailing-window-average.md),
 [ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md),
 [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md)
@@ -500,6 +508,25 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   change, no cross-package seam, no ADR; the Runs page (§3) renders it as a "Cost by lane"
   share list. — see
   [ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md)
+- **`telemetry.WorkflowReconcile`** (`reconcile.go`): the pure **cross-store** reconciliation
+  reader (V15) — the convergence of the two persisted stores. `WorkflowReconcile(spend
+  []SpendRecord, runs []RunRecord) []WorkflowRecon{WorkflowID, LedgerCredits, RunCredits,
+  Delta}` **joins** the spend ledger's per-workflow roll-up (`WorkflowShares` grain —
+  workflow-attributed spend, the empty-workflow chat bucket excluded) against the run
+  history's per-workflow roll-up (`RunAggregates.TotalCredits` grain — each workflow's
+  recorded runs' metered credits, a skipped lane adding zero), keyed by workflow id, with
+  `Delta = LedgerCredits − RunCredits` (0 = the two stores agree). A workflow present in
+  **one** store but not the other yields a row with the other side zero (Delta its full
+  magnitude). Sorted by **absolute delta descending** (the biggest discrepancy first; ties
+  → ledger credits descending, then workflow id ascending — a total deterministic order
+  over the unique workflow key). Empty inputs → empty slice. The cross-store cousin of the
+  two per-workflow readers it joins — it takes **both** record slices and returns **ids**
+  (the web layer resolves labels under `forgeMu`), so there is **no cross-package seam**;
+  **pure**, no schema change, **no ADR**. The Telemetry page (§3) renders it as a "Ledger
+  vs runs" comparison table, ambering a non-trivial delta. — see
+  [ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md),
+  [ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md),
+  [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md)
 
 ## 5. Invariants (promises that aren't a signature)
 

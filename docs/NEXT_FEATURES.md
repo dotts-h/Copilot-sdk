@@ -386,6 +386,88 @@ Ranked by value × fit; all are pure readers / presentation-layer compositions o
 
 ---
 
+## Roadmap v7 — cost⋈run reconciliation (code re-read 2026-06-07)
+
+> Fresh pass appended this session. Roadmaps **v1–v6** are shipped and closed (epics
+> 0001/0005/0007/0013/0022/0024/0030/0031); their picks are summarized above + in the
+> appendices. This section grounds the **next** candidates after epic 0031 brought the
+> Runs / orchestration surface to **cost-surface parity** (windowed, exportable, total &
+> per-workflow & per-lane roll-ups). The v7 epic takes **0038**; its first child takes
+> issue **0039** (next free after 0037). No ADR is consumed (the first pick is a pure
+> cross-record reader returning ids — no cross-package seam).
+
+### Where the product is now (v7 framing)
+
+Both differentiators are deep, surfaced, *and* — after v6 — **at parity** across their two
+persisted surfaces. The fresh leverage is no longer *within* either surface but in
+**converging them.** The cost ledger (`SpendStore`) and the run history (`RunStore`) are
+still **two separate stores answering overlapping questions**: a workflow's spend lives in
+**both** — as `telemetry.WorkflowShares` over metered turns **and** as
+`telemetry.RunAggregates.TotalCredits` over recorded runs — **reconciled nowhere**. The two
+figures can **diverge** (a turn metered outside a recorded run; a run whose lanes metered
+under a different attribution) and a user has no way to see — or trust — that they agree. So
+orchestrated spend is *accountable* on each surface but not *reconcilable* across them. The
+convergence is one pure cross-store reader away.
+
+### Tier K — converge the two stores (pure cross-record readers / UI composition)
+
+Ranked by value × fit; all are pure cross-record readers / presentation-layer
+compositions over the **existing v1/v2 records** — no schema change, no new store. The
+reader takes two record slices and returns ids; the web layer resolves labels under
+`forgeMu` — **no cross-package seam, no ADR**.
+
+#### V15 — cost⋈run reconciliation reader + Telemetry "Ledger vs runs" — **M** · **BUILD FIRST** · *first child of epic 0038*
+- **What:** `telemetry.WorkflowReconcile(spend []SpendRecord, runs []RunRecord)
+  []WorkflowRecon{WorkflowID, LedgerCredits, RunCredits, Delta}` joins the two roll-ups
+  per workflow — `LedgerCredits` from workflow-attributed spend (the `WorkflowShares`
+  grain, chat bucket excluded), `RunCredits` from each workflow's recorded runs
+  (`RunRecord.Credits`, the `RunAggregates.TotalCredits` grain), `Delta = LedgerCredits −
+  RunCredits` — sorted by **absolute delta descending** (the biggest discrepancy first;
+  ties → ledger credits desc, then workflow id asc, a total deterministic order). A
+  workflow present in one store but not the other appears with the other side zero. The
+  Telemetry page renders a **"Ledger vs runs"** per-workflow comparison table below "Cost
+  by workflow", resolving ids → labels under `forgeMu` and **ambering** a non-trivial
+  delta.
+- **Why now:** with both persisted surfaces mature *and* at parity, the next leverage is
+  converging them; this is the lowest-risk first step — a pure cross-record reader
+  mirroring the `*Shares` / `RunAggregates` patterns, no schema change. Makes orchestrated
+  spend *reconcilable*, not just accountable. Highest value × fit of the convergence gaps.
+- **Touches:** `internal/telemetry` (`reconcile.go`: `WorkflowReconcile`, `WorkflowRecon`),
+  `internal/web` (`pages.go` `workflowReconcile`/`reconcileRow`, `telemetryPartial`,
+  `templates/fragments.html` `telemetryPage`, `static/app.css` `.recon`).
+- **No ADR** (pure cross-record reader returning ids, no cross-package seam — pre-blessed
+  by the same convergence rationale as ADR-0022 / the `*Shares` readers). **Issue
+  [0039](issues/0039-cost-run-reconciliation.md); epic
+  [0038](issues/0038-epic-cost-run-reconciliation.md).**
+
+#### V16 — per-lane / per-session reconciliation — **M** · candidate
+- **What:** extend the join below the per-workflow grain — reconcile the ledger's
+  `(workflow, lane)`-tagged spend (ADR-0018) against `LaneShares` over the run history, or
+  reconcile per copilot session (`SessionShares`) where a session spans recorded runs — so
+  a divergence is locatable at the finer grain, not just the workflow total. **Touches:**
+  `internal/telemetry` (a finer-grain reconcile reader), `internal/web` (Telemetry or Runs
+  section). **No schema change**; an ADR only if a cross-package seam appears (it
+  shouldn't).
+
+#### V17 — surface the reconciliation delta in the export / forecast — **S** · candidate
+- **What:** carry the per-workflow `Delta` into the CSV export (a reconciliation column or
+  a sibling `WriteReconcileCSV`) so the divergence leaves the tool like the spend/run
+  ledgers do, and/or annotate the burn-rate forecast when the ledger and run sides
+  disagree materially. **Touches:** `internal/telemetry`, `internal/web`. Presentation /
+  pure-reader; **no schema change, no ADR.**
+
+### Recommended sequencing (v7)
+
+1. **V15 — cost⋈run reconciliation reader + Telemetry "Ledger vs runs"** *(BUILD FIRST)*.
+   Opens the convergence story; M; pure cross-record reader + UI composition; mirrors the
+   `*Shares` / `RunAggregates` patterns. → issue **0039**, epic **0038**.
+2. **V16 → V17** — finer-grain reconciliation (per-lane / per-session), then surface the
+   delta in the export / forecast: once the per-workflow join exists, extend the grain and
+   the reach.
+3. **TECH_DEBT #8** only when its volume trigger actually fires.
+
+---
+
 ## Appendix — roadmap v2 (shipped, epic 0013, for context)
 
 | item | feature | ADR | issue |

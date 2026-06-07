@@ -96,6 +96,15 @@ func TestBuildDemoTelemetryShowsTrend(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "Spend over time") {
 		t.Fatalf("demo telemetry page missing the trend view:\n%s", rec.Body.String())
 	}
+	// The cost⋈run reconciliation (V15) joins the demo's seeded ledger and run
+	// history per workflow: build-and-harden agrees across both stores while
+	// review-and-fix metered a run with no matching ledger spend, so its delta is
+	// non-trivial and ambered — the divergence the section exists to surface.
+	for _, want := range []string{"Ledger vs runs", `class="grid recon"`, `recon-delta amber`} {
+		if !strings.Contains(rec.Body.String(), want) {
+			t.Fatalf("demo telemetry page missing reconciliation %q:\n%s", want, rec.Body.String())
+		}
+	}
 
 	csv := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(csv, httptest.NewRequest(http.MethodGet, "/telemetry/export.csv", nil))

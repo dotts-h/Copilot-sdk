@@ -126,6 +126,85 @@ func TestTelemetryPageShowsAttributionBreakdown(t *testing.T) {
 	}
 }
 
+func TestTelemetryPageShowsLedgerVsRunsReconciliation(t *testing.T) {
+	// The "Ledger vs runs" reconciliation (V15) joins the two persisted stores per
+	// workflow: the ledger spend (WorkflowShares grain) beside what the workflow's
+	// recorded runs metered (RunAggregates grain), and the delta. A non-trivial delta
+	// is ambered. The workflow id resolves to its display name under forgeMu.
+	s, store := newSpendServer(t)
+	s.forge.Workflows = []ctxforge.Workflow{{ID: "ship", Name: "Ship", Mode: ctxforge.WorkflowSequential}}
+	rs := withRunStore(s)
+	// Ledger: the workflow metered 5.00 cr ($0.05) over two turns.
+	for _, r := range []telemetry.SpendRecord{
+		{At: day("2026-06-04T10:00:00Z"), Model: "gpt-5", USD: 0.03, WorkflowID: "ship", LaneIndex: 0},
+		{At: day("2026-06-05T10:00:00Z"), Model: "gpt-5", USD: 0.02, WorkflowID: "ship", LaneIndex: 0},
+	} {
+		if err := store.Append(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Runs: a recorded run metered only 4.00 cr — diverges from the ledger (delta +1.00).
+	if err := rs.Append(telemetry.RunRecord{
+		ID: "r1", WorkflowID: "ship", Name: "Ship", Mode: "sequential", Outcome: "finished",
+		Lanes: []telemetry.RunLane{{Index: 0, Status: "done", Credits: 4}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	html := s.telemetryPartial(defaultSpendWindow)
+	for _, want := range []string{
+		"Ledger vs runs",            // the section heading
+		`class="grid recon"`,        // the comparison table
+		`class="recon-row"`,         // a per-workflow row
+		"Ship",                      // the workflow id resolved to its display name
+		`class="recon-delta amber"`, // the non-trivial delta is ambered
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("telemetry page missing reconciliation %q\n%s", want, html)
+		}
+	}
+}
+
+func TestTelemetryReconciliationHiddenWithoutRunStore(t *testing.T) {
+	// Reconciliation needs BOTH stores — with no run store wired there is nothing to
+	// reconcile against, so the section is absent (the page keeps its prior shape).
+	s, store := newSpendServer(t)
+	s.forge.Workflows = []ctxforge.Workflow{{ID: "ship", Name: "Ship", Mode: ctxforge.WorkflowSequential}}
+	if err := store.Append(telemetry.SpendRecord{At: day("2026-06-04T10:00:00Z"), Model: "gpt-5", USD: 0.05, WorkflowID: "ship"}); err != nil {
+		t.Fatal(err)
+	}
+	html := s.telemetryPartial(defaultSpendWindow)
+	if strings.Contains(html, "Ledger vs runs") {
+		t.Fatalf("reconciliation should be absent with no run store:\n%s", html)
+	}
+}
+
+func TestTelemetryReconciliationRendersWithoutSpendHistory(t *testing.T) {
+	// The reconciliation must render even when the ledger has NO history yet (so the
+	// "Spend over time" trend is absent) but the run store holds runs — a run-only
+	// workflow is the sharpest divergence (cost recorded by a run but never reaching
+	// the ledger under that id), exactly what the section exists to surface. Regression:
+	// the section once lived inside the HasHistory branch and was dropped in this case.
+	s, _ := newSpendServer(t) // ephemeral ledger, left empty → HasHistory false
+	s.forge.Workflows = []ctxforge.Workflow{{ID: "ship", Name: "Ship", Mode: ctxforge.WorkflowSequential}}
+	rs := withRunStore(s)
+	if err := rs.Append(telemetry.RunRecord{
+		ID: "r1", WorkflowID: "ship", Name: "Ship", Mode: "sequential", Outcome: "finished",
+		Lanes: []telemetry.RunLane{{Index: 0, Status: "done", Credits: 3}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	html := s.telemetryPartial(defaultSpendWindow)
+	if strings.Contains(html, "Spend over time") {
+		t.Fatalf("an empty ledger should show no spend trend:\n%s", html)
+	}
+	// ...yet the run-only reconciliation row (ledger 0, runs 3.00, delta −3.00) renders.
+	for _, want := range []string{"Ledger vs runs", `class="recon-row"`, "Ship", `class="recon-delta amber"`} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("run-only reconciliation should render without spend history, missing %q\n%s", want, html)
+		}
+	}
+}
+
 func TestNewSessionSeedsActiveAgentFromConfig(t *testing.T) {
 	// A new session inherits the launch-time active agent, so its first chat turn
 	// attributes spend correctly even before any /agent switch.
