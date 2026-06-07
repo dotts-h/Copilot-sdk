@@ -466,6 +466,20 @@ reader takes two record slices and returns ids; the web layer resolves labels un
    the reach.
 3. **TECH_DEBT #8** only when its volume trigger actually fires.
 
+> **v7 update (after V15):** **V15 shipped** (PR #66, issue 0039) — `telemetry.WorkflowReconcile(spend
+> []SpendRecord, runs []RunRecord) []WorkflowRecon{WorkflowID, LedgerCredits, RunCredits, Delta}`
+> joins the two persisted stores' per-workflow roll-ups (the `WorkflowShares` ledger grain vs
+> the `RunAggregates.TotalCredits` run grain) and surfaces the **delta**, sorted by absolute
+> delta descending (a workflow present in one store but not the other appears with the other
+> side zero). The Telemetry page renders a **"Ledger vs runs"** comparison table below "Cost by
+> workflow", resolving ids → labels under `forgeMu` and **ambering** a non-trivial delta — so
+> orchestrated spend is *reconcilable* across the two stores, not just *accountable* on each. A
+> pure cross-record reader returning ids (no schema change, no new store, no cross-package seam,
+> no ADR). **Epic 0038 stays OPEN** — V15 is its first child. **Remaining, re-ranked:** **V16 —
+> per-lane / per-session reconciliation** (M, the finer-grain join, the natural next child) →
+> then **V17 — surface the delta in the export / forecast** (S). TECH_DEBT #8 stays deferred to
+> its (unmet) volume trigger.
+
 ---
 
 ## Appendix — roadmap v2 (shipped, epic 0013, for context)

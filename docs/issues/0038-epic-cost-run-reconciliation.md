@@ -7,7 +7,7 @@ group:
 github:
 links:
   adr:
-  prs:
+  prs: [66]
   issues: [0039]
   regression:
 ---
@@ -51,8 +51,10 @@ negative-value. The v7 epic is a **product/convergence** epic instead.
 
 ## Tasks
 
-- [ ] **V15 — cost⋈run reconciliation reader + Telemetry "Ledger vs runs"** (M; pure
-      cross-store reader + UI composition) → [0039](0039-cost-run-reconciliation.md).
+- [x] **V15 — cost⋈run reconciliation reader + Telemetry "Ledger vs runs"** (M; pure
+      cross-store reader + UI composition) → [0039](0039-cost-run-reconciliation.md)
+      (**shipped**, PR #66; no ADR — a pure cross-record reader returning ids, no
+      cross-package seam).
       `telemetry.WorkflowReconcile(spend []SpendRecord, runs []RunRecord) []WorkflowRecon`
       joins the two roll-ups per workflow to `WorkflowRecon{WorkflowID, LedgerCredits,
       RunCredits, Delta}`, sorted by absolute delta descending (the biggest discrepancy
@@ -63,12 +65,15 @@ negative-value. The v7 epic is a **product/convergence** epic instead.
 
 ## Status
 
-**Open — first child in flight.** V15 (cost⋈run reconciliation, 0039) is the opening
-build; per the repo convention an epic is born in its first child's PR (cf. epic 0031 in
-V11's PR #59). On V15's merge this epic records that PR and stays **open** with more
-reconciliation children to come (e.g. a per-lane or per-session reconciliation, or
-surfacing the delta in the export/forecast — scoped from a fresh value×fit pass once the
-first child lands).
+**Open — first child shipped.** First child **V15 (cost⋈run reconciliation, 0039)** shipped
+in this epic's opening **PR #66** — per the repo convention an epic is born in its first
+child's PR (cf. epic 0031 in V11's PR #59). `telemetry.WorkflowReconcile` joins the spend
+ledger's and the run history's per-workflow roll-ups and surfaces the **delta**, rendered
+as a "Ledger vs runs" comparison on the Telemetry page (ids → labels under `forgeMu`, a
+non-trivial delta ambered). The epic stays **open** with more reconciliation children to
+come — the remaining convergence slices (e.g. a per-lane or per-session reconciliation, or
+surfacing the delta in the export/forecast — V16/V17 in NEXT_FEATURES "roadmap v7"), to be
+scoped from a fresh value×fit pass as the next implementation session.
 
 ## Notes
 
