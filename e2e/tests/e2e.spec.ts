@@ -244,6 +244,41 @@ test.describe("MCP server management", () => {
     await expect(page.locator(sel.rows)).toHaveCount(before + 1);
     await expect(page.locator("#main")).toContainText("E2E server");
   });
+
+  // ADR-0020: the Env editor accepts a masked secret row that persists ONLY a
+  // ${VAR} reference. We add a server with a secret Env row, then re-open its
+  // edit form and assert the forge doc round-tripped the reference (the masked
+  // value shows the bare VAR_NAME, secret checked) — never a raw key.
+  test("Env editor stores a secret as a masked ${VAR} reference", async ({ page }) => {
+    await gotoApp(page);
+    await navTo(page, "MCP");
+    // Unique id AND name so a retry against the shared demo session can't leave two
+    // same-named rows that make the edit locator ambiguous (strict-mode violation).
+    const stamp = Date.now();
+    const id = `e2e-secret-${stamp}`;
+    const name = `E2E secret server ${stamp}`;
+    await page.locator(`#main button.add`).click();
+    await expect(page.locator(`#main form[hx-post="/mcp"]`)).toBeVisible();
+    await page.fill(`#main input[name="id"]`, id);
+    await page.fill(`#main input[name="name"]`, name);
+    await page.fill(`#main input[name="command"]`, "echo");
+    // First Env row: the key the server reads + the env var that holds the secret,
+    // marked secret. The user names a variable — never types the secret itself.
+    await page.fill(`#main input[name="env.key.0"]`, "GITHUB_TOKEN");
+    await page.fill(`#main input[name="env.val.0"]`, "E2E_GH_PAT");
+    await page.check(`#main input[name="env.secret.0"]`);
+    await page.locator(`#main button[type=submit]`).click();
+
+    // Re-open the edit form for the row we just created and assert the persisted
+    // reference round-tripped: the secret box is checked, the value is masked and
+    // shows the VAR_NAME, and the ${...} wrapper never leaks into the input.
+    await page.locator(sel.rows, { hasText: name }).locator("button.edit").click();
+    const secretBox = page.locator(`#main input[name="env.secret.0"]`);
+    await expect(secretBox).toBeChecked();
+    const secretVal = page.locator(`#main input[name="env.val.0"]`);
+    await expect(secretVal).toHaveAttribute("type", "password");
+    await expect(secretVal).toHaveValue("E2E_GH_PAT");
+  });
 });
 
 test.describe("multi-agent workflows", () => {

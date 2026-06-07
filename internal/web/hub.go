@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
 	"sync"
 
@@ -43,6 +44,10 @@ type Hub struct {
 	// the one impurity in the otherwise-pure forge rendering, isolated behind this
 	// seam so tests can inject a fake; defaults to exec.LookPath.
 	lookPath func(string) (string, error)
+	// lookupEnv resolves an MCP Env ${VAR} reference for the forge→seam translation
+	// and the secrets preflight (ADR-0020), behind a seam so tests inject a fake
+	// env; defaults to os.Getenv.
+	lookupEnv func(string) string
 
 	// forgeMu serializes mutation of (and reads against mutation of) the shared
 	// forge and config across all sessions.
@@ -97,7 +102,7 @@ func New(opts Options) *Hub {
 		client: opts.Client, forge: opts.Forge, config: opts.Config, meter: opts.Meter, spend: opts.Spend, runs: opts.Runs,
 		allowance: allowance, warnFraction: warnFraction, hardCap: hardCap,
 		baseSpec: opts.Spec, baseAgentID: baseAgentID, logger: lg, demo: opts.Demo, workdir: workdir,
-		lookPath: exec.LookPath,
+		lookPath: exec.LookPath, lookupEnv: os.Getenv,
 		sessions: map[string]*Server{}, byCopilot: map[string]*Server{},
 	}
 	go h.pump()
@@ -117,8 +122,8 @@ func (h *Hub) newSession(id string) *Server {
 		// always supply one).
 		sessionMeter: telemetry.NewMeter(h.meter.PriceBook()),
 		allowance:    h.allowance, warnFraction: h.warnFraction, hardCap: h.hardCap,
-		lookPath: h.lookPath,
-		logger:   h.logger, demo: h.demo,
+		lookPath: h.lookPath, lookupEnv: h.lookupEnv,
+		logger: h.logger, demo: h.demo,
 		spec:           h.baseSpec,
 		agentID:        h.baseAgentID,
 		sessionStartMs: nowMs(),

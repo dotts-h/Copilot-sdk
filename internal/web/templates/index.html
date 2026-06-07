@@ -105,6 +105,17 @@
       input.focus();
     }
 
+    // mcpToggleSecret flips an Env row's value input between masked (password)
+    // and plain text when its "secret" checkbox toggles, so a secret reference is
+    // entered masked. Persistence is server-side: a secret row stores only the
+    // ${VAR} reference, never a raw secret (ADR-0020); this is presentation only.
+    function mcpToggleSecret(cb) {
+      var row = cb.closest('.env-row');
+      if (!row) return;
+      var val = row.querySelector('.env-val');
+      if (val) val.type = cb.checked ? 'password' : 'text';
+    }
+
     // --- keyboard shortcuts (item 3.3) ---
     // The server renders the active action→key map onto <body data-keymap>; we
     // build the reverse (key→action) and dispatch on keydown. Shortcuts are

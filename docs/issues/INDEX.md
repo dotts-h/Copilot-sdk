@@ -32,7 +32,7 @@ issues are added or closed.
 | [0016](0016-cost-attribution-rollups.md) | Cost attribution — per-agent/per-workflow rollups (item A2) | closed | high | 0013 | ADR-0018 |
 | [0017](0017-budget-burn-rate-forecast.md) | Budget burn-rate projection / forecast (item A3) | closed | medium | 0013 | ADR-0019 |
 | [0018](0018-textarea-composer.md) | Textarea composer — Enter sends, Shift-Enter newline (item C2) | closed | low | 0013 | TECH_DEBT #15 |
-| [0019](0019-mcp-secrets-env-editor.md) | MCP secrets / Env editor (item C1) | open | high | 0022 | ADR-0020, TECH_DEBT #10 |
+| [0019](0019-mcp-secrets-env-editor.md) | MCP secrets / Env editor (item C1) | closed | high | 0022 | ADR-0020, TECH_DEBT #10 |
 | [0020](0020-conditional-branching-workflow-steps.md) | Conditional / branching workflow steps (item B2) | closed | medium | 0013 | ADR-0021 |
 | [0021](0021-workflow-run-history.md) | Workflow run history (item B3) | closed | medium | 0013 | ADR-0022 |
 | [0023](0023-workflow-run-aggregations.md) | Workflow run-history aggregations + Runs duration (item V1) | open | medium | 0022 | ADR-0022 |
