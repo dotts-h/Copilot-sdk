@@ -155,19 +155,20 @@ differentiator is folded in where it earns its place.
 
 ## Tier H — paydown that advances the architecture
 
-### H1 — Generic `telemetry.AppendOnlyStore[T]`  — **M**  ·  *candidate (debt)*
-- **What:** extract the duplicated `SpendStore`/`RunStore` machinery (versioned
-  envelope, atomic temp-file+rename, missing=empty / invalid=error / empty-dir=ephemeral,
-  `Append`/`Records`/`Count`) into one generic store; the two stores become thin typed
-  wrappers. Flagged in the B3 review, deferred then as scope creep.
-- **Why now:** the duplication is now real (two near-identical files, `history.go` +
-  `runs.go`) and a third store (if any future persisted history appears) would triple it;
-  paying it down keeps the persistence discipline single-sourced. Pure, dependency-free.
-  Best done as a **precursor** to F1/G2 (which add readers, not stores) or standalone.
-  **Touches:** `internal/telemetry` (new `store.go` generic; `history.go`/`runs.go`
-  rewrap). Needs care: the on-disk JSON tags (`records` vs `runs`) are the stable
-  contract and must not change — a refactor-only paydown, guarded by the existing
-  round-trip/atomic/migration tests.
+### H1 — Generic `telemetry.AppendOnlyStore[T]`  ✅ **shipped** (roadmap v5, epic 0030, issue [0033](issues/0033-generic-append-only-store.md))
+- **Built:** the duplicated `SpendStore`/`RunStore` machinery (versioned envelope, atomic
+  temp-file+rename, missing=empty / invalid=error / empty-dir=ephemeral,
+  `Append`/`Records`/`Count`) collapsed into one generic `telemetry.AppendOnlyStore[T any]`
+  (`store.go`); the two stores are now thin `struct{ *AppendOnlyStore[…] }` embeddings that
+  preserve their **exact** public API and a **byte-identical** on-disk shape — a hand-built
+  `envelope[T]` marshaler reproduces the `{"version":N,"<key>":[…]}` output so `MarshalIndent`
+  re-indents it the same. The on-disk JSON tags (`records`/`runs`/`version`) are the unchanged
+  stable contract; the spend v1→v2 read needs no migration code (additive tags read back empty).
+  Pure, dependency-free. Refactor-only paydown guarded by the existing
+  round-trip/atomic/migration/ephemeral tests + a direct generic-store test + on-disk-tag pins
+  (`TestSpendStoreOnDiskTagsAreStable` / `TestRunStoreOnDiskTagsAreStable`). Resolves TECH_DEBT
+  #14; no new ADR (preserves ADR-0009 / ADR-0022, referenced from CONTRACTS §4). **Third and
+  final child of epic 0030 — its merge closed the epic** (V3, V10, H1 all shipped).
 
 ## Tier I — small surface polish (pull opportunistically)
 

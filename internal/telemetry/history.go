@@ -2,15 +2,10 @@ package telemetry
 
 import (
 	"encoding/csv"
-	"encoding/json"
-	"fmt"
 	"io"
 	"math"
-	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
-	"sync"
 	"time"
 )
 
@@ -68,96 +63,37 @@ const (
 	SpendSchemaVersion = 2
 )
 
-// spendDoc is the on-disk envelope: a version tag plus the record array.
-type spendDoc struct {
-	Version int           `json:"version"`
-	Records []SpendRecord `json:"records"`
-}
-
-// SpendStore is the persisted spend ledger. It is goroutine-safe and atomic on
+// SpendStore is the persisted spend ledger: a thin typed wrapper over the shared
+// AppendOnlyStore[SpendRecord] (store.go). It is goroutine-safe and atomic on
 // write. A store with an empty dir is ephemeral (in-memory only) — used by the
-// offline demo and tests so they never touch a real config directory.
+// offline demo and tests so they never touch a real config directory. Append,
+// Records, and Count are promoted from the embedded generic store; the on-disk
+// envelope (`{"version":2,"records":[…]}`) is unchanged — the stable contract.
 type SpendStore struct {
-	mu      sync.Mutex
-	dir     string
-	records []SpendRecord
+	*AppendOnlyStore[SpendRecord]
 }
 
 // LoadSpendStore reads the ledger from dir/spend.json, returning an empty store
 // when the file is absent (first run) and an error when it is present but
-// unparseable. An empty dir yields an ephemeral, in-memory-only store.
+// unparseable. An empty dir yields an ephemeral, in-memory-only store. Append
+// stamps At with the current time when zero (the per-record hook), and a v1 file
+// without the v2 attribution tags loads unchanged (the tags are additive, so
+// older records simply read back empty — no migration code, just additive JSON).
 func LoadSpendStore(dir string) (*SpendStore, error) {
-	s := &SpendStore{dir: dir}
-	if dir == "" {
-		return s, nil
-	}
-	data, err := os.ReadFile(filepath.Join(dir, spendFile))
-	if os.IsNotExist(err) {
-		return s, nil
-	}
+	inner, err := loadAppendOnlyStore(dir, spendFile, "records", "spend history", SpendSchemaVersion, stampSpend)
 	if err != nil {
-		return nil, fmt.Errorf("read spend history: %w", err)
+		return nil, err
 	}
-	var doc spendDoc
-	if err := json.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("parse spend history %s: %w", filepath.Join(dir, spendFile), err)
-	}
-	// The records array is the stable contract; a newer version's extra fields
-	// are ignored by json.Unmarshal, so the file stays forward-readable.
-	s.records = doc.Records
-	return s, nil
+	return &SpendStore{inner}, nil
 }
 
-// Append records a turn's spend (stamping At with the current time when zero)
-// and persists the whole ledger atomically. An ephemeral store keeps it in
-// memory only. The atomic temp-file + rename means a crash mid-write never
-// leaves a partial file — the prior history stays intact.
-func (s *SpendStore) Append(r SpendRecord) error {
+// stampSpend defaults a record's At to now when the caller left it zero — the
+// spend store's per-record Append hook.
+func stampSpend(r SpendRecord) SpendRecord {
 	if r.At.IsZero() {
 		r.At = time.Now()
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.records = append(s.records, r)
-	return s.save()
-}
-
-// save writes the in-memory ledger to disk atomically. Caller holds s.mu. A
-// no-op for an ephemeral store. Mirrors config.Save's temp-file + rename.
-func (s *SpendStore) save() error {
-	if s.dir == "" {
-		return nil
-	}
-	doc := spendDoc{Version: SpendSchemaVersion, Records: s.records}
-	data, err := json.MarshalIndent(doc, "", "  ")
-	if err != nil {
-		return fmt.Errorf("encode spend history: %w", err)
-	}
-	if err := os.MkdirAll(s.dir, 0o755); err != nil {
-		return fmt.Errorf("create config dir: %w", err)
-	}
-	path := filepath.Join(s.dir, spendFile)
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return fmt.Errorf("write spend history: %w", err)
-	}
-	return os.Rename(tmp, path)
-}
-
-// Records returns a snapshot copy of the ledger, safe to read without the lock.
-func (s *SpendStore) Records() []SpendRecord {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := make([]SpendRecord, len(s.records))
-	copy(out, s.records)
-	return out
-}
-
-// Count returns how many records the ledger holds.
-func (s *SpendStore) Count() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return len(s.records)
+	return r
 }
 
 // DayTotal aggregates one calendar day's spend across all sessions and models.

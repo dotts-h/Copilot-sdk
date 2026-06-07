@@ -342,7 +342,15 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   [ADR-0014](adr/0014-keybinding-surface-config-backed-keymap-with-minimal-js-dispatch.md),
   [REGRESSIONS #18](REGRESSIONS.md)
 - **`telemetry.SpendStore`** / **`telemetry.SpendRecord`** (`history.go`): the persisted
-  spend ledger at `<configDir>/spend.json`. On-disk shape is a versioned envelope
+  spend ledger at `<configDir>/spend.json`. **Shared machinery (H1):** `SpendStore` and
+  `RunStore` (below) are now thin typed embeddings of one generic
+  `telemetry.AppendOnlyStore[T any]` (`store.go`) that single-sources the persistence
+  discipline (atomic temp-file+rename, missing=empty, present-but-invalid=error,
+  newer-`version`-tolerant, `dir==""`-ephemeral, mutex-guarded `Append`/`Records`/`Count`);
+  the **on-disk JSON tags (`version` + `records`/`runs`) are the unchanged stable contract**
+  — the generic store writes byte-identically to the pre-H1 stores. A refactor-only paydown
+  that preserves this and the run envelope (issue 0033, TECH_DEBT #14; no new ADR — see
+  ADR-0009 / ADR-0022). On-disk shape is a versioned envelope
   `{"version":2,"records":[…]}`; each record is
   `{at, session?, model, in, cached, out, usd, aiu?, agent?, workflow?, lane?}` (JSON
   tags are the contract). Written **atomically** (temp-file + rename); missing file =
@@ -401,8 +409,10 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
 - **`telemetry.RunStore`** / **`telemetry.RunRecord`** / **`telemetry.RunLane`**
   (`runs.go`): the persisted **workflow-run history** at `<configDir>/runs.json` — a
   **sibling** of the spend ledger, not a merged file (each keeps its own grain: spend
-  is one row per metered turn, runs is one row per orchestrated run). On-disk shape is
-  the versioned envelope `{"version":1,"runs":[…]}`; each `RunRecord` is
+  is one row per metered turn, runs is one row per orchestrated run). Shares the generic
+  `telemetry.AppendOnlyStore[T]` machinery with `SpendStore` (H1, above) — same atomic-write
+  / missing=empty / newer-version-tolerant / ephemeral discipline, same unchanged on-disk
+  tags. On-disk shape is the versioned envelope `{"version":1,"runs":[…]}`; each `RunRecord` is
   `{id, workflow, name, mode, startedAt, finishedAt, outcome, lanes:[{index, agentId?,
   status, credits?}]}` (JSON tags are the contract). A lane's `status` ∈ {`done`,
   `failed`, `skipped`} — so a **branched** run's per-lane outcomes, including a

@@ -1,14 +1,14 @@
 ---
 id: 0030
 title: "Epic: orchestration visibility & polish (roadmap v5)"
-status: open
+status: closed
 severity: medium
 group:
 github:
 links:
   adr:
-  prs: [56, 57]
-  issues: [0031, 0032]
+  prs: [56, 57, 58]
+  issues: [0031, 0032, 0033]
   regression:
 assets: []
 ---
@@ -52,17 +52,25 @@ This epic carries the **v5 orchestration-visibility + polish** picks:
       a full page reload. Reads back the persisted keymap so a no-op/rolled-back save can't
       desync live from disk; escaped per ADR-0001. Completes the ADR-0014 mechanism (no new
       ADR); resolves TECH_DEBT #13, guards REGRESSIONS #18.
-- [ ] **H1 — generic `telemetry.AppendOnlyStore[T]`** (M, debt) — not yet promoted into an
-      issue. Extract the duplicated `SpendStore`/`RunStore` machinery into one generic
-      store, guarded by the existing round-trip/atomic/migration tests; the on-disk JSON
-      tags must not change.
+- [x] **H1 — generic `telemetry.AppendOnlyStore[T]`** (M, debt) → **shipped** as issue
+      [0033](0033-generic-append-only-store.md) (PR #58; no ADR — a refactor-only paydown
+      that keeps the ADR-0009 spend + ADR-0022 run envelopes byte-identical). The duplicated
+      `SpendStore`/`RunStore` machinery (atomic temp+rename, missing=empty / corrupt=error /
+      newer-version-tolerant / ephemeral, `Append`/`Records`/`Count`) collapsed into one
+      generic `AppendOnlyStore[T]` (`store.go`); the two stores are now thin typed embeddings
+      that preserve their exact public API, and the on-disk JSON tags (`version` +
+      `records`/`runs`) are unchanged — verified byte-identical and guarded by the existing
+      round-trip/atomic/migration/ephemeral tests plus a direct generic-store test and the
+      on-disk-tag pins `TestSpendStoreOnDiskTagsAreStable` / `TestRunStoreOnDiskTagsAreStable`.
+      Resolves the AppendOnlyStore duplicated-machinery debt (TECH_DEBT, paid). **Third and
+      final child — its merge closes this epic.**
 
 ## Status
 
-**Open.** First child **V3** (sub-agent descriptions on the activity strip — issue 0031,
-PR #56) shipped; second child **V10** (keybinding live-apply — issue 0032) shipped. **H1**
-(generic `AppendOnlyStore[T]`) remains the last unbuilt child; this epic stays open until
-it ships (on H1's merge the epic closes).
+**Closed.** All three children shipped: **V3** (sub-agent descriptions on the activity
+strip — issue 0031, PR #56), **V10** (keybinding live-apply — issue 0032, PR #57), and
+**H1** (generic `telemetry.AppendOnlyStore[T]` — issue 0033, PR #58). The epic closed on
+H1's merge.
 
 ## Notes
 
