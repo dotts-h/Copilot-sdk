@@ -147,7 +147,15 @@ workflow runs (most recent first) — each run's name, mode, outcome, when it ra
 long it took (**duration**, V1), total metered cost, and a per-lane breakdown (agent,
 settled status incl. **skipped**, credits) — with a **per-workflow summary table**
 (run count, failure rate, **total & average cost** (V13), average duration, V1) above
-the history. It is a
+the history. It carries a **time-window selector** (V12): an optional **`?window=` query
+param** on `GET /page/runs` (threaded `handlePage` → `renderPage` → `runsPartial`, clamped
+via the shared `clampWindow` to the allowed `{14,30,90}` set, default 14) slices the run
+history to the records started within `window` days of the **most recent run** (a pure
+`windowRuns`, tail-relative like the Telemetry trend) **before** both the summary roll-up
+and the history list — so an out-of-window run is dropped from both. The selector renders
+the same 14/30/90-day buttons (active one marked) that re-fetch `GET /page/runs?window=N`
+into `#main`. A presentation-layer slice over the existing v1 records — no schema change,
+no new reader in telemetry. It is a
 query over the persisted `telemetry.RunStore` (§4) and its pure `RunAggregates`
 roll-up; adding it as a top-level nav page bumps the `pageNames` / e2e `pages` count.
 A run is recorded **once on completion** by the web adapter (`workflow.go`

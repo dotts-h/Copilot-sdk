@@ -8,7 +8,7 @@ github:
 links:
   adr:
   prs: [59, 61]
-  issues: [0034, 0035]
+  issues: [0034, 0035, 0036]
   regression:
 assets: []
 ---
@@ -70,11 +70,17 @@ negative-value, so #8 stays a candidate, deferred to its trigger. The v6 epic is
       workflow's *cumulative* orchestrated spend reads beside its average. **Second
       child.**
 
+- [x] **V12 — Runs time-window selector** (S; pure presentation-layer slice) →
+      [0036](0036-runs-time-window-selector.md) (**shipped**, PR #TBD; no ADR — a pure UI
+      slice reusing `clampWindow`). `runsPartial(window int)` slices the run history via a
+      pure `windowRuns` (anchored to the most recent run, tail-relative like `spendTrend`)
+      **before** both the per-workflow summary and the history list; `renderPage` threads a
+      clamped `?window=` (reusing the shared `clampWindow` / `spendWindows`), and the
+      `runsPage` template gained the same 14/30/90-day `window-row` selector as the
+      Telemetry trend. **Third child.**
+
 ### Candidate next children (not yet promoted — pick from the v6 research)
 
-- **V12 — Runs time-window selector** (S): mirror the Telemetry trend's 14/30/90-day
-  selector on the Runs page, threading a clamped `?window=` so a long history can be
-  sliced. Presentation-layer slice over the existing records. **Next up.**
 - **V14 — Per-lane cost roll-up** (M): a `LaneShares`-style pure reader keyed by
   (workflow, lane) over the run history, surfacing *"which lane in this workflow costs /
   fails most?"* — the finest orchestration-attribution grain, currently unsurfaced.
@@ -85,8 +91,12 @@ negative-value, so #8 stays a candidate, deferred to its trigger. The v6 epic is
 **PR #59** (per the repo convention — an epic is born in its first child's PR, as epic
 0030 opened inside V3's PR #56). Second child **V13 (Total cost on the per-workflow
 summary, 0035)** shipped next in **PR #61** — a pure presentation-layer slice surfacing
-`RunAggregate.TotalCredits` beside the average. The remaining candidate children (V12
-window selector, then V14 per-lane roll-up) stay in the v6 research until promoted.
+`RunAggregate.TotalCredits` beside the average. Third child **V12 (Runs time-window
+selector, 0036)** shipped next — a pure UI slice threading a clamped `?window=` through
+`runsPartial` (reusing `clampWindow`) and mirroring the Telemetry trend's 14/30/90-day
+selector on the Runs page. The one remaining candidate child (**V14 — per-lane cost
+roll-up**, the one new analytical reader) stays in the v6 research until promoted; on its
+merge epic 0031 closes.
 
 ## Notes
 

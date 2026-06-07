@@ -340,6 +340,19 @@ Ranked by value × fit; all are pure readers / presentation-layer compositions o
 > `spendTrend`, reusing `clampWindow`) → then **V14 — per-lane cost roll-up** (M, the
 > one new analytical reader). TECH_DEBT #8 stays deferred to its (unmet) volume trigger.
 
+> **v6 update (after V12):** **V12 shipped** (PR #TBD, issue 0036) — the Runs page now
+> carries the same 14/30/90-day window selector as the Telemetry trend. A clamped
+> `?window=` is threaded `handlePage → renderPage → runsPartial` (reusing `clampWindow`,
+> no re-implementation), and a pure `windowRuns` slices the run history to the records
+> within `window` days of the **most recent run** (tail-relative like `spendTrend`, so a
+> long-idle history still shows its latest window) **before** both the per-workflow
+> summary roll-up and the history list — an out-of-window run is dropped from both. A
+> presentation-layer slice over the existing v1 run records: no telemetry/schema change,
+> no new store, no ADR. **Remaining:** **V14 — per-lane cost roll-up** (M, the one new
+> analytical reader keyed by (workflow, lane)) is the last open child of epic 0031;
+> TECH_DEBT #8 stays deferred to its (unmet) volume trigger. On V14's merge epic 0031
+> closes — then scope epic 0032 from a fresh value×fit pass.
+
 ---
 
 ## Appendix — roadmap v2 (shipped, epic 0013, for context)

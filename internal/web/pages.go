@@ -59,8 +59,9 @@ func clampWindow(raw string) int {
 }
 
 // renderPage returns the partial for a nav slug, or chat for unknown slugs. The
-// window string is the (already raw) ?window= value, used only by the Telemetry
-// page's trend selector; every other page ignores it.
+// window string is the (already raw) ?window= value, used by the Telemetry trend
+// selector and the Runs time-window selector (both clamp it via clampWindow); every
+// other page ignores it.
 func (s *Server) renderPage(slug, window string) string {
 	switch slug {
 	case "sessions":
@@ -76,7 +77,7 @@ func (s *Server) renderPage(slug, window string) string {
 	case "workflows":
 		return s.workflowsPartial()
 	case "runs":
-		return s.runsPartial()
+		return s.runsPartial(clampWindow(window))
 	case "mcp":
 		return s.mcpServersPartial()
 	case "snippets":

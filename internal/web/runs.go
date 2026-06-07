@@ -19,12 +19,17 @@ import (
 // its name, mode, outcome, when it ran, how long it took, total metered cost, and a
 // per-lane breakdown (agent, status glyph, credits). Both the run rows and the
 // summary resolve ids to display names under forgeMu, like the cost breakdowns.
-// Empty when no run store is wired or none have run yet.
-func (s *Server) runsPartial() string {
+//
+// The history is first sliced to the chosen 14/30/90-day window (V12) — the
+// orchestration analog of the Telemetry trend's window selector — so a long history
+// stays scannable; the window is clamped upstream (clampWindow) to spendWindows. The
+// slice happens BEFORE both the summary roll-up and the history list, so an out-of-window
+// run is dropped from both. Empty when no run store is wired or none have run yet.
+func (s *Server) runsPartial(window int) string {
 	rows := []map[string]any{}
 	summary := []map[string]any{}
 	if s.runs != nil {
-		records := s.runs.Records()
+		records := windowRuns(s.runs.Records(), window)
 		s.hub.forgeMu.Lock()
 		for i := len(records) - 1; i >= 0; i-- { // newest first
 			rows = append(rows, s.runRow(records[i]))
@@ -34,7 +39,41 @@ func (s *Server) runsPartial() string {
 		}
 		s.hub.forgeMu.Unlock()
 	}
-	return frag("runsPage", map[string]any{"Rows": rows, "Summary": summary})
+	windows := make([]map[string]any, 0, len(spendWindows))
+	for _, w := range spendWindows {
+		windows = append(windows, map[string]any{"Value": w, "Active": w == window})
+	}
+	return frag("runsPage", map[string]any{"Rows": rows, "Summary": summary, "Windows": windows})
+}
+
+// windowRuns slices a run history to the records started within `window` days of the
+// most recent run — the Runs-page time-window selector (V12). The cutoff is anchored to
+// the latest StartedAt rather than wall-clock now, so the slice is deterministic and a
+// long-idle history still shows its most recent window — mirroring spendTrend's
+// tail-relative day slice. A non-positive window, an empty history, or a history with no
+// usable timestamp (all-zero StartedAt) returns the records unchanged. Pure: same inputs
+// → same slice.
+func windowRuns(records []telemetry.RunRecord, window int) []telemetry.RunRecord {
+	if window <= 0 || len(records) == 0 {
+		return records
+	}
+	var latest time.Time
+	for _, r := range records {
+		if r.StartedAt.After(latest) {
+			latest = r.StartedAt
+		}
+	}
+	if latest.IsZero() {
+		return records
+	}
+	cutoff := latest.AddDate(0, 0, -window)
+	out := make([]telemetry.RunRecord, 0, len(records))
+	for _, r := range records {
+		if !r.StartedAt.Before(cutoff) {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // runSummaryRow builds the template shape for one per-workflow summary row: the

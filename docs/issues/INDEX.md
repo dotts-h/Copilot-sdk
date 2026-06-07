@@ -49,3 +49,4 @@ issues are added or closed.
 | [0033](0033-generic-append-only-store.md) | Generic telemetry.AppendOnlyStore[T] — collapse the SpendStore/RunStore machinery (item H1) | closed | medium | 0030 | CONTRACTS §4, TECH_DEBT #14, PR #58 |
 | [0034](0034-runs-csv-export.md) | Runs CSV export — the orchestration sibling of the spend ledger export (item V11) | closed | medium | 0031 | CONTRACTS §3/§4, PR #59 |
 | [0035](0035-runs-summary-total-cost.md) | Total cost on the per-workflow Runs summary (item V13) | closed | low | 0031 | CONTRACTS §3/§4, PR #61 |
+| [0036](0036-runs-time-window-selector.md) | Runs time-window selector (item V12) | open | low | 0031 | CONTRACTS §3 |

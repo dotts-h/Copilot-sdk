@@ -507,40 +507,40 @@ _Last generated: 2026-06-07 (UTC)._
 - L333: `func (s *Server) handleMCPServerToggle(w http.ResponseWriter, r *http.Request)`
 - L339: `func (s *Server) handleMCPServerDelete(w http.ResponseWriter, r *http.Request)`
 
-### pages.go (655 LOC)
+### pages.go (656 LOC)
 - L48: `func clampWindow(raw string) int`
-- L64: `func (s *Server) renderPage(slug, window string) string`
-- L98: `func renderShortcuts(keymap []config.ResolvedKey) string`
-- L112: `func helpOverlay(keymap []config.ResolvedKey) string { return helpOverlayAttr(keymap, "") }`
-- L118: `func helpOverlayAttr(keymap []config.ResolvedKey, extraAttr string) string`
-- L130: `func keymapJSON(keymap []config.ResolvedKey) string`
-- L147: `func keymapLiveApply(keymap []config.ResolvedKey) string`
-- L155: `func (s *Server) helpPartial() string`
-- L213: `func (s *Server) chatPartial() string`
-- L245: `func (s *Server) telemetryPartial(window int) string`
-- L303: `func (s *Server) spendTrend(window int) (days, shares []map[string]any, hasHistory bool)`
-- L360: `func (s *Server) spendShares(now time.Time) (agents, workflows []map[string]any)`
-- L390: `func agentKey(r telemetry.SpendRecord) string    { return r.AgentID }`
-- L391: `func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }`
-- L397: `func bucketTrajectories(bs []telemetry.BucketProjection, now time.Time) map[string]string`
-- L413: `func bucketTrajectoryText(p telemetry.Projection, now time.Time) string`
-- L432: `func daysLeftInMonth(now time.Time) int`
-- L443: `func shareRow(label string, credits, fraction float64) map[string]any`
-- L455: `func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any`
-- L479: `func forecastSoon(exhaust, now time.Time) bool`
-- L489: `func plural(n int, one, many string) string`
-- L499: `func (s *Server) agentLabel(id string) string`
-- L511: `func (s *Server) workflowLabel(id string) string`
-- L521: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
-- L537: `func (s *Server) handleRunsExport(w http.ResponseWriter, r *http.Request)`
-- L549: `func (s *Server) skillsPartial() string`
-- L561: `func (s *Server) instructionsPartial() string`
-- L574: `func (s *Server) agentsPartial() string`
-- L598: `func addData(kind, noun string) map[string]any { return map[string]any{"Kind": kind, "Noun": noun} }`
-- L604: `func (s *Server) modelsPartial() string`
-- L634: `func (s *Server) settingsPartial() string`
-- L638: `func def(s, fallback string) string`
-- L646: `func truncate(s string, n int) string`
+- L65: `func (s *Server) renderPage(slug, window string) string`
+- L99: `func renderShortcuts(keymap []config.ResolvedKey) string`
+- L113: `func helpOverlay(keymap []config.ResolvedKey) string { return helpOverlayAttr(keymap, "") }`
+- L119: `func helpOverlayAttr(keymap []config.ResolvedKey, extraAttr string) string`
+- L131: `func keymapJSON(keymap []config.ResolvedKey) string`
+- L148: `func keymapLiveApply(keymap []config.ResolvedKey) string`
+- L156: `func (s *Server) helpPartial() string`
+- L214: `func (s *Server) chatPartial() string`
+- L246: `func (s *Server) telemetryPartial(window int) string`
+- L304: `func (s *Server) spendTrend(window int) (days, shares []map[string]any, hasHistory bool)`
+- L361: `func (s *Server) spendShares(now time.Time) (agents, workflows []map[string]any)`
+- L391: `func agentKey(r telemetry.SpendRecord) string    { return r.AgentID }`
+- L392: `func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }`
+- L398: `func bucketTrajectories(bs []telemetry.BucketProjection, now time.Time) map[string]string`
+- L414: `func bucketTrajectoryText(p telemetry.Projection, now time.Time) string`
+- L433: `func daysLeftInMonth(now time.Time) int`
+- L444: `func shareRow(label string, credits, fraction float64) map[string]any`
+- L456: `func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any`
+- L480: `func forecastSoon(exhaust, now time.Time) bool`
+- L490: `func plural(n int, one, many string) string`
+- L500: `func (s *Server) agentLabel(id string) string`
+- L512: `func (s *Server) workflowLabel(id string) string`
+- L522: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
+- L538: `func (s *Server) handleRunsExport(w http.ResponseWriter, r *http.Request)`
+- L550: `func (s *Server) skillsPartial() string`
+- L562: `func (s *Server) instructionsPartial() string`
+- L575: `func (s *Server) agentsPartial() string`
+- L599: `func addData(kind, noun string) map[string]any { return map[string]any{"Kind": kind, "Noun": noun} }`
+- L605: `func (s *Server) modelsPartial() string`
+- L635: `func (s *Server) settingsPartial() string`
+- L639: `func def(s, fallback string) string`
+- L647: `func truncate(s string, n int) string`
 
 ### render.go (452 LOC)
 - L25: `func esc(s string) string`
@@ -571,12 +571,13 @@ _Last generated: 2026-06-07 (UTC)._
 - L437: `func renderBudgetForm(projected, capCredits float64) string`
 - L446: `func clampLines(s string, n int) string`
 
-### runs.go (123 LOC)
-- L23: `func (s *Server) runsPartial() string`
-- L46: `func (s *Server) runSummaryRow(a telemetry.RunAggregate) map[string]any`
-- L62: `func (s *Server) runRow(r telemetry.RunRecord) map[string]any`
-- L90: `func humanDuration(d time.Duration) string`
-- L118: `func runOutcomeGlyph(outcome string) (glyph, state string)`
+### runs.go (162 LOC)
+- L28: `func (s *Server) runsPartial(window int) string`
+- L56: `func windowRuns(records []telemetry.RunRecord, window int) []telemetry.RunRecord`
+- L85: `func (s *Server) runSummaryRow(a telemetry.RunAggregate) map[string]any`
+- L101: `func (s *Server) runRow(r telemetry.RunRecord) map[string]any`
+- L129: `func humanDuration(d time.Duration) string`
+- L157: `func runOutcomeGlyph(outcome string) (glyph, state string)`
 
 ### server.go (880 LOC)
 - L27: `type Server struct`
