@@ -7,7 +7,7 @@ group:
 github:
 links:
   adr:
-  prs: [59, 61]
+  prs: [59, 61, 62]
   issues: [0034, 0035, 0036]
   regression:
 assets: []
@@ -71,7 +71,7 @@ negative-value, so #8 stays a candidate, deferred to its trigger. The v6 epic is
       child.**
 
 - [x] **V12 — Runs time-window selector** (S; pure presentation-layer slice) →
-      [0036](0036-runs-time-window-selector.md) (**shipped**, PR #TBD; no ADR — a pure UI
+      [0036](0036-runs-time-window-selector.md) (**shipped**, PR #62; no ADR — a pure UI
       slice reusing `clampWindow`). `runsPartial(window int)` slices the run history via a
       pure `windowRuns` (anchored to the most recent run, tail-relative like `spendTrend`)
       **before** both the per-workflow summary and the history list; `renderPage` threads a

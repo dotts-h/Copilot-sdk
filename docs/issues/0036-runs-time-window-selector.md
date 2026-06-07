@@ -1,13 +1,13 @@
 ---
 id: 0036
 title: "Runs time-window selector (roadmap v6, item V12)"
-status: open
+status: closed
 severity: low
 group: 0031
 github:
 links:
   adr:
-  prs:
+  prs: [62]
   issues: [0031]
   regression:
 assets: []
@@ -55,6 +55,36 @@ section.
 - **No schema change, no new store, no new telemetry reader, no new ADR** — a pure
   presentation-layer slice over the existing v1 run records, reusing `clampWindow` /
   `spendWindows`.
+
+## Resolution (shipped)
+
+Shipped in **PR #62**. Built as specified. `runsPartial(window int)`
+(`internal/web/runs.go`) slices the run history via a new pure
+`windowRuns(records, window)` **before** both `RunAggregates` and the history list, so an
+out-of-window run drops from both surfaces; the cutoff is anchored to the **most recent
+run's `StartedAt`** (tail-relative like `spendTrend`, not wall-clock `now`), so the slice
+is deterministic and a long-idle history still shows its latest window. `renderPage`'s
+`"runs"` case threads `clampWindow(window)` — the **shared** clamp the Telemetry trend
+already uses (garbage / empty / out-of-range → 14). The `runsPage` template
+(`fragments.html`) gained the same `window-row` selector markup as the Telemetry trend
+(three `button.window` controls re-fetching `GET /page/runs?window=N` into `#main`,
+active one marked), rendered only when history exists; it reuses the existing global
+`.window` / `.window-row` CSS — no new styles. No telemetry/schema change, no new store,
+no new reader.
+
+Tests (failing-first): `internal/web` `TestRunsPartialSlicesToWindow` (a 40-day-old run is
+dropped from **both** the history list and the per-workflow summary at 14d, reappears at
+90d; the selector renders with the active window marked) and `TestRunsWindowClampsGarbage`
+(garbage / empty / out-of-range `?window=` clamps to 14 through `renderPage`). e2e: the
+Runs spec (`e2e.spec.ts`) asserts the selector's three windows, a single active default
+(14d), and switching to 90d (structural, never figures — the demo run store is shared +
+append-only across the suite). The existing telemetry + web + bootstrap tests stayed green
+unchanged (direct call sites pass `defaultSpendWindow`). Gates green (`make lint && make
+test`; web coverage 89.0%, telemetry 96.2%); CI + E2E green on PR #62.
+
+Docs: CONTRACTS §3 (the Runs page now carries a time-window selector). No new ADR (a pure
+presentation-layer slice reusing `clampWindow` / `spendWindows`). No REGRESSIONS entry —
+no bug was found-and-fixed.
 
 ## Notes
 - **No ADR:** a pure presentation-layer slice reusing the existing `clampWindow` /
