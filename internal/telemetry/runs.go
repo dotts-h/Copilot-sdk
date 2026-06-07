@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 )
@@ -55,6 +56,20 @@ func (r RunRecord) Credits() float64 {
 		c += l.Credits
 	}
 	return c
+}
+
+// Duration is how long the run took (FinishedAt − StartedAt). A zero/unset
+// StartedAt or FinishedAt (an in-flight or malformed record) or a non-positive
+// span yields 0, so callers can sum and average over a history without guarding
+// every entry. Pure: same record → same result.
+func (r RunRecord) Duration() time.Duration {
+	if r.StartedAt.IsZero() || r.FinishedAt.IsZero() {
+		return 0
+	}
+	if d := r.FinishedAt.Sub(r.StartedAt); d > 0 {
+		return d
+	}
+	return 0
 }
 
 const (
@@ -155,4 +170,73 @@ func (s *RunStore) Count() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.runs)
+}
+
+// RunAggregate rolls one workflow's run history into a summary: how many times it
+// ran, how many of those failed, and the total/average metered cost and wall-clock
+// duration across those runs. It is the orchestration half of cost attribution —
+// where WorkflowShares answers "how much did this workflow spend?", RunAggregate
+// adds "how often does it run, how long does it take, and how often does it fail?"
+// — joining RunStore's grain (count / outcome / duration) to the cost the runs
+// metered, with no schema change (the records already carry it). — ADR-0022.
+type RunAggregate struct {
+	WorkflowID    string
+	Name          string
+	Runs          int
+	Failures      int
+	TotalCredits  float64
+	AvgCredits    float64
+	TotalDuration time.Duration
+	AvgDuration   time.Duration
+}
+
+// FailureRate is the share of this workflow's runs that failed, in [0,1] (0 when
+// it has never run). Pure: same aggregate → same result.
+func (a RunAggregate) FailureRate() float64 {
+	if a.Runs == 0 {
+		return 0
+	}
+	return float64(a.Failures) / float64(a.Runs)
+}
+
+// RunAggregates rolls a run history up per workflow — a cousin of the *Shares
+// spend readers — sorted by run count descending (ties broken by workflow id
+// ascending) for a deterministic order. A run whose Outcome is "failed" counts as
+// a failure; a skipped lane adds zero cost (RunRecord.Credits already excludes it),
+// and an unfinished/zero-span run contributes zero duration (RunRecord.Duration
+// guards it). Averages divide by the run count (always ≥ 1 for a present group, so
+// no divide-by-zero). The display Name is the latest one seen for the workflow
+// (records arrive in append/chronological order), so a since-renamed workflow reads
+// under its current name. Pure: same records → same result.
+func RunAggregates(records []RunRecord) []RunAggregate {
+	by := map[string]*RunAggregate{}
+	for _, r := range records {
+		a := by[r.WorkflowID]
+		if a == nil {
+			a = &RunAggregate{WorkflowID: r.WorkflowID}
+			by[r.WorkflowID] = a
+		}
+		a.Name = r.Name // chronological append order ⇒ the latest name wins
+		a.Runs++
+		if r.Outcome == "failed" {
+			a.Failures++
+		}
+		a.TotalCredits += r.Credits()
+		a.TotalDuration += r.Duration()
+	}
+	out := make([]RunAggregate, 0, len(by))
+	for _, a := range by {
+		a.AvgCredits = a.TotalCredits / float64(a.Runs)
+		a.AvgDuration = a.TotalDuration / time.Duration(a.Runs)
+		out = append(out, *a)
+	}
+	// Runs desc, then workflow id asc — a total order (the id key is unique per
+	// group), so the result is fully deterministic regardless of map iteration.
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Runs != out[j].Runs {
+			return out[i].Runs > out[j].Runs
+		}
+		return out[i].WorkflowID < out[j].WorkflowID
+	})
+	return out
 }

@@ -12,7 +12,7 @@ issues are added or closed.
 | [0005](0005-epic-orchestration.md) | Epic: make it an orchestra (Tier 2) | closed | 0006, 0010 |
 | [0007](0007-epic-polish.md) | Epic: polish that compounds (Tier 3) | closed | 0008, 0009, 0011, 0012 |
 | [0013](0013-epic-deepen-differentiators.md) | Epic: deepen the differentiators (roadmap v2) | closed | 0014, 0015, 0016, 0017, 0018, 0020, 0021 |
-| [0022](0022-epic-extensibility-and-convergence.md) | Epic: extensibility & convergence (roadmap v3) | open | 0019, 0023 |
+| [0022](0022-epic-extensibility-and-convergence.md) | Epic: extensibility & convergence (roadmap v3) | closed | 0019, 0023 |
 
 ## Issues
 
@@ -35,4 +35,4 @@ issues are added or closed.
 | [0019](0019-mcp-secrets-env-editor.md) | MCP secrets / Env editor (item C1) | closed | high | 0022 | ADR-0020, TECH_DEBT #10 |
 | [0020](0020-conditional-branching-workflow-steps.md) | Conditional / branching workflow steps (item B2) | closed | medium | 0013 | ADR-0021 |
 | [0021](0021-workflow-run-history.md) | Workflow run history (item B3) | closed | medium | 0013 | ADR-0022 |
-| [0023](0023-workflow-run-aggregations.md) | Workflow run-history aggregations + Runs duration (item V1) | open | medium | 0022 | ADR-0022 |
+| [0023](0023-workflow-run-aggregations.md) | Workflow run-history aggregations + Runs duration (item V1) | closed | medium | 0022 | ADR-0022 |

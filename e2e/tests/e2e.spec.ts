@@ -366,6 +366,13 @@ test.describe("multi-agent workflows", () => {
     // The seeded demo runs render with a per-lane breakdown.
     await expect(page.locator(".run-record").first()).toBeVisible();
     await expect(page.locator(".run-record .run-lane").first()).toBeVisible();
+    // The per-workflow roll-up (V1, ADR-0022) renders above the history: a summary
+    // table with at least one per-workflow row, and each run carries a duration cell.
+    // Assert structure only — the demo run store is shared + append-only across the
+    // suite, so figures (counts/averages) are not stable to assert on.
+    await expect(page.locator("table.run-summary")).toBeVisible();
+    await expect(page.locator(".run-summary-row").first()).toBeVisible();
+    await expect(page.locator(".run-record .run-duration").first()).toBeVisible();
     const before = await page.locator(".run-record").count();
 
     // Run a workflow and wait for it to finish.

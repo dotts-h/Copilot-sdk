@@ -119,12 +119,15 @@ mock session ids + `SessionID`-tagged demo events). — see
 [ADR-0017](adr/0017-per-lane-tool-and-permission-surface-for-parallel-workflow-lanes.md)
 
 The **Runs** view (`GET /page/runs`, item B3) is a read-only history of completed
-workflow runs (most recent first) — each run's name, mode, outcome, when it ran,
-total metered cost, and a per-lane breakdown (agent, settled status incl.
-**skipped**, credits). It is a query over the persisted `telemetry.RunStore` (§4);
-adding it as a top-level nav page bumps the `pageNames` / e2e `pages` count. A run is
-recorded **once on completion** by the web adapter (`workflow.go` `recordRun`, where
-`runFrags` already clears `busy`). — see [ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md)
+workflow runs (most recent first) — each run's name, mode, outcome, when it ran, how
+long it took (**duration**, V1), total metered cost, and a per-lane breakdown (agent,
+settled status incl. **skipped**, credits) — with a **per-workflow summary table**
+(run count, failure rate, average cost & duration, V1) above the history. It is a
+query over the persisted `telemetry.RunStore` (§4) and its pure `RunAggregates`
+roll-up; adding it as a top-level nav page bumps the `pageNames` / e2e `pages` count.
+A run is recorded **once on completion** by the web adapter (`workflow.go`
+`recordRun`, where `runFrags` already clears `busy`). — see
+[ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md)
 
 `POST /budget/{action}` (`action` ∈ {proceed, raise, cancel}) resolves a turn the
 hard cap paused before `Send`: **proceed** dispatches the held prompt and keeps the
@@ -275,6 +278,20 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   logged, not surfaced); the Runs page (§3) queries it. — see
   [ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md),
   [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md)
+  **Aggregations (pure readers — V1):** `telemetry.RunAggregates(records
+  []RunRecord) []RunAggregate` rolls the run history up **per workflow** — a cousin
+  of the `*Shares` spend readers — to `RunAggregate{WorkflowID, Name, Runs, Failures,
+  TotalCredits, AvgCredits, TotalDuration, AvgDuration}` (with `FailureRate()` in
+  `[0,1]`), sorted by run count descending then workflow id ascending (a total,
+  deterministic order). A run whose `Outcome` is `"failed"` counts as a failure; a
+  skipped lane adds zero cost (`RunRecord.Credits` excludes it). `RunRecord.Duration()
+  time.Duration` is the run's wall-clock span (`FinishedAt − StartedAt`), guarding a
+  zero/unset/negative span → 0 so callers sum/average without per-entry guards. Both
+  are **pure** over the existing v1 records — **no schema change** — joining the run
+  grain (count / failure rate / duration) to the cost the runs metered, the
+  orchestration half that `WorkflowShares` can't answer. The Runs page (§3) renders a
+  per-workflow summary from `RunAggregates` above the history and a duration cell per
+  run. — see [ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md)
 
 ## 5. Invariants (promises that aren't a signature)
 

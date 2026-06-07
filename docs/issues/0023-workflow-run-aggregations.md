@@ -1,7 +1,7 @@
 ---
 id: 0023
 title: Workflow run-history aggregations + Runs duration (roadmap v3, item V1)
-status: open
+status: closed
 severity: medium
 group: 0022
 github:
@@ -9,7 +9,7 @@ links:
   adr:
   prs: []
   issues: [0022]
-  regression:
+  regression: [17]
 assets: []
 ---
 
@@ -55,6 +55,29 @@ here. Source: `docs/NEXT_FEATURES.md` item V1.
   rows (structure). e2e — assert the summary section/structure, never figures (the demo
   run store is shared + append-only across the suite — same gotcha family as the spend
   trend).
+
+## Resolution (shipped)
+
+Pure-reader convergence landed, no schema change. `internal/telemetry`:
+`RunRecord.Duration() time.Duration` (`FinishedAt − StartedAt`, guarding a
+zero/unset/negative span → 0) and `RunAggregate{WorkflowID, Name, Runs, Failures,
+TotalCredits, AvgCredits, TotalDuration, AvgDuration}` + `RunAggregates([]RunRecord)
+[]RunAggregate` (a cousin of the `*Shares` readers — failure = `Outcome "failed"`, a
+skipped lane adds zero cost via `Credits()`, deterministic order: run count desc then
+workflow id asc; `FailureRate()` helper). `internal/web`: the Runs page gained a
+per-run duration cell and a per-workflow summary table (run count, failure count/rate,
+avg cost, avg duration) above the history, resolving ids → names under `forgeMu` via
+`workflowLabel`. Tests: unit over a mixed history (failed run, branched run with a
+zero-cost skipped lane, repeated workflow) asserting counts/averages/failure-rate +
+determinism + edge cases (empty / single / all-failed / zero-duration / latest-name);
+web structure (duration cell + summary rows); e2e structure (summary table + duration,
+never figures — the demo run store is shared + append-only). Docs: CONTRACTS §3/§4.
+REGRESSIONS #17 — the pre-merge code review caught a `humanDuration` rounding bug (a
+sub-second-fractional span could print an impossible "60s"/"1m 60s" because each unit
+was rounded *after* decomposing); fixed by rounding the whole span up front, guarded by
+`internal/web` `TestHumanDuration`. The averaging/determinism traps were guarded
+preemptively by the telemetry unit tests. Shipped on branch
+`claude/workflow-run-aggregations`.
 
 ## Notes
 - **No ADR:** the decision is obvious and already pre-blessed by ADR-0022 — pure
