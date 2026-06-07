@@ -7,7 +7,7 @@ group:
 github:
 links:
   adr:
-  prs: [66]
+  prs: [66, 74]
   issues: [0039, 0040]
   regression:
 ---
@@ -62,9 +62,9 @@ negative-value. The v7 epic is a **product/convergence** epic instead.
       order). The Telemetry page renders a **"Ledger vs runs"** per-workflow comparison
       table below "Cost by workflow", resolving ids → labels under `forgeMu` and ambering
       a non-trivial delta. **First child** — the epic is born in its PR.
-- [ ] **V16 — per-lane cost⋈run reconciliation reader + Telemetry "Ledger vs runs by lane"**
+- [x] **V16 — per-lane cost⋈run reconciliation reader + Telemetry "Ledger vs runs by lane"**
       (M; pure cross-store reader + UI composition) → [0040](0040-per-lane-cost-run-reconciliation.md)
-      (no ADR — a pure cross-record reader returning ids, no cross-package seam).
+      (**shipped**, PR #74; no ADR — a pure cross-record reader returning ids, no cross-package seam).
       `telemetry.LaneReconcile(spend []SpendRecord, runs []RunRecord) []LaneRecon{WorkflowID,
       LaneIndex, LedgerCredits, RunCredits, Delta}` joins the **same** two roll-ups one grain
       finer — per `(workflow, lane)` — so a divergence the per-workflow row only totals is

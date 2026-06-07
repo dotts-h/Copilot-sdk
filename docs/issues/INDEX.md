@@ -53,4 +53,4 @@ issues are added or closed.
 | [0036](0036-runs-time-window-selector.md) | Runs time-window selector (item V12) | closed | low | 0031 | CONTRACTS §3, PR #62 |
 | [0037](0037-runs-per-lane-cost-rollup.md) | Per-lane cost roll-up — Cost by lane on the Runs page (item V14) | closed | low | 0031 | CONTRACTS §3/§4, PR #64 |
 | [0039](0039-cost-run-reconciliation.md) | Cost⋈run reconciliation — Ledger vs runs on the Telemetry page (item V15) | closed | medium | 0038 | CONTRACTS §3/§4, PR #66 |
-| [0040](0040-per-lane-cost-run-reconciliation.md) | Per-lane cost⋈run reconciliation — Ledger vs runs by lane on the Telemetry page (item V16) | open | medium | 0038 | CONTRACTS §3/§4 |
+| [0040](0040-per-lane-cost-run-reconciliation.md) | Per-lane cost⋈run reconciliation — Ledger vs runs by lane on the Telemetry page (item V16) | closed | medium | 0038 | CONTRACTS §3/§4, PR #74 |

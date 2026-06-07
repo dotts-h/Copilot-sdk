@@ -1,13 +1,13 @@
 ---
 id: 0040
 title: "Per-lane cost⋈run reconciliation — Ledger vs runs by lane on the Telemetry page (roadmap v7, item V16)"
-status: open
+status: closed
 severity: medium
 group: 0038
 github:
 links:
   adr:
-  prs:
+  prs: [74]
   issues: [0038]
   regression:
 ---
@@ -76,7 +76,40 @@ converge the two persisted stores); the epic stays **open**. Source:
 
 ## Resolution (shipped)
 
-_To be filled on merge._
+Shipped in **PR #74**. Built as specified. `telemetry.LaneReconcile(spend []SpendRecord,
+runs []RunRecord) []LaneRecon{WorkflowID, LaneIndex, LedgerCredits, RunCredits, Delta}` joins
+the two per-`(workflow, lane)` roll-ups: `LedgerCredits` groups workflow-attributed spend USD
+by `(WorkflowID, LaneIndex)` then `/USDPerCredit` (the lane slice of the `WorkflowShares`
+figure; the empty-workflow chat bucket excluded — and a turn the run owned but that didn't
+route to a lane persists at `LaneIndex` 0, ADR-0018, so the figure reflects the records as
+stored), `RunCredits` sums each recorded run lane's metered credits by `(WorkflowID, lane
+Index)` (`RunLane.Credits`, a skipped lane adding zero — the `LaneShares` grain), `Delta =
+LedgerCredits − RunCredits`. A `(workflow, lane)` in **one** store but not the other yields a
+row with the other side zero; a lane **zero on both sides** (a skipped run lane with no ledger
+spend — common at this grain) is **omitted** so skipped lanes don't pad the table. Sorted by
+**absolute delta descending** (ties → ledger credits desc, then workflow id asc, then lane
+index asc — a total deterministic order over the unique `(workflow, lane)` key). Empty inputs →
+empty slice. **Pure** (takes two record slices, returns ids; no web/forge deps, no
+cross-package seam). The Telemetry page (`laneReconcile` → `laneReconcileRow`) renders a
+**"Ledger vs runs by lane"** table below the per-workflow "Ledger vs runs", naming each row
+`"<workflow> · step <n>"` (n = lane index + 1, like the Runs page's "Cost by lane") under
+`forgeMu` and **ambering** a delta whose magnitude clears the V15 display-tied epsilon
+(`0.005` cr). It renders only when **both** a spend store and a run store are wired.
+
+Tests (failing-first): `internal/telemetry`
+`TestLaneReconcile{JoinsBothStoresPerLane, OneSidedLanesAppear, DeterministicOrder, Empty}`;
+`internal/web` `TestTelemetryPageShowsPerLaneReconciliation`; `internal/bootstrap` extends
+`TestBuildDemoTelemetryShowsTrend` (the demo seeds build-and-harden lane-tagged on both sides).
+e2e: a structural assertion (`table.lane-recon` + `tr.lane-recon-row`), verified against the
+Go-rendered demo HTML. **Self-review (high-effort /code-review)** fixed a misleading both-zero
+doc comment (it had over-claimed parity with `WorkflowReconcile`) and a reused `recon-workflow`
+class on the lane cell (now a dedicated `.recon-lane`). The existing telemetry + web + bootstrap
+tests stayed green unchanged. Gates green (`make lint && make test`; telemetry 96.5%, web 89.1%).
+
+Docs: NEXT_FEATURES "v7 update (after V16)", CONTRACTS §3 (the Telemetry page renders the
+per-lane reconciliation) and §4 (the `LaneReconcile` reader joining the lane-tagged ledger +
+`LaneShares`), CONTEXT reconcile entry (the per-lane cousin). No new ADR (a pure cross-record
+reader returning ids; no cross-package seam). No REGRESSIONS entry — no bug shipped.
 
 ## Notes
 - **No ADR:** a pure cross-record reader (takes two record slices, returns ids; the web
