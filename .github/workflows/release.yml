@@ -25,7 +25,12 @@ jobs:
 
       - name: Resolve version
         id: ver
-        run: echo "version=${GITHUB_REF_NAME:-${{ github.event.inputs.tag }}}" >> "$GITHUB_OUTPUT"
+        # Prefer the dispatch input (a manual `workflow_dispatch` provides the tag);
+        # otherwise use the ref name (a `push:` of a `v*` tag). The old
+        # `${GITHUB_REF_NAME:-input}` form was wrong on dispatch — `GITHUB_REF_NAME`
+        # is the *branch* ("main"), not empty, so it shadowed the input and the release
+        # got tagged "main".
+        run: echo "version=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
 
       - name: Cross-compile
         env:
