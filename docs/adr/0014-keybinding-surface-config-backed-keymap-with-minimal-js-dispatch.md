@@ -85,10 +85,16 @@ action against existing affordances, ignoring keystrokes typed into fields.
 - Trade-off we accept: keys are constrained to a **single character** (matching
   `event.key`); chords/named keys (Ctrl-K, F1) are out of scope for this slice.
   Esc-closes-overlay is a fixed convention, not a binding.
-- Known limitation: a Settings save swaps only `#main`, so a rebind takes effect
-  on the **next full page load** (the live `data-keymap`/overlay are rendered by
-  the index shell). Consistent with the rest of Settings ("applied on your next
-  session"); tracked as TECH_DEBT #13.
+- Known limitation (resolved by V10): originally a Settings save swapped only
+  `#main`, so a rebind took effect on the **next full page load** (the live
+  `data-keymap`/overlay are rendered by the index shell); tracked as TECH_DEBT #13.
+  **Addendum — V10 (issue 0032):** the keybinding `POST /settings` now live-applies
+  the rebind by appending an `hx-swap-oob` re-render of `#help-overlay` plus a
+  `applyKeymap(…)` script that updates `<body data-keymap>` and rebuilds the
+  dispatcher's reverse map from one source — so a rebind fires without a reload.
+  This **completes** the mechanism above rather than changing it (no new ADR); the
+  live attribute is read back from the persisted config so a no-op/rolled-back save
+  can't desync it. Recorded in CONTRACTS and REGRESSIONS #18.
 - Contract change: `config.Config` grew the additive `keyBindings` map (omitempty,
   older files read clean) — recorded in CONTRACTS. Covered by `internal/config`
   `TestKeymap*`/`TestValidateRejectsBadKeyBindings`/`TestKeyBinding*` and

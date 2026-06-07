@@ -303,5 +303,19 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 	if hasPriceOverrides {
 		s.meter.PriceBook().Replace(telemetry.BuildPriceBook(priceOverrides))
 	}
-	s.writePartial(w, s.renderSettings("saved", ""))
+	out := s.renderSettings("saved", "")
+	// Live-apply a keybinding rebind WITHOUT a full page reload (V10, TECH_DEBT
+	// #13): append an OOB re-render of the help overlay + a script that updates
+	// <body data-keymap> and the JS dispatcher's map. Only when the form carried
+	// the shortcut section, so a partial POST stays inert. The emitted keymap is
+	// read back from the now-persisted config (post-rollback path is the error
+	// branch above, which emits nothing), so the live attribute can never desync
+	// from disk — a no-op save re-emits the identical, in-sync keymap.
+	if formHasKeyBindings(r) {
+		s.hub.forgeMu.Lock()
+		keymap := s.config.Keymap()
+		s.hub.forgeMu.Unlock()
+		out += keymapLiveApply(keymap)
+	}
+	s.writePartial(w, out)
 }

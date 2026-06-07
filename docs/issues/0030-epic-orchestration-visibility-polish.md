@@ -7,8 +7,8 @@ group:
 github:
 links:
   adr:
-  prs:
-  issues: [0031]
+  prs: [56, 57]
+  issues: [0031, 0032]
   regression:
 assets: []
 ---
@@ -39,15 +39,19 @@ This epic carries the **v5 orchestration-visibility + polish** picks:
 
 ## Tasks
 
-- [ ] **V3 — surface `SubagentInfo.Description` on the sub-agent activity strip** →
-      [0031](0031-subagent-description-activity-strip.md) (no ADR — a pure
-      presentation-layer surfacing of an already-populated SDK field, escaped through
-      `html/template` per ADR-0001). The `renderSubagents` chip gains the sub-agent's
+- [x] **V3 — surface `SubagentInfo.Description` on the sub-agent activity strip** →
+      [0031](0031-subagent-description-activity-strip.md) (**shipped**, PR #56; no ADR — a
+      pure presentation-layer surfacing of an already-populated SDK field, escaped through
+      `html/template` per ADR-0001). The `renderSubagents` chip gained the sub-agent's
       `Description` as a `title=` tooltip so concurrent sub-agents in a parallel run say
       *what* they are doing; an empty description renders the prior chip shape.
-- [ ] **V10 — keybinding live-apply** (S, polish; TECH_DEBT #13) — not yet promoted into
-      an issue. An OOB swap of `<body data-keymap>` + the help overlay on the Settings
-      POST so a rebind applies without a full page reload.
+- [x] **V10 — keybinding live-apply** (S, polish; TECH_DEBT #13) → **shipped** as issue
+      [0032](0032-keybinding-live-apply.md). The Settings keybinding POST now appends an
+      `hx-swap-oob` re-render of the help overlay + an `applyKeymap(…)` script that updates
+      `<body data-keymap>` and rebuilds the JS dispatcher's map, so a rebind applies without
+      a full page reload. Reads back the persisted keymap so a no-op/rolled-back save can't
+      desync live from disk; escaped per ADR-0001. Completes the ADR-0014 mechanism (no new
+      ADR); resolves TECH_DEBT #13, guards REGRESSIONS #18.
 - [ ] **H1 — generic `telemetry.AppendOnlyStore[T]`** (M, debt) — not yet promoted into an
       issue. Extract the duplicated `SpendStore`/`RunStore` machinery into one generic
       store, guarded by the existing round-trip/atomic/migration tests; the on-disk JSON
@@ -55,9 +59,10 @@ This epic carries the **v5 orchestration-visibility + polish** picks:
 
 ## Status
 
-**Open.** First child **V3** (sub-agent descriptions on the activity strip — issue 0031)
-is the opening build. **V10** (keybinding live-apply) and **H1** (generic
-`AppendOnlyStore[T]`) remain unbuilt children; this epic stays open until they ship.
+**Open.** First child **V3** (sub-agent descriptions on the activity strip — issue 0031,
+PR #56) shipped; second child **V10** (keybinding live-apply — issue 0032) shipped. **H1**
+(generic `AppendOnlyStore[T]`) remains the last unbuilt child; this epic stays open until
+it ships (on H1's merge the epic closes).
 
 ## Notes
 

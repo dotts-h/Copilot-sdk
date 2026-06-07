@@ -326,8 +326,21 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   resolves the effective key per action (override-or-default). `Validate` enforces a
   known action id, a single-character key, and no duplicate key across actions.
   Surfaced in the help overlay + Settings form; edited through `editConfig`
-  (rollback-on-invalid). Older files (no `keyBindings`) read clean.
-  — see [ADR-0014](adr/0014-keybinding-surface-config-backed-keymap-with-minimal-js-dispatch.md)
+  (rollback-on-invalid). Older files (no `keyBindings`) read clean. The action→key
+  map reaches the frontend as `<body data-keymap>` (JSON via `keymapJSON`, shared by
+  the index render and the live-apply swap below) for the vanilla-JS dispatcher.
+  **Live-apply (V10):** on a successful keybinding `POST /settings`, the response
+  appends — beside the persisted settings partial — an `hx-swap-oob` re-render of
+  the `#help-overlay` **and** a `<script>applyKeymap(…)</script>` that updates
+  `<body data-keymap>` and rebuilds the dispatcher's reverse map from one source, so
+  a rebind takes effect **without a full reload** (closes TECH_DEBT #13). The emitted
+  keymap is read back from the **persisted** config, so a no-op/rolled-back save
+  re-emits the in-sync keymap (the error branch emits none) and the live attribute
+  can never desync from disk; binding text flows through `html/template`/`esc` and
+  the script JSON through `encoding/json` (ADR-0001). This **completes** the ADR-0014
+  mechanism (no new ADR). — see
+  [ADR-0014](adr/0014-keybinding-surface-config-backed-keymap-with-minimal-js-dispatch.md),
+  [REGRESSIONS #18](REGRESSIONS.md)
 - **`telemetry.SpendStore`** / **`telemetry.SpendRecord`** (`history.go`): the persisted
   spend ledger at `<configDir>/spend.json`. On-disk shape is a versioned envelope
   `{"version":2,"records":[…]}`; each record is

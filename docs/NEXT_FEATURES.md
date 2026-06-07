@@ -176,9 +176,14 @@ differentiator is folded in where it earns its place.
   (`normalize.go`) but `renderSubagents` (`render.go`) dropped it — now the `subagentChip`
   surfaces it as a `title=` tooltip (escaped per ADR-0001) so concurrent sub-agents during
   a parallel run say *what* they're doing; an empty description renders the prior chip.
-- **V10 — keybinding live-apply** (S, polish): TECH_DEBT #13 — a rebind takes effect only
-  on the next full page load; an OOB swap of `<body data-keymap>` + the help overlay on
-  the Settings POST closes it.
+- ~~**V10 — keybinding live-apply** (S, polish)~~ — **shipped** (issue
+  [0032](issues/0032-keybinding-live-apply.md), epic 0030): TECH_DEBT #13 — a rebind took
+  effect only on the next full page load; the Settings keybinding POST now appends an
+  `hx-swap-oob` re-render of the help overlay + an `applyKeymap(…)` script that updates
+  `<body data-keymap>` and rebuilds the JS dispatcher's map, so a rebind applies without a
+  reload (reads back the persisted keymap so a no-op/rolled-back save can't desync; escaped
+  per ADR-0001). Completes the ADR-0014 mechanism (no new ADR); resolves TECH_DEBT #13,
+  guards REGRESSIONS #18.
 
 ## Tier D — platform / distribution (carried, unchanged)
 

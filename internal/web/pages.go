@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
@@ -108,12 +109,44 @@ func renderShortcuts(keymap []config.ResolvedKey) string {
 // helpOverlay renders the body-level keyboard-shortcuts overlay (hidden until
 // the bound key opens it). It lives in the page shell so it works across htmx
 // navigation; the keymap is the live, config-resolved set.
-func helpOverlay(keymap []config.ResolvedKey) string {
-	return `<div id="help-overlay" class="overlay" hidden role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">` +
+func helpOverlay(keymap []config.ResolvedKey) string { return helpOverlayAttr(keymap, "") }
+
+// helpOverlayAttr renders the overlay with extra attributes spliced onto its
+// root element — used to add hx-swap-oob="true" for the Settings live-apply swap
+// (the OOB re-render is matched by #help-overlay), while the index render passes
+// none. Keys/labels are HTML-escaped via renderShortcuts (ADR-0001).
+func helpOverlayAttr(keymap []config.ResolvedKey, extraAttr string) string {
+	return `<div id="help-overlay" class="overlay" hidden role="dialog" aria-modal="true" aria-label="Keyboard shortcuts"` + extraAttr + `>` +
 		`<div class="overlay-card"><h2>Keyboard shortcuts</h2>` +
 		renderShortcuts(keymap) +
 		`<p class="dim">Shortcuts are ignored while you're typing in a field. Customise them on the Settings page.</p>` +
 		`<button type="button" class="overlay-close" onclick="toggleHelpOverlay(false)">Close</button></div></div>`
+}
+
+// keymapJSON serializes the resolved keymap to the action→key JSON the frontend
+// dispatcher reads from <body data-keymap>. Shared by the initial index render
+// and the Settings live-apply OOB swap so both surfaces carry one source (the map
+// marshals with sorted keys → deterministic).
+func keymapJSON(keymap []config.ResolvedKey) string {
+	dispatch := make(map[string]string, len(keymap))
+	for _, k := range keymap {
+		dispatch[k.ID] = k.Key
+	}
+	j, _ := json.Marshal(dispatch)
+	return string(j)
+}
+
+// keymapLiveApply builds the Settings POST's live-apply payload: an hx-swap-oob
+// re-render of the help overlay (matched by #help-overlay) plus a script that
+// calls applyKeymap to update <body data-keymap> and the JS dispatcher's reverse
+// map, so a rebind takes effect WITHOUT a full page reload (TECH_DEBT #13). The
+// keymap reflects the PERSISTED config, so a no-op or rolled-back save re-emits
+// the in-sync keymap and can never desync the live attribute from disk. The JSON
+// is HTML-safe in the <script> context: encoding/json escapes <, >, & (so no
+// </script> can form) and every key is a validated single character.
+func keymapLiveApply(keymap []config.ResolvedKey) string {
+	return helpOverlayAttr(keymap, ` hx-swap-oob="true"`) +
+		`<script>applyKeymap(` + keymapJSON(keymap) + `)</script>`
 }
 
 // helpPartial renders the static Help/reference page: how the panels work, the

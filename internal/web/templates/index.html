@@ -123,9 +123,20 @@
     // hijacked) and while a control/meta/alt modifier is held; Esc always closes
     // the overlay. The overlay lives in the page shell, so it survives htmx swaps.
     var keyToAction = {};
-    try {
-      var km = JSON.parse(document.body.dataset.keymap || '{}');
+    // applyKeymap installs a keymap live: it records it on <body data-keymap> (so
+    // the attribute and the dispatcher stay one source) and rebuilds the
+    // key→action map the keydown listener reads. Called once at load from the
+    // server-rendered attribute, and again from the Settings live-apply OOB swap
+    // after a rebind, so a new binding takes effect WITHOUT a full page reload
+    // (TECH_DEBT #13 / ADR-0014). The argument is the server's action→key object.
+    function applyKeymap(km) {
+      if (!km || typeof km !== 'object') return;
+      document.body.dataset.keymap = JSON.stringify(km);
+      keyToAction = {};
       for (var action in km) { keyToAction[km[action]] = action; }
+    }
+    try {
+      applyKeymap(JSON.parse(document.body.dataset.keymap || '{}'));
     } catch (e) { /* a malformed keymap simply leaves shortcuts off */ }
 
     function toggleHelpOverlay(show) {

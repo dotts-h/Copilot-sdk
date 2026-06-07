@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
@@ -158,17 +157,12 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	s.hub.forgeMu.Lock()
 	keymap := s.config.Keymap()
 	s.hub.forgeMu.Unlock()
-	dispatch := make(map[string]string, len(keymap))
-	for _, k := range keymap {
-		dispatch[k.ID] = k.Key
-	}
-	keymapJSON, _ := json.Marshal(dispatch) // map marshals with sorted keys → deterministic
 	data := indexData{
 		Nav:        nav,
 		Cost:       template.HTML(renderCostFooter(s.monthToDate().Credits(), s.budget())), //nolint:gosec // internally rendered, escaped via esc()
 		Main:       template.HTML(s.chatPartial()),                                         //nolint:gosec // internally rendered, escaped via esc()
 		Overlay:    template.HTML(helpOverlay(keymap)),                                     //nolint:gosec // internally rendered, escaped via esc()
-		KeymapJSON: string(keymapJSON),
+		KeymapJSON: keymapJSON(keymap),                                                     // shared with the Settings live-apply OOB swap
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := pageTemplates.ExecuteTemplate(w, "index", data); err != nil {
