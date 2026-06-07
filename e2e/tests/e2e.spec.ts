@@ -559,6 +559,12 @@ test.describe("persisted spend history + trends", () => {
     await expect(main).toContainText("Ledger vs runs");
     await expect(page.locator("#main table.recon")).toBeVisible();
     await expect(page.locator("#main tr.recon-row").first()).toBeVisible();
+    // The per-lane reconciliation (V16): the same ledger-vs-runs comparison one grain
+    // finer — per (workflow, lane). The demo seeds build-and-harden lane-tagged on both
+    // sides. Structure only (heading + the per-lane table + a row), same drift gotcha.
+    await expect(main).toContainText("Ledger vs runs by lane");
+    await expect(page.locator("#main table.lane-recon")).toBeVisible();
+    await expect(page.locator("#main tr.lane-recon-row").first()).toBeVisible();
     // The bucketed burn trajectory (F3): beside each agent/workflow share bar the
     // page projects that bucket's recent pace. Assert the trajectory STRUCTURE, never
     // figures — the demo ledger is shared + append-only across the suite (the same

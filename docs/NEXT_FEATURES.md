@@ -480,6 +480,26 @@ reader takes two record slices and returns ids; the web layer resolves labels un
 > then **V17 — surface the delta in the export / forecast** (S). TECH_DEBT #8 stays deferred to
 > its (unmet) volume trigger.
 
+> **v7 update (after V16):** **V16 shipped** (issue 0040) — `telemetry.LaneReconcile(spend
+> []SpendRecord, runs []RunRecord) []LaneRecon{WorkflowID, LaneIndex, LedgerCredits, RunCredits,
+> Delta}` joins the **same** two persisted stores one grain **finer** — per `(workflow, lane)` —
+> so a divergence the per-workflow row only totals is locatable at the exact step. Ledger side
+> groups lane-tagged spend (`SpendRecord` by `WorkflowID + LaneIndex`, ADR-0018) and run side
+> sums per-lane credits (`RunLane.Credits`, the `LaneShares` grain), keyed by `(workflow, lane)`,
+> sorted by absolute delta descending (ties → ledger credits desc, then workflow id asc, then
+> lane index asc; a lane zero on both sides — a skipped run lane with no ledger spend — is
+> omitted). The Telemetry page renders a **"Ledger vs runs by lane"** table below the
+> per-workflow "Ledger vs runs", resolving ids → labels under `forgeMu` and ambering a
+> non-trivial delta. A pure cross-record reader returning ids (no schema change, no new store,
+> no cross-package seam, no ADR). **Epic 0038 stays OPEN** — V16 is its second child. **A
+> per-SESSION reconciliation was considered and is not well-supported** (`RunRecord` carries no
+> session id, unlike `SpendRecord.SessionID`, so there's no key to join runs on per session) —
+> the per-lane join is the natural finer grain. **Remaining:** **V17 — surface the delta in the
+> export / forecast** (S, the last convergence slice — carry the per-workflow/per-lane `Delta`
+> into the CSV export and/or annotate the burn-rate forecast when the two sides disagree
+> materially) → then **close epic 0038** (the reconciliation surface exhausted at the workflow +
+> lane grain). TECH_DEBT #8 stays deferred to its (unmet) volume trigger.
+
 ---
 
 ## Appendix — roadmap v2 (shipped, epic 0013, for context)
