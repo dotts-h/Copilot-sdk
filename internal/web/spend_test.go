@@ -164,6 +164,43 @@ func TestTelemetryPageShowsLedgerVsRunsReconciliation(t *testing.T) {
 	}
 }
 
+func TestTelemetryPageShowsPerLaneReconciliation(t *testing.T) {
+	// The per-lane "Ledger vs runs by lane" reconciliation (V16) is the per-workflow
+	// "Ledger vs runs" table one grain finer: each (workflow, lane)'s ledger spend
+	// (lane-tagged SpendRecords) beside what its recorded run lane metered, and the delta —
+	// so a divergence is locatable at the exact step, not just the workflow total. The lane
+	// is named "<workflow> · step <n>" (n = lane index + 1), resolving the workflow id to
+	// its display name under forgeMu; a non-trivial delta is ambered.
+	s, store := newSpendServer(t)
+	s.forge.Workflows = []ctxforge.Workflow{{ID: "ship", Name: "Ship", Mode: ctxforge.WorkflowSequential}}
+	rs := withRunStore(s)
+	// Ledger: lane 0 of ship metered 5.00 cr ($0.05).
+	if err := store.Append(telemetry.SpendRecord{
+		At: day("2026-06-04T10:00:00Z"), Model: "gpt-5", USD: 0.05, WorkflowID: "ship", LaneIndex: 0,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Runs: that lane's recorded run metered only 4.00 cr — diverges (delta +1.00).
+	if err := rs.Append(telemetry.RunRecord{
+		ID: "r1", WorkflowID: "ship", Name: "Ship", Mode: "sequential", Outcome: "finished",
+		Lanes: []telemetry.RunLane{{Index: 0, AgentID: "builder", Status: "done", Credits: 4}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	html := s.telemetryPartial(defaultSpendWindow)
+	for _, want := range []string{
+		"Ledger vs runs by lane",           // the per-lane section heading
+		`class="grid lane-recon"`,          // the per-lane comparison table
+		`class="recon-row lane-recon-row"`, // a per-(workflow, lane) row
+		"Ship · step 1",                    // the lane label (workflow name + 1-based step)
+		`class="recon-delta amber"`,        // the non-trivial delta is ambered
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("telemetry page missing per-lane reconciliation %q\n%s", want, html)
+		}
+	}
+}
+
 func TestTelemetryReconciliationHiddenWithoutRunStore(t *testing.T) {
 	// Reconciliation needs BOTH stores — with no run store wired there is nothing to
 	// reconcile against, so the section is absent (the page keeps its prior shape).

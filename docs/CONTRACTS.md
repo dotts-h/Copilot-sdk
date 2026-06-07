@@ -239,8 +239,12 @@ grain) against the workflow's recorded-run spend (the `RunAggregates` grain) and
 **delta** — resolving workflow ids → display names under `forgeMu` (like the share rows) and
 **ambering** a non-trivial delta (a turn metered outside a recorded run, or a run metered under a
 different attribution). It renders only when **both** a spend store and a run store are wired (the
-reconciliation needs two sides). A pure-reader composition over the two existing stores (no schema
-change, no new store, no ADR). — see
+reconciliation needs two sides). Below it the page renders a **"Ledger vs runs by lane"** table
+(V16) from `telemetry.LaneReconcile` (§4) — the **same** cross-store join one grain finer, per
+`(workflow, lane)` — naming each row `"<workflow> · step <n>"` (n = lane index + 1, like the Runs
+page's "Cost by lane") under `forgeMu` and ambering a non-trivial delta, so a divergence the
+per-workflow row only totals is locatable at the exact step. A pure-reader composition over the
+two existing stores (no schema change, no new store, no ADR). — see
 [ADR-0019](adr/0019-budget-burn-rate-forecast-trailing-window-average.md),
 [ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md),
 [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md)
@@ -524,6 +528,28 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   (the web layer resolves labels under `forgeMu`), so there is **no cross-package seam**;
   **pure**, no schema change, **no ADR**. The Telemetry page (§3) renders it as a "Ledger
   vs runs" comparison table, ambering a non-trivial delta. — see
+  [ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md),
+  [ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md),
+  [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md)
+  **Per-lane reconciliation (pure cross-store reader — V16):** `telemetry.LaneReconcile(spend
+  []SpendRecord, runs []RunRecord) []LaneRecon{WorkflowID, LaneIndex, LedgerCredits,
+  RunCredits, Delta}` is the **per-lane cousin** of `WorkflowReconcile` — the same cross-store
+  join one grain **finer**, keyed by `(workflow, lane)`. It joins the ledger's lane-tagged
+  spend (`SpendRecord` grouped by `WorkflowID + LaneIndex` — the **`LaneShares` ledger
+  cousin**, ADR-0018's lane attribution, the empty-workflow chat bucket excluded) against the
+  run history's per-lane credits (`RunLane.Credits` summed by `(workflow, lane Index)` — the
+  **`LaneShares` grain**, a skipped lane adding zero), with `Delta = LedgerCredits −
+  RunCredits`. A `(workflow, lane)` present in **one** store but not the other yields a row
+  with the other side zero; a lane **zero on both sides** (a skipped run lane with no ledger
+  spend — nothing to reconcile) is **omitted** (mirroring how `WorkflowReconcile` never emits a
+  both-zero workflow). Sorted by **absolute delta descending** (ties → ledger credits
+  descending, then workflow id ascending, then lane index ascending — a total deterministic
+  order over the unique `(workflow, lane)` key). Empty inputs → empty slice. Takes **both**
+  record slices and returns **ids** (the web layer resolves labels under `forgeMu`), so there
+  is **no cross-package seam**; **pure**, no schema change, **no ADR**. The Telemetry page (§3)
+  renders it as a "Ledger vs runs by lane" comparison table below the per-workflow one,
+  ambering a non-trivial delta — so a divergence the per-workflow row only totals is locatable
+  at the exact step. — see
   [ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md),
   [ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md),
   [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md)

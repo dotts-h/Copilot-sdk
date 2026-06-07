@@ -7,8 +7,8 @@ group:
 github:
 links:
   adr:
-  prs: [66]
-  issues: [0039]
+  prs: [66, 74]
+  issues: [0039, 0040]
   regression:
 ---
 
@@ -62,18 +62,35 @@ negative-value. The v7 epic is a **product/convergence** epic instead.
       order). The Telemetry page renders a **"Ledger vs runs"** per-workflow comparison
       table below "Cost by workflow", resolving ids → labels under `forgeMu` and ambering
       a non-trivial delta. **First child** — the epic is born in its PR.
+- [x] **V16 — per-lane cost⋈run reconciliation reader + Telemetry "Ledger vs runs by lane"**
+      (M; pure cross-store reader + UI composition) → [0040](0040-per-lane-cost-run-reconciliation.md)
+      (**shipped**, PR #74; no ADR — a pure cross-record reader returning ids, no cross-package seam).
+      `telemetry.LaneReconcile(spend []SpendRecord, runs []RunRecord) []LaneRecon{WorkflowID,
+      LaneIndex, LedgerCredits, RunCredits, Delta}` joins the **same** two roll-ups one grain
+      finer — per `(workflow, lane)` — so a divergence the per-workflow row only totals is
+      locatable at the exact step. Ledger side groups lane-tagged spend (`SpendRecord` by
+      `WorkflowID + LaneIndex`, ADR-0018); run side sums per-lane credits (`RunLane.Credits`,
+      the `LaneShares` grain). Sorted by absolute delta descending (ties → ledger credits
+      desc, then workflow id asc, then lane index asc — a total deterministic order); a lane
+      zero on both sides (a skipped run lane with no ledger spend) is omitted. The Telemetry
+      page renders a **"Ledger vs runs by lane"** table below the per-workflow "Ledger vs
+      runs", resolving ids → labels under `forgeMu` and ambering a non-trivial delta. **Second
+      child.**
 
 ## Status
 
-**Open — first child shipped.** First child **V15 (cost⋈run reconciliation, 0039)** shipped
+**Open — first child shipped, second in flight.** First child **V15 (cost⋈run reconciliation, 0039)** shipped
 in this epic's opening **PR #66** — per the repo convention an epic is born in its first
 child's PR (cf. epic 0031 in V11's PR #59). `telemetry.WorkflowReconcile` joins the spend
 ledger's and the run history's per-workflow roll-ups and surfaces the **delta**, rendered
 as a "Ledger vs runs" comparison on the Telemetry page (ids → labels under `forgeMu`, a
-non-trivial delta ambered). The epic stays **open** with more reconciliation children to
-come — the remaining convergence slices (e.g. a per-lane or per-session reconciliation, or
-surfacing the delta in the export/forecast — V16/V17 in NEXT_FEATURES "roadmap v7"), to be
-scoped from a fresh value×fit pass as the next implementation session.
+non-trivial delta ambered). Second child **V16 (per-lane cost⋈run reconciliation, 0040)** is
+in flight — `telemetry.LaneReconcile` joins the same two stores one grain finer (per
+`(workflow, lane)`), rendered as a "Ledger vs runs by lane" table on the Telemetry page, so a
+divergence the per-workflow row only totals is locatable at the exact step. The epic stays
+**open** with at least one more convergence slice possible — **V17** (surface the delta in
+the CSV export / forecast in NEXT_FEATURES "roadmap v7"), to be scoped from a fresh value×fit
+pass; close the epic only when the reconciliation surface is exhausted.
 
 ## Notes
 

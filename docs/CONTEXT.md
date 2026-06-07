@@ -87,7 +87,10 @@
   is the per-(workflow, lane) cousin. — ADR-0022
 - **reconcile** — the cross-store **join** of the ledger's per-workflow spend (`WorkflowShares`
   grain) against the run history's (`RunAggregates` grain), per workflow
-  (`telemetry.WorkflowReconcile`). The convergence of the two differentiators.
+  (`telemetry.WorkflowReconcile`). The convergence of the two differentiators. The per-lane
+  cousin (`telemetry.LaneReconcile`) joins the **same** stores one grain finer — per
+  `(workflow, lane)`, the lane-tagged ledger vs the `LaneShares` grain — so a divergence is
+  locatable at the exact step, not just the workflow total.
 - **delta** — `LedgerCredits − RunCredits`: how far the two stores **disagree** for a
   workflow. Ambered in the UI when non-trivial.
 - **window** — the **14/30/90-day** slice selector shared by the spend trend and the Runs

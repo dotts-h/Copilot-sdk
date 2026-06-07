@@ -289,7 +289,7 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
 .run-summary-totalcost { color: var(--good); font-weight: 600; }
 .run-summary-avgcost { color: var(--good); }
 .run-summary-failures.has-failures { color: var(--bad); }
-.recon-workflow { color: var(--accent); font-weight: 600; }
+.recon-workflow, .recon-lane { color: var(--accent); font-weight: 600; }
 .recon-delta { font-weight: 600; }
 .recon-delta.amber { color: var(--warn); }
 .run-lanes { list-style: none; padding: 0; margin: 0; display: flex;

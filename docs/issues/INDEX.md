@@ -16,7 +16,7 @@ issues are added or closed.
 | [0024](0024-epic-convergence-dashboards-cost-surface.md) | Epic: convergence dashboards & cost-surface completion (roadmap v4) | closed | 0025, 0026, 0027, 0028, 0029 |
 | [0030](0030-epic-orchestration-visibility-polish.md) | Epic: orchestration visibility & polish (roadmap v5) | closed | 0031, 0032, 0033 |
 | [0031](0031-epic-orchestration-accountability.md) | Epic: orchestration accountability — Runs surface parity (roadmap v6) | closed | 0034, 0035, 0036, 0037 |
-| [0038](0038-epic-cost-run-reconciliation.md) | Epic: cost⋈run reconciliation — converge the two persisted stores (roadmap v7) | open | 0039 |
+| [0038](0038-epic-cost-run-reconciliation.md) | Epic: cost⋈run reconciliation — converge the two persisted stores (roadmap v7) | open | 0039, 0040 |
 
 ## Issues
 
@@ -53,3 +53,4 @@ issues are added or closed.
 | [0036](0036-runs-time-window-selector.md) | Runs time-window selector (item V12) | closed | low | 0031 | CONTRACTS §3, PR #62 |
 | [0037](0037-runs-per-lane-cost-rollup.md) | Per-lane cost roll-up — Cost by lane on the Runs page (item V14) | closed | low | 0031 | CONTRACTS §3/§4, PR #64 |
 | [0039](0039-cost-run-reconciliation.md) | Cost⋈run reconciliation — Ledger vs runs on the Telemetry page (item V15) | closed | medium | 0038 | CONTRACTS §3/§4, PR #66 |
+| [0040](0040-per-lane-cost-run-reconciliation.md) | Per-lane cost⋈run reconciliation — Ledger vs runs by lane on the Telemetry page (item V16) | closed | medium | 0038 | CONTRACTS §3/§4, PR #74 |

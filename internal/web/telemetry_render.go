@@ -58,8 +58,9 @@ func (s *Server) telemetryPartial(window int) string {
 		"Rows": rows, "Width": fmt.Sprintf("%.1f%%", pct), "Models": models,
 		"Days": days, "Shares": shares, "HasHistory": hasHistory,
 		"AgentShares": agents, "WorkflowShares": workflows,
-		"Reconcile": s.workflowReconcile(),
-		"Forecast":  forecast, "Windows": windows,
+		"Reconcile":     s.workflowReconcile(),
+		"LaneReconcile": s.laneReconcile(),
+		"Forecast":      forecast, "Windows": windows,
 	})
 }
 
@@ -199,6 +200,45 @@ func (s *Server) workflowReconcile() []map[string]any {
 func (s *Server) reconcileRow(r telemetry.WorkflowRecon) map[string]any {
 	return map[string]any{
 		"Workflow":      s.workflowLabel(r.WorkflowID),
+		"LedgerCredits": telemetry.FormatCredits(r.LedgerCredits),
+		"RunCredits":    telemetry.FormatCredits(r.RunCredits),
+		"Delta":         telemetry.FormatCredits(r.Delta),
+		"Amber":         math.Abs(r.Delta) >= reconcileEpsilon,
+	}
+}
+
+// laneReconcile builds the per-lane "Ledger vs runs by lane" rows for the Telemetry page
+// (V16) — the per-workflow reconciliation one grain finer: each (workflow, lane)'s ledger
+// spend (lane-tagged SpendRecords) beside what its recorded run lane metered, and the
+// delta — so a divergence the per-workflow row only totals is locatable at the exact step.
+// A non-trivial delta is ambered. Workflow ids resolve to display names under forgeMu.
+// Empty unless BOTH a spend store and a run store are wired (reconciliation needs two
+// sides) and at least one lane appears with non-zero credits in either.
+func (s *Server) laneReconcile() []map[string]any {
+	rows := []map[string]any{}
+	if s.spend == nil || s.runs == nil {
+		return rows
+	}
+	recon := telemetry.LaneReconcile(s.spend.Records(), s.runs.Records())
+	if len(recon) == 0 {
+		return rows
+	}
+	s.hub.forgeMu.Lock()
+	defer s.hub.forgeMu.Unlock()
+	for _, r := range recon {
+		rows = append(rows, s.laneReconcileRow(r))
+	}
+	return rows
+}
+
+// laneReconcileRow builds the template shape for one "Ledger vs runs by lane" row: the
+// lane named "<workflow> · step <n>" (n = lane index + 1, mirroring the Runs page's "Cost
+// by lane"), its ledger credits, its recorded-run credits, and the delta (ambered when its
+// magnitude clears reconcileEpsilon). Workflow ids resolve via workflowLabel — caller holds
+// forgeMu.
+func (s *Server) laneReconcileRow(r telemetry.LaneRecon) map[string]any {
+	return map[string]any{
+		"Lane":          fmt.Sprintf("%s · step %d", s.workflowLabel(r.WorkflowID), r.LaneIndex+1),
 		"LedgerCredits": telemetry.FormatCredits(r.LedgerCredits),
 		"RunCredits":    telemetry.FormatCredits(r.RunCredits),
 		"Delta":         telemetry.FormatCredits(r.Delta),

@@ -98,3 +98,102 @@ func WorkflowReconcile(spend []SpendRecord, runs []RunRecord) []WorkflowRecon {
 	})
 	return out
 }
+
+// LaneRecon reconciles one (workflow, lane)'s spend across the two persisted stores at
+// the FINEST grain — one step below WorkflowRecon's per-workflow total. LedgerCredits is
+// the lane-tagged spend the ledger attributes to this lane (SpendRecord grouped by
+// WorkflowID + LaneIndex — the lane attribution of ADR-0018, the ledger cousin of
+// LaneShares); RunCredits is what the run history's matching lane metered
+// (RunLane.Credits, a skipped lane adding zero — the LaneShares grain); Delta is
+// LedgerCredits − RunCredits (zero when the two stores agree). A (workflow, lane) present
+// in only ONE store appears with the other side zero — so a divergence the per-workflow
+// row only totals is locatable at the exact lane.
+type LaneRecon struct {
+	WorkflowID    string
+	LaneIndex     int
+	LedgerCredits float64 // lane-tagged spend from the ledger (the LaneShares ledger cousin)
+	RunCredits    float64 // metered cost of the lane's recorded runs (the LaneShares grain)
+	Delta         float64 // LedgerCredits − RunCredits (0 = the stores agree)
+}
+
+// LaneReconcile joins the spend ledger and the run history per (workflow, lane) — the
+// per-lane cousin of WorkflowReconcile, one grain finer. Ledger credits group workflow-
+// attributed spend by (WorkflowID, LaneIndex) (the empty-workflow chat bucket excluded,
+// like WorkflowShares — a non-workflow turn has no lane to reconcile against; a turn the
+// run owned but that didn't route to a lane persists at LaneIndex 0, ADR-0018, so the
+// ledger figure reflects the records as stored); run credits sum each recorded run lane's
+// metered cost by (WorkflowID, lane Index) (a skipped lane adding zero, the LaneShares
+// grain). A (workflow, lane) seen with non-zero credits in EITHER store yields a row (the
+// other side zero if one-sided); a lane that metered zero on BOTH sides — e.g. a skipped
+// run lane with no matching ledger spend, common at this grain — has nothing to reconcile
+// and is omitted so skipped lanes don't pad the table. Sorted by absolute delta DESCENDING
+// so the biggest discrepancy reads first
+// (ties broken by ledger credits descending, then workflow id ascending, then lane index
+// ascending: a total order over the unique (workflow, lane) key for full determinism
+// regardless of input/map order). Empty inputs → empty slice. Pure: same records → same
+// result.
+func LaneReconcile(spend []SpendRecord, runs []RunRecord) []LaneRecon {
+	type key struct {
+		workflow string
+		lane     int
+	}
+	// Ledger side: sum USD per (workflow, lane) then convert once (mirroring shareBy /
+	// WorkflowReconcile), so the per-lane ledger figure is bit-for-bit the per-lane slice
+	// of the "Cost by workflow" share.
+	ledgerUSD := map[key]float64{}
+	for _, r := range spend {
+		if r.WorkflowID == "" {
+			continue // non-workflow chat spend has no lane to reconcile against
+		}
+		ledgerUSD[key{r.WorkflowID, r.LaneIndex}] += r.USD
+	}
+	// Run side: sum each recorded run lane's metered credits by (workflow, lane).
+	runCredits := map[key]float64{}
+	for _, r := range runs {
+		if r.WorkflowID == "" {
+			continue
+		}
+		for _, l := range r.Lanes {
+			runCredits[key{r.WorkflowID, l.Index}] += l.Credits
+		}
+	}
+	seen := make(map[key]struct{}, len(ledgerUSD)+len(runCredits))
+	for k := range ledgerUSD {
+		seen[k] = struct{}{}
+	}
+	for k := range runCredits {
+		seen[k] = struct{}{}
+	}
+	out := make([]LaneRecon, 0, len(seen))
+	for k := range seen {
+		lc := ledgerUSD[k] / USDPerCredit
+		rc := runCredits[k]
+		if lc == 0 && rc == 0 {
+			continue // a lane with no spend either way (e.g. a skipped lane) — nothing to reconcile
+		}
+		out = append(out, LaneRecon{
+			WorkflowID:    k.workflow,
+			LaneIndex:     k.lane,
+			LedgerCredits: lc,
+			RunCredits:    rc,
+			Delta:         lc - rc,
+		})
+	}
+	// |delta| desc, then ledger credits desc, then workflow id asc, then lane index asc —
+	// a total order over the unique (workflow, lane) key, so the result is fully
+	// deterministic regardless of map iteration order.
+	sort.Slice(out, func(i, j int) bool {
+		di, dj := math.Abs(out[i].Delta), math.Abs(out[j].Delta)
+		if di != dj {
+			return di > dj
+		}
+		if out[i].LedgerCredits != out[j].LedgerCredits {
+			return out[i].LedgerCredits > out[j].LedgerCredits
+		}
+		if out[i].WorkflowID != out[j].WorkflowID {
+			return out[i].WorkflowID < out[j].WorkflowID
+		}
+		return out[i].LaneIndex < out[j].LaneIndex
+	})
+	return out
+}
