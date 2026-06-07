@@ -287,4 +287,24 @@ For each skill, hand the creator: the **name**, the **`description` draft** (ver
 
 **Doc-skill placement.** You said in your brief the doc skills should be *global*; the "Split" option I offered bucketed them as in-repo. My recommendation (above) is **global methodology, repo-side output** for skills 1–5 — reusable on every project, while the generated docs always live in this repo. If you'd rather *commit the doc skills themselves* into `.claude/skills/` (shareable with collaborators via git, not reused elsewhere), say so and I'll flip skills 1–5 to project placement. Everything else follows your four answers exactly.
 
+---
+
+## 9. Operational skills shipped in-repo (addendum, 2026-06-07)
+
+Beyond the 15 methodology skills above, two **operational** skills now live in
+`.claude/skills/` (committed in-repo, promotable to the `claude-skills` plugin for
+cross-project reuse) — they encode lessons from a build/infra session:
+
+| Skill | Role | Origin lesson |
+|-------|------|---------------|
+| `cut-release` | Publish a tagged release with end-to-end version verification | A dispatched release published mis-tagged `main` because the workflow's version step shadowed the input — verify outward-facing actions, don't fire blind. |
+| `seed-project-infra` | Seed a new repo with the portable kit (single-run CI, the workflow guard, a correct release workflow, the doc skeleton, the doctrine) | Conventions that live only as prose drift and don't travel; make the defaults executable + portable. |
+
+These pair with the **self-enforcing workflow guard** (`scripts/check-workflows.sh`, wired
+into CI lint + `make lint`) — the "enforce with hooks, not memory" principle in code. Next
+operational skills to spec: `pick-next-child` (roadmap → next issue+branch, replacing a
+hand-carried planning prompt) and `deepen-module` (the deep/shallow + deletion-test lens).
+
+---
+
 — End of plan —
