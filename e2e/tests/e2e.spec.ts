@@ -400,6 +400,16 @@ test.describe("multi-agent workflows", () => {
     expect(runsRes.headers()["content-type"]).toContain("text/csv");
     expect(await runsRes.text()).toContain("run,workflow,name");
 
+    // The time-window selector (V12) mirrors the Telemetry trend's: three windows
+    // (14/30/90), exactly one active, defaulting to 14d. Switching re-fetches the Runs
+    // page sliced to the chosen window (the seeded demo runs are recent, so they stay
+    // visible across windows — assert the selector state, not figures).
+    await expect(page.locator("#main .window-row button.window")).toHaveCount(3);
+    await expect(page.locator("#main .window-row button.window.on")).toHaveCount(1);
+    await expect(page.locator("#main .window-row button.window.on")).toHaveText("14d");
+    await page.locator('#main .window-row button.window:has-text("90d")').click();
+    await expect(page.locator("#main .window-row button.window.on")).toHaveText("90d");
+
     const before = await page.locator(".run-record").count();
 
     // Run a workflow and wait for it to finish.

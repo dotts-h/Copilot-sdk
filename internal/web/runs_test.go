@@ -133,7 +133,7 @@ func TestRunsPartialRendersStructure(t *testing.T) {
 			{Index: 1, AgentID: "fixer", Status: "skipped"},
 		},
 	})
-	html := s.runsPartial()
+	html := s.runsPartial(defaultSpendWindow)
 	for _, sub := range []string{"Runs", "Build &amp;amp; harden", "sequential", "skipped"} {
 		if !strings.Contains(html, sub) {
 			t.Errorf("runs partial missing %q\n%s", sub, html)
@@ -157,7 +157,7 @@ func TestRunsPartialRendersDurationAndSummary(t *testing.T) {
 		StartedAt: base, FinishedAt: base.Add(4 * time.Minute), Outcome: "failed",
 		Lanes: []telemetry.RunLane{{Index: 0, AgentID: "builder", Status: "failed", Credits: 1.0}},
 	})
-	html := s.runsPartial()
+	html := s.runsPartial(defaultSpendWindow)
 	// Structure: a summary table with a per-workflow row, and a duration cell.
 	for _, sub := range []string{
 		`class="run-summary"`, `class="run-summary-row"`,
@@ -193,7 +193,7 @@ func TestRunsSummaryShowsTotalAndAvgCredits(t *testing.T) {
 		Lanes: []telemetry.RunLane{{Index: 0, AgentID: "builder", Status: "done", Credits: 1.0}},
 	})
 	// total = 3.60 cr, avg = 1.80 cr — distinct strings.
-	html := s.runsPartial()
+	html := s.runsPartial(defaultSpendWindow)
 	for _, sub := range []string{
 		`class="run-summary-totalcost"`, // the new column cell
 		"Total&nbsp;cost",               // the new column header
@@ -202,6 +202,80 @@ func TestRunsSummaryShowsTotalAndAvgCredits(t *testing.T) {
 	} {
 		if !strings.Contains(html, sub) {
 			t.Errorf("runs summary missing %q\n%s", sub, html)
+		}
+	}
+}
+
+func TestRunsPartialSlicesToWindow(t *testing.T) {
+	// The Runs page mirrors the Telemetry trend's 14/30/90-day window selector (V12):
+	// a clamped ?window= slices the run history (anchored to the most recent run) so a
+	// long history stays scannable. A run outside the window is dropped from BOTH the
+	// history list AND the per-workflow summary roll-up.
+	s, _ := newTestServer()
+	rs := withRunStore(s)
+	latest := time.Date(2026, 6, 6, 10, 0, 0, 0, time.UTC)
+	// A fresh run 2 days before the latest (inside every window) and a stale run 40 days
+	// before it (outside 14/30, inside 90). The anchor fixes "latest".
+	_ = rs.Append(telemetry.RunRecord{
+		ID: "old", WorkflowID: "stale", Name: "StaleFlow", Mode: "sequential",
+		StartedAt: latest.AddDate(0, 0, -40), FinishedAt: latest.AddDate(0, 0, -40).Add(time.Minute),
+		Outcome: "finished", Lanes: []telemetry.RunLane{{Index: 0, AgentID: "a", Status: "done", Credits: 9.0}},
+	})
+	_ = rs.Append(telemetry.RunRecord{
+		ID: "recent", WorkflowID: "fresh", Name: "FreshFlow", Mode: "sequential",
+		StartedAt: latest.AddDate(0, 0, -2), FinishedAt: latest.AddDate(0, 0, -2).Add(time.Minute),
+		Outcome: "finished", Lanes: []telemetry.RunLane{{Index: 0, AgentID: "a", Status: "done", Credits: 1.0}},
+	})
+	_ = rs.Append(telemetry.RunRecord{
+		ID: "anchor", WorkflowID: "fresh", Name: "FreshFlow", Mode: "sequential",
+		StartedAt: latest, FinishedAt: latest.Add(time.Minute),
+		Outcome: "finished", Lanes: []telemetry.RunLane{{Index: 0, AgentID: "a", Status: "done", Credits: 1.0}},
+	})
+
+	// 14-day window: the 40-day-old run is excluded from history + summary; the fresh
+	// workflow stays.
+	narrow := s.runsPartial(defaultSpendWindow)
+	if strings.Contains(narrow, "StaleFlow") {
+		t.Errorf("a run 40 days before the latest must fall outside the 14-day window:\n%s", narrow)
+	}
+	if !strings.Contains(narrow, "FreshFlow") {
+		t.Errorf("recent runs must stay inside the 14-day window:\n%s", narrow)
+	}
+
+	// 90-day window: the stale run reappears in both the history and the summary.
+	wide := s.runsPartial(90)
+	if !strings.Contains(wide, "StaleFlow") {
+		t.Errorf("the 90-day window must include the 40-day-old run:\n%s", wide)
+	}
+
+	// The selector renders the three windows, the active one (14) marked, each
+	// re-fetching GET /page/runs?window=N — mirroring the Telemetry trend selector.
+	for _, sub := range []string{
+		`class="window-row"`,
+		`class="window on" hx-get="/page/runs?window=14"`,
+		`hx-get="/page/runs?window=30"`,
+		`hx-get="/page/runs?window=90"`,
+	} {
+		if !strings.Contains(narrow, sub) {
+			t.Errorf("runs window selector missing %q\n%s", sub, narrow)
+		}
+	}
+}
+
+func TestRunsWindowClampsGarbage(t *testing.T) {
+	// renderPage threads ?window= through clampWindow (reused from the Telemetry trend):
+	// garbage or out-of-range falls back to the default 14-day window.
+	s, _ := newTestServer()
+	rs := withRunStore(s)
+	_ = rs.Append(telemetry.RunRecord{
+		ID: "r", WorkflowID: "w", Name: "W", Mode: "sequential",
+		StartedAt: time.Date(2026, 6, 6, 10, 0, 0, 0, time.UTC), Outcome: "finished",
+		Lanes: []telemetry.RunLane{{Index: 0, AgentID: "a", Status: "done", Credits: 1.0}},
+	})
+	for _, raw := range []string{"bogus", "999", "", "-1"} {
+		html := s.renderPage("runs", raw)
+		if !strings.Contains(html, `class="window on" hx-get="/page/runs?window=14"`) {
+			t.Errorf("?window=%q should clamp back to the default (14):\n%s", raw, html)
 		}
 	}
 }
@@ -232,7 +306,7 @@ func TestHumanDuration(t *testing.T) {
 func TestRunsPartialEmpty(t *testing.T) {
 	s, _ := newTestServer()
 	withRunStore(s)
-	html := s.runsPartial()
+	html := s.runsPartial(defaultSpendWindow)
 	if !strings.Contains(html, "no runs yet") {
 		t.Errorf("empty runs partial should hint at no runs: %s", html)
 	}
@@ -304,7 +378,7 @@ func TestRunsPageHasExportLink(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	html := s.runsPartial()
+	html := s.runsPartial(defaultSpendWindow)
 	if !strings.Contains(html, `href="/runs/export.csv"`) {
 		t.Fatalf("Runs page should carry the export link:\n%s", html)
 	}
