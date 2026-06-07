@@ -3,10 +3,41 @@ package web
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
+
+// TestDaysLeftInMonth guards the per-bucket month-projection horizon: the count of
+// whole UTC days after now's day through month end (zero on the last day), across
+// month lengths, a leap-February, and a non-UTC input.
+func TestDaysLeftInMonth(t *testing.T) {
+	cases := []struct {
+		when string
+		want int
+	}{
+		{"2026-06-15T12:00:00Z", 15}, // June (30d): 16..30 → 15
+		{"2026-06-30T23:00:00Z", 0},  // last day of a 30d month
+		{"2026-07-31T00:00:00Z", 0},  // last day of a 31d month
+		{"2026-07-01T00:00:00Z", 30}, // first day of a 31d month
+		{"2024-02-15T00:00:00Z", 14}, // leap February (29d): 16..29 → 14
+		{"2026-02-28T00:00:00Z", 0},  // last day of a common February
+	}
+	for _, c := range cases {
+		got := daysLeftInMonth(day(c.when))
+		if got != c.want {
+			t.Errorf("daysLeftInMonth(%s) = %d, want %d", c.when, got, c.want)
+		}
+	}
+	// A non-UTC instant near midnight resolves by its UTC day, like the rest of the
+	// ledger windows.
+	loc := time.FixedZone("plus2", 2*3600)
+	// 2026-06-30T23:30+02:00 is 2026-06-30T21:30Z → still June 30 in UTC → 0 left.
+	if got := daysLeftInMonth(time.Date(2026, 6, 30, 23, 30, 0, 0, loc)); got != 0 {
+		t.Errorf("non-UTC last-day input should resolve to 0 days left, got %d", got)
+	}
+}
 
 // TestTelemetryPageShowsBucketTrajectory guards the F3 surface: beside each
 // per-agent / per-workflow share bar the Telemetry page renders that bucket's burn
