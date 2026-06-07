@@ -174,6 +174,38 @@ func TestRunsPartialRendersDurationAndSummary(t *testing.T) {
 	}
 }
 
+func TestRunsSummaryShowsTotalAndAvgCredits(t *testing.T) {
+	// The per-workflow summary surfaces a workflow's CUMULATIVE orchestrated spend
+	// (TotalCredits) beside its average (V13). Two runs of one workflow make total ≠
+	// avg, so a row that showed only the average would be indistinguishable from one
+	// that showed only the total.
+	s, _ := newTestServer()
+	rs := withRunStore(s)
+	base := time.Date(2026, 6, 6, 10, 0, 0, 0, time.UTC)
+	_ = rs.Append(telemetry.RunRecord{
+		ID: "r1", WorkflowID: "build-and-harden", Name: "Build & harden", Mode: "sequential",
+		StartedAt: base, FinishedAt: base.Add(time.Minute), Outcome: "finished",
+		Lanes: []telemetry.RunLane{{Index: 0, AgentID: "builder", Status: "done", Credits: 2.6}},
+	})
+	_ = rs.Append(telemetry.RunRecord{
+		ID: "r2", WorkflowID: "build-and-harden", Name: "Build & harden", Mode: "sequential",
+		StartedAt: base, FinishedAt: base.Add(time.Minute), Outcome: "finished",
+		Lanes: []telemetry.RunLane{{Index: 0, AgentID: "builder", Status: "done", Credits: 1.0}},
+	})
+	// total = 3.60 cr, avg = 1.80 cr — distinct strings.
+	html := s.runsPartial()
+	for _, sub := range []string{
+		`class="run-summary-totalcost"`, // the new column cell
+		"Total&nbsp;cost",               // the new column header
+		"3.60 cr",                       // cumulative spend across the two runs
+		"1.80 cr",                       // the average, still rendered beside it
+	} {
+		if !strings.Contains(html, sub) {
+			t.Errorf("runs summary missing %q\n%s", sub, html)
+		}
+	}
+}
+
 func TestHumanDuration(t *testing.T) {
 	for _, tc := range []struct {
 		d    time.Duration

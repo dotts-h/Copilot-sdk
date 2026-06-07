@@ -332,6 +332,14 @@ Ranked by value × fit; all are pure readers / presentation-layer compositions o
    gaps are closed.
 4. **TECH_DEBT #8** only when its volume trigger actually fires.
 
+> **v6 update (after V13):** **V11 shipped** (PR #59, issue 0034) and **V13 shipped**
+> (PR #61, issue 0035) — the per-workflow Runs summary now surfaces `RunAggregate.TotalCredits`
+> as a "Total cost" column beside the average (a pure presentation-layer slice, no
+> telemetry/schema change, no ADR). **Remaining, re-ranked:** **V12 — Runs time-window
+> selector** (S, next up: thread a clamped `?window=` through `runsPartial` like
+> `spendTrend`, reusing `clampWindow`) → then **V14 — per-lane cost roll-up** (M, the
+> one new analytical reader). TECH_DEBT #8 stays deferred to its (unmet) volume trigger.
+
 ---
 
 ## Appendix — roadmap v2 (shipped, epic 0013, for context)

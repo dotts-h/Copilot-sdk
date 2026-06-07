@@ -7,8 +7,8 @@ group:
 github:
 links:
   adr:
-  prs: [59]
-  issues: [0034]
+  prs: [59, 61]
+  issues: [0034, 0035]
   regression:
 assets: []
 ---
@@ -62,14 +62,19 @@ negative-value, so #8 stays a candidate, deferred to its trigger. The v6 epic is
       `GET /runs/export.csv` streams it as an attachment; the Runs page carries an
       "Export CSV" link when history exists. **First child.**
 
+- [x] **V13 — Total cost on the per-workflow summary** (S; pure presentation-layer
+      slice) → [0035](0035-runs-summary-total-cost.md) (**shipped**, PR #61; no ADR — a
+      pure UI slice over an already-computed field). The Runs summary showed `AvgCredits` but not
+      `TotalCredits` (already rolled up on `RunAggregate`); `runSummaryRow` now surfaces
+      it and the `runsPage` table gained a "Total cost" column beside "Avg cost", so a
+      workflow's *cumulative* orchestrated spend reads beside its average. **Second
+      child.**
+
 ### Candidate next children (not yet promoted — pick from the v6 research)
 
 - **V12 — Runs time-window selector** (S): mirror the Telemetry trend's 14/30/90-day
   selector on the Runs page, threading a clamped `?window=` so a long history can be
-  sliced. Presentation-layer slice over the existing records.
-- **V13 — Total cost (not just average) on the per-workflow summary** (S): the Runs
-  summary shows `AvgCredits` but not `TotalCredits` (already computed on
-  `RunAggregate`); add the column.
+  sliced. Presentation-layer slice over the existing records. **Next up.**
 - **V14 — Per-lane cost roll-up** (M): a `LaneShares`-style pure reader keyed by
   (workflow, lane) over the run history, surfacing *"which lane in this workflow costs /
   fails most?"* — the finest orchestration-attribution grain, currently unsurfaced.
@@ -78,8 +83,10 @@ negative-value, so #8 stays a candidate, deferred to its trigger. The v6 epic is
 
 **Open.** First child **V11 (Runs CSV export, 0034)** shipped in this epic's opening
 **PR #59** (per the repo convention — an epic is born in its first child's PR, as epic
-0030 opened inside V3's PR #56). The remaining candidate children (V12–V14) stay in the
-v6 research until promoted.
+0030 opened inside V3's PR #56). Second child **V13 (Total cost on the per-workflow
+summary, 0035)** shipped next in **PR #61** — a pure presentation-layer slice surfacing
+`RunAggregate.TotalCredits` beside the average. The remaining candidate children (V12
+window selector, then V14 per-lane roll-up) stay in the v6 research until promoted.
 
 ## Notes
 
@@ -95,5 +102,6 @@ composition in CONTRACTS §3 (the route) and §4 (the runs-store entry).
 
 Highest on disk before this pass: issues → **0033**, epic → **0030**, ADRs → **0022**.
 This epic takes **0031**; its first child **V11** takes issue **0034** (next free after
-0033). **No ADR consumed** — V11 is a pure additive reader + route, pre-blessed by the
-ADR-0009 export precedent (highest ADR stays 0022).
+0033) and its second child **V13** takes issue **0035**. **No ADR consumed** — both are
+pure additive readers / presentation-layer slices, pre-blessed by the ADR-0009 export
+precedent (highest ADR stays 0022).

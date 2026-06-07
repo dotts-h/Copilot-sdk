@@ -14,8 +14,8 @@ import (
 // resolving agent ids to display names like the Telemetry cost breakdowns.
 
 // runsPartial renders the Runs page: a per-workflow summary table (run count,
-// failure rate, average cost, average duration — the cost ⋈ orchestration roll-up,
-// ADR-0022/V1) above the persisted run history, most recent first. Each run shows
+// failure rate, total & average cost, average duration — the cost ⋈ orchestration
+// roll-up, ADR-0022/V1) above the persisted run history, most recent first. Each run shows
 // its name, mode, outcome, when it ran, how long it took, total metered cost, and a
 // per-lane breakdown (agent, status glyph, credits). Both the run rows and the
 // summary resolve ids to display names under forgeMu, like the cost breakdowns.
@@ -39,17 +39,20 @@ func (s *Server) runsPartial() string {
 
 // runSummaryRow builds the template shape for one per-workflow summary row: the
 // workflow's display name, its run/failure counts, failure rate as a percentage,
-// and its average cost and duration. Workflow ids resolve to names via
+// and its total & average cost and duration. Total credits — the workflow's
+// cumulative orchestrated spend — reads beside the average so a high run count and a
+// high per-run cost are distinguishable (V13). Workflow ids resolve to names via
 // workflowLabel — caller holds forgeMu.
 func (s *Server) runSummaryRow(a telemetry.RunAggregate) map[string]any {
 	return map[string]any{
-		"Workflow":    s.workflowLabel(a.WorkflowID),
-		"Runs":        a.Runs,
-		"Failures":    a.Failures,
-		"FailPct":     fmt.Sprintf("%.0f", a.FailureRate()*100),
-		"HasFailures": a.Failures > 0,
-		"AvgCredits":  telemetry.FormatCredits(a.AvgCredits),
-		"AvgDuration": humanDuration(a.AvgDuration),
+		"Workflow":     s.workflowLabel(a.WorkflowID),
+		"Runs":         a.Runs,
+		"Failures":     a.Failures,
+		"FailPct":      fmt.Sprintf("%.0f", a.FailureRate()*100),
+		"HasFailures":  a.Failures > 0,
+		"TotalCredits": telemetry.FormatCredits(a.TotalCredits),
+		"AvgCredits":   telemetry.FormatCredits(a.AvgCredits),
+		"AvgDuration":  humanDuration(a.AvgDuration),
 	}
 }
 
