@@ -1,13 +1,13 @@
 ---
 id: 0028
 title: Per-session cost on the Sessions page (roadmap v4, item G2/V5)
-status: open
+status: closed
 severity: medium
 group: 0024
 github:
 links:
   adr:
-  prs: []
+  prs: [53]
   issues: [0024, 0027]
   regression:
 assets: []
@@ -57,6 +57,32 @@ each session. No schema change — `SessionID` was already tagged. Source:
   session is not shown, and it renders cleanly with no spend store wired (no panic, prior
   shape). e2e — assert the per-session cost cell **structure** on a session row, never
   exact figures (the shared demo ledger is append-only across the suite).
+
+## Resolution (shipped)
+
+Built as specified, no schema change (the `SessionID` tag already existed, ADR-0018).
+`internal/telemetry` (`history.go`): `SessionShares(records) []SessionShare{SessionID,
+Credits, Turns}` rolls spend up per copilot session id via the shared `shareBy` helper,
+sorted by credits descending then session id ascending; it **excludes** the
+empty-`SessionID` bucket (`includeEmpty=false`, like `WorkflowShares`). `shareBy` gained a
+per-group `Count` accumulator (one pass, mirroring `DailyTotals`) so the turn count needs
+no second scan and no duplicated empty-key guard. `internal/web` (`sessions.go`,
+`templates/fragments.html`, `static/app.css`): `sessionRows` joins
+`SessionShares(s.spend.Records())` onto each `copilot.SessionMeta` row by id off the spend
+store's own leaf mutex (no `s.mu`/`forgeMu`, so no `forgeMu → s.mu` inversion); the
+`sessionsPage` template gained a `.session-cost` cell showing *"N turns · X cr"* (a
+no-spend session shows *"no cost yet"*, never dropped; a since-deleted bucket is not shown;
+no spend store → prior shape). Credits via `telemetry.FormatCredits`; all through
+`html/template` (ADR-0001). Tests: unit (`internal/telemetry`
+`TestSessionShares`, `TestSessionSharesExcludesEmptySessionID`,
+`TestSessionSharesDeterministicTieBreak`, `TestSessionSharesEmpty`), web
+(`TestSessionsPageShowsPerSessionCost`, `TestSessionsPageNoSpendStoreNoPanic`), e2e (the
+sessions spec asserts the cost-cell structure, never figures). Docs: CONTRACTS §3 (the
+Sessions-page per-session-cost surface) + §4 (the `SessionShares` reader + empty-key rule).
+No REGRESSIONS entry — no bug was found-and-fixed; the empty-key rule, the no-spend-session
+join, and the nil-spend path were guarded preemptively (self-review with `/code-review`
+high effort confirmed them). Shipped on branch `claude/per-session-cost` (**PR #53**,
+merged).
 
 ## Notes
 - **No ADR:** a pure-reader composition over the existing ledger, pre-blessed by ADR-0018

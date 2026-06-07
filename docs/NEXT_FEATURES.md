@@ -120,14 +120,20 @@ differentiator is folded in where it earns its place.
   [0024](issues/0024-epic-convergence-dashboards-cost-surface.md) (roadmap v4); issue
   [0027](issues/0027-settings-price-override-editor.md).**
 
-### G2 / V5 — Per-session cost on the Sessions page  — **M**  ·  *candidate*
-- **What:** a pure `SessionShares(records)` aggregation (parallel to `AgentShares`) so
-  the Sessions picker (today title + age only, `sessions.go`) shows total credits + turn
-  count per session — `SpendRecord` already carries `SessionID`. A cost-aware session
-  picker.
-- **Why now:** the session id is already tagged on every record; pure reader, no schema
-  change. **Touches:** `internal/telemetry` (`history.go` `SessionShares`),
-  `internal/web` (`sessions.go` `sessionRows`).
+### G2 / V5 — Per-session cost on the Sessions page  — **M**  ·  **SHIPPED** (epic 0024, issue [0028](issues/0028-per-session-cost-sessions-page.md))
+- **What:** a pure `SessionShares(records) []SessionShare{SessionID, Credits, Turns}`
+  aggregation (parallel to `AgentShares`/`WorkflowShares`, **excluding** the empty-`SessionID`
+  bucket like `WorkflowShares`) so the Sessions picker (was title + age only, `sessions.go`)
+  shows total credits + turn count per session — `SpendRecord` already carries `SessionID`.
+  A cost-aware session picker.
+- **Shipped:** `sessionRows` joins `SessionShares(s.spend.Records())` onto each
+  `copilot.SessionMeta` row by id (off the spend store's leaf mutex — no `forgeMu → s.mu`
+  inversion), showing *"N turns · X cr"* per row; a no-spend session shows *"no cost yet"*
+  (not dropped), a since-deleted bucket is not shown, no spend store → prior shape. The
+  turn count rides a new per-group `Count` on `shareBy` (one pass). No ADR (pure-reader
+  composition pre-blessed by ADR-0018 ⋈ the `*Shares` pattern; CONTRACTS §3/§4). **Fourth
+  build of epic [0024](issues/0024-epic-convergence-dashboards-cost-surface.md) (roadmap
+  v4); issue [0028](issues/0028-per-session-cost-sessions-page.md); PR #53.**
 
 ### G3 / V9 — Telemetry spend-window selector  — **S**  ·  *candidate*
 - **What:** the trend view hardcodes a 14-day window (`pages.go` `spendTrend:249`); add a
