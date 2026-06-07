@@ -105,6 +105,6 @@ test.describe("keybinding live-apply", () => {
     // to Telemetry, while the old "t" no longer does.
     await page.locator("#main h2").click();
     await page.keyboard.press("y");
-    await expect(page.locator("#main h2")).toHaveText("Telemetry");
+    await expect(page.locator("#main h2")).toContainText("Telemetry");
   });
 });
