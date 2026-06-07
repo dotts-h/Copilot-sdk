@@ -1,13 +1,13 @@
 ---
 id: 0039
 title: "Cost⋈run reconciliation — Ledger vs runs on the Telemetry page (roadmap v7, item V15)"
-status: open
+status: closed
 severity: medium
 group: 0038
 github:
 links:
   adr:
-  prs:
+  prs: [66]
   issues: [0038]
   regression:
 ---
@@ -65,6 +65,44 @@ PR #59). Source: `docs/NEXT_FEATURES.md` "roadmap v7" section (V15 entry).
   Ledger · Runs · Delta, the delta cell ambered when the stores disagree.
 - **No schema change, no new store, no new ADR** — a pure cross-record reader returning
   ids (the web layer resolves labels), with no cross-package seam.
+
+## Resolution (shipped)
+
+Shipped in **PR #66**. Built as specified. `telemetry.WorkflowReconcile(spend
+[]SpendRecord, runs []RunRecord) []WorkflowRecon{WorkflowID, LedgerCredits, RunCredits,
+Delta}` joins the two per-workflow roll-ups: `LedgerCredits` sums workflow-attributed
+spend USD then `/USDPerCredit` (bit-identical to the `WorkflowShares` "Cost by workflow"
+figure it sits beside, chat bucket excluded), `RunCredits` sums each workflow's recorded
+runs' metered credits (`RunRecord.Credits`, a skipped lane adding zero — the
+`RunAggregates.TotalCredits` grain), `Delta = LedgerCredits − RunCredits`. A workflow in
+**one** store but not the other yields a row with the other side zero. Sorted by
+**absolute delta descending** (biggest discrepancy first; ties → ledger credits desc, then
+workflow id asc — a total deterministic order over the unique key). Empty inputs → empty
+slice. **Pure** (takes two record slices, returns ids; no web/forge deps, no cross-package
+seam). The Telemetry page (`workflowReconcile` → `reconcileRow`) renders a **"Ledger vs
+runs"** comparison table, resolving workflow ids → display names under `forgeMu` and
+**ambering** a delta whose magnitude clears a display-tied epsilon (`0.005` cr — the `%.2f`
+rounding boundary). It renders only when **both** a spend store and a run store are wired.
+
+Tests (failing-first): `internal/telemetry` `TestWorkflowReconcile{JoinsBothStores,
+OneSidedWorkflowsAppear, DeterministicOrder, Empty}`; `internal/web`
+`TestTelemetryPageShowsLedgerVsRunsReconciliation` + `TestTelemetryReconciliationHiddenWithoutRunStore`;
+`internal/bootstrap` extends `TestBuildDemoTelemetryShowsTrend` (the demo seeds one
+workflow that agrees and one that diverges/ambers). **Self-review (high-effort
+/code-review) caught a real bug before CI**: the "Ledger vs runs" block first sat inside
+the `telemetryPage` `HasHistory` branch, so a **run-only** workflow (recorded runs but an
+empty ledger → no spend trend) — the sharpest divergence — was silently dropped; the block
+was hoisted out of that branch and locked by
+`TestTelemetryReconciliationRendersWithoutSpendHistory`. e2e: a structural assertion
+(`table.recon` + `tr.recon-row`), verified against the Go-rendered HTML. The existing
+telemetry + web + bootstrap tests stayed green unchanged. Gates green (`make lint && make
+test`; telemetry 96.5%, web 89.0%); CI + e2e green on PR #66.
+
+Docs: NEXT_FEATURES "roadmap v7" section, CONTRACTS §3 (the Telemetry page renders the
+reconciliation) and §4 (the `WorkflowReconcile` reader joining `WorkflowShares` +
+`RunAggregates`). No new ADR (a pure cross-record reader returning ids; no cross-package
+seam). No REGRESSIONS entry — the one bug was found-and-fixed within the same PR before
+merge.
 
 ## Notes
 - **No ADR:** a pure cross-record reader (takes two record slices, returns ids; the web
