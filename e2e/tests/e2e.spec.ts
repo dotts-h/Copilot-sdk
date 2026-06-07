@@ -89,6 +89,16 @@ test.describe("streaming a turn", () => {
     await expect.poll(msgs, { timeout: 15_000 }).toBeGreaterThan(before);
   });
 
+  test("the sub-agent activity strip surfaces each agent's description", async ({ page }) => {
+    await gotoApp(page);
+    await send(page, "explore");
+    // While the scripted sub-agent runs, its chip carries the agent's description
+    // as a title tooltip so a watcher can see WHAT each concurrent agent is doing.
+    // Assert STRUCTURE (a non-empty title attribute), never the exact text.
+    const chip = page.locator(`${sel.subagents} .subagent-chip`).first();
+    await expect(chip).toHaveAttribute("title", /\S/, { timeout: 15_000 });
+  });
+
   test("the sub-agent activity strip does not leak a chip after the turn settles", async ({ page }) => {
     await gotoApp(page);
     await send(page, "explore");

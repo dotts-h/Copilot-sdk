@@ -41,7 +41,7 @@
      the budget cap. Reuses the permission-form look; posts to /budget/{action}. */}}
 {{define "budgetForm"}}<form class="perm budget" id="budget-gate" hx-target="#budget" hx-swap="innerHTML"><span class="perm-q">⚠ this turn (~{{.Projected}}) would exceed your budget cap ({{.Cap}}) — proceed anyway?</span><button class="ok" hx-post="/budget/proceed">proceed</button><button class="ok raise" hx-post="/budget/raise">raise cap</button><button class="no" hx-post="/budget/cancel" formnovalidate>cancel</button></form>{{end}}
 
-{{define "subagentChip"}}<span class="subagent-chip"><span class="spin">◐</span> {{.Label}}{{if .Model}} <span class="subagent-model">{{.Model}}</span>{{end}}</span>{{end}}
+{{define "subagentChip"}}<span class="subagent-chip"{{if .Description}} title="{{.Description}}"{{end}}><span class="spin">◐</span> {{.Label}}{{if .Model}} <span class="subagent-model">{{.Model}}</span>{{end}}</span>{{end}}
 
 {{/* workflowLanes: the multi-agent run panel — one lane per step (item 2.1). */}}
 {{define "workflowLanes"}}<section class="workflow-run" role="group" aria-label="workflow {{.Name}}"><div class="run-head"><span class="run-title">⏵ {{.Name}}</span> <span class="run-mode">{{.Mode}}</span>{{if .Running}} <span class="run-status">running…</span>{{else}} <span class="run-status done">finished</span>{{end}}</div>{{range .Lanes}}{{template "laneCard" .}}{{end}}</section>{{end}}

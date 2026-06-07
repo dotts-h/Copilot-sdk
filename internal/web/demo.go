@@ -91,7 +91,9 @@ func streamDemoReply(m *copilot.MockClient, prompt string) {
 		ToolCallID: "demo-sa-1", Name: "explorer", DisplayName: "Explore",
 		Description: "search the repo", Model: model,
 	}})
-	time.Sleep(300 * time.Millisecond)
+	// Dwell long enough that the activity strip (and its description tooltip) is
+	// observably visible before the sub-agent finishes — see the e2e strip spec.
+	time.Sleep(600 * time.Millisecond)
 	m.Emit(copilot.Event{Type: copilot.EvSubagentEnd, Subagent: &copilot.SubagentInfo{
 		ToolCallID: "demo-sa-1", Name: "explorer", DisplayName: "Explore", Model: model,
 		Success: true, Detail: "1.2s · 3.4k tok",

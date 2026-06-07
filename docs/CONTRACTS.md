@@ -74,6 +74,15 @@ review lane: `web.renderPermForm` renders the richer `permReview` form when the
 diff parses, falling back to the compact form otherwise. Additive/backward-compatible.
 — see [ADR-0012](adr/0012-diff-review-lane-for-file-write-permissions.md)
 
+**`SubagentInfo`** (`copilot.go:79`): `ToolCallID, Name, DisplayName, Description, Model,
+Success, Detail` — carried by `EvSubagentStart`/`EvSubagentEnd`. The web layer's
+sub-agent activity strip (`web.renderSubagents` → `subagentChip`) shows one chip per
+running sub-agent (`DisplayName` + `Model`) and surfaces `Description` as the chip's
+`title=` tooltip so concurrent sub-agents in a parallel run say *what* they are doing;
+an empty `Description` renders the prior chip (no `title`). The description is
+model/SDK-originated text and flows through `html/template` auto-escaping like every
+other chip value (ADR-0001), never `trusted()` raw.
+
 **Invariant:** every SDK-event → normalized-`Event` mapping has a test; `EvUnknown` is the
 total fallback (no SDK event is dropped silently).
 
