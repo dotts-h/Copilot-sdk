@@ -551,6 +551,14 @@ test.describe("persisted spend history + trends", () => {
     // The demo ledger seeds agent ids and a couple of workflow-owned turns.
     await expect(main).toContainText("Cost by agent");
     await expect(main).toContainText("Cost by workflow");
+    // The cost⋈run reconciliation (V15): per-workflow ledger spend vs recorded-run
+    // spend with their delta — the convergence of the two persisted stores. The demo
+    // seeds a workflow that agrees across both and one that diverges. Assert STRUCTURE
+    // only (heading + the comparison table + a row); the shared append-only demo grows
+    // as the suite runs, so figures/amber drift (same gotcha family as the bars).
+    await expect(main).toContainText("Ledger vs runs");
+    await expect(page.locator("#main table.recon")).toBeVisible();
+    await expect(page.locator("#main tr.recon-row").first()).toBeVisible();
     // The bucketed burn trajectory (F3): beside each agent/workflow share bar the
     // page projects that bucket's recent pace. Assert the trajectory STRUCTURE, never
     // figures — the demo ledger is shared + append-only across the suite (the same

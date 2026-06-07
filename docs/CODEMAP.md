@@ -344,7 +344,11 @@ _Last generated: 2026-06-07 (UTC)._
 - L177: `func normalizeModel(m string) string`
 - L185: `func (r ModelRate) String() string`
 
-### runs.go (335 LOC)
+### reconcile.go (100 LOC)
+- L29: `type WorkflowRecon struct`
+- L49: `func WorkflowReconcile(spend []SpendRecord, runs []RunRecord) []WorkflowRecon`
+
+### runs.go (333 LOC)
 - L25: `type RunLane struct`
 - L36: `type RunRecord struct`
 - L51: `func (r RunRecord) Credits() float64`
@@ -357,9 +361,9 @@ _Last generated: 2026-06-07 (UTC)._
 - L159: `func RunAggregates(records []RunRecord) []RunAggregate`
 - L214: `type LaneShare struct`
 - L232: `func LaneShares(records []RunRecord) []LaneShare`
-- L289: `func WriteRunsCSV(w io.Writer, records []RunRecord) error`
-- L319: `func csvTime(t time.Time) string`
-- L330: `func laterRun(s2, f2, s1, f1 time.Time) bool`
+- L287: `func WriteRunsCSV(w io.Writer, records []RunRecord) error`
+- L317: `func csvTime(t time.Time) string`
+- L328: `func laterRun(s2, f2, s1, f1 time.Time) bool`
 
 ### store.go (185 LOC)
 - L41: `type AppendOnlyStore[T any] struct`
@@ -509,7 +513,7 @@ _Last generated: 2026-06-07 (UTC)._
 - L333: `func (s *Server) handleMCPServerToggle(w http.ResponseWriter, r *http.Request)`
 - L339: `func (s *Server) handleMCPServerDelete(w http.ResponseWriter, r *http.Request)`
 
-### pages.go (656 LOC)
+### pages.go (704 LOC)
 - L48: `func clampWindow(raw string) int`
 - L65: `func (s *Server) renderPage(slug, window string) string`
 - L99: `func renderShortcuts(keymap []config.ResolvedKey) string`
@@ -520,29 +524,31 @@ _Last generated: 2026-06-07 (UTC)._
 - L156: `func (s *Server) helpPartial() string`
 - L214: `func (s *Server) chatPartial() string`
 - L246: `func (s *Server) telemetryPartial(window int) string`
-- L304: `func (s *Server) spendTrend(window int) (days, shares []map[string]any, hasHistory bool)`
-- L361: `func (s *Server) spendShares(now time.Time) (agents, workflows []map[string]any)`
-- L391: `func agentKey(r telemetry.SpendRecord) string    { return r.AgentID }`
-- L392: `func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }`
-- L398: `func bucketTrajectories(bs []telemetry.BucketProjection, now time.Time) map[string]string`
-- L414: `func bucketTrajectoryText(p telemetry.Projection, now time.Time) string`
-- L433: `func daysLeftInMonth(now time.Time) int`
-- L444: `func shareRow(label string, credits, fraction float64) map[string]any`
-- L456: `func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any`
-- L480: `func forecastSoon(exhaust, now time.Time) bool`
-- L490: `func plural(n int, one, many string) string`
-- L500: `func (s *Server) agentLabel(id string) string`
-- L512: `func (s *Server) workflowLabel(id string) string`
-- L522: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
-- L538: `func (s *Server) handleRunsExport(w http.ResponseWriter, r *http.Request)`
-- L550: `func (s *Server) skillsPartial() string`
-- L562: `func (s *Server) instructionsPartial() string`
-- L575: `func (s *Server) agentsPartial() string`
-- L599: `func addData(kind, noun string) map[string]any { return map[string]any{"Kind": kind, "Noun": noun} }`
-- L605: `func (s *Server) modelsPartial() string`
-- L635: `func (s *Server) settingsPartial() string`
-- L639: `func def(s, fallback string) string`
-- L647: `func truncate(s string, n int) string`
+- L305: `func (s *Server) spendTrend(window int) (days, shares []map[string]any, hasHistory bool)`
+- L362: `func (s *Server) spendShares(now time.Time) (agents, workflows []map[string]any)`
+- L392: `func agentKey(r telemetry.SpendRecord) string    { return r.AgentID }`
+- L393: `func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }`
+- L411: `func (s *Server) workflowReconcile() []map[string]any`
+- L432: `func (s *Server) reconcileRow(r telemetry.WorkflowRecon) map[string]any`
+- L446: `func bucketTrajectories(bs []telemetry.BucketProjection, now time.Time) map[string]string`
+- L462: `func bucketTrajectoryText(p telemetry.Projection, now time.Time) string`
+- L481: `func daysLeftInMonth(now time.Time) int`
+- L492: `func shareRow(label string, credits, fraction float64) map[string]any`
+- L504: `func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any`
+- L528: `func forecastSoon(exhaust, now time.Time) bool`
+- L538: `func plural(n int, one, many string) string`
+- L548: `func (s *Server) agentLabel(id string) string`
+- L560: `func (s *Server) workflowLabel(id string) string`
+- L570: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
+- L586: `func (s *Server) handleRunsExport(w http.ResponseWriter, r *http.Request)`
+- L598: `func (s *Server) skillsPartial() string`
+- L610: `func (s *Server) instructionsPartial() string`
+- L623: `func (s *Server) agentsPartial() string`
+- L647: `func addData(kind, noun string) map[string]any { return map[string]any{"Kind": kind, "Noun": noun} }`
+- L653: `func (s *Server) modelsPartial() string`
+- L683: `func (s *Server) settingsPartial() string`
+- L687: `func def(s, fallback string) string`
+- L695: `func truncate(s string, n int) string`
 
 ### render.go (452 LOC)
 - L25: `func esc(s string) string`
@@ -573,14 +579,14 @@ _Last generated: 2026-06-07 (UTC)._
 - L437: `func renderBudgetForm(projected, capCredits float64) string`
 - L446: `func clampLines(s string, n int) string`
 
-### runs.go (188 LOC)
+### runs.go (187 LOC)
 - L28: `func (s *Server) runsPartial(window int) string`
 - L62: `func windowRuns(records []telemetry.RunRecord, window int) []telemetry.RunRecord`
 - L91: `func (s *Server) runSummaryRow(a telemetry.RunAggregate) map[string]any`
 - L110: `func (s *Server) laneShareRow(l telemetry.LaneShare) map[string]any`
-- L127: `func (s *Server) runRow(r telemetry.RunRecord) map[string]any`
-- L155: `func humanDuration(d time.Duration) string`
-- L183: `func runOutcomeGlyph(outcome string) (glyph, state string)`
+- L126: `func (s *Server) runRow(r telemetry.RunRecord) map[string]any`
+- L154: `func humanDuration(d time.Duration) string`
+- L182: `func runOutcomeGlyph(outcome string) (glyph, state string)`
 
 ### server.go (880 LOC)
 - L27: `type Server struct`

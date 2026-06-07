@@ -292,7 +292,8 @@ func (s *Server) telemetryPartial(window int) string {
 		"Rows": rows, "Width": fmt.Sprintf("%.1f%%", pct), "Models": models,
 		"Days": days, "Shares": shares, "HasHistory": hasHistory,
 		"AgentShares": agents, "WorkflowShares": workflows,
-		"Forecast": forecast, "Windows": windows,
+		"Reconcile": s.workflowReconcile(),
+		"Forecast":  forecast, "Windows": windows,
 	})
 }
 
@@ -390,6 +391,53 @@ func (s *Server) spendShares(now time.Time) (agents, workflows []map[string]any)
 // share rows exactly.
 func agentKey(r telemetry.SpendRecord) string    { return r.AgentID }
 func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }
+
+// reconcileEpsilon is the smallest delta the reconciliation treats as a real
+// discrepancy: a delta whose magnitude is below it rounds to "0.00 cr" at the
+// two-decimal display width, so it's floating-point noise from summing two
+// independent measurements, not a divergence worth ambering. Tied to the display
+// width so the amber flag matches what the cell shows.
+const reconcileEpsilon = 0.005
+
+// workflowReconcile builds the per-workflow "ledger vs runs" reconciliation rows for
+// the Telemetry page (V15): each workflow's spend as the ledger attributes it
+// (WorkflowShares grain) beside what its recorded runs metered (RunAggregates grain),
+// and the delta between them — so orchestrated spend is reconcilable across the two
+// persisted stores, not just accountable on each. A non-trivial delta is ambered (a
+// turn metered outside a recorded run, or a run metered under a different
+// attribution). Workflow ids resolve to display names under forgeMu. Empty unless
+// BOTH a spend store and a run store are wired (reconciliation needs two sides) and
+// at least one workflow appears in either.
+func (s *Server) workflowReconcile() []map[string]any {
+	rows := []map[string]any{}
+	if s.spend == nil || s.runs == nil {
+		return rows
+	}
+	recon := telemetry.WorkflowReconcile(s.spend.Records(), s.runs.Records())
+	if len(recon) == 0 {
+		return rows
+	}
+	s.hub.forgeMu.Lock()
+	defer s.hub.forgeMu.Unlock()
+	for _, r := range recon {
+		rows = append(rows, s.reconcileRow(r))
+	}
+	return rows
+}
+
+// reconcileRow builds the template shape for one "Ledger vs runs" comparison row: the
+// workflow's display name, its ledger credits, its recorded-run credits, and the
+// delta (ambered when its magnitude clears reconcileEpsilon — i.e. it displays as a
+// non-zero figure). Workflow ids resolve via workflowLabel — caller holds forgeMu.
+func (s *Server) reconcileRow(r telemetry.WorkflowRecon) map[string]any {
+	return map[string]any{
+		"Workflow":      s.workflowLabel(r.WorkflowID),
+		"LedgerCredits": telemetry.FormatCredits(r.LedgerCredits),
+		"RunCredits":    telemetry.FormatCredits(r.RunCredits),
+		"Delta":         telemetry.FormatCredits(r.Delta),
+		"Amber":         math.Abs(r.Delta) >= reconcileEpsilon,
+	}
+}
 
 // bucketTrajectories renders each bucket's burn-trajectory sentence keyed by the
 // bucket's raw id, so spendShares can join it onto the matching share row before
