@@ -112,7 +112,6 @@ func (s *Server) laneShareRow(l telemetry.LaneShare) map[string]any {
 		"Workflow":    s.workflowLabel(l.WorkflowID),
 		"Step":        l.LaneIndex + 1,
 		"Agent":       s.agentLabel(l.AgentID),
-		"Runs":        l.Runs,
 		"Failures":    l.Failures,
 		"HasFailures": l.Failures > 0,
 		"Credits":     fmt.Sprintf("%.2f", l.Credits),

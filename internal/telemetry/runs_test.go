@@ -430,6 +430,24 @@ func TestLaneSharesEmpty(t *testing.T) {
 	if got := LaneShares(nil); len(got) != 0 {
 		t.Fatalf("empty history should roll up to no lane shares, got %+v", got)
 	}
+	// A non-empty history that metered nothing (every lane skipped/free): the lanes
+	// still roll up (Runs counted) but Fraction stays 0 — no divide-by-zero on a zero
+	// total.
+	zero := []RunRecord{
+		{WorkflowID: "w", Lanes: []RunLane{
+			{Index: 0, AgentID: "a", Status: "skipped"},
+			{Index: 1, AgentID: "b", Status: "done"}, // free lane, zero credits
+		}},
+	}
+	got := LaneShares(zero)
+	if len(got) != 2 {
+		t.Fatalf("zero-credit lanes still roll up, got %d: %+v", len(got), got)
+	}
+	for _, l := range got {
+		if l.Runs != 1 || l.Credits != 0 || l.Fraction != 0 {
+			t.Fatalf("a zero-credit lane should be Runs=1, Credits=0, Fraction=0; got %+v", l)
+		}
+	}
 }
 
 func TestWriteRunsCSV(t *testing.T) {
