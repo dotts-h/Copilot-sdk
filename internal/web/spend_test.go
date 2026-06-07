@@ -178,6 +178,33 @@ func TestTelemetryReconciliationHiddenWithoutRunStore(t *testing.T) {
 	}
 }
 
+func TestTelemetryReconciliationRendersWithoutSpendHistory(t *testing.T) {
+	// The reconciliation must render even when the ledger has NO history yet (so the
+	// "Spend over time" trend is absent) but the run store holds runs — a run-only
+	// workflow is the sharpest divergence (cost recorded by a run but never reaching
+	// the ledger under that id), exactly what the section exists to surface. Regression:
+	// the section once lived inside the HasHistory branch and was dropped in this case.
+	s, _ := newSpendServer(t) // ephemeral ledger, left empty → HasHistory false
+	s.forge.Workflows = []ctxforge.Workflow{{ID: "ship", Name: "Ship", Mode: ctxforge.WorkflowSequential}}
+	rs := withRunStore(s)
+	if err := rs.Append(telemetry.RunRecord{
+		ID: "r1", WorkflowID: "ship", Name: "Ship", Mode: "sequential", Outcome: "finished",
+		Lanes: []telemetry.RunLane{{Index: 0, Status: "done", Credits: 3}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	html := s.telemetryPartial(defaultSpendWindow)
+	if strings.Contains(html, "Spend over time") {
+		t.Fatalf("an empty ledger should show no spend trend:\n%s", html)
+	}
+	// ...yet the run-only reconciliation row (ledger 0, runs 3.00, delta −3.00) renders.
+	for _, want := range []string{"Ledger vs runs", `class="recon-row"`, "Ship", `class="recon-delta amber"`} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("run-only reconciliation should render without spend history, missing %q\n%s", want, html)
+		}
+	}
+}
+
 func TestNewSessionSeedsActiveAgentFromConfig(t *testing.T) {
 	// A new session inherits the launch-time active agent, so its first chat turn
 	// attributes spend correctly even before any /agent switch.
