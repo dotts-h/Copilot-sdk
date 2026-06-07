@@ -214,6 +214,22 @@ additive UI over an existing config field, with the live-apply seam an obvious m
 the startup price-book build (`internal/bootstrap`). — see
 [ADR-0008](adr/0008-budget-guardrails-soft-warn-and-hard-cap-gate.md)
 
+The **Sessions page** (`GET /page/sessions`) lists the runtime's persisted sessions
+(title + relative age, with resume/delete controls) and — when a spend store is wired —
+a **per-session cost cell** (G2): `sessionRows` joins `SessionShares(s.spend.Records())`
+(§4) onto each `copilot.SessionMeta` row **keyed by session id**, surfacing *"N turns ·
+X cr"* beside the title/age. It is a **pure-reader composition** over the existing ledger
+(no schema change — `SessionID` was already tagged, ADR-0018): a listed session with no
+spend keeps its row and shows *"no cost yet"* (never dropped); a spend bucket whose id
+matches no listed session (a since-deleted session) is simply not shown; with **no spend
+store** wired the rows render their prior shape (title + age, no cost cell). The join
+takes neither `s.mu` nor `forgeMu` (the spend store's own mutex is a leaf), so it can't
+invert the `forgeMu → s.mu` lock order. Credits flow through `telemetry.FormatCredits`
+and all values through `html/template` (ADR-0001). The decision is pre-blessed by the
+same cost ⋈ surface convergence rationale as V4/0025 and F3/0026 (no ADR). — see
+[ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md),
+[ADR-0002](adr/0002-restore-sdk-session-resume-for-session-pick-start-continue.md)
+
 ## 4. Persisted schemas (forge + config)
 
 **Producer/consumer:** `internal/ctxforge` and `internal/config`; written to disk.
@@ -307,6 +323,17 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   chat); `workflow`+`lane` are set only when a workflow run owned the turn. The pure
   `AgentShares` / `WorkflowShares` aggregations (cousins of `ModelShares`) roll spend up
   by tag. — see [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md),
+  [ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md)
+  **Per-session roll-up (G2):** `telemetry.SessionShares(records) []SessionShare` is
+  another pure cousin of the `*Shares` readers — it rolls spend up **per copilot session
+  id** to `SessionShare{SessionID, Credits, Turns}` (turn count + total credits), sorted
+  by credits descending then session id ascending (a total, deterministic order). It
+  **excludes** the empty-`SessionID` bucket (`includeEmpty=false`, like `WorkflowShares`):
+  a session row needs a real id to join against, and the picker only lists real sessions,
+  so a pre-attribution v1 row — or a turn recorded before a copilot session bound — has
+  nothing to attach to. The turn count rides `shareBy`'s per-group `Count` (one pass, no
+  schema change). Powers the cost-aware Sessions picker (§3). — see
+  [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md),
   [ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md)
   **Read-source (account-wide budget accounting):** the persisted ledger — not the
   in-process `Meter` — is the source of truth for the account-wide "Total cost /

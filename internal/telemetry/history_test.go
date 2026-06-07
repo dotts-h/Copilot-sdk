@@ -275,6 +275,70 @@ func TestWorkflowSharesEmpty(t *testing.T) {
 	}
 }
 
+func TestSessionShares(t *testing.T) {
+	recs := []SpendRecord{
+		{SessionID: "sess-a", USD: 0.30},
+		{SessionID: "sess-b", USD: 0.10},
+		{SessionID: "sess-a", USD: 0.10},
+		{SessionID: "sess-a", USD: 0.0}, // a zero-cost turn still counts toward turns
+	}
+	got := SessionShares(recs)
+	if len(got) != 2 {
+		t.Fatalf("want 2 session buckets, got %d: %+v", len(got), got)
+	}
+	// Sorted by credits desc → sess-a (0.40) leads sess-b (0.10).
+	if got[0].SessionID != "sess-a" {
+		t.Fatalf("biggest spender should lead: %+v", got)
+	}
+	if got[0].Turns != 3 {
+		t.Fatalf("sess-a should roll up 3 turns, got %d", got[0].Turns)
+	}
+	approx(t, got[0].Credits, 40) // $0.40 => 40 credits
+	if got[1].SessionID != "sess-b" || got[1].Turns != 1 {
+		t.Fatalf("sess-b bucket wrong: %+v", got[1])
+	}
+	approx(t, got[1].Credits, 10)
+}
+
+func TestSessionSharesExcludesEmptySessionID(t *testing.T) {
+	// A record with no session id (a pre-attribution v1 row, or a turn recorded
+	// before a copilot session bound) is excluded — a session row needs a real id
+	// to join against, and the picker only lists real sessions.
+	recs := []SpendRecord{
+		{SessionID: "sess-a", USD: 0.20},
+		{SessionID: "", USD: 5.00}, // no session id — must not appear as a bucket
+	}
+	got := SessionShares(recs)
+	if len(got) != 1 {
+		t.Fatalf("empty-SessionID spend must be excluded: got %d buckets %+v", len(got), got)
+	}
+	if got[0].SessionID != "sess-a" {
+		t.Fatalf("only the real-session bucket should survive: %+v", got)
+	}
+	if got[0].Turns != 1 {
+		t.Fatalf("the empty-id turn must not inflate the count: %+v", got[0])
+	}
+}
+
+func TestSessionSharesDeterministicTieBreak(t *testing.T) {
+	// Equal credits tie-break by session id ascending, so the order is deterministic.
+	recs := []SpendRecord{{SessionID: "zeta", USD: 0.5}, {SessionID: "alpha", USD: 0.5}}
+	got := SessionShares(recs)
+	if len(got) != 2 || got[0].SessionID != "alpha" || got[1].SessionID != "zeta" {
+		t.Fatalf("ties should break by session id: %+v", got)
+	}
+}
+
+func TestSessionSharesEmpty(t *testing.T) {
+	if got := SessionShares(nil); len(got) != 0 {
+		t.Fatalf("nil records should yield no shares, got %+v", got)
+	}
+	// All-empty-id records (pre-attribution) also yield nothing to join.
+	if got := SessionShares([]SpendRecord{{USD: 1}}); len(got) != 0 {
+		t.Fatalf("all-empty-id records should yield no session shares, got %+v", got)
+	}
+}
+
 func TestWriteCSV(t *testing.T) {
 	recs := []SpendRecord{
 		{At: day("2026-06-05T10:00:00Z"), SessionID: "s1", Model: "gpt-5", InputTokens: 1200, CachedTokens: 200, OutputTokens: 340, USD: 0.5, AIU: 0.012},

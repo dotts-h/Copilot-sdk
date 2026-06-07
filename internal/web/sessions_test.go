@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/dotts-h/copilot-sdk/internal/copilot"
+	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
 
 func TestSessionsPageListsSessions(t *testing.T) {
@@ -31,6 +32,57 @@ func TestSessionsPageListsSessions(t *testing.T) {
 		if !strings.Contains(body, sub) {
 			t.Errorf("sessions page missing %q\n%s", sub, body)
 		}
+	}
+}
+
+func TestSessionsPageShowsPerSessionCost(t *testing.T) {
+	s, mock := newTestServer()
+	mock.Sessions = []copilot.SessionMeta{
+		{ID: "sess-1", Summary: "Refactor auth", Modified: time.Now()},
+		{ID: "sess-2", Summary: "Read the docs", Modified: time.Now().Add(-time.Hour)},
+	}
+	// sess-1 has two metered turns (0.05 + 0.05 = $0.10 → 10.00 cr); sess-2 has
+	// none (shows the no-cost state); sess-3 is a since-deleted session whose spend
+	// has no row to join against (must not appear).
+	seedLedger(t, s,
+		telemetry.SpendRecord{SessionID: "sess-1", Model: "gpt-5", USD: 0.05},
+		telemetry.SpendRecord{SessionID: "sess-1", Model: "gpt-5", USD: 0.05},
+		telemetry.SpendRecord{SessionID: "sess-3", Model: "gpt-5", USD: 0.99},
+	)
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	body := get(t, srv, "/page/sessions")
+	for _, sub := range []string{
+		"2 turns",     // sess-1 turn count
+		"10.00 cr",    // sess-1 credits (FormatCredits)
+		"no cost yet", // sess-2 has no spend but is still listed
+	} {
+		if !strings.Contains(body, sub) {
+			t.Errorf("sessions page missing %q\n%s", sub, body)
+		}
+	}
+	// The since-deleted session's spend bucket joins no listed row, so its credits
+	// ($0.99 → 99.00 cr) never render.
+	if strings.Contains(body, "99.00 cr") {
+		t.Errorf("a spend bucket with no matching session must not be shown\n%s", body)
+	}
+}
+
+func TestSessionsPageNoSpendStoreNoPanic(t *testing.T) {
+	// With no spend store wired (s.spend == nil) the page renders its prior shape:
+	// no cost cells, no panic.
+	s, mock := newTestServer()
+	mock.Sessions = []copilot.SessionMeta{{ID: "sess-1", Summary: "x", Modified: time.Now()}}
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	body := get(t, srv, "/page/sessions")
+	if !strings.Contains(body, `hx-post="/sessions/sess-1/resume"`) {
+		t.Errorf("sessions page should still render rows without a spend store\n%s", body)
+	}
+	if strings.Contains(body, "no cost yet") || strings.Contains(body, " cr") {
+		t.Errorf("no spend store should mean no cost cells\n%s", body)
 	}
 }
 

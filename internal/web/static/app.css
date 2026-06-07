@@ -467,6 +467,7 @@ p.ok { color: var(--good); margin: 0 0 .6rem; }
 .session-row.on { outline: 1px solid var(--accent); }
 .session-title { font-weight: 600; }
 .session-when { font-size: .8rem; }
+.session-cost { font-size: .8rem; }
 .session-actions { margin-left: auto; display: flex; gap: .4rem; }
 .session-actions button { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit;
   background: var(--accent); color: #1b1d1e; }

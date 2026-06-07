@@ -8,7 +8,7 @@ github:
 links:
   adr:
   prs: []
-  issues: [0025, 0026, 0027]
+  issues: [0025, 0026, 0027, 0028]
   regression:
 assets: []
 ---
@@ -37,11 +37,11 @@ surfaces remain single-store views:
   the spend-window selector each close a "still requires editing JSON / hardcoded"
   gap — small, self-contained, compounding.
 
-This epic carries the **v4 convergence + cost-surface** picks. The first build was V4
-(Workflows last-run + cost badges); the second is F3 (the per-workflow / per-agent
-bucketed burn-rate forecast — cost prediction ⋈ attribution). The rest (G1 price-override
-editor; G2 per-session cost; G3 spend-window selector; the I-tier polish) stay
-candidates in `NEXT_FEATURES.md` until promoted.
+This epic carries the **v4 convergence + cost-surface** picks. The builds so far: V4
+(Workflows last-run + cost badges), F3 (the per-workflow / per-agent bucketed burn-rate
+forecast — cost prediction ⋈ attribution), G1 (Settings price-override editor), and now
+G2 (per-session cost on the Sessions page). The rest (G3 spend-window selector; the I-tier
+polish) stay candidates in `NEXT_FEATURES.md` until promoted.
 
 ## Tasks
 
@@ -70,9 +70,15 @@ candidates in `NEXT_FEATURES.md` until promoted.
       `DefaultPriceBook()` + overrides (`telemetry.BuildPriceBook`) and `Replace`-ing the
       shared book in place — repricing the account meter and every per-session meter without
       a restart. Closes the last hand-edit-JSON cost knob. **Shipped.**
-- [ ] **G2 — Per-session cost on the Sessions page** (candidate). A `SessionShares`
-      reader (parallel to `AgentShares`) so the Sessions picker shows credits + turn
-      count per session. Pure reader; `SessionID` is already tagged.
+- [ ] **G2 — Per-session cost on the Sessions page** →
+      [0028](0028-per-session-cost-sessions-page.md) (no ADR — pure-reader composition
+      pre-blessed by ADR-0018's attribution ⋈ the `*Shares` pattern, like V4/0025 and
+      F3/0026). A `SessionShares(records) []SessionShare{SessionID, Credits, Turns}` reader
+      (parallel to `AgentShares`/`WorkflowShares`, **excluding** the empty-`SessionID`
+      bucket) joined onto each `copilot.SessionMeta` row by id, so the Sessions picker shows
+      *"N turns · X cr"* per session (a no-spend session shows *"no cost yet"*; a
+      since-deleted bucket is not shown). Pure reader; `SessionID` is already tagged (no
+      schema change). **Building (issue 0028).**
 - [ ] **G3 — Telemetry spend-window selector** (candidate). A 30/90-day selector
       threaded through `DailyTotals` truncation, replacing the hardcoded 14-day window.
 
@@ -81,9 +87,10 @@ candidates in `NEXT_FEATURES.md` until promoted.
 **Open.** **V4** (Workflows last-run + cost badges — the second cost ⋈ orchestration
 surface, PR #50), **F3** (per-workflow / per-agent bucketed burn-rate forecast — cost
 prediction ⋈ attribution, issue 0026), and **G1** (Settings price-override editor — the
-last hand-edit-JSON cost knob, issue 0027) are **shipped**. **G2** (per-session cost) and
-**G3** (spend-window selector) remain candidates in `NEXT_FEATURES.md` until promoted;
-this epic stays **open** while they are unbuilt.
+last hand-edit-JSON cost knob, issue 0027) are **shipped**. **G2** (per-session cost on
+the Sessions page — issue 0028) is **building** this session. **G3** (spend-window
+selector) remains a candidate in `NEXT_FEATURES.md` until promoted; this epic stays
+**open** while G3 is unbuilt.
 
 ## Notes
 
@@ -97,6 +104,9 @@ same convergence rationale as ADR-0022.
 ## Numbering
 
 Highest on disk before this pass: issues → **0023**, epic → **0022**, ADRs → **0022**.
-This epic takes **0024**; its children take issue **0025** (V4), **0026** (F3), and
-**0027** (G1). No ADR consumed (V4 is pre-blessed by ADR-0022; F3 by ADR-0018+0019; G1 is
-additive UI over an existing config field, captured in CONTRACTS + a REGRESSIONS note).
+This epic takes **0024**; its children take issue **0025** (V4), **0026** (F3),
+**0027** (G1), and **0028** (G2). No ADR consumed (V4 is pre-blessed by ADR-0022; F3 by
+ADR-0018+0019; G1 is additive UI over an existing config field; G2 is a pure-reader
+composition over the existing ledger, pre-blessed by ADR-0018 ⋈ the `*Shares` pattern —
+all captured in CONTRACTS, with a REGRESSIONS note only where a real gotcha was
+found-and-fixed).

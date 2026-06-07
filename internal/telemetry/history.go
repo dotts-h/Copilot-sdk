@@ -227,6 +227,7 @@ type share struct {
 	USD      float64
 	Credits  float64
 	Fraction float64 // share of the included total in [0,1]
+	Count    int     // number of records folded into this group
 }
 
 // shareBy totals spend per group (keyed by keyOf) and computes each group's
@@ -237,6 +238,7 @@ type share struct {
 // records → same result.
 func shareBy(records []SpendRecord, keyOf func(SpendRecord) string, includeEmpty bool) []share {
 	by := map[string]float64{}
+	cnt := map[string]int{}
 	var total float64
 	for _, r := range records {
 		k := keyOf(r)
@@ -244,11 +246,12 @@ func shareBy(records []SpendRecord, keyOf func(SpendRecord) string, includeEmpty
 			continue
 		}
 		by[k] += r.USD
+		cnt[k]++
 		total += r.USD
 	}
 	out := make([]share, 0, len(by))
 	for k, usd := range by {
-		s := share{Key: k, USD: usd, Credits: usd / USDPerCredit}
+		s := share{Key: k, USD: usd, Credits: usd / USDPerCredit, Count: cnt[k]}
 		if total > 0 {
 			s.Fraction = usd / total
 		}
@@ -325,6 +328,30 @@ func WorkflowShares(records []SpendRecord) []WorkflowShare {
 	out := make([]WorkflowShare, len(groups))
 	for i, g := range groups {
 		out[i] = WorkflowShare{WorkflowID: g.Key, USD: g.USD, Credits: g.Credits, Fraction: g.Fraction}
+	}
+	return out
+}
+
+// SessionShare is one copilot session's slice of the persisted spend: its total
+// credits and the number of metered turns rolled up under its id.
+type SessionShare struct {
+	SessionID string
+	Credits   float64
+	Turns     int // metered turns recorded under this session id
+}
+
+// SessionShares totals spend per copilot session id (turn count + credits),
+// sorted by credits descending (ties broken by session id ascending) for
+// determinism. Records with no session id are **excluded** (includeEmpty=false,
+// like WorkflowShares): a session row needs a real id to join against, and the
+// picker only lists real sessions, so a pre-attribution v1 row — or a turn
+// recorded before a copilot session bound — has nothing to attach to. Powers the
+// cost-aware Sessions picker (G2). Pure: same records → same result.
+func SessionShares(records []SpendRecord) []SessionShare {
+	groups := shareBy(records, func(r SpendRecord) string { return r.SessionID }, false)
+	out := make([]SessionShare, len(groups))
+	for i, g := range groups {
+		out[i] = SessionShare{SessionID: g.Key, Credits: g.Credits, Turns: g.Count}
 	}
 	return out
 }

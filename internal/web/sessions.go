@@ -8,6 +8,7 @@ import (
 
 	"github.com/dotts-h/copilot-sdk/internal/convo"
 	"github.com/dotts-h/copilot-sdk/internal/copilot"
+	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
 
 // This file implements the session picker (backlog #8, ADR 0002): list the
@@ -30,15 +31,40 @@ func (s *Server) sessionsPartial() string {
 // Shared by sessionsPartial and sessionsError so both renderings agree (the error
 // path used to drop the "Current" marker).
 func (s *Server) sessionRows(metas []copilot.SessionMeta) []map[string]any {
+	// Join the pure SessionShares reader (turn count + credits per copilot session
+	// id) onto each listed session, keyed by id (G2). The spend store carries its
+	// own leaf mutex, so this read takes neither s.mu nor forgeMu — it can't invert
+	// the forgeMu→s.mu lock order. With no store wired the map stays empty and rows
+	// render their prior shape (title + age, no cost cell). A listed session with no
+	// spend keeps its row (HasSpend=false → "no cost yet"); a spend bucket whose id
+	// matches no listed session is simply never iterated.
+	haveSpend := s.spend != nil
+	cost := map[string]telemetry.SessionShare{}
+	if haveSpend {
+		for _, sh := range telemetry.SessionShares(s.spend.Records()) {
+			cost[sh.SessionID] = sh
+		}
+	}
 	s.mu.Lock()
 	current := s.sessionID
 	s.mu.Unlock()
 	rows := make([]map[string]any, 0, len(metas))
 	for _, m := range metas {
-		rows = append(rows, map[string]any{
+		row := map[string]any{
 			"ID": m.ID, "Title": sessionTitle(m), "When": humanWhen(m.Modified),
 			"Current": m.ID == current,
-		})
+		}
+		// ShowCost gates the whole cell on a wired store, so a nil-spend deployment
+		// keeps the prior shape (no "no cost yet" either).
+		if haveSpend {
+			row["ShowCost"] = true
+			if sh, ok := cost[m.ID]; ok {
+				row["HasSpend"] = true
+				row["Turns"] = sh.Turns
+				row["Credits"] = telemetry.FormatCredits(sh.Credits)
+			}
+		}
+		rows = append(rows, row)
 	}
 	return rows
 }
