@@ -7,7 +7,7 @@ group:
 github:
 links:
   adr:
-  prs:
+  prs: [59]
   issues: [0034]
   regression:
 assets: []
@@ -54,7 +54,7 @@ negative-value, so #8 stays a candidate, deferred to its trigger. The v6 epic is
 ## Tasks
 
 - [x] **V11 — Runs CSV export** (S; pure reader + route) →
-      [0034](0034-runs-csv-export.md) (**shipped**, PR #TBD; no ADR — a pure additive
+      [0034](0034-runs-csv-export.md) (**shipped**, PR #59; no ADR — a pure additive
       reader + GET route, the orchestration sibling of the spend ledger's
       `WriteCSV`/`/telemetry/export.csv`). `telemetry.WriteRunsCSV` flattens the run
       history to **one row per lane** (run-level columns repeated) so a branched run's
@@ -76,10 +76,10 @@ negative-value, so #8 stays a candidate, deferred to its trigger. The v6 epic is
 
 ## Status
 
-**Open.** First child **V11 (Runs CSV export, 0034)** built and shipping in this epic's
-opening PR (per the repo convention — an epic is born in its first child's PR, as epic
-0030 opened inside V3's PR #56). The remaining candidate children stay in the v6 research
-until promoted.
+**Open.** First child **V11 (Runs CSV export, 0034)** shipped in this epic's opening
+**PR #59** (per the repo convention — an epic is born in its first child's PR, as epic
+0030 opened inside V3's PR #56). The remaining candidate children (V12–V14) stay in the
+v6 research until promoted.
 
 ## Notes
 
