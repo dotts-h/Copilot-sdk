@@ -1,13 +1,13 @@
 ---
 id: 0024
 title: "Epic: convergence dashboards & cost-surface completion (roadmap v4)"
-status: open
+status: closed
 severity: high
 group:
 github:
 links:
   adr:
-  prs: []
+  prs: [55]
   issues: [0025, 0026, 0027, 0028, 0029]
   regression:
 assets: []
@@ -80,7 +80,7 @@ in `NEXT_FEATURES.md` until promoted.
       *"N turns · X cr"* per session (a no-spend session shows *"no cost yet"*; a
       since-deleted bucket is not shown). Pure reader; `SessionID` is already tagged (no
       schema change). **Shipped (PR #53).**
-- [ ] **G3 — Telemetry spend-window selector** →
+- [x] **G3 — Telemetry spend-window selector** →
       [0029](0029-telemetry-spend-window-selector.md) (no ADR — a presentation-layer slice
       over the existing pure `DailyTotals` reader, like V4/0025, F3/0026, G1/0027, G2/0028).
       A **14/30/90-day window selector** on the Telemetry "Spend over time" trend (three
@@ -88,16 +88,19 @@ in `NEXT_FEATURES.md` until promoted.
       int)` takes the window; `handlePage` reads `?window=` (default 14, clamp to {14,30,90},
       garbage → 14) and threads it through `renderPage` → `telemetryPartial` → `spendTrend`;
       the `maxUSD` bar-scaling stays **after** the window slice (the REGRESSIONS #14
-      invariant, now asserted per window). No schema change, no new store. **In build.**
+      invariant, now asserted per window). No schema change, no new store. **Shipped (PR #55).**
 
 ## Status
 
-**Open.** **V4** (Workflows last-run + cost badges — the second cost ⋈ orchestration
-surface, PR #50), **F3** (per-workflow / per-agent bucketed burn-rate forecast — cost
-prediction ⋈ attribution, issue 0026), **G1** (Settings price-override editor — the last
-hand-edit-JSON cost knob, issue 0027), and **G2** (per-session cost on the Sessions page —
-issue 0028, PR #53) are **shipped**. **G3** (Telemetry spend-window selector — issue 0029,
-the **last child**) is **in build**; on its merge this epic closes (all children shipped).
+**Closed — all children shipped.** **V4** (Workflows last-run + cost badges — the second
+cost ⋈ orchestration surface, PR #50), **F3** (per-workflow / per-agent bucketed burn-rate
+forecast — cost prediction ⋈ attribution, issue 0026), **G1** (Settings price-override
+editor — the last hand-edit-JSON cost knob, issue 0027), **G2** (per-session cost on the
+Sessions page — issue 0028, PR #53), and **G3** (Telemetry spend-window selector — issue
+0029, PR #55, the **last child**) are all **shipped**. The roadmap-v4 convergence +
+cost-surface theme is complete: the Workflows page, the Telemetry per-bucket forecast, the
+Settings price knobs, the Sessions picker, and the spend-over-time trend are now all
+cost-aware / inspectable. This epic is **closed**.
 
 ## Notes
 

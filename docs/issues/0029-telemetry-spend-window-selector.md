@@ -1,13 +1,13 @@
 ---
 id: 0029
 title: Telemetry spend-window selector (roadmap v4, item G3/V9)
-status: open
+status: closed
 severity: medium
 group: 0024
 github:
 links:
   adr:
-  prs: []
+  prs: [55]
   issues: [0024, 0028]
   regression:
 assets: []
@@ -55,6 +55,46 @@ sliver. Source: `docs/NEXT_FEATURES.md` item G3/V9.
   window). e2e — assert the window-selector **structure** (three buttons, the active one
   marked, switching re-renders the trend), never exact figures (the shared demo ledger is
   append-only across the suite).
+
+## Resolution (shipped)
+
+Built as specified, no schema change and no new store — a presentation-layer slice over the
+existing pure `telemetry.DailyTotals` reader. `internal/web` (`pages.go`): `spendTrend(window
+int)` takes the window (days) instead of the hardcoded 14, slicing `DailyTotals` to the
+chosen window **first** and computing the bar-scaling `maxUSD` **after** the slice — the
+REGRESSIONS #14 invariant, so an off-window all-time peak can't shrink the visible bars.
+`telemetryPartial(window int)` threads the window through and builds the selector's
+button data (`{Value, Active}` per window). `clampWindow(raw string) int` parses the
+`?window=` value to one of `spendWindows` ({14, 30, 90}), falling back to
+`defaultSpendWindow` (14) for an empty / unparseable / out-of-range / negative value.
+`renderPage(slug, window string)` threads the raw value to `telemetryPartial` (clamped);
+`handlePage` reads `r.URL.Query().Get("window")`; `cmdNav` passes `""` (→ default). The
+`telemetryPage` template gained a `.window-row` control (three `.window` buttons, the active
+one marked `.window.on`) that re-fetches `GET /page/telemetry?window=N` into `#main`,
+mirroring the Models-page effort row; matching `.window`/`.window-row` CSS was added
+(`static/app.css`, cloned from `.effort`). All values flow through `html/template`
+(ADR-0001).
+
+Tests: unit (`internal/web`) `TestClampWindow` (allowed set + empty/garbage/out-of-range/
+negative/non-integer → 14), `TestSpendTrendWidensWithWindow` (14 < 30 < 90 surface
+more/older rows; 90 clamped by available history; most-recent day stable across windows),
+`TestTelemetryTrendScalesToVisibleMaxPerWindow` (the #14 invariant asserted for **each**
+window — an off-window peak doesn't leak and the busiest in-window day fills 100%),
+`TestTelemetryPageRendersWindowSelector` (three buttons, the active one marked, the others
+not); the pre-existing `TestTelemetryTrendWindowsAndScalesToVisibleMax` (the #14 guard) is
+retained. e2e: a selector-**structure** test (three buttons, the active one marked,
+switching to 90d re-renders the trend — never figures, since the demo ledger is shared +
+append-only). Gates green (`make lint && make test`, web coverage 88.8%); the e2e Chromium
+browser is blocked by the env's network allowlist, so the spec was verified to
+compile/discover via `npx playwright test --list` and CI runs the real Playwright suite.
+
+Docs: CONTRACTS §3 (the Telemetry-page window selector — the `?window=` param, the allowed
+set + default/clamp, the window-local `maxUSD`). No REGRESSIONS entry — no bug was
+found-and-fixed; the clamp/default, the negative-window guard, and the maxUSD-after-slice
+invariant were guarded preemptively (self-review with `/code-review` high effort confirmed
+them, and surfaced one polish gap — the unstyled selector buttons — now fixed). No ADR.
+Shipped on branch `claude/spend-window-selector` (**PR #55**). **The last child of epic
+0024 — on this merge the epic closes.**
 
 ## Notes
 - **No ADR:** a presentation-layer change over an existing pure reader (like 0025/0026/
