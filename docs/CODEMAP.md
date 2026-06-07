@@ -501,36 +501,39 @@ _Last generated: 2026-06-07 (UTC)._
 - L333: `func (s *Server) handleMCPServerToggle(w http.ResponseWriter, r *http.Request)`
 - L339: `func (s *Server) handleMCPServerDelete(w http.ResponseWriter, r *http.Request)`
 
-### pages.go (606 LOC)
-- L47: `func clampWindow(raw string) int`
-- L63: `func (s *Server) renderPage(slug, window string) string`
-- L97: `func renderShortcuts(keymap []config.ResolvedKey) string`
-- L111: `func helpOverlay(keymap []config.ResolvedKey) string`
-- L122: `func (s *Server) helpPartial() string`
-- L180: `func (s *Server) chatPartial() string`
-- L212: `func (s *Server) telemetryPartial(window int) string`
-- L270: `func (s *Server) spendTrend(window int) (days, shares []map[string]any, hasHistory bool)`
-- L327: `func (s *Server) spendShares(now time.Time) (agents, workflows []map[string]any)`
-- L357: `func agentKey(r telemetry.SpendRecord) string    { return r.AgentID }`
-- L358: `func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }`
-- L364: `func bucketTrajectories(bs []telemetry.BucketProjection, now time.Time) map[string]string`
-- L380: `func bucketTrajectoryText(p telemetry.Projection, now time.Time) string`
-- L399: `func daysLeftInMonth(now time.Time) int`
-- L410: `func shareRow(label string, credits, fraction float64) map[string]any`
-- L422: `func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any`
-- L446: `func forecastSoon(exhaust, now time.Time) bool`
-- L456: `func plural(n int, one, many string) string`
-- L466: `func (s *Server) agentLabel(id string) string`
-- L478: `func (s *Server) workflowLabel(id string) string`
-- L488: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
-- L500: `func (s *Server) skillsPartial() string`
-- L512: `func (s *Server) instructionsPartial() string`
-- L525: `func (s *Server) agentsPartial() string`
-- L549: `func addData(kind, noun string) map[string]any { return map[string]any{"Kind": kind, "Noun": noun} }`
-- L555: `func (s *Server) modelsPartial() string`
-- L585: `func (s *Server) settingsPartial() string`
-- L589: `func def(s, fallback string) string`
-- L597: `func truncate(s string, n int) string`
+### pages.go (639 LOC)
+- L48: `func clampWindow(raw string) int`
+- L64: `func (s *Server) renderPage(slug, window string) string`
+- L98: `func renderShortcuts(keymap []config.ResolvedKey) string`
+- L112: `func helpOverlay(keymap []config.ResolvedKey) string { return helpOverlayAttr(keymap, "") }`
+- L118: `func helpOverlayAttr(keymap []config.ResolvedKey, extraAttr string) string`
+- L130: `func keymapJSON(keymap []config.ResolvedKey) string`
+- L147: `func keymapLiveApply(keymap []config.ResolvedKey) string`
+- L155: `func (s *Server) helpPartial() string`
+- L213: `func (s *Server) chatPartial() string`
+- L245: `func (s *Server) telemetryPartial(window int) string`
+- L303: `func (s *Server) spendTrend(window int) (days, shares []map[string]any, hasHistory bool)`
+- L360: `func (s *Server) spendShares(now time.Time) (agents, workflows []map[string]any)`
+- L390: `func agentKey(r telemetry.SpendRecord) string    { return r.AgentID }`
+- L391: `func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }`
+- L397: `func bucketTrajectories(bs []telemetry.BucketProjection, now time.Time) map[string]string`
+- L413: `func bucketTrajectoryText(p telemetry.Projection, now time.Time) string`
+- L432: `func daysLeftInMonth(now time.Time) int`
+- L443: `func shareRow(label string, credits, fraction float64) map[string]any`
+- L455: `func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any`
+- L479: `func forecastSoon(exhaust, now time.Time) bool`
+- L489: `func plural(n int, one, many string) string`
+- L499: `func (s *Server) agentLabel(id string) string`
+- L511: `func (s *Server) workflowLabel(id string) string`
+- L521: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
+- L533: `func (s *Server) skillsPartial() string`
+- L545: `func (s *Server) instructionsPartial() string`
+- L558: `func (s *Server) agentsPartial() string`
+- L582: `func addData(kind, noun string) map[string]any { return map[string]any{"Kind": kind, "Noun": noun} }`
+- L588: `func (s *Server) modelsPartial() string`
+- L618: `func (s *Server) settingsPartial() string`
+- L622: `func def(s, fallback string) string`
+- L630: `func truncate(s string, n int) string`
 
 ### render.go (452 LOC)
 - L25: `func esc(s string) string`
@@ -568,69 +571,69 @@ _Last generated: 2026-06-07 (UTC)._
 - L87: `func humanDuration(d time.Duration) string`
 - L115: `func runOutcomeGlyph(outcome string) (glyph, state string)`
 
-### server.go (886 LOC)
-- L28: `type Server struct`
-- L95: `func (s *Server) subscribe() chan fragment`
-- L104: `func (s *Server) unsubscribe(ch chan fragment)`
-- L115: `func (s *Server) broadcast(frags []fragment)`
-- L134: `func (s *Server) broadcastSendFailure(err error)`
-- L139: `type indexData struct`
-- L149: `type navItem struct`
-- L153: `func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request)`
-- L180: `func (s *Server) ensureSession(ctx context.Context) (string, error)`
-- L199: `func (s *Server) handleSend(w http.ResponseWriter, r *http.Request)`
-- L294: `func (s *Server) overCap() (projected float64, capped bool)`
-- L312: `func (s *Server) monthToDate() telemetry.Cost`
-- L324: `func (s *Server) forecast(now time.Time) (telemetry.Projection, bool)`
-- L337: `func (s *Server) budget() telemetry.Budget`
-- L347: `type budgetGate struct`
-- L357: `func (s *Server) handleBudget(w http.ResponseWriter, r *http.Request)`
-- L413: `func (s *Server) dispatch(ctx context.Context, sessionID, prompt string, attachments []string) error`
-- L432: `func (s *Server) sendFailedOOB(err error) string`
-- L444: `func queuedStatus(n int) string`
-- L451: `func (s *Server) handleAbort(w http.ResponseWriter, r *http.Request)`
-- L472: `func (s *Server) handlePerm(w http.ResponseWriter, r *http.Request)`
-- L502: `func (s *Server) dropLanePerm(id string) string`
-- L519: `func (s *Server) handleAsk(w http.ResponseWriter, r *http.Request)`
-- L539: `func (s *Server) handlePlanReview(w http.ResponseWriter, r *http.Request)`
-- L572: `func (s *Server) handleElicit(w http.ResponseWriter, r *http.Request)`
-- L610: `func elicitContent(fields []copilot.ElicitField, form url.Values) map[string]any`
-- L640: `func (s *Server) handlePage(w http.ResponseWriter, r *http.Request)`
-- L653: `func (s *Server) handleSkillToggle(w http.ResponseWriter, r *http.Request)`
-- L659: `func (s *Server) handleSkillDelete(w http.ResponseWriter, r *http.Request)`
-- L663: `func (s *Server) handleInstructionToggle(w http.ResponseWriter, r *http.Request)`
-- L669: `func (s *Server) handleInstructionDelete(w http.ResponseWriter, r *http.Request)`
-- L673: `func (s *Server) handleAgentSelect(w http.ResponseWriter, r *http.Request)`
-- L697: `func (s *Server) handleModelSelect(w http.ResponseWriter, r *http.Request)`
-- L704: `func (s *Server) handleEffortSelect(w http.ResponseWriter, r *http.Request)`
-- L713: `func (s *Server) handleAgentDelete(w http.ResponseWriter, r *http.Request)`
-- L736: `func (s *Server) oobTimeline() string`
-- L741: `func oobStatus(text string, active bool, startMs int64) string`
-- L747: `func (s *Server) oobBudget() string`
-- L753: `func (s *Server) budgetFrag() fragment`
-- L759: `func (s *Server) renderGate() string`
-- L768: `func (s *Server) statusFrag(text string, active bool) fragment`
-- L778: `func (s *Server) ctxFrag() fragment`
-- L784: `func (s *Server) statFrag() fragment`
-- L791: `func (s *Server) oobStat() string`
-- L797: `func (s *Server) subagentsFrag() fragment`
-- L802: `func nowMs() int64 { return time.Now().UnixMilli() }`
-- L807: `func dropByID[T any](sl []T, id string, key func(T) string) []T`
-- L818: `func findByID[T any](sl []T, id string, key func(T) string) (T, bool)`
-- L828: `func permID(p copilot.PermissionRequest) string { return p.ID }`
-- L829: `func inputID(p copilot.InputRequest) string     { return p.ID }`
-- L830: `func planID(p copilot.PlanRequest) string       { return p.ID }`
-- L831: `func elicitID(e copilot.ElicitRequest) string   { return e.ID }`
-- L832: `func subagentKey(a copilot.SubagentInfo) string { return a.ToolCallID }`
-- L837: `func (s *Server) dropPerm(id string)  { s.perms = dropByID(s.perms, id, permID) }`
-- L838: `func (s *Server) dropInput(id string) { s.inputs = dropByID(s.inputs, id, inputID) }`
-- L839: `func (s *Server) dropPlan(id string)  { s.plans = dropByID(s.plans, id, planID) }`
-- L840: `func (s *Server) dropElicit(id string)`
-- L846: `func (s *Server) findElicit(id string) (copilot.ElicitRequest, bool)`
-- L851: `func (s *Server) dropSubagent(toolCallID string)`
-- L856: `func firstNonEmpty(vals []string) string`
-- L869: `func (s *Server) editForge(fn func() error) error`
-- L883: `func (s *Server) writePartial(w http.ResponseWriter, html string)`
+### server.go (880 LOC)
+- L27: `type Server struct`
+- L94: `func (s *Server) subscribe() chan fragment`
+- L103: `func (s *Server) unsubscribe(ch chan fragment)`
+- L114: `func (s *Server) broadcast(frags []fragment)`
+- L133: `func (s *Server) broadcastSendFailure(err error)`
+- L138: `type indexData struct`
+- L148: `type navItem struct`
+- L152: `func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request)`
+- L174: `func (s *Server) ensureSession(ctx context.Context) (string, error)`
+- L193: `func (s *Server) handleSend(w http.ResponseWriter, r *http.Request)`
+- L288: `func (s *Server) overCap() (projected float64, capped bool)`
+- L306: `func (s *Server) monthToDate() telemetry.Cost`
+- L318: `func (s *Server) forecast(now time.Time) (telemetry.Projection, bool)`
+- L331: `func (s *Server) budget() telemetry.Budget`
+- L341: `type budgetGate struct`
+- L351: `func (s *Server) handleBudget(w http.ResponseWriter, r *http.Request)`
+- L407: `func (s *Server) dispatch(ctx context.Context, sessionID, prompt string, attachments []string) error`
+- L426: `func (s *Server) sendFailedOOB(err error) string`
+- L438: `func queuedStatus(n int) string`
+- L445: `func (s *Server) handleAbort(w http.ResponseWriter, r *http.Request)`
+- L466: `func (s *Server) handlePerm(w http.ResponseWriter, r *http.Request)`
+- L496: `func (s *Server) dropLanePerm(id string) string`
+- L513: `func (s *Server) handleAsk(w http.ResponseWriter, r *http.Request)`
+- L533: `func (s *Server) handlePlanReview(w http.ResponseWriter, r *http.Request)`
+- L566: `func (s *Server) handleElicit(w http.ResponseWriter, r *http.Request)`
+- L604: `func elicitContent(fields []copilot.ElicitField, form url.Values) map[string]any`
+- L634: `func (s *Server) handlePage(w http.ResponseWriter, r *http.Request)`
+- L647: `func (s *Server) handleSkillToggle(w http.ResponseWriter, r *http.Request)`
+- L653: `func (s *Server) handleSkillDelete(w http.ResponseWriter, r *http.Request)`
+- L657: `func (s *Server) handleInstructionToggle(w http.ResponseWriter, r *http.Request)`
+- L663: `func (s *Server) handleInstructionDelete(w http.ResponseWriter, r *http.Request)`
+- L667: `func (s *Server) handleAgentSelect(w http.ResponseWriter, r *http.Request)`
+- L691: `func (s *Server) handleModelSelect(w http.ResponseWriter, r *http.Request)`
+- L698: `func (s *Server) handleEffortSelect(w http.ResponseWriter, r *http.Request)`
+- L707: `func (s *Server) handleAgentDelete(w http.ResponseWriter, r *http.Request)`
+- L730: `func (s *Server) oobTimeline() string`
+- L735: `func oobStatus(text string, active bool, startMs int64) string`
+- L741: `func (s *Server) oobBudget() string`
+- L747: `func (s *Server) budgetFrag() fragment`
+- L753: `func (s *Server) renderGate() string`
+- L762: `func (s *Server) statusFrag(text string, active bool) fragment`
+- L772: `func (s *Server) ctxFrag() fragment`
+- L778: `func (s *Server) statFrag() fragment`
+- L785: `func (s *Server) oobStat() string`
+- L791: `func (s *Server) subagentsFrag() fragment`
+- L796: `func nowMs() int64 { return time.Now().UnixMilli() }`
+- L801: `func dropByID[T any](sl []T, id string, key func(T) string) []T`
+- L812: `func findByID[T any](sl []T, id string, key func(T) string) (T, bool)`
+- L822: `func permID(p copilot.PermissionRequest) string { return p.ID }`
+- L823: `func inputID(p copilot.InputRequest) string     { return p.ID }`
+- L824: `func planID(p copilot.PlanRequest) string       { return p.ID }`
+- L825: `func elicitID(e copilot.ElicitRequest) string   { return e.ID }`
+- L826: `func subagentKey(a copilot.SubagentInfo) string { return a.ToolCallID }`
+- L831: `func (s *Server) dropPerm(id string)  { s.perms = dropByID(s.perms, id, permID) }`
+- L832: `func (s *Server) dropInput(id string) { s.inputs = dropByID(s.inputs, id, inputID) }`
+- L833: `func (s *Server) dropPlan(id string)  { s.plans = dropByID(s.plans, id, planID) }`
+- L834: `func (s *Server) dropElicit(id string)`
+- L840: `func (s *Server) findElicit(id string) (copilot.ElicitRequest, bool)`
+- L845: `func (s *Server) dropSubagent(toolCallID string)`
+- L850: `func firstNonEmpty(vals []string) string`
+- L863: `func (s *Server) editForge(fn func() error) error`
+- L877: `func (s *Server) writePartial(w http.ResponseWriter, html string)`
 
 ### session.go (325 LOC)
 - L15: `type liveKind int`
@@ -651,7 +654,7 @@ _Last generated: 2026-06-07 (UTC)._
 - L151: `func (s *Server) sessionsError(msg string) string`
 - L160: `func (s *Server) loadHistory(events []copilot.Event)`
 
-### settings.go (307 LOC)
+### settings.go (321 LOC)
 - L26: `func (s *Server) editConfig(fn func(*config.Config)) error`
 - L41: `func (s *Server) refreshBudget()`
 - L55: `func (s *Server) renderSettings(note, errMsg string) string`

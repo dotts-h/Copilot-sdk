@@ -14,7 +14,7 @@ issues are added or closed.
 | [0013](0013-epic-deepen-differentiators.md) | Epic: deepen the differentiators (roadmap v2) | closed | 0014, 0015, 0016, 0017, 0018, 0020, 0021 |
 | [0022](0022-epic-extensibility-and-convergence.md) | Epic: extensibility & convergence (roadmap v3) | closed | 0019, 0023 |
 | [0024](0024-epic-convergence-dashboards-cost-surface.md) | Epic: convergence dashboards & cost-surface completion (roadmap v4) | closed | 0025, 0026, 0027, 0028, 0029 |
-| [0030](0030-epic-orchestration-visibility-polish.md) | Epic: orchestration visibility & polish (roadmap v5) | open | 0031 |
+| [0030](0030-epic-orchestration-visibility-polish.md) | Epic: orchestration visibility & polish (roadmap v5) | open | 0031, 0032 |
 
 ## Issues
 
@@ -43,4 +43,5 @@ issues are added or closed.
 | [0027](0027-settings-price-override-editor.md) | Settings price-override editor (item G1/V2) | closed | medium | 0024 | REGRESSIONS (price-override reprice) |
 | [0028](0028-per-session-cost-sessions-page.md) | Per-session cost on the Sessions page (item G2/V5) | closed | medium | 0024 | CONTRACTS §3/§4 |
 | [0029](0029-telemetry-spend-window-selector.md) | Telemetry spend-window selector (item G3/V9) | closed | medium | 0024 | CONTRACTS §3 |
-| [0031](0031-subagent-description-activity-strip.md) | Surface SubagentInfo.Description on the sub-agent activity strip (item V3) | closed | medium | 0030 | CONTRACTS §2 |
+| [0031](0031-subagent-description-activity-strip.md) | Surface SubagentInfo.Description on the sub-agent activity strip (item V3) | closed | medium | 0030 | CONTRACTS §2, PR #56 |
+| [0032](0032-keybinding-live-apply.md) | Keybinding live-apply — rebind without a full page reload (item V10) | closed | low | 0030 | ADR-0014, TECH_DEBT #13, REGRESSIONS #18 |

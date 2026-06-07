@@ -63,3 +63,48 @@ test("the Help page lists the shortcuts", async ({ page }) => {
   await expect(page.locator("#main")).toContainText("Keyboard shortcuts");
   await expect(page.locator("#main kbd").first()).toBeVisible();
 });
+
+// V10 — keybinding live-apply (TECH_DEBT #13). A rebind on the Settings page must
+// take effect WITHOUT a full reload: the Settings POST OOB-swaps the help overlay
+// and updates <body data-keymap> + the JS dispatcher's map, so the new key fires
+// immediately. This block DOES mutate shared config (gotoTelemetry's key), so it
+// reverts to the default in afterEach — even on a mid-test failure — to honour the
+// shared-config gotcha (REGRESSIONS). gotoTelemetry is chosen because no other
+// shortcut spec dispatches it ("?"/","/composer chars are untouched).
+test.describe("keybinding live-apply", () => {
+  test.afterEach(async ({ page }) => {
+    await gotoApp(page);
+    await navTo(page, "Settings");
+    await page.locator('input[name="key_gotoTelemetry"]').fill(""); // blank → default
+    await page.locator("#main form.forge-form button[type=submit]").click();
+    await expect(page.locator("#main")).toContainText("✓ saved");
+  });
+
+  test("a rebind takes effect live, without a full page reload", async ({ page }) => {
+    await gotoApp(page);
+    // The initial keymap maps gotoTelemetry to its default "t" (structure, not a figure).
+    await expect
+      .poll(() => page.evaluate(() => document.body.dataset.keymap || ""))
+      .toContain('"gotoTelemetry":"t"');
+
+    await navTo(page, "Settings");
+    await page.locator('input[name="key_gotoTelemetry"]').fill("y"); // rebind t → y
+    await page.locator("#main form.forge-form button[type=submit]").click();
+    await expect(page.locator("#main")).toContainText("✓ saved");
+
+    // The live <body data-keymap> reflects the rebind WITHOUT any page.goto/reload
+    // (the OOB applyKeymap script ran on the POST swap). Assert the structure only.
+    await expect
+      .poll(() => page.evaluate(() => document.body.dataset.keymap || ""))
+      .toContain('"gotoTelemetry":"y"');
+    // The OOB-swapped overlay re-render carries the new key.
+    await expect(page.locator("#help-overlay")).toContainText("y");
+
+    // The dispatcher picked up the new binding live: pressing "y" (focus off any
+    // field — the post-save Settings section is focusable, not an input) navigates
+    // to Telemetry, while the old "t" no longer does.
+    await page.locator("#main h2").click();
+    await page.keyboard.press("y");
+    await expect(page.locator("#main h2")).toHaveText("Telemetry");
+  });
+});
