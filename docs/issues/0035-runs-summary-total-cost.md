@@ -7,7 +7,7 @@ group: 0031
 github:
 links:
   adr:
-  prs: []
+  prs: [61]
   issues: [0031]
   regression:
 assets: []
@@ -52,7 +52,7 @@ section.
 
 ## Resolution (shipped)
 
-Built as specified. `runSummaryRow` (`internal/web/runs.go`) now maps
+Shipped in **PR #61**. Built as specified. `runSummaryRow` (`internal/web/runs.go`) now maps
 `RunAggregate.TotalCredits` through `telemetry.FormatCredits`; the `runsPage` summary
 table (`fragments.html`) gained a "Total cost" header + a `run-summary-totalcost` cell
 before "Avg cost", and the caption now reads "total &amp; average cost". A

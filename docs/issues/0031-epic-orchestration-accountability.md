@@ -7,7 +7,7 @@ group:
 github:
 links:
   adr:
-  prs: [59]
+  prs: [59, 61]
   issues: [0034, 0035]
   regression:
 assets: []
@@ -63,8 +63,8 @@ negative-value, so #8 stays a candidate, deferred to its trigger. The v6 epic is
       "Export CSV" link when history exists. **First child.**
 
 - [x] **V13 — Total cost on the per-workflow summary** (S; pure presentation-layer
-      slice) → [0035](0035-runs-summary-total-cost.md) (**shipped**; no ADR — a pure UI
-      slice over an already-computed field). The Runs summary showed `AvgCredits` but not
+      slice) → [0035](0035-runs-summary-total-cost.md) (**shipped**, PR #61; no ADR — a
+      pure UI slice over an already-computed field). The Runs summary showed `AvgCredits` but not
       `TotalCredits` (already rolled up on `RunAggregate`); `runSummaryRow` now surfaces
       it and the `runsPage` table gained a "Total cost" column beside "Avg cost", so a
       workflow's *cumulative* orchestrated spend reads beside its average. **Second
@@ -84,7 +84,7 @@ negative-value, so #8 stays a candidate, deferred to its trigger. The v6 epic is
 **Open.** First child **V11 (Runs CSV export, 0034)** shipped in this epic's opening
 **PR #59** (per the repo convention — an epic is born in its first child's PR, as epic
 0030 opened inside V3's PR #56). Second child **V13 (Total cost on the per-workflow
-summary, 0035)** shipped next — a pure presentation-layer slice surfacing
+summary, 0035)** shipped next in **PR #61** — a pure presentation-layer slice surfacing
 `RunAggregate.TotalCredits` beside the average. The remaining candidate children (V12
 window selector, then V14 per-lane roll-up) stay in the v6 research until promoted.
 

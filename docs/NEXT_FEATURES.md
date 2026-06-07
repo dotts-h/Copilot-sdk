@@ -333,7 +333,7 @@ Ranked by value × fit; all are pure readers / presentation-layer compositions o
 4. **TECH_DEBT #8** only when its volume trigger actually fires.
 
 > **v6 update (after V13):** **V11 shipped** (PR #59, issue 0034) and **V13 shipped**
-> (issue 0035) — the per-workflow Runs summary now surfaces `RunAggregate.TotalCredits`
+> (PR #61, issue 0035) — the per-workflow Runs summary now surfaces `RunAggregate.TotalCredits`
 > as a "Total cost" column beside the average (a pure presentation-layer slice, no
 > telemetry/schema change, no ADR). **Remaining, re-ranked:** **V12 — Runs time-window
 > selector** (S, next up: thread a clamped `?window=` through `runsPartial` like
