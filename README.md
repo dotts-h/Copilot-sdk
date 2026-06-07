@@ -28,12 +28,24 @@ cost reported by the runtime.
 - **Streaming htmx web UI** — Copilot CLI's tool-centric chrome + Claude CLI's
   conversational feel, server-rendered over SSE with zero JS build chain (htmx +
   htmx-ext-sse vendored locally).
-- **Live credit telemetry** — per-model token & credit breakdown vs. a monthly budget,
-  plus GitHub-authoritative AIU cost.
-- **my-ctx forge** — toggle **skills** and **instructions** and pick the active
-  **agent** persona; they compile into the session's system message.
+- **Live credit telemetry** — per-model / per-agent / per-workflow token & credit
+  breakdown vs. a monthly budget, a windowed spend trend, a burn-rate **forecast**,
+  CSV export, and GitHub-authoritative AIU cost. Spend is **persisted** (survives
+  restart) and **attributed** to the agent/workflow/lane that incurred it.
+- **Budget guardrails** — a soft-warn threshold and a hard-cap **gate** that pauses a
+  turn before it would breach your ceiling; per-model price overrides repriced live.
+- **Multi-agent orchestration** — compose **workflows** of agent steps (sequential
+  handoff or parallel fan-out, with conditional/branching steps); each run streams
+  per-lane tool timelines and inline permissions, and every run is **persisted history**
+  on the Runs page (duration, per-lane cost, skipped branches). Spend is **reconcilable**
+  across the cost ledger and the run history (the "Ledger vs runs" view).
+- **my-ctx forge** — manage **skills**, **instructions**, **agent** personas, **MCP
+  servers** (with masked secret references), **workflows**, and a **snippet** library;
+  they compile into each session's system message.
 - **Inline tool approvals** — when auto-approve is off, the agent's shell/file/tool
-  actions surface an inline approve/reject control in the chat stream.
+  actions surface an inline approve/reject control (with a diff-review lane for writes).
+- **Session resume & keybindings** — pick/continue persisted sessions (cost-aware
+  picker); rebindable keyboard shortcuts that apply live.
 - **Offline mock mode** — explore every page with no CLI or token installed (`-demo`).
 
 ## Pages
@@ -41,11 +53,16 @@ cost reported by the runtime.
 | Page | What it does |
 |------|--------------|
 | Chat | Streaming conversation with a Copilot-style tool timeline (args, live progress, results/diffs), reasoning shown as a separate "thinking" block, and a live credit footer |
-| Telemetry | Credits & token breakdown per model vs. budget; authoritative AIU |
-| Skills | Toggle reusable prompt skills into context |
-| Instructions | Toggle system-message rules (priority-ordered) |
-| Agents | Pick the active agent persona (model + effort + pinned skills) |
-| Settings | View effective settings |
+| Telemetry | Credits & token breakdown per model / agent / workflow vs. budget; windowed trend, burn-rate forecast, "Ledger vs runs" reconciliation, CSV export, authoritative AIU |
+| Runs | Persisted workflow-run history — per-workflow roll-up (count, failure rate, total & avg cost, duration), per-lane cost, skipped branches; windowed + CSV export |
+| Workflows | Create/run multi-agent workflows (sequential / parallel / branching); each row badges its last run + total spend |
+| Sessions | Resume or delete persisted sessions, with per-session turn count + cost |
+| Skills | Create/edit and toggle reusable prompt skills into context |
+| Instructions | Create/edit and toggle system-message rules (priority-ordered) |
+| Agents | Create/edit personas and pick the active one (model + effort + pinned skills + tool allowlist) |
+| MCP servers | Manage external tool servers, including masked `${VAR}` secret references, with a PATH/secret preflight |
+| Snippets | A reusable composer-prompt library, inserted via `/trigger` |
+| Settings | Edit settings: default model/agent/effort, budget (warn + hard cap), per-model price overrides, and keybindings |
 
 Pages are `hx-get` partials swapped into the shell; the chat SSE stream stays
 open across navigation.
@@ -99,12 +116,11 @@ stream in live. On the Skills and Instructions pages, click a row to toggle it
 into context; on Agents, click to make a persona active.
 
 When **auto-approve tools** is off (the default), the agent's shell/file/tool
-actions surface an inline **approve / reject** control in the chat stream;
-requests queue if several arrive.
-
-> Add/edit forms for forge entities, a slash-command menu, in-place model/agent
-> switching, and an abort button are tracked as follow-ups (see
-> [docs/WEB_UI_PLAN.md](docs/WEB_UI_PLAN.md)); toggle/select/delete are wired today.
+actions surface an inline **approve / reject** control in the chat stream (a
+diff-review lane for file writes); requests queue if several arrive. A
+slash-command menu (`/model`, `/agent`, `/plan`, snippet `/trigger`s, …), in-place
+model/agent switching, full add/edit forms for every forge entity, and an abort
+button are all wired.
 
 ## Development
 

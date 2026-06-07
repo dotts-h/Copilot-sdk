@@ -5,6 +5,9 @@ canonical rules live in the docs below — read them before acting.
 
 - **Conventions (the constitution):** [docs/CONVENTIONS.md](docs/CONVENTIONS.md) —
   workflow, architecture invariants, quality gates, environment facts.
+- **Context (the glossary):** [docs/CONTEXT.md](docs/CONTEXT.md) — the ubiquitous
+  language (forge, lane, run, share, meter, ledger, reconcile…), defined once. Read it
+  before naming a new type or writing a doc; add a term here before you write its code.
 - **Codebase map (navigate first):** [docs/CODEMAP.md](docs/CODEMAP.md) —
   per-package `type`/`func` index; read it to find a symbol instead of opening
   files. Regenerate with `make codemap`.

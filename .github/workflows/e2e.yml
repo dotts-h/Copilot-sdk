@@ -1,8 +1,11 @@
 name: E2E (Playwright)
 
+# Run once per change: `pull_request` for the open PR, `push` only on merge to
+# `main`. A feature branch under `push` would double every run (push + PR events).
+# — see docs/CONVENTIONS.md "Quality gates"
 on:
   push:
-    branches: [main, "claude/**"]
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:

@@ -21,6 +21,11 @@ Module: `github.com/dotts-h/copilot-sdk` · app *my-orchestra*.
   CONTRACTS updates ship *in the same PR* as the change that motivated them. Do **not**
   open a separate docs-only PR for them (it serializes an extra CI cycle and risks a merge
   conflict on the shared docs). — see [ADR-0004](adr/0004-fold-supporting-docs-into-the-feature-branch.md)
+- **Recording the PR number is NOT an exception to the above.** You don't know the number
+  until the PR exists — so open the PR, then push the doc-record commit (flip the issue to
+  `closed`, add the `Resolution (shipped)` section, record the number on the issue/epic/INDEX)
+  to the **same branch** *before* merging. A second "record PR #N" follow-up PR is the exact
+  separate docs-only PR ADR-0004 forbids — it doubles CI for bookkeeping git already encodes.
 - **PR mechanics when `gh` is absent:** create/merge PRs via the GitHub REST API using a
   stored PAT (`python3` + `urllib`; `jq` is **not** installed). Poll check-runs for CI
   status. — see [ADR-0004](adr/0004-fold-supporting-docs-into-the-feature-branch.md)
@@ -67,6 +72,26 @@ Exact commands CI enforces (`.github/workflows/ci.yml`, `Makefile`):
 - **Build matrix:** `make build` must pass across the release matrix (pure-Go, `CGO_ENABLED=0`).
 - **Desktop:** `make desktop` (CGO, build tag `desktop`) builds the Wails shell; CI
   (`desktop.yml`) builds it on native runners and runs a boot smoke under xvfb.
+- **CI runs once per change.** `ci.yml`/`e2e.yml` trigger on `pull_request` (the open PR)
+  and `push: [main]` (merge) — **never** list a feature branch (`claude/**`) under `push`,
+  which doubles every run. `pages.yml`/`desktop.yml` are `main`-only and path-filtered.
+
+## Docs & comments — one fact, one home
+
+The why lives in **exactly one** canonical place; everything else **points**, never copies.
+The meta-layer (comments + docs) already rivals the code in size, so duplication is the
+main drift risk (it is how stale rows/READMEs creep in).
+
+- **ADR = the why.** A decision's rationale is single-sourced in its ADR. A code doc-comment
+  states the *contract* tersely (invariant, ordering, error mode) and cites the ADR
+  (`— ADR-00NN`); it does not re-narrate the rationale.
+- **CONTRACTS = the index of seams**, not a second prose copy of each comment. **CODEMAP is
+  generated** (`make codemap`) — never hand-edit.
+- **CONTEXT.md = the domain glossary** (ubiquitous language: forge, lane, run, share, meter,
+  credit, ledger, reconcile, gate…). Define a term **once** there; comments/ADRs use it
+  without re-defining. — see [CONTEXT.md](CONTEXT.md)
+- **Comments earn their place** by capturing what the code can't (intent, invariants, the
+  non-obvious). Don't restate the code; don't copy a paragraph that already lives in an ADR.
 
 ## Persistence & data
 
