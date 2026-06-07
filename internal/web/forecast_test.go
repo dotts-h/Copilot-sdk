@@ -26,7 +26,7 @@ func TestTelemetryPageShowsForecast(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	html := s.telemetryPartial()
+	html := s.telemetryPartial(defaultSpendWindow)
 	if !strings.Contains(html, "Forecast") {
 		t.Fatalf("telemetry page missing the Forecast section:\n%s", html)
 	}
@@ -45,7 +45,7 @@ func TestTelemetryForecastNoBudgetHint(t *testing.T) {
 	if err := store.Append(telemetry.SpendRecord{At: recentDay(0), Model: "gpt-5", USD: 0.02}); err != nil {
 		t.Fatal(err)
 	}
-	html := s.telemetryPartial()
+	html := s.telemetryPartial(defaultSpendWindow)
 	if !strings.Contains(html, "Forecast") {
 		t.Fatalf("telemetry page missing the Forecast section:\n%s", html)
 	}

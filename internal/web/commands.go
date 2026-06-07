@@ -377,7 +377,7 @@ func (s *Server) cmdAttach(path string) string {
 // cmdNav swaps the main panel to a page, mirroring a nav-link click. The composer
 // posts with hx-swap="none", so the swap is delivered out-of-band on #main.
 func (s *Server) cmdNav(slug string) string {
-	return `<div id="main" hx-swap-oob="innerHTML">` + s.renderPage(slug) + `</div>`
+	return `<div id="main" hx-swap-oob="innerHTML">` + s.renderPage(slug, "") + `</div>`
 }
 
 // isNavSlug reports whether slug names one of the top-level pages.

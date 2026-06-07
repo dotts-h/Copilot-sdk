@@ -517,7 +517,7 @@ func newWorkflowHub() (*Hub, *copilot.MockClient) {
 func TestWorkflowsPageLists(t *testing.T) {
 	hub, _ := newWorkflowHub()
 	s := hub.newSession("t")
-	html := s.renderPage("workflows")
+	html := s.renderPage("workflows", "")
 	if !strings.Contains(html, "Ship") || !strings.Contains(html, "builder") {
 		t.Errorf("workflows page should list the workflow: %q", html)
 	}

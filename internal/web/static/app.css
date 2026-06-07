@@ -345,6 +345,11 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
   border-radius: 6px; padding: .15rem .6rem; cursor: pointer; font: inherit; font-size: .85rem; }
 .effort:hover { border-color: var(--accent2); color: var(--fg); }
 .effort.on { border-color: var(--good); color: var(--good); }
+.window-row { display: flex; align-items: center; gap: .4rem; margin: .25rem 0 .75rem; }
+.window { background: none; border: 1px solid var(--subtle); color: var(--dim);
+  border-radius: 6px; padding: .15rem .6rem; cursor: pointer; font: inherit; font-size: .85rem; }
+.window:hover { border-color: var(--accent2); color: var(--fg); }
+.window.on { border-color: var(--good); color: var(--good); }
 #composer { display: flex; gap: .5rem; max-width: 56rem; margin: .25rem auto; align-items: flex-end; }
 #composer textarea { flex: 1 1 auto; background: var(--bg); border: 1px solid var(--subtle);
   border-radius: 6px; color: var(--fg); padding: .55rem .7rem; font: inherit; line-height: 1.4;

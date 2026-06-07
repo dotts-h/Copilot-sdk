@@ -1,14 +1,14 @@
 ---
 id: 0024
 title: "Epic: convergence dashboards & cost-surface completion (roadmap v4)"
-status: open
+status: closed
 severity: high
 group:
 github:
 links:
   adr:
-  prs: []
-  issues: [0025, 0026, 0027, 0028]
+  prs: [55]
+  issues: [0025, 0026, 0027, 0028, 0029]
   regression:
 assets: []
 ---
@@ -40,8 +40,9 @@ surfaces remain single-store views:
 This epic carries the **v4 convergence + cost-surface** picks. The builds so far: V4
 (Workflows last-run + cost badges), F3 (the per-workflow / per-agent bucketed burn-rate
 forecast — cost prediction ⋈ attribution), G1 (Settings price-override editor), and now
-G2 (per-session cost on the Sessions page). The rest (G3 spend-window selector; the I-tier
-polish) stay candidates in `NEXT_FEATURES.md` until promoted.
+G2 (per-session cost on the Sessions page), and now G3 (the Telemetry spend-window selector
+— the **last child**, on whose merge this epic closes). The I-tier polish stays a candidate
+in `NEXT_FEATURES.md` until promoted.
 
 ## Tasks
 
@@ -79,17 +80,27 @@ polish) stay candidates in `NEXT_FEATURES.md` until promoted.
       *"N turns · X cr"* per session (a no-spend session shows *"no cost yet"*; a
       since-deleted bucket is not shown). Pure reader; `SessionID` is already tagged (no
       schema change). **Shipped (PR #53).**
-- [ ] **G3 — Telemetry spend-window selector** (candidate). A 30/90-day selector
-      threaded through `DailyTotals` truncation, replacing the hardcoded 14-day window.
+- [x] **G3 — Telemetry spend-window selector** →
+      [0029](0029-telemetry-spend-window-selector.md) (no ADR — a presentation-layer slice
+      over the existing pure `DailyTotals` reader, like V4/0025, F3/0026, G1/0027, G2/0028).
+      A **14/30/90-day window selector** on the Telemetry "Spend over time" trend (three
+      buttons, active one marked), replacing the hardcoded 14-day window: `spendTrend(window
+      int)` takes the window; `handlePage` reads `?window=` (default 14, clamp to {14,30,90},
+      garbage → 14) and threads it through `renderPage` → `telemetryPartial` → `spendTrend`;
+      the `maxUSD` bar-scaling stays **after** the window slice (the REGRESSIONS #14
+      invariant, now asserted per window). No schema change, no new store. **Shipped (PR #55).**
 
 ## Status
 
-**Open.** **V4** (Workflows last-run + cost badges — the second cost ⋈ orchestration
-surface, PR #50), **F3** (per-workflow / per-agent bucketed burn-rate forecast — cost
-prediction ⋈ attribution, issue 0026), **G1** (Settings price-override editor — the last
-hand-edit-JSON cost knob, issue 0027), and **G2** (per-session cost on the Sessions page —
-issue 0028, PR #53) are **shipped**. **G3** (spend-window selector) remains a candidate in
-`NEXT_FEATURES.md` until promoted; this epic stays **open** while G3 is unbuilt.
+**Closed — all children shipped.** **V4** (Workflows last-run + cost badges — the second
+cost ⋈ orchestration surface, PR #50), **F3** (per-workflow / per-agent bucketed burn-rate
+forecast — cost prediction ⋈ attribution, issue 0026), **G1** (Settings price-override
+editor — the last hand-edit-JSON cost knob, issue 0027), **G2** (per-session cost on the
+Sessions page — issue 0028, PR #53), and **G3** (Telemetry spend-window selector — issue
+0029, PR #55, the **last child**) are all **shipped**. The roadmap-v4 convergence +
+cost-surface theme is complete: the Workflows page, the Telemetry per-bucket forecast, the
+Settings price knobs, the Sessions picker, and the spend-over-time trend are now all
+cost-aware / inspectable. This epic is **closed**.
 
 ## Notes
 
@@ -104,8 +115,9 @@ same convergence rationale as ADR-0022.
 
 Highest on disk before this pass: issues → **0023**, epic → **0022**, ADRs → **0022**.
 This epic takes **0024**; its children take issue **0025** (V4), **0026** (F3),
-**0027** (G1), and **0028** (G2). No ADR consumed (V4 is pre-blessed by ADR-0022; F3 by
-ADR-0018+0019; G1 is additive UI over an existing config field; G2 is a pure-reader
-composition over the existing ledger, pre-blessed by ADR-0018 ⋈ the `*Shares` pattern —
+**0027** (G1), **0028** (G2), and **0029** (G3). No ADR consumed (V4 is pre-blessed by
+ADR-0022; F3 by ADR-0018+0019; G1 is additive UI over an existing config field; G2 is a
+pure-reader composition over the existing ledger, pre-blessed by ADR-0018 ⋈ the `*Shares`
+pattern; G3 is a presentation-layer slice over the existing pure `DailyTotals` reader —
 all captured in CONTRACTS, with a REGRESSIONS note only where a real gotcha was
 found-and-fixed).
