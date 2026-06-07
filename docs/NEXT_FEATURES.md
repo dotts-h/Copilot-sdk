@@ -340,7 +340,7 @@ Ranked by value × fit; all are pure readers / presentation-layer compositions o
 > `spendTrend`, reusing `clampWindow`) → then **V14 — per-lane cost roll-up** (M, the
 > one new analytical reader). TECH_DEBT #8 stays deferred to its (unmet) volume trigger.
 
-> **v6 update (after V12):** **V12 shipped** (PR #TBD, issue 0036) — the Runs page now
+> **v6 update (after V12):** **V12 shipped** (PR #62, issue 0036) — the Runs page now
 > carries the same 14/30/90-day window selector as the Telemetry trend. A clamped
 > `?window=` is threaded `handlePage → renderPage → runsPartial` (reusing `clampWindow`,
 > no re-implementation), and a pure `windowRuns` slices the run history to the records
