@@ -123,6 +123,148 @@ func TestLoadRunStoreToleratesNewerSchema(t *testing.T) {
 	}
 }
 
+func TestRunRecordDuration(t *testing.T) {
+	// A finished run reports its wall-clock span.
+	if d := sampleRun().Duration(); d != 2*time.Minute {
+		t.Fatalf("Duration = %v, want 2m", d)
+	}
+	// An unfinished record (zero FinishedAt) → 0, not a huge negative span.
+	unfinished := sampleRun()
+	unfinished.FinishedAt = time.Time{}
+	if d := unfinished.Duration(); d != 0 {
+		t.Fatalf("unfinished Duration = %v, want 0", d)
+	}
+	// A zero StartedAt (malformed) → 0.
+	noStart := sampleRun()
+	noStart.StartedAt = time.Time{}
+	if d := noStart.Duration(); d != 0 {
+		t.Fatalf("zero-start Duration = %v, want 0", d)
+	}
+	// A negative span (Finished before Started — clock skew) → 0.
+	skewed := sampleRun()
+	skewed.FinishedAt = skewed.StartedAt.Add(-time.Minute)
+	if d := skewed.Duration(); d != 0 {
+		t.Fatalf("negative Duration = %v, want 0", d)
+	}
+	// A zero-length span (same instant) → 0 (guarded as non-positive).
+	instant := sampleRun()
+	instant.FinishedAt = instant.StartedAt
+	if d := instant.Duration(); d != 0 {
+		t.Fatalf("zero-span Duration = %v, want 0", d)
+	}
+}
+
+func TestRunAggregatesMixedHistory(t *testing.T) {
+	base := time.Date(2026, 6, 6, 10, 0, 0, 0, time.UTC)
+	// A mixed history: workflow "alpha" runs three times (one a failure), workflow
+	// "beta" runs once with a branched/skipped lane that adds zero cost. Order is
+	// shuffled to prove the roll-up doesn't depend on input order.
+	records := []RunRecord{
+		{WorkflowID: "beta", Name: "Beta", StartedAt: base, FinishedAt: base.Add(time.Minute),
+			Outcome: "finished", Lanes: []RunLane{
+				{Index: 0, Status: "done", Credits: 4},
+				{Index: 1, Status: "skipped"}, // a skipped branch adds zero cost
+			}},
+		{WorkflowID: "alpha", Name: "Alpha", StartedAt: base, FinishedAt: base.Add(2 * time.Minute),
+			Outcome: "finished", Lanes: []RunLane{{Index: 0, Status: "done", Credits: 2}}},
+		{WorkflowID: "alpha", Name: "Alpha", StartedAt: base, FinishedAt: base.Add(4 * time.Minute),
+			Outcome: "failed", Lanes: []RunLane{{Index: 0, Status: "failed", Credits: 1}}},
+		{WorkflowID: "alpha", Name: "Alpha", StartedAt: base, FinishedAt: base.Add(6 * time.Minute),
+			Outcome: "finished", Lanes: []RunLane{{Index: 0, Status: "done", Credits: 3}}},
+	}
+	got := RunAggregates(records)
+	if len(got) != 2 {
+		t.Fatalf("want 2 workflow aggregates, got %d: %+v", len(got), got)
+	}
+	// Deterministic ordering: alpha (3 runs) before beta (1 run).
+	if got[0].WorkflowID != "alpha" || got[1].WorkflowID != "beta" {
+		t.Fatalf("ordering = %q,%q; want alpha,beta", got[0].WorkflowID, got[1].WorkflowID)
+	}
+	a := got[0]
+	if a.Runs != 3 || a.Failures != 1 {
+		t.Fatalf("alpha runs/failures = %d/%d, want 3/1", a.Runs, a.Failures)
+	}
+	approx(t, a.TotalCredits, 6) // 2 + 1 + 3
+	approx(t, a.AvgCredits, 2)   // 6 / 3
+	approx(t, a.FailureRate(), 1.0/3.0)
+	if a.TotalDuration != 12*time.Minute { // 2 + 4 + 6
+		t.Fatalf("alpha total duration = %v, want 12m", a.TotalDuration)
+	}
+	if a.AvgDuration != 4*time.Minute { // 12m / 3
+		t.Fatalf("alpha avg duration = %v, want 4m", a.AvgDuration)
+	}
+	b := got[1]
+	if b.Runs != 1 || b.Failures != 0 {
+		t.Fatalf("beta runs/failures = %d/%d, want 1/0", b.Runs, b.Failures)
+	}
+	approx(t, b.TotalCredits, 4) // the skipped lane added nothing
+	approx(t, b.AvgCredits, 4)
+	if b.FailureRate() != 0 {
+		t.Fatalf("beta failure rate = %v, want 0", b.FailureRate())
+	}
+}
+
+func TestRunAggregatesDeterministicOrder(t *testing.T) {
+	// Two workflows with the SAME run count must tie-break by workflow id ascending,
+	// regardless of input order — a stable, total order over the unique key.
+	base := time.Date(2026, 6, 6, 10, 0, 0, 0, time.UTC)
+	mk := func(id string) RunRecord {
+		return RunRecord{WorkflowID: id, StartedAt: base, FinishedAt: base.Add(time.Minute), Outcome: "finished"}
+	}
+	for _, order := range [][]RunRecord{
+		{mk("zeta"), mk("alpha")},
+		{mk("alpha"), mk("zeta")},
+	} {
+		got := RunAggregates(order)
+		if len(got) != 2 || got[0].WorkflowID != "alpha" || got[1].WorkflowID != "zeta" {
+			t.Fatalf("ties must sort by id asc; got %+v", got)
+		}
+	}
+}
+
+func TestRunAggregatesEdgeCases(t *testing.T) {
+	// Empty history → empty roll-up (no divide-by-zero, no nil-vs-empty surprise).
+	if got := RunAggregates(nil); len(got) != 0 {
+		t.Fatalf("empty history should aggregate to nothing, got %+v", got)
+	}
+	base := time.Date(2026, 6, 6, 10, 0, 0, 0, time.UTC)
+	// A single all-failed workflow: failure rate 1.0, averages over one run.
+	single := []RunRecord{
+		{WorkflowID: "w", Name: "W", StartedAt: base, FinishedAt: base.Add(time.Minute),
+			Outcome: "failed", Lanes: []RunLane{{Index: 0, Status: "failed", Credits: 5}}},
+	}
+	got := RunAggregates(single)
+	if len(got) != 1 || got[0].Runs != 1 || got[0].Failures != 1 || got[0].FailureRate() != 1 {
+		t.Fatalf("single all-failed run wrong: %+v", got)
+	}
+	approx(t, got[0].AvgCredits, 5)
+	// A workflow whose runs all span zero duration → zero total/avg duration, no panic.
+	zeroDur := []RunRecord{
+		{WorkflowID: "z", StartedAt: base, FinishedAt: base, Outcome: "finished"},
+		{WorkflowID: "z", StartedAt: time.Time{}, FinishedAt: base, Outcome: "finished"},
+	}
+	zg := RunAggregates(zeroDur)
+	if len(zg) != 1 || zg[0].TotalDuration != 0 || zg[0].AvgDuration != 0 {
+		t.Fatalf("zero-duration workflow should roll up to 0 duration: %+v", zg)
+	}
+	if zg[0].Runs != 2 {
+		t.Fatalf("zero-duration runs still count: got %d, want 2", zg[0].Runs)
+	}
+}
+
+func TestRunAggregatesLatestNameWins(t *testing.T) {
+	// A renamed workflow reads under its current (latest, chronological-append) name.
+	base := time.Date(2026, 6, 6, 10, 0, 0, 0, time.UTC)
+	records := []RunRecord{
+		{WorkflowID: "w", Name: "Old name", StartedAt: base, FinishedAt: base.Add(time.Minute), Outcome: "finished"},
+		{WorkflowID: "w", Name: "New name", StartedAt: base, FinishedAt: base.Add(time.Minute), Outcome: "finished"},
+	}
+	got := RunAggregates(records)
+	if len(got) != 1 || got[0].Name != "New name" {
+		t.Fatalf("latest name should win, got %+v", got)
+	}
+}
+
 func TestRunRecordCarriesSkippedLane(t *testing.T) {
 	// A branched run's per-lane outcomes — including a skipped lane that incurred no
 	// cost — must round-trip (the reason a sibling run store exists, not spend tags).

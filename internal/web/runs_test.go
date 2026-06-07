@@ -3,6 +3,7 @@ package web
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/dotts-h/copilot-sdk/internal/copilot"
 	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
@@ -133,6 +134,62 @@ func TestRunsPartialRendersStructure(t *testing.T) {
 	for _, sub := range []string{"Runs", "Build &amp;amp; harden", "sequential", "skipped"} {
 		if !strings.Contains(html, sub) {
 			t.Errorf("runs partial missing %q\n%s", sub, html)
+		}
+	}
+}
+
+func TestRunsPartialRendersDurationAndSummary(t *testing.T) {
+	s, _ := newTestServer()
+	rs := withRunStore(s)
+	base := time.Date(2026, 6, 6, 10, 0, 0, 0, time.UTC)
+	// Two runs of one workflow (one failed) → a summary row with a failure count, and
+	// per-run duration cells in the history below.
+	_ = rs.Append(telemetry.RunRecord{
+		ID: "r1", WorkflowID: "build-and-harden", Name: "Build & harden", Mode: "sequential",
+		StartedAt: base, FinishedAt: base.Add(2 * time.Minute), Outcome: "finished",
+		Lanes: []telemetry.RunLane{{Index: 0, AgentID: "builder", Status: "done", Credits: 2.6}},
+	})
+	_ = rs.Append(telemetry.RunRecord{
+		ID: "r2", WorkflowID: "build-and-harden", Name: "Build & harden", Mode: "sequential",
+		StartedAt: base, FinishedAt: base.Add(4 * time.Minute), Outcome: "failed",
+		Lanes: []telemetry.RunLane{{Index: 0, AgentID: "builder", Status: "failed", Credits: 1.0}},
+	})
+	html := s.runsPartial()
+	// Structure: a summary table with a per-workflow row, and a duration cell.
+	for _, sub := range []string{
+		`class="run-summary"`, `class="run-summary-row"`,
+		`run-summary-name`, `run-summary-failures`, `run-summary-avgdur`,
+		`class="run-duration dim"`,
+	} {
+		if !strings.Contains(html, sub) {
+			t.Errorf("runs partial missing %q\n%s", sub, html)
+		}
+	}
+	// The failed run contributes a non-zero failure count in the summary.
+	if !strings.Contains(html, "has-failures") {
+		t.Errorf("a failed run should flag the failures cell:\n%s", html)
+	}
+}
+
+func TestHumanDuration(t *testing.T) {
+	for _, tc := range []struct {
+		d    time.Duration
+		want string
+	}{
+		{0, ""},
+		{-time.Minute, ""}, // a negative span renders empty, never a "-" string
+		{30 * time.Second, "30s"},
+		{2 * time.Minute, "2m"},
+		{2*time.Minute + 30*time.Second, "2m 30s"},
+		{time.Hour, "1h"},
+		{time.Hour + 5*time.Minute, "1h 5m"},
+		// Sub-second rounding must CARRY into the next unit, never print "60s"/"60m":
+		{59*time.Second + 600*time.Millisecond, "1m"},                  // 59.6s → 1m, not 60s
+		{time.Minute + 59*time.Second + 600*time.Millisecond, "2m"},    // 1m59.6s → 2m, not 1m 60s
+		{59*time.Minute + 59*time.Second + 600*time.Millisecond, "1h"}, // 59m59.6s → 1h, not 60m
+	} {
+		if got := humanDuration(tc.d); got != tc.want {
+			t.Errorf("humanDuration(%v) = %q, want %q", tc.d, got, tc.want)
 		}
 	}
 }

@@ -274,7 +274,20 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
 .run-name { font-weight: 600; color: var(--accent); }
 .run-outcome { font-size: .8rem; color: var(--dim); }
 .run-when { font-size: .8rem; margin-left: auto; }
+.run-duration { font-size: .8rem; }
 .run-cost { font-size: .82rem; color: var(--good); }
+/* Per-workflow roll-up table above the run history (V1, ADR-0022): run count,
+   failure rate, average cost & duration — the cost ⋈ orchestration summary. */
+.run-summary { width: 100%; border-collapse: collapse; margin: .2rem 0 .4rem;
+  font-size: .85rem; }
+.run-summary caption { text-align: left; font-size: .8rem; margin-bottom: .3rem; }
+.run-summary th, .run-summary td { text-align: right; padding: .25rem .5rem;
+  border-bottom: 1px solid var(--panel); }
+.run-summary th { color: var(--dim); font-weight: 600; }
+.run-summary th:first-child, .run-summary td:first-child { text-align: left; }
+.run-summary-name { color: var(--accent); font-weight: 600; }
+.run-summary-avgcost { color: var(--good); }
+.run-summary-failures.has-failures { color: var(--bad); }
 .run-lanes { list-style: none; padding: 0; margin: 0; display: flex;
   flex-direction: column; gap: .2rem; }
 .run-lane { display: flex; align-items: center; gap: .45rem; font-size: .88rem;

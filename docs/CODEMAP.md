@@ -339,17 +339,21 @@ _Last generated: 2026-06-07 (UTC)._
 - L110: `func normalizeModel(m string) string`
 - L118: `func (r ModelRate) String() string`
 
-### runs.go (158 LOC)
-- L26: `type RunLane struct`
-- L37: `type RunRecord struct`
-- L52: `func (r RunRecord) Credits() float64`
-- L69: `type runDoc struct`
-- L77: `type RunStore struct`
-- L86: `func LoadRunStore(dir string) (*RunStore, error)`
-- L112: `func (s *RunStore) Append(r RunRecord) error`
-- L124: `func (s *RunStore) save() error`
-- L145: `func (s *RunStore) Records() []RunRecord`
-- L154: `func (s *RunStore) Count() int`
+### runs.go (242 LOC)
+- L27: `type RunLane struct`
+- L38: `type RunRecord struct`
+- L53: `func (r RunRecord) Credits() float64`
+- L65: `func (r RunRecord) Duration() time.Duration`
+- L84: `type runDoc struct`
+- L92: `type RunStore struct`
+- L101: `func LoadRunStore(dir string) (*RunStore, error)`
+- L127: `func (s *RunStore) Append(r RunRecord) error`
+- L139: `func (s *RunStore) save() error`
+- L160: `func (s *RunStore) Records() []RunRecord`
+- L169: `func (s *RunStore) Count() int`
+- L182: `type RunAggregate struct`
+- L195: `func (a RunAggregate) FailureRate() float64`
+- L211: `func RunAggregates(records []RunRecord) []RunAggregate`
 
 ## internal/web
 
@@ -541,10 +545,12 @@ _Last generated: 2026-06-07 (UTC)._
 - L429: `func renderBudgetForm(projected, capCredits float64) string`
 - L438: `func clampLines(s string, n int) string`
 
-### runs.go (57 LOC)
-- L16: `func (s *Server) runsPartial() string`
-- L32: `func (s *Server) runRow(r telemetry.RunRecord) map[string]any`
-- L52: `func runOutcomeGlyph(outcome string) (glyph, state string)`
+### runs.go (114 LOC)
+- L23: `func (s *Server) runsPartial() string`
+- L44: `func (s *Server) runSummaryRow(a telemetry.RunAggregate) map[string]any`
+- L59: `func (s *Server) runRow(r telemetry.RunRecord) map[string]any`
+- L84: `func humanDuration(d time.Duration) string`
+- L109: `func runOutcomeGlyph(outcome string) (glyph, state string)`
 
 ### server.go (884 LOC)
 - L28: `type Server struct`

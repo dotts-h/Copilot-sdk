@@ -1,7 +1,7 @@
 ---
 id: 0022
 title: "Epic: extensibility & convergence (roadmap v3)"
-status: open
+status: closed
 severity: high
 group:
 github:
@@ -48,20 +48,23 @@ in `NEXT_FEATURES.md` until promoted.
       curated servers. **Build first** — it opens the extensibility story and its key
       decision (ADR-0020) is already settled. Claims the **reserved** issue 0019 /
       ADR-0020.
-- [ ] **V1 — Workflow run-history aggregations + Runs duration** →
+- [x] **V1 — Workflow run-history aggregations + Runs duration** →
       [0023](0023-workflow-run-aggregations.md) (no ADR — pure readers pre-blessed by
-      ADR-0022). A `RunAggregates` roll-up (run count, avg cost, avg duration, failure
-      rate per workflow) + a `RunRecord.Duration()` helper over the existing `RunStore`
-      records (no schema change); a Runs duration column + per-workflow summary, joining
-      the spend and run stores. The cost ⋈ orchestration convergence — small,
-      compounding.
+      ADR-0022) — **shipped**. A `RunAggregates` roll-up (run count, avg cost, avg
+      duration, failure rate per workflow) + a `RunRecord.Duration()` helper over the
+      existing `RunStore` records (no schema change); a Runs duration cell + per-workflow
+      summary table, joining the spend and run stores. The cost ⋈ orchestration
+      convergence — small, compounding.
 
 ## Status
 
-**Open.** Build-first sequence: **C1 → V1**. **C1 shipped** (the MCP Env editor /
-secret references, ADR-0020 — extensibility gate opened). **V1 next** (pure-reader
-convergence; lowest risk, builds on B3). Everything else stays a candidate in
-`NEXT_FEATURES.md`.
+**Closed.** Build-first sequence **C1 → V1**, both shipped. **C1** (the MCP Env editor
+/ secret references, ADR-0020 — extensibility gate opened) and **V1** (the pure-reader
+cost ⋈ orchestration convergence — Runs aggregations + duration, no schema change) are
+done; with V1 (its last child) closed, this epic is complete. The remaining v3
+candidates (the generic `AppendOnlyStore[T]` paydown, the Settings price-override
+editor, per-session / per-workflow cost surfaces, the bucketed forecast, Tier D
+distribution) stay candidates in `NEXT_FEATURES.md` until promoted into a v4 epic.
 
 ## Notes
 
