@@ -1,13 +1,13 @@
 ---
 id: 0037
 title: "Per-lane cost roll-up — Cost by lane on the Runs page (roadmap v6, item V14)"
-status: open
+status: closed
 severity: low
 group: 0031
 github:
 links:
   adr:
-  prs:
+  prs: [64]
   issues: [0031]
   regression:
 assets: []
@@ -61,7 +61,34 @@ Source: `docs/NEXT_FEATURES.md` "roadmap v6" section (V14 entry).
 
 ## Resolution (shipped)
 
-_(filled on merge — PR number recorded here, in the epic, and in INDEX.)_
+Shipped in **PR #64**. Built as specified. `telemetry.LaneShares(records []RunRecord)
+[]LaneShare` rolls the run history up **per (workflow, lane)** to `LaneShare{WorkflowID,
+LaneIndex, AgentID, Runs, Failures, Credits, Fraction}` — the per-lane cousin of
+`RunAggregates`. A skipped lane contributes **zero cost** (`RunLane.Credits` is zero) but
+still counts toward `Runs`; a lane whose `Status` is `"failed"` counts as a failure;
+`Fraction` is each lane's share of all lane credits (0 on a zero total — no
+divide-by-zero); `AgentID` is the **raw id** (latest seen, chronological — the web layer
+resolves the label). Sorted by **credits descending**, ties broken by workflow id
+ascending then lane index ascending (a total deterministic order over the unique key,
+independent of map iteration). Empty history → empty slice. **Pure** (no web/forge deps).
+The Runs page (`runsPartial` → `laneShareRow`) renders a **"Cost by lane"** share list
+below the per-workflow summary, resolving workflow/agent ids to display names under
+`forgeMu` (like the run rows) and reusing the existing `.trend`/`.meter` share-row markup
+— no new CSS.
+
+Tests (failing-first): `internal/telemetry` `TestLaneSharesGrouping` (per-(workflow,lane)
+credit sums + failure counts, skipped-lane zero cost, credits-desc order),
+`TestLaneSharesDeterministicOrder` (equal-credit ties → workflow asc then lane asc,
+order-independent), `TestLaneSharesEmpty` (nil → empty, and a non-empty all-zero-credit
+history rolls up with `Fraction == 0`); `internal/web` `TestRunsPartialRendersLaneShares`
+(the section renders, an agent id resolved to its display name under `forgeMu`). e2e: a
+structural assertion on the Runs page (`ul.lane-shares` + `.lane-share-row`). The existing
+telemetry + web + bootstrap tests stayed green unchanged. Gates green (`make lint && make
+test`; telemetry 96.5%, web 89.0%); CI + E2E green on PR #64.
+
+Docs: CONTRACTS §3 (the Runs page renders a "Cost by lane" share list) and §4 (the
+`LaneShares` pure reader beside `RunAggregates`). No new ADR (a pure telemetry reader
+returning ids; no cross-package seam). No REGRESSIONS entry — no bug was found-and-fixed.
 
 ## Notes
 - **No ADR:** a pure telemetry reader (returns ids; the web layer resolves labels) with

@@ -1,13 +1,13 @@
 ---
 id: 0031
 title: "Epic: orchestration accountability — the Runs surface reaches cost-surface parity (roadmap v6)"
-status: open
+status: closed
 severity: medium
 group:
 github:
 links:
   adr:
-  prs: [59, 61, 62]
+  prs: [59, 61, 62, 64]
   issues: [0034, 0035, 0036, 0037]
   regression:
 assets: []
@@ -79,9 +79,10 @@ negative-value, so #8 stays a candidate, deferred to its trigger. The v6 epic is
       `runsPage` template gained the same 14/30/90-day `window-row` selector as the
       Telemetry trend. **Third child.**
 
-- [ ] **V14 — Per-lane cost roll-up** (M; pure reader + UI composition) →
-      [0037](0037-runs-per-lane-cost-rollup.md) (no ADR — a pure telemetry reader returning
-      ids, the web layer resolves labels, no cross-package seam). `telemetry.LaneShares`
+- [x] **V14 — Per-lane cost roll-up** (M; pure reader + UI composition) →
+      [0037](0037-runs-per-lane-cost-rollup.md) (**shipped**, PR #64; no ADR — a pure
+      telemetry reader returning ids, the web layer resolves labels, no cross-package
+      seam). `telemetry.LaneShares`
       rolls the run history up **per (workflow, lane)** — the per-lane cousin of
       `RunAggregates` — to `LaneShare{WorkflowID, LaneIndex, AgentID, Runs, Failures,
       Credits, Fraction}`, sorted by credits descending (a skipped lane adds zero cost, a
@@ -92,7 +93,7 @@ negative-value, so #8 stays a candidate, deferred to its trigger. The v6 epic is
 
 ## Status
 
-**Open.** First child **V11 (Runs CSV export, 0034)** shipped in this epic's opening
+**Closed — exhausted (all four children shipped).** First child **V11 (Runs CSV export, 0034)** shipped in this epic's opening
 **PR #59** (per the repo convention — an epic is born in its first child's PR, as epic
 0030 opened inside V3's PR #56). Second child **V13 (Total cost on the per-workflow
 summary, 0035)** shipped next in **PR #61** — a pure presentation-layer slice surfacing
@@ -100,10 +101,13 @@ summary, 0035)** shipped next in **PR #61** — a pure presentation-layer slice 
 selector, 0036)** shipped next — a pure UI slice threading a clamped `?window=` through
 `runsPartial` (reusing `clampWindow`) and mirroring the Telemetry trend's 14/30/90-day
 selector on the Runs page. The fourth and final child **V14 (per-lane cost roll-up,
-0037)** is now in flight — `telemetry.LaneShares` rolls the run history up per
+0037)** shipped in **PR #64** — `telemetry.LaneShares` rolls the run history up per
 (workflow, lane) (the per-lane cousin of `RunAggregates`, the one new analytical reader)
-and the Runs page renders a "Cost by lane" share list below the per-workflow summary. On
-its merge this epic **closes** (its last child shipped).
+and the Runs page renders a "Cost by lane" share list below the per-workflow summary. With
+its merge this epic is **EXHAUSTED and CLOSED**: the Runs / orchestration surface has
+reached cost-surface parity — windowed, exportable, with total & per-workflow & **per-lane**
+roll-ups. Next: epic 0032 (roadmap v7 — cost⋈run reconciliation), scoped from a fresh
+value×fit pass in `docs/NEXT_FEATURES.md`.
 
 ## Notes
 

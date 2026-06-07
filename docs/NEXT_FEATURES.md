@@ -353,7 +353,7 @@ Ranked by value × fit; all are pure readers / presentation-layer compositions o
 > TECH_DEBT #8 stays deferred to its (unmet) volume trigger. On V14's merge epic 0031
 > closes — then scope epic 0032 from a fresh value×fit pass.
 
-> **v6 update (after V14):** **V14 shipped** (issue 0037) — `telemetry.LaneShares`
+> **v6 update (after V14):** **V14 shipped** (PR #64, issue 0037) — `telemetry.LaneShares`
 > rolls the run history up **per (workflow, lane)** to `LaneShare{WorkflowID, LaneIndex,
 > AgentID, Runs, Failures, Credits, Fraction}` (a skipped lane adds zero cost, a failed
 > lane counts as a failure), sorted by credits descending (ties → workflow id asc, then
