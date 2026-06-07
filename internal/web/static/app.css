@@ -446,6 +446,13 @@ button.add:hover { border-color: var(--accent); color: var(--accent); }
   padding: .4rem .5rem; font: inherit; }
 .field input[readonly] { color: var(--dim); }
 .field textarea { resize: vertical; }
+.price-row { flex-direction: row; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.price-model { flex: 0 0 11rem; color: var(--fg); font-size: .9rem; }
+.price-cell { flex: 1 1 6rem; display: flex; flex-direction: column; gap: .15rem; }
+.price-cell > span { color: var(--dim); font-size: .75rem; }
+.price-cell input[type=number] {
+  background: var(--panel); color: var(--fg); border: 1px solid var(--subtle); border-radius: 6px;
+  padding: .35rem .45rem; font: inherit; width: 100%; box-sizing: border-box; }
 .form-actions { display: flex; gap: .6rem; margin-top: .4rem; }
 .form-actions button { border: none; border-radius: 6px; padding: .4rem 1rem; cursor: pointer; font: inherit; }
 .form-actions button[type=submit] { background: var(--accent); color: #1b1d1e; }

@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 )
 
 // USDPerCredit is GitHub's fixed conversion: one AI Credit costs one US cent.
@@ -39,7 +40,16 @@ type ModelRate struct {
 
 // PriceBook maps model identifiers to their rates. The zero value is not
 // useful; use DefaultPriceBook or NewPriceBook.
+//
+// A book is shared by reference across the account meter and every per-session
+// meter (each built on the account meter's book — see web.Hub.newSession). Its
+// contents (rates + fallback) are guarded by an internal RWMutex: reads (Rate,
+// Models, and so the Price/EstimateTurn pricing path) take the read lock and a
+// live settings-page reprice (Replace) takes the write lock, so a reprice is
+// race-safe against concurrent pricing. Always use it via *PriceBook (never copy a
+// PriceBook by value — the mutex makes a value copy unsafe).
 type PriceBook struct {
+	mu       sync.RWMutex
 	rates    map[string]ModelRate
 	fallback ModelRate
 }
@@ -79,6 +89,8 @@ func (pb *PriceBook) Rate(model string) (ModelRate, bool) {
 	if pb == nil {
 		return ModelRate{}, false
 	}
+	pb.mu.RLock()
+	defer pb.mu.RUnlock()
 	if r, ok := pb.rates[normalizeModel(model)]; ok {
 		return r, true
 	}
@@ -89,6 +101,8 @@ func (pb *PriceBook) Rate(model string) (ModelRate, bool) {
 
 // Set inserts or replaces a rate. It is safe to call from a settings page.
 func (pb *PriceBook) Set(r ModelRate) {
+	pb.mu.Lock()
+	defer pb.mu.Unlock()
 	if pb.rates == nil {
 		pb.rates = make(map[string]ModelRate)
 	}
@@ -97,12 +111,65 @@ func (pb *PriceBook) Set(r ModelRate) {
 
 // Models returns the known model identifiers in stable, sorted order.
 func (pb *PriceBook) Models() []string {
+	pb.mu.RLock()
 	out := make([]string, 0, len(pb.rates))
 	for _, r := range pb.rates {
 		out = append(out, r.Model)
 	}
+	pb.mu.RUnlock()
 	sort.Strings(out)
 	return out
+}
+
+// Replace atomically swaps this book's contents (rates + fallback) for src's, in
+// place — so every meter that shares this *PriceBook by reference (the account
+// meter and all per-session meters) reprices the next turn at once, without a
+// restart and without drift. It is the live-apply seam the Settings price-override
+// editor uses: the web layer builds a *fresh* book from BuildPriceBook (defaults +
+// the saved overrides) and Replaces the live book with it. Because the source is
+// always rebuilt from defaults, an override that was removed reverts to its default
+// (the rebuild-not-incremental guarantee — see BuildPriceBook). A nil src is a
+// no-op. src is locked before pb; src is always a freshly-built, unshared book, so
+// there is no lock-ordering risk.
+func (pb *PriceBook) Replace(src *PriceBook) {
+	if pb == nil || src == nil || pb == src {
+		return // a self-replace would deadlock (RLock then Lock the same mutex)
+	}
+	src.mu.RLock()
+	rates := make(map[string]ModelRate, len(src.rates))
+	for k, v := range src.rates {
+		rates[k] = v
+	}
+	fb := src.fallback
+	src.mu.RUnlock()
+
+	pb.mu.Lock()
+	pb.rates = rates
+	pb.fallback = fb
+	pb.mu.Unlock()
+}
+
+// BuildPriceBook returns a fresh price book seeded from DefaultPriceBook and then
+// layered with the given per-model overrides (model → [input, cached, output] USD
+// per million tokens). It always starts from the defaults, so the result reflects
+// exactly the supplied overrides: a model absent from overrides prices at its
+// default, and an override removed between two builds reverts to the default
+// (rebuild-not-incremental — the reason a live reprice rebuilds rather than calling
+// Set on the existing book, which would never reset a removed/lowered override). It
+// is pure (same overrides → same book) and dependency-free. Mirrors the startup
+// price-book build in internal/bootstrap.
+func BuildPriceBook(overrides map[string][3]float64) *PriceBook {
+	pb := DefaultPriceBook()
+	for model, r := range overrides {
+		// Start from the model's default rate so an override of the three prices
+		// preserves the rest (e.g. the display-only PremiumMultiplier) rather than
+		// resetting it to zero; an unknown model inherits the fallback's fields.
+		rate, _ := pb.Rate(model)
+		rate.Model = model
+		rate.InputPerMTok, rate.CachedInputPerMTok, rate.OutputPerMTok = r[0], r[1], r[2]
+		pb.Set(rate)
+	}
+	return pb
 }
 
 // normalizeModel canonicalizes a model identifier so "GPT-5", "gpt_5" and

@@ -8,7 +8,7 @@ github:
 links:
   adr:
   prs: []
-  issues: [0025, 0026]
+  issues: [0025, 0026, 0027]
   regression:
 assets: []
 ---
@@ -60,9 +60,16 @@ candidates in `NEXT_FEATURES.md` until promoted.
       account-wide `Forecast` slope unchanged per bucket). Trajectory, not just the
       historical share, beside each Telemetry share bar. Pure reader, no schema change.
       **Shipped.**
-- [ ] **G1 — Settings price-override editor** (candidate). A per-model rate table on the
-      Settings page for `config.TelemetryConfig.PriceOverrides` (the last cost knob with
-      no UI). Closes the hand-edit-JSON rate step.
+- [x] **G1 — Settings price-override editor** →
+      [0027](0027-settings-price-override-editor.md) (no ADR — additive UI over the existing
+      `PriceOverrides` config field; the live-apply seam is an obvious mirror of the startup
+      price-book build + the `refreshBudget` pattern, captured in CONTRACTS + a REGRESSIONS
+      note). A per-model rate table on the Settings page (three numeric fields per model),
+      persisted through `editConfig` (rollback-on-invalid, with a new non-negative-rate
+      `config.Validate` hook) and applied **live** by rebuilding the price book from
+      `DefaultPriceBook()` + overrides (`telemetry.BuildPriceBook`) and `Replace`-ing the
+      shared book in place — repricing the account meter and every per-session meter without
+      a restart. Closes the last hand-edit-JSON cost knob. **Shipped.**
 - [ ] **G2 — Per-session cost on the Sessions page** (candidate). A `SessionShares`
       reader (parallel to `AgentShares`) so the Sessions picker shows credits + turn
       count per session. Pure reader; `SessionID` is already tagged.
@@ -72,10 +79,11 @@ candidates in `NEXT_FEATURES.md` until promoted.
 ## Status
 
 **Open.** **V4** (Workflows last-run + cost badges — the second cost ⋈ orchestration
-surface, PR #50) and **F3** (per-workflow / per-agent bucketed burn-rate forecast —
-cost prediction ⋈ attribution, issue 0026) are **shipped**. G1/G2/G3 (price-override
-editor, per-session cost, spend-window selector) remain candidates in
-`NEXT_FEATURES.md` until promoted; this epic stays **open** while they are unbuilt.
+surface, PR #50), **F3** (per-workflow / per-agent bucketed burn-rate forecast — cost
+prediction ⋈ attribution, issue 0026), and **G1** (Settings price-override editor — the
+last hand-edit-JSON cost knob, issue 0027) are **shipped**. **G2** (per-session cost) and
+**G3** (spend-window selector) remain candidates in `NEXT_FEATURES.md` until promoted;
+this epic stays **open** while they are unbuilt.
 
 ## Notes
 
@@ -89,6 +97,6 @@ same convergence rationale as ADR-0022.
 ## Numbering
 
 Highest on disk before this pass: issues → **0023**, epic → **0022**, ADRs → **0022**.
-This epic takes **0024**; its first child (V4) takes issue **0025** and its second (F3)
-takes issue **0026**. No ADR consumed (V4 is pre-blessed by ADR-0022; F3 by
-ADR-0018+0019).
+This epic takes **0024**; its children take issue **0025** (V4), **0026** (F3), and
+**0027** (G1). No ADR consumed (V4 is pre-blessed by ADR-0022; F3 by ADR-0018+0019; G1 is
+additive UI over an existing config field, captured in CONTRACTS + a REGRESSIONS note).

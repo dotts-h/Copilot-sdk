@@ -157,6 +157,17 @@ func (c *Config) Validate() error {
 	if c.Telemetry.HardCapCredits < 0 {
 		return fmt.Errorf("hardCapCredits must be >= 0")
 	}
+	// Price overrides are USD-per-million-token rates; a negative rate would price
+	// turns as a credit, which the meter must never do. Each [3]float64 entry
+	// (input/cached/output) must be >= 0. Absent overrides are valid (older configs
+	// without priceOverrides stay backward-compatible).
+	for model, r := range c.Telemetry.PriceOverrides {
+		for _, rate := range r {
+			if rate < 0 {
+				return fmt.Errorf("priceOverrides[%q] rates must be >= 0", model)
+			}
+		}
+	}
 	if err := c.validateKeyBindings(); err != nil {
 		return err
 	}

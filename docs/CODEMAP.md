@@ -23,20 +23,20 @@ _Last generated: 2026-06-07 (UTC)._
 
 ## internal/bootstrap
 
-### bootstrap.go (377 LOC)
+### bootstrap.go (373 LOC)
 - L34: `func Build(configDir string, demo bool) (srv *web.Hub, close func(), err error)`
-- L117: `func demoClient(forge *ctxforge.Forge, spec *copilot.SessionSpec) (copilot.Client, func())`
-- L157: `func seedSpend(store *telemetry.SpendStore)`
-- L178: `func seedRuns(store *telemetry.RunStore)`
-- L206: `func dialClient(cfg *config.Config) (copilot.Client, func())`
-- L228: `func ServeLocal(h http.Handler) (port int, stop func(), err error)`
-- L240: `func DefaultConfigDir() string`
-- L254: `func SeedForge(forge *ctxforge.Forge)`
-- L365: `func curatedMCPServers() []ctxforge.MCPServer`
+- L113: `func demoClient(forge *ctxforge.Forge, spec *copilot.SessionSpec) (copilot.Client, func())`
+- L153: `func seedSpend(store *telemetry.SpendStore)`
+- L174: `func seedRuns(store *telemetry.RunStore)`
+- L202: `func dialClient(cfg *config.Config) (copilot.Client, func())`
+- L224: `func ServeLocal(h http.Handler) (port int, stop func(), err error)`
+- L236: `func DefaultConfigDir() string`
+- L250: `func SeedForge(forge *ctxforge.Forge)`
+- L361: `func curatedMCPServers() []ctxforge.MCPServer`
 
 ## internal/config
 
-### config.go (167 LOC)
+### config.go (178 LOC)
 - L15: `type Config struct`
 - L48: `type TelemetryConfig struct`
 - L65: `func Default(dir string) *Config`
@@ -45,7 +45,7 @@ _Last generated: 2026-06-07 (UTC)._
 - L110: `func (c *Config) Save() error`
 - L131: `func (c *Config) normalize()`
 - L142: `func (c *Config) Validate() error`
-- L167: `func (c *Config) GitHubToken() string { return os.Getenv(c.GitHubTokenEnv) }`
+- L178: `func (c *Config) GitHubToken() string { return os.Getenv(c.GitHubTokenEnv) }`
 
 ### keybindings.go (114 LOC)
 - L18: `type KeyAction struct`
@@ -333,16 +333,18 @@ _Last generated: 2026-06-07 (UTC)._
 - L335: `func WriteCSV(w io.Writer, records []SpendRecord) error`
 - L369: `func csvFloat(v float64) string`
 
-### pricing.go (121 LOC)
-- L26: `type ModelRate struct`
-- L42: `type PriceBook struct`
-- L50: `func NewPriceBook(fallback ModelRate, rates ...ModelRate) *PriceBook`
-- L61: `func DefaultPriceBook() *PriceBook`
-- L78: `func (pb *PriceBook) Rate(model string) (ModelRate, bool)`
-- L91: `func (pb *PriceBook) Set(r ModelRate)`
-- L99: `func (pb *PriceBook) Models() []string`
-- L110: `func normalizeModel(m string) string`
-- L118: `func (r ModelRate) String() string`
+### pricing.go (188 LOC)
+- L27: `type ModelRate struct`
+- L51: `type PriceBook struct`
+- L60: `func NewPriceBook(fallback ModelRate, rates ...ModelRate) *PriceBook`
+- L71: `func DefaultPriceBook() *PriceBook`
+- L88: `func (pb *PriceBook) Rate(model string) (ModelRate, bool)`
+- L103: `func (pb *PriceBook) Set(r ModelRate)`
+- L113: `func (pb *PriceBook) Models() []string`
+- L134: `func (pb *PriceBook) Replace(src *PriceBook)`
+- L161: `func BuildPriceBook(overrides map[string][3]float64) *PriceBook`
+- L177: `func normalizeModel(m string) string`
+- L185: `func (r ModelRate) String() string`
 
 ### runs.go (276 LOC)
 - L27: `type RunLane struct`
@@ -646,13 +648,18 @@ _Last generated: 2026-06-07 (UTC)._
 - L125: `func (s *Server) sessionsError(msg string) string`
 - L134: `func (s *Server) loadHistory(events []copilot.Event)`
 
-### settings.go (154 LOC)
-- L22: `func (s *Server) editConfig(fn func(*config.Config)) error`
-- L37: `func (s *Server) refreshBudget()`
-- L51: `func (s *Server) renderSettings(note, errMsg string) string`
-- L58: `func renderSettingsForm(c *config.Config, note, errMsg string) string`
-- L93: `func formHasKeyBindings(r *http.Request) bool`
-- L104: `func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request)`
+### settings.go (307 LOC)
+- L26: `func (s *Server) editConfig(fn func(*config.Config)) error`
+- L41: `func (s *Server) refreshBudget()`
+- L55: `func (s *Server) renderSettings(note, errMsg string) string`
+- L62: `func renderSettingsForm(c *config.Config, note, errMsg string) string`
+- L105: `func priceOverrideFields(c *config.Config) []string`
+- L139: `func priceRowField(i int, model string, ov [3]float64, has bool, def telemetry.ModelRate) string`
+- L162: `func parsePriceOverrides(r *http.Request) map[string][3]float64`
+- L195: `func rateOrDefault(s string, def float64) float64`
+- L210: `func formHasPriceOverrides(r *http.Request) bool`
+- L223: `func formHasKeyBindings(r *http.Request) bool`
+- L234: `func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request)`
 
 ### snippets.go (82 LOC)
 - L20: `func (s *Server) snippetsPartial() string`

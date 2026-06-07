@@ -66,6 +66,8 @@ func TestValidateRejectsBadValues(t *testing.T) {
 		func(c *Config) { c.Telemetry.MonthlyCreditAllowance = -1 },
 		func(c *Config) { c.Telemetry.WarnFraction = 2 },
 		func(c *Config) { c.Telemetry.HardCapCredits = -1 },
+		func(c *Config) { c.Telemetry.PriceOverrides = map[string][3]float64{"gpt-5": {-1, 0, 0}} },
+		func(c *Config) { c.Telemetry.PriceOverrides = map[string][3]float64{"gpt-5": {1, 2, -3}} },
 	}
 	for i, mut := range cases {
 		c := Default(dir)
@@ -73,6 +75,27 @@ func TestValidateRejectsBadValues(t *testing.T) {
 		if err := c.Validate(); err == nil {
 			t.Fatalf("case %d: expected validation error", i)
 		}
+	}
+}
+
+func TestValidateAcceptsPriceOverrides(t *testing.T) {
+	dir := t.TempDir()
+
+	// A non-negative per-model rate table is valid.
+	c := Default(dir)
+	c.Telemetry.PriceOverrides = map[string][3]float64{
+		"gpt-5":           {1.25, 0.125, 10},
+		"claude-opus-4.7": {0, 0, 0}, // zero rates are non-negative → valid
+	}
+	if err := c.Validate(); err != nil {
+		t.Fatalf("non-negative price overrides should validate: %v", err)
+	}
+
+	// Absent overrides (older config without priceOverrides) stay valid.
+	c2 := Default(dir)
+	c2.Telemetry.PriceOverrides = nil
+	if err := c2.Validate(); err != nil {
+		t.Fatalf("absent price overrides should validate: %v", err)
 	}
 }
 
