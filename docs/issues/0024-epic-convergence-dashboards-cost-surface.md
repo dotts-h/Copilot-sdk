@@ -70,7 +70,7 @@ polish) stay candidates in `NEXT_FEATURES.md` until promoted.
       `DefaultPriceBook()` + overrides (`telemetry.BuildPriceBook`) and `Replace`-ing the
       shared book in place — repricing the account meter and every per-session meter without
       a restart. Closes the last hand-edit-JSON cost knob. **Shipped.**
-- [ ] **G2 — Per-session cost on the Sessions page** →
+- [x] **G2 — Per-session cost on the Sessions page** →
       [0028](0028-per-session-cost-sessions-page.md) (no ADR — pure-reader composition
       pre-blessed by ADR-0018's attribution ⋈ the `*Shares` pattern, like V4/0025 and
       F3/0026). A `SessionShares(records) []SessionShare{SessionID, Credits, Turns}` reader
@@ -78,7 +78,7 @@ polish) stay candidates in `NEXT_FEATURES.md` until promoted.
       bucket) joined onto each `copilot.SessionMeta` row by id, so the Sessions picker shows
       *"N turns · X cr"* per session (a no-spend session shows *"no cost yet"*; a
       since-deleted bucket is not shown). Pure reader; `SessionID` is already tagged (no
-      schema change). **Building (issue 0028).**
+      schema change). **Shipped (PR #53).**
 - [ ] **G3 — Telemetry spend-window selector** (candidate). A 30/90-day selector
       threaded through `DailyTotals` truncation, replacing the hardcoded 14-day window.
 
@@ -86,11 +86,10 @@ polish) stay candidates in `NEXT_FEATURES.md` until promoted.
 
 **Open.** **V4** (Workflows last-run + cost badges — the second cost ⋈ orchestration
 surface, PR #50), **F3** (per-workflow / per-agent bucketed burn-rate forecast — cost
-prediction ⋈ attribution, issue 0026), and **G1** (Settings price-override editor — the
-last hand-edit-JSON cost knob, issue 0027) are **shipped**. **G2** (per-session cost on
-the Sessions page — issue 0028) is **building** this session. **G3** (spend-window
-selector) remains a candidate in `NEXT_FEATURES.md` until promoted; this epic stays
-**open** while G3 is unbuilt.
+prediction ⋈ attribution, issue 0026), **G1** (Settings price-override editor — the last
+hand-edit-JSON cost knob, issue 0027), and **G2** (per-session cost on the Sessions page —
+issue 0028, PR #53) are **shipped**. **G3** (spend-window selector) remains a candidate in
+`NEXT_FEATURES.md` until promoted; this epic stays **open** while G3 is unbuilt.
 
 ## Notes
 

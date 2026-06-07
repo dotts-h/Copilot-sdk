@@ -40,4 +40,4 @@ issues are added or closed.
 | [0025](0025-workflow-last-run-cost-badges.md) | Workflow list "last run" + cost badges (item V4) | closed | medium | 0024 | ADR-0022 |
 | [0026](0026-bucketed-burn-rate-forecast.md) | Per-workflow / per-agent bucketed burn-rate forecast (item F3) | closed | medium | 0024 | ADR-0018, ADR-0019 |
 | [0027](0027-settings-price-override-editor.md) | Settings price-override editor (item G1/V2) | closed | medium | 0024 | REGRESSIONS (price-override reprice) |
-| [0028](0028-per-session-cost-sessions-page.md) | Per-session cost on the Sessions page (item G2/V5) | open | medium | 0024 | CONTRACTS §3/§4 |
+| [0028](0028-per-session-cost-sessions-page.md) | Per-session cost on the Sessions page (item G2/V5) | closed | medium | 0024 | CONTRACTS §3/§4 |
