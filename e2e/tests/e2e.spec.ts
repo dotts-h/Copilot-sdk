@@ -626,4 +626,16 @@ test.describe("sessions", () => {
     await expect(page.locator(sel.composer)).toBeVisible();
     await expect(page.locator(sel.timeline)).toContainText("new chat");
   });
+
+  test("shows a per-session cost cell on each listed session (G2)", async ({ page }) => {
+    await gotoApp(page);
+    await navTo(page, "Sessions");
+    // The demo ledger tags spend with demo-sess-1, so its row carries a cost cell.
+    // The shared demo ledger is append-only across the suite — assert the cost-cell
+    // STRUCTURE, never exact figures (same gotcha family as the trend view).
+    const row = page.locator(`#main li.session-row`).filter({
+      has: page.locator(`button[hx-post="/sessions/demo-sess-1/resume"]`),
+    });
+    await expect(row.locator(".session-cost")).toBeVisible();
+  });
 });

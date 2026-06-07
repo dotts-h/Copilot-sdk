@@ -308,7 +308,7 @@ _Last generated: 2026-06-07 (UTC)._
 - L45: `type Projection struct`
 - L76: `func Forecast(daily []DayTotal, budget Budget, now time.Time) Projection`
 
-### history.go (371 LOC)
+### history.go (398 LOC)
 - L29: `type SpendRecord struct`
 - L55: `func (r SpendRecord) Credits() float64 { return r.USD / USDPerCredit }`
 - L58: `func (r SpendRecord) Day() string { return r.At.UTC().Format("2006-01-02") }`
@@ -323,15 +323,17 @@ _Last generated: 2026-06-07 (UTC)._
 - L173: `func DailyTotals(records []SpendRecord) []DayTotal`
 - L211: `func MonthToDate(records []SpendRecord, now time.Time) Cost`
 - L225: `type share struct`
-- L238: `func shareBy(records []SpendRecord, keyOf func(SpendRecord) string, includeEmpty bool) []share`
-- L267: `type ModelShare struct`
-- L277: `func ModelShares(records []SpendRecord) []ModelShare`
-- L289: `type AgentShare struct`
-- L300: `func AgentShares(records []SpendRecord) []AgentShare`
-- L311: `type WorkflowShare struct`
-- L323: `func WorkflowShares(records []SpendRecord) []WorkflowShare`
-- L335: `func WriteCSV(w io.Writer, records []SpendRecord) error`
-- L369: `func csvFloat(v float64) string`
+- L239: `func shareBy(records []SpendRecord, keyOf func(SpendRecord) string, includeEmpty bool) []share`
+- L270: `type ModelShare struct`
+- L280: `func ModelShares(records []SpendRecord) []ModelShare`
+- L292: `type AgentShare struct`
+- L303: `func AgentShares(records []SpendRecord) []AgentShare`
+- L314: `type WorkflowShare struct`
+- L326: `func WorkflowShares(records []SpendRecord) []WorkflowShare`
+- L337: `type SessionShare struct`
+- L350: `func SessionShares(records []SpendRecord) []SessionShare`
+- L362: `func WriteCSV(w io.Writer, records []SpendRecord) error`
+- L396: `func csvFloat(v float64) string`
 
 ### pricing.go (188 LOC)
 - L27: `type ModelRate struct`
@@ -637,16 +639,16 @@ _Last generated: 2026-06-07 (UTC)._
 - L307: `func (s *Server) timelineFragments() []fragment`
 - L320: `func toolID(e copilot.Event) string`
 
-### sessions.go (156 LOC)
-- L20: `func (s *Server) sessionsPartial() string`
-- L32: `func (s *Server) sessionRows(metas []copilot.SessionMeta) []map[string]any`
-- L47: `func sessionTitle(m copilot.SessionMeta) string`
-- L59: `func humanWhen(t time.Time) string`
-- L77: `func (s *Server) handleSessionNew(w http.ResponseWriter, r *http.Request)`
-- L88: `func (s *Server) handleSessionResume(w http.ResponseWriter, r *http.Request)`
-- L115: `func (s *Server) handleSessionDelete(w http.ResponseWriter, r *http.Request)`
-- L125: `func (s *Server) sessionsError(msg string) string`
-- L134: `func (s *Server) loadHistory(events []copilot.Event)`
+### sessions.go (182 LOC)
+- L21: `func (s *Server) sessionsPartial() string`
+- L33: `func (s *Server) sessionRows(metas []copilot.SessionMeta) []map[string]any`
+- L73: `func sessionTitle(m copilot.SessionMeta) string`
+- L85: `func humanWhen(t time.Time) string`
+- L103: `func (s *Server) handleSessionNew(w http.ResponseWriter, r *http.Request)`
+- L114: `func (s *Server) handleSessionResume(w http.ResponseWriter, r *http.Request)`
+- L141: `func (s *Server) handleSessionDelete(w http.ResponseWriter, r *http.Request)`
+- L151: `func (s *Server) sessionsError(msg string) string`
+- L160: `func (s *Server) loadHistory(events []copilot.Event)`
 
 ### settings.go (307 LOC)
 - L26: `func (s *Server) editConfig(fn func(*config.Config)) error`
