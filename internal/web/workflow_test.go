@@ -526,6 +526,116 @@ func TestWorkflowsPageLists(t *testing.T) {
 	}
 }
 
+// withSpendStore attaches an ephemeral spend ledger so a workflow row can badge its
+// per-workflow spend.
+func withSpendStore(s *Server) *telemetry.SpendStore {
+	ss, _ := telemetry.LoadSpendStore("")
+	s.spend = ss
+	return ss
+}
+
+func TestWorkflowsPageBadgesRunAndSpend(t *testing.T) {
+	// When both stores carry the workflow, its row gains the last-run glyph + age, a
+	// run-count badge, and a total-spend badge (V4). Assert STRUCTURE (the badge
+	// classes) and that the glyph matches the LATEST run's outcome — never figures.
+	hub, _ := newWorkflowHub()
+	s := hub.newSession("t")
+	rs := withRunStore(s)
+	ss := withSpendStore(s)
+	base := time.Now().Add(-2 * time.Hour)
+	// Two runs of "ship"; the most recent FAILED, an earlier one finished — so the
+	// last-run badge must show the failure glyph, not the finished one.
+	_ = rs.Append(telemetry.RunRecord{
+		ID: "r1", WorkflowID: "ship", Name: "Ship", Mode: "sequential",
+		StartedAt: base, FinishedAt: base.Add(time.Minute), Outcome: "finished",
+		Lanes: []telemetry.RunLane{{Index: 0, AgentID: "builder", Status: "done", Credits: 2}},
+	})
+	_ = rs.Append(telemetry.RunRecord{
+		ID: "r2", WorkflowID: "ship", Name: "Ship", Mode: "sequential",
+		StartedAt: base.Add(time.Hour), FinishedAt: base.Add(time.Hour).Add(time.Minute), Outcome: "failed",
+		Lanes: []telemetry.RunLane{{Index: 0, AgentID: "builder", Status: "failed", Credits: 1}},
+	})
+	_ = ss.Append(telemetry.SpendRecord{At: base, Model: "gpt-5", USD: 0.05, WorkflowID: "ship"})
+
+	html := s.workflowsPartial()
+	for _, sub := range []string{`class="wf-badges"`, "wf-lastrun", "wf-runs", "wf-spend", "2 runs"} {
+		if !strings.Contains(html, sub) {
+			t.Errorf("workflows badges missing %q\n%s", sub, html)
+		}
+	}
+	// The glyph matches the LATEST run's outcome: failed (✗ / run-failed), not finished.
+	if !strings.Contains(html, "wf-lastrun run-failed") || !strings.Contains(html, "✗") {
+		t.Errorf("last-run badge should reflect the failed latest run:\n%s", html)
+	}
+	if strings.Contains(html, "wf-lastrun run-done") {
+		t.Errorf("the earlier finished run must not win the last-run glyph:\n%s", html)
+	}
+}
+
+func TestWorkflowsPageNoStoresNoBadges(t *testing.T) {
+	// With NO run store and NO spend store wired, the row renders today's navigational
+	// shape — no panic, no badges (the all-absent guard).
+	hub, _ := newWorkflowHub()
+	s := hub.newSession("t") // s.runs == nil, s.spend == nil
+	html := s.workflowsPartial()
+	if strings.Contains(html, "wf-badge") {
+		t.Errorf("with no run/spend stores the row carries no badges:\n%s", html)
+	}
+	if !strings.Contains(html, "Ship") || !strings.Contains(html, "/workflows/ship/run") {
+		t.Errorf("the row should still render its prior shape:\n%s", html)
+	}
+}
+
+func TestWorkflowsPagePartialAndOrphanStores(t *testing.T) {
+	// Run store only (no spend): run badges render, no spend badge.
+	hub, _ := newWorkflowHub()
+	s := hub.newSession("t")
+	rs := withRunStore(s) // s.spend stays nil
+	_ = rs.Append(telemetry.RunRecord{
+		ID: "r", WorkflowID: "ship", Name: "Ship", Outcome: "finished", StartedAt: time.Now(),
+		Lanes: []telemetry.RunLane{{Index: 0, Status: "done", Credits: 1}},
+	})
+	html := s.workflowsPartial()
+	if !strings.Contains(html, "wf-runs") {
+		t.Errorf("run badges should render with only a run store:\n%s", html)
+	}
+	if strings.Contains(html, "wf-spend") {
+		t.Errorf("no spend store → no spend badge:\n%s", html)
+	}
+
+	// Spend store only (no runs): the spend badge renders, no run badges.
+	hub2, _ := newWorkflowHub()
+	s2 := hub2.newSession("t")
+	ss := withSpendStore(s2) // s2.runs stays nil
+	_ = ss.Append(telemetry.SpendRecord{At: time.Now(), Model: "gpt-5", USD: 0.03, WorkflowID: "ship"})
+	html2 := s2.workflowsPartial()
+	if !strings.Contains(html2, "wf-spend") {
+		t.Errorf("spend badge should render with only a spend store:\n%s", html2)
+	}
+	if strings.Contains(html2, "wf-lastrun") || strings.Contains(html2, "wf-runs") {
+		t.Errorf("no run store → no run badges:\n%s", html2)
+	}
+
+	// A since-deleted/renamed workflow id present only in the stores must not panic or
+	// fabricate a row; the real workflow (no records) still renders, unbadged.
+	hub3, _ := newWorkflowHub()
+	s3 := hub3.newSession("t")
+	rs3 := withRunStore(s3)
+	ss3 := withSpendStore(s3)
+	_ = rs3.Append(telemetry.RunRecord{
+		ID: "g", WorkflowID: "ghost", Name: "Ghost", Outcome: "finished", StartedAt: time.Now(),
+		Lanes: []telemetry.RunLane{{Index: 0, Status: "done", Credits: 1}},
+	})
+	_ = ss3.Append(telemetry.SpendRecord{At: time.Now(), Model: "gpt-5", USD: 0.02, WorkflowID: "ghost"})
+	html3 := s3.workflowsPartial()
+	if strings.Contains(html3, "wf-badge") {
+		t.Errorf("an orphan store id should badge no row:\n%s", html3)
+	}
+	if !strings.Contains(html3, "Ship") {
+		t.Errorf("the real workflow still renders:\n%s", html3)
+	}
+}
+
 func TestWorkflowRunHandlerStartsLanes(t *testing.T) {
 	hub, mock := newWorkflowHub()
 	s := hub.newSession("t")

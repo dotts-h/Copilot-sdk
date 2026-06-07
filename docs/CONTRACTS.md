@@ -118,6 +118,21 @@ mock session ids + `SessionID`-tagged demo events). — see
 [ADR-0013](adr/0013-multi-agent-workflow-run-handoff-surface.md),
 [ADR-0017](adr/0017-per-lane-tool-and-permission-surface-for-parallel-workflow-lanes.md)
 
+The **Workflows page** (`GET /page/workflows`) lists each workflow (name + step
+summary) with a run control — and, when history exists, **badges** each row (V4): the
+**last-run** outcome glyph + relative age, a **run count**, and **total spend**.
+`workflowsPartial` joins the two pure readers keyed by workflow id under `forgeMu` —
+`RunAggregates(s.runs.Records())` (last-run signal + count) and
+`WorkflowShares(s.spend.Records())` (per-workflow credits) — resolving nothing new (the
+row already knows its own id/name). It is a **pure-reader composition** over the two
+existing stores (no schema change, no new IO): a workflow with no runs and/or no spend
+store wired renders its prior navigational shape, no badges; an id present only in a
+store (since-deleted/renamed workflow) badges no row. Values flow through
+`html/template` (ADR-0001). The decision is pre-blessed by the same cost ⋈ orchestration
+convergence rationale as ADR-0022 / V1. — see
+[ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md),
+[ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md)
+
 The **Runs** view (`GET /page/runs`, item B3) is a read-only history of completed
 workflow runs (most recent first) — each run's name, mode, outcome, when it ran, how
 long it took (**duration**, V1), total metered cost, and a per-lane breakdown (agent,
@@ -281,17 +296,23 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   **Aggregations (pure readers — V1):** `telemetry.RunAggregates(records
   []RunRecord) []RunAggregate` rolls the run history up **per workflow** — a cousin
   of the `*Shares` spend readers — to `RunAggregate{WorkflowID, Name, Runs, Failures,
-  TotalCredits, AvgCredits, TotalDuration, AvgDuration}` (with `FailureRate()` in
-  `[0,1]`), sorted by run count descending then workflow id ascending (a total,
-  deterministic order). A run whose `Outcome` is `"failed"` counts as a failure; a
-  skipped lane adds zero cost (`RunRecord.Credits` excludes it). `RunRecord.Duration()
-  time.Duration` is the run's wall-clock span (`FinishedAt − StartedAt`), guarding a
-  zero/unset/negative span → 0 so callers sum/average without per-entry guards. Both
-  are **pure** over the existing v1 records — **no schema change** — joining the run
-  grain (count / failure rate / duration) to the cost the runs metered, the
-  orchestration half that `WorkflowShares` can't answer. The Runs page (§3) renders a
-  per-workflow summary from `RunAggregates` above the history and a duration cell per
-  run. — see [ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md)
+  TotalCredits, AvgCredits, TotalDuration, AvgDuration, LastOutcome, LastStartedAt}`
+  (with `FailureRate()` in `[0,1]`), sorted by run count descending then workflow id
+  ascending (a total, deterministic order). A run whose `Outcome` is `"failed"` counts
+  as a failure; a skipped lane adds zero cost (`RunRecord.Credits` excludes it).
+  `LastOutcome`/`LastStartedAt` name the workflow's **most recent run** (the "last run"
+  signal the Workflows page badges, V4): the latest by `StartedAt`, a tie broken by the
+  later `FinishedAt` then stable input order — a deterministic pick regardless of record
+  order (the zero value is never produced for a present aggregate, so `Runs > 0` is the
+  guard). `RunRecord.Duration() time.Duration` is the run's wall-clock span
+  (`FinishedAt − StartedAt`), guarding a zero/unset/negative span → 0 so callers
+  sum/average without per-entry guards. All are **pure** over the existing v1 records —
+  **no schema change** — joining the run grain (count / failure rate / duration /
+  last-run) to the cost the runs metered, the orchestration half that `WorkflowShares`
+  can't answer. The Runs page (§3) renders a per-workflow summary from `RunAggregates`
+  above the history and a duration cell per run; the **Workflows page** (§3) badges each
+  row with the last-run signal + run count joined to `WorkflowShares` spend. — see
+  [ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md)
 
 ## 5. Invariants (promises that aren't a signature)
 

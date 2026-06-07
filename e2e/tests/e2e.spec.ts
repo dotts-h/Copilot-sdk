@@ -386,6 +386,23 @@ test.describe("multi-agent workflows", () => {
     await expect.poll(async () => page.locator(".run-record").count()).toBeGreaterThan(before);
   });
 
+  // The Workflows page (V4, epic 0024) badges each row with a last-run outcome glyph
+  // + age, a run count, and total spend — joining the demo run store + spend ledger
+  // keyed by workflow id. The demo seeds a "Build & harden" run AND workflow-owned
+  // spend for that id, so its row carries badges. Assert STRUCTURE only (the badge
+  // cell + run/spend classes) — never figures: the demo run/spend stores are shared +
+  // append-only across the suite, so counts/credits drift as it runs.
+  test("badges the seeded workflow row with last-run + spend", async ({ page }) => {
+    await gotoApp(page);
+    await navTo(page, "Workflows");
+    const row = page.locator(sel.rows, { hasText: "Build & harden" });
+    await expect(row).toBeVisible();
+    await expect(row.locator(".wf-badges")).toBeVisible();
+    await expect(row.locator(".wf-lastrun")).toBeVisible();
+    await expect(row.locator(".wf-runs")).toBeVisible();
+    await expect(row.locator(".wf-spend")).toBeVisible();
+  });
+
   test("adds a workflow through the form", async ({ page }) => {
     await gotoApp(page);
     await navTo(page, "Workflows");

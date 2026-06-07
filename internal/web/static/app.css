@@ -301,6 +301,18 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
 .lane-perms .perm { font-size: .88rem; }
 .row .run { color: var(--good); font-weight: 600; }
 .row .run:hover { color: var(--accent); }
+/* Workflows-page row badges (V4, epic 0024): the last-run outcome glyph + age, a run
+   count, and total spend — joining RunStore + SpendStore so the orchestration entry
+   point reads as a cost-aware dashboard, not just navigation. A row with no run/spend
+   history shows no badges. */
+.wf-badges { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem;
+  margin-top: .25rem; }
+.wf-badge { font-size: .75rem; color: var(--dim); display: inline-flex;
+  align-items: center; gap: .25rem; }
+.wf-lastrun .wf-glyph { font-weight: 600; }
+.wf-lastrun.run-done .wf-glyph { color: var(--good); }
+.wf-lastrun.run-failed .wf-glyph { color: var(--bad); }
+.wf-spend { color: var(--good); }
 
 /* composer */
 .composer-bar { border-top: 1px solid var(--panel); background: var(--panel); padding: .6rem 1rem; }
