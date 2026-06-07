@@ -43,6 +43,8 @@ jobs:
         with:
           version: v2.5.0
           args: --timeout=5m
+      - name: Workflow invariants (no CI double-runs; release version resolution)
+        run: bash scripts/check-workflows.sh
 
   test:
     name: Test (race + coverage)
