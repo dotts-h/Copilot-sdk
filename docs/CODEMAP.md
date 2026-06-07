@@ -571,12 +571,12 @@ _Last generated: 2026-06-07 (UTC)._
 - L437: `func renderBudgetForm(projected, capCredits float64) string`
 - L446: `func clampLines(s string, n int) string`
 
-### runs.go (120 LOC)
+### runs.go (123 LOC)
 - L23: `func (s *Server) runsPartial() string`
-- L44: `func (s *Server) runSummaryRow(a telemetry.RunAggregate) map[string]any`
-- L59: `func (s *Server) runRow(r telemetry.RunRecord) map[string]any`
-- L87: `func humanDuration(d time.Duration) string`
-- L115: `func runOutcomeGlyph(outcome string) (glyph, state string)`
+- L46: `func (s *Server) runSummaryRow(a telemetry.RunAggregate) map[string]any`
+- L62: `func (s *Server) runRow(r telemetry.RunRecord) map[string]any`
+- L90: `func humanDuration(d time.Duration) string`
+- L118: `func runOutcomeGlyph(outcome string) (glyph, state string)`
 
 ### server.go (880 LOC)
 - L27: `type Server struct`

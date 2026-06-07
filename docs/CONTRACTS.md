@@ -146,7 +146,8 @@ The **Runs** view (`GET /page/runs`, item B3) is a read-only history of complete
 workflow runs (most recent first) — each run's name, mode, outcome, when it ran, how
 long it took (**duration**, V1), total metered cost, and a per-lane breakdown (agent,
 settled status incl. **skipped**, credits) — with a **per-workflow summary table**
-(run count, failure rate, average cost & duration, V1) above the history. It is a
+(run count, failure rate, **total & average cost** (V13), average duration, V1) above
+the history. It is a
 query over the persisted `telemetry.RunStore` (§4) and its pure `RunAggregates`
 roll-up; adding it as a top-level nav page bumps the `pageNames` / e2e `pages` count.
 A run is recorded **once on completion** by the web adapter (`workflow.go`
@@ -457,7 +458,10 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   **no schema change** — joining the run grain (count / failure rate / duration /
   last-run) to the cost the runs metered, the orchestration half that `WorkflowShares`
   can't answer. The Runs page (§3) renders a per-workflow summary from `RunAggregates`
-  above the history and a duration cell per run; the **Workflows page** (§3) badges each
+  above the history and a duration cell per run — surfacing both `TotalCredits` (the
+  workflow's **cumulative** orchestrated spend, V13) and `AvgCredits` beside each other,
+  the orchestration analogue of the Telemetry per-workflow share's total; the
+  **Workflows page** (§3) badges each
   row with the last-run signal + run count joined to `WorkflowShares` spend. — see
   [ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md)
   **CSV export (pure reader — V11):** `telemetry.WriteRunsCSV(w io.Writer, records

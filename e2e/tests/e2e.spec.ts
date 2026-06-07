@@ -386,6 +386,9 @@ test.describe("multi-agent workflows", () => {
     // suite, so figures (counts/averages) are not stable to assert on.
     await expect(page.locator("table.run-summary")).toBeVisible();
     await expect(page.locator(".run-summary-row").first()).toBeVisible();
+    // The summary surfaces a workflow's cumulative orchestrated spend (V13) beside its
+    // average — a Total cost cell per row.
+    await expect(page.locator(".run-summary-totalcost").first()).toBeVisible();
     await expect(page.locator(".run-record .run-duration").first()).toBeVisible();
 
     // The run history exports as a CSV (the orchestration sibling of the spend export):
