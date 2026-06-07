@@ -1,6 +1,8 @@
 package telemetry
 
 import (
+	"bytes"
+	"encoding/csv"
 	"os"
 	"path/filepath"
 	"testing"
@@ -347,5 +349,68 @@ func TestRunRecordCarriesSkippedLane(t *testing.T) {
 	}
 	if skip.Credits != 0 {
 		t.Fatalf("a skipped lane incurs no cost, got %v credits", skip.Credits)
+	}
+}
+
+func TestWriteRunsCSV(t *testing.T) {
+	// The runs export flattens to one row per lane (run-level columns repeated), so a
+	// branched run's SKIPPED lane — which leaves no spend record and so can't appear in
+	// the spend CSV — is first-class in the orchestration export. Columns are fixed.
+	r := sampleRun()
+	r.Lanes = append(r.Lanes, RunLane{Index: 2, AgentID: "fixer", Status: "skipped"})
+	var buf bytes.Buffer
+	if err := WriteRunsCSV(&buf, []RunRecord{r}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := csv.NewReader(&buf).ReadAll()
+	if err != nil {
+		t.Fatalf("CSV is not parseable: %v", err)
+	}
+	// header + one row per lane (3 lanes).
+	if len(rows) != 4 {
+		t.Fatalf("want header + 3 lane rows, got %d", len(rows))
+	}
+	want := []string{"run", "workflow", "name", "mode", "startedAt", "finishedAt", "durationSeconds", "outcome", "lane", "agent", "status", "credits"}
+	if len(rows[0]) != len(want) {
+		t.Fatalf("header width = %d, want %d: %+v", len(rows[0]), len(want), rows[0])
+	}
+	for i, h := range want {
+		if rows[0][i] != h {
+			t.Fatalf("header[%d] = %q, want %q", i, rows[0][i], h)
+		}
+	}
+	// First lane row carries the run-level columns and lane 0.
+	first := rows[1]
+	if first[0] != "run-1" || first[1] != "build-and-harden" || first[3] != "sequential" || first[7] != "finished" {
+		t.Fatalf("run-level columns wrong: %+v", first)
+	}
+	if first[6] != "120" { // duration 2m = 120s, repeated on every lane row
+		t.Fatalf("durationSeconds = %q, want 120", first[6])
+	}
+	if first[8] != "0" || first[9] != "builder" || first[10] != "done" || first[11] != "2.6" { // RunLane.Credits is already in credits
+		t.Fatalf("lane-0 columns wrong: %+v", first)
+	}
+	// The skipped lane is exported with zero credits — the orchestration-unique grain.
+	skip := rows[3]
+	if skip[8] != "2" || skip[9] != "fixer" || skip[10] != "skipped" || skip[11] != "0" {
+		t.Fatalf("skipped lane row wrong: %+v", skip)
+	}
+	// Run-level columns repeat verbatim on the skipped lane row.
+	if skip[0] != "run-1" || skip[6] != "120" {
+		t.Fatalf("run-level columns not repeated on lane row: %+v", skip)
+	}
+}
+
+func TestWriteRunsCSVHeaderOnlyWhenEmpty(t *testing.T) {
+	var buf bytes.Buffer
+	if err := WriteRunsCSV(&buf, nil); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := csv.NewReader(&buf).ReadAll()
+	if err != nil {
+		t.Fatalf("CSV is not parseable: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("an empty history exports the header only, got %d rows", len(rows))
 	}
 }
