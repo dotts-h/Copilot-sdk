@@ -104,7 +104,7 @@ func TestBuildDemoTelemetryShowsTrend(t *testing.T) {
 	// (build-and-harden's lanes are seeded lane-tagged on both sides).
 	for _, want := range []string{
 		"Ledger vs runs", `class="grid recon"`, `recon-delta amber`,
-		"Ledger vs runs by lane", `class="grid recon lane-recon"`,
+		"Ledger vs runs by lane", `class="grid lane-recon"`,
 	} {
 		if !strings.Contains(rec.Body.String(), want) {
 			t.Fatalf("demo telemetry page missing reconciliation %q:\n%s", want, rec.Body.String())

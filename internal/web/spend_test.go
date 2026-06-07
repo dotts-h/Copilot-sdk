@@ -190,7 +190,7 @@ func TestTelemetryPageShowsPerLaneReconciliation(t *testing.T) {
 	html := s.telemetryPartial(defaultSpendWindow)
 	for _, want := range []string{
 		"Ledger vs runs by lane",           // the per-lane section heading
-		`class="grid recon lane-recon"`,    // the per-lane comparison table
+		`class="grid lane-recon"`,          // the per-lane comparison table
 		`class="recon-row lane-recon-row"`, // a per-(workflow, lane) row
 		"Ship · step 1",                    // the lane label (workflow name + 1-based step)
 		`class="recon-delta amber"`,        // the non-trivial delta is ambered
