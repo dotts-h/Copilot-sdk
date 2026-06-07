@@ -13,7 +13,7 @@ issues are added or closed.
 | [0007](0007-epic-polish.md) | Epic: polish that compounds (Tier 3) | closed | 0008, 0009, 0011, 0012 |
 | [0013](0013-epic-deepen-differentiators.md) | Epic: deepen the differentiators (roadmap v2) | closed | 0014, 0015, 0016, 0017, 0018, 0020, 0021 |
 | [0022](0022-epic-extensibility-and-convergence.md) | Epic: extensibility & convergence (roadmap v3) | closed | 0019, 0023 |
-| [0024](0024-epic-convergence-dashboards-cost-surface.md) | Epic: convergence dashboards & cost-surface completion (roadmap v4) | open | 0025, 0026, 0027, 0028 |
+| [0024](0024-epic-convergence-dashboards-cost-surface.md) | Epic: convergence dashboards & cost-surface completion (roadmap v4) | open | 0025, 0026, 0027, 0028, 0029 |
 
 ## Issues
 
@@ -41,3 +41,4 @@ issues are added or closed.
 | [0026](0026-bucketed-burn-rate-forecast.md) | Per-workflow / per-agent bucketed burn-rate forecast (item F3) | closed | medium | 0024 | ADR-0018, ADR-0019 |
 | [0027](0027-settings-price-override-editor.md) | Settings price-override editor (item G1/V2) | closed | medium | 0024 | REGRESSIONS (price-override reprice) |
 | [0028](0028-per-session-cost-sessions-page.md) | Per-session cost on the Sessions page (item G2/V5) | closed | medium | 0024 | CONTRACTS §3/§4 |
+| [0029](0029-telemetry-spend-window-selector.md) | Telemetry spend-window selector (item G3/V9) | open | medium | 0024 | CONTRACTS §3 |

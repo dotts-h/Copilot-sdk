@@ -41,7 +41,7 @@ func TestBudgetRowsSurviveFreshMeter(t *testing.T) {
 		t.Fatalf("precondition: meter must be empty (fresh process), got %v cr", got)
 	}
 
-	page := s.telemetryPartial()
+	page := s.telemetryPartial(defaultSpendWindow)
 	if !strings.Contains(page, "100.00 cr") {
 		t.Errorf("Total cost must reflect the persisted ledger (100 cr), not the fresh meter: %q", page)
 	}
@@ -108,7 +108,7 @@ func TestTelemetryPageStaysAccountWide(t *testing.T) {
 	// Account-wide spend from another session, persisted to the shared ledger.
 	seedLedger(t, s, telemetry.SpendRecord{At: time.Now().UTC(), SessionID: "other", Model: "gpt-5", USD: 1.00}) // 100 cr
 
-	page := s.telemetryPartial()
+	page := s.telemetryPartial(defaultSpendWindow)
 	if !strings.Contains(page, "100.00 cr") {
 		t.Errorf("the Telemetry page must report the account-wide ledger total, not just this session: %q", page)
 	}

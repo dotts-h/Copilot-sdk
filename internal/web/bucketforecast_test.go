@@ -57,7 +57,7 @@ func TestTelemetryPageShowsBucketTrajectory(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	html := s.telemetryPartial()
+	html := s.telemetryPartial(defaultSpendWindow)
 	// Structure: a trajectory cell exists for the agent and the workflow bucket.
 	if c := strings.Count(html, `class="trajectory`); c < 2 {
 		t.Fatalf("expected a trajectory cell per agent+workflow bucket, got %d:\n%s", c, html)
@@ -79,7 +79,7 @@ func TestTelemetryBucketTrajectoryIdle(t *testing.T) {
 	if err := store.Append(telemetry.SpendRecord{At: recentDay(20), Model: "gpt-5", USD: 0.02, AgentID: "builder"}); err != nil {
 		t.Fatal(err)
 	}
-	html := s.telemetryPartial()
+	html := s.telemetryPartial(defaultSpendWindow)
 	if !strings.Contains(html, "idle") {
 		t.Errorf("a window-empty bucket should render the idle trajectory:\n%s", html)
 	}
@@ -95,7 +95,7 @@ func TestTelemetryBucketTrajectoryNoBudget(t *testing.T) {
 	if err := store.Append(telemetry.SpendRecord{At: recentDay(0), Model: "gpt-5", USD: 0.02, AgentID: "builder"}); err != nil {
 		t.Fatal(err)
 	}
-	html := s.telemetryPartial()
+	html := s.telemetryPartial(defaultSpendWindow)
 	if strings.Contains(html, `class="trajectory`) {
 		t.Errorf("no-budget page must not render a trajectory cell:\n%s", html)
 	}
@@ -110,7 +110,7 @@ func TestTelemetryBucketTrajectoryNoBudget(t *testing.T) {
 func TestTelemetryBucketTrajectoryNoStoreNoPanic(t *testing.T) {
 	s, _ := newTestServer() // no Spend wired (s.spend == nil)
 	s.allowance = 10_000
-	html := s.telemetryPartial()
+	html := s.telemetryPartial(defaultSpendWindow)
 	if strings.Contains(html, `class="trajectory`) {
 		t.Errorf("no-store page must not render a trajectory cell:\n%s", html)
 	}

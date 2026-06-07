@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,13 +35,37 @@ var pageNames = []struct{ slug, label string }{
 	{"help", "Help"},
 }
 
-// renderPage returns the partial for a nav slug, or chat for unknown slugs.
-func (s *Server) renderPage(slug string) string {
+// spendWindows is the allowed set of Telemetry "spend over time" trend windows
+// (days); defaultSpendWindow is the fallback for a missing/out-of-range value and
+// the historical behavior. The maxUSD scaling stays window-local (REGRESSIONS #14).
+var spendWindows = []int{14, 30, 90}
+
+const defaultSpendWindow = 14
+
+// clampWindow parses a ?window= value to one of spendWindows, falling back to
+// defaultSpendWindow (14) for an empty, unparseable, or out-of-range value.
+func clampWindow(raw string) int {
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		return defaultSpendWindow
+	}
+	for _, w := range spendWindows {
+		if n == w {
+			return n
+		}
+	}
+	return defaultSpendWindow
+}
+
+// renderPage returns the partial for a nav slug, or chat for unknown slugs. The
+// window string is the (already raw) ?window= value, used only by the Telemetry
+// page's trend selector; every other page ignores it.
+func (s *Server) renderPage(slug, window string) string {
 	switch slug {
 	case "sessions":
 		return s.sessionsPartial()
 	case "telemetry":
-		return s.telemetryPartial()
+		return s.telemetryPartial(clampWindow(window))
 	case "skills":
 		return s.skillsPartial()
 	case "instructions":
@@ -184,7 +209,7 @@ func (s *Server) chatPartial() string {
 	})
 }
 
-func (s *Server) telemetryPartial() string {
+func (s *Server) telemetryPartial(window int) string {
 	// Account-wide budget accounting reads month-to-date from the persisted ledger
 	// so "remaining this month" survives a restart (ADR-0016). The live token split
 	// and per-model table below stay on the in-process meter — one source per
@@ -218,25 +243,31 @@ func (s *Server) telemetryPartial() string {
 			"Credits": fmt.Sprintf("%.2f", r.Credits()), "USD": telemetry.FormatUSD(r.USD()),
 		})
 	}
-	days, shares, hasHistory := s.spendTrend()
+	days, shares, hasHistory := s.spendTrend(window)
 	now := time.Now()
 	agents, workflows := s.spendShares(now)
 	var forecast map[string]any
 	if fc, ok := s.forecast(now); ok {
 		forecast = forecastView(fc, budget.AllowanceCredits, now)
 	}
+	windows := make([]map[string]any, 0, len(spendWindows))
+	for _, w := range spendWindows {
+		windows = append(windows, map[string]any{"Value": w, "Active": w == window})
+	}
 	return frag("telemetryPage", map[string]any{
 		"Rows": rows, "Width": fmt.Sprintf("%.1f%%", pct), "Models": models,
 		"Days": days, "Shares": shares, "HasHistory": hasHistory,
 		"AgentShares": agents, "WorkflowShares": workflows,
-		"Forecast": forecast,
+		"Forecast": forecast, "Windows": windows,
 	})
 }
 
 // spendTrend builds the persisted-ledger trend data for the Telemetry page: the
-// per-day spend (most recent last, each bar scaled to the busiest day) and each
-// model's share of all-time spend. Empty when no ledger is wired or none yet.
-func (s *Server) spendTrend() (days, shares []map[string]any, hasHistory bool) {
+// per-day spend over the chosen window (most recent last, each bar scaled to the
+// busiest day in view) and each model's share of all-time spend. The window (days)
+// is the selector value, clamped upstream to spendWindows. Empty when no ledger is
+// wired or none yet.
+func (s *Server) spendTrend(window int) (days, shares []map[string]any, hasHistory bool) {
 	days, shares = []map[string]any{}, []map[string]any{}
 	if s.spend == nil {
 		return days, shares, false
@@ -247,10 +278,11 @@ func (s *Server) spendTrend() (days, shares []map[string]any, hasHistory bool) {
 	}
 
 	daily := telemetry.DailyTotals(records)
-	// Show the most recent window so a long history stays scannable.
-	const maxDays = 14
-	if len(daily) > maxDays {
-		daily = daily[len(daily)-maxDays:]
+	// Slice to the chosen window FIRST, so a long history stays scannable and the
+	// max below is computed over what's shown — never over full history (the
+	// REGRESSIONS #14 invariant: an off-window peak must not shrink visible bars).
+	if window > 0 && len(daily) > window {
+		daily = daily[len(daily)-window:]
 	}
 	// Scale bars to the busiest day *in view*, so the visible window always uses
 	// the full width even when an off-screen older day spent more.

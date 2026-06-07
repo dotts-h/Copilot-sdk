@@ -524,6 +524,30 @@ test.describe("persisted spend history + trends", () => {
     expect(res.headers()["content-type"]).toContain("text/csv");
     expect(await res.text()).toContain("at,session,model");
   });
+
+  test("the spend-over-time window selector switches and re-renders the trend", async ({
+    page,
+  }) => {
+    await gotoApp(page);
+    await navTo(page, "Telemetry");
+
+    const main = page.locator("#main");
+    await expect(main).toContainText("Spend over time");
+    // The three windows (14/30/90) are offered, and exactly one is active. Assert
+    // STRUCTURE only — the shared append-only demo ledger grows as the suite runs,
+    // so day counts/figures are not stable (same gotcha family as the trend bars).
+    const buttons = page.locator("#main .window-row button.window");
+    await expect(buttons).toHaveCount(3);
+    await expect(page.locator("#main .window-row button.window.on")).toHaveCount(1);
+    // Default is the 14-day window (the historical behavior).
+    await expect(page.locator("#main .window-row button.window.on")).toHaveText("14d");
+
+    // Switching widens the window: the 90-day button becomes active and the trend
+    // re-renders (a day bar is still present afterwards).
+    await page.locator('#main .window-row button.window:has-text("90d")').click();
+    await expect(page.locator("#main .window-row button.window.on")).toHaveText("90d");
+    await expect(page.locator("#main ul.trend .trend-row").first()).toBeVisible();
+  });
 });
 
 test.describe("budget guardrails (hard cap)", () => {

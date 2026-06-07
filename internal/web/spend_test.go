@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -117,7 +118,7 @@ func TestTelemetryPageShowsAttributionBreakdown(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	html := s.telemetryPartial()
+	html := s.telemetryPartial(defaultSpendWindow)
 	for _, want := range []string{"Cost by agent", "Builder", "chat (built-in)", "Cost by workflow", "Ship"} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("telemetry page missing %q\n%s", want, html)
@@ -159,7 +160,7 @@ func TestTelemetryPageShowsTrendFromLedger(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	html := s.telemetryPartial()
+	html := s.telemetryPartial(defaultSpendWindow)
 	for _, want := range []string{"Spend history", "Spend over time", "Per-model share", "2026-06-04", "2026-06-05", "Export CSV"} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("telemetry page missing %q\n%s", want, html)
@@ -182,7 +183,7 @@ func TestTelemetryTrendWindowsAndScalesToVisibleMax(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	days, _, has := s.spendTrend()
+	days, _, has := s.spendTrend(defaultSpendWindow)
 	if !has {
 		t.Fatal("expected history")
 	}
@@ -200,9 +201,125 @@ func TestTelemetryTrendWindowsAndScalesToVisibleMax(t *testing.T) {
 	}
 }
 
+func TestClampWindow(t *testing.T) {
+	cases := map[string]int{
+		"14": 14, "30": 30, "90": 90, // the allowed set
+		"":        defaultSpendWindow, // no param → default
+		"garbage": defaultSpendWindow, // unparseable → default
+		"7":       defaultSpendWindow, // below the set → default
+		"1000":    defaultSpendWindow, // above the set → default
+		"-30":     defaultSpendWindow, // negative → default
+		"30.5":    defaultSpendWindow, // non-integer → default
+	}
+	for raw, want := range cases {
+		if got := clampWindow(raw); got != want {
+			t.Errorf("clampWindow(%q) = %d, want %d", raw, got, want)
+		}
+	}
+	if defaultSpendWindow != 14 {
+		t.Fatalf("default window should be 14 (the historical behavior), got %d", defaultSpendWindow)
+	}
+}
+
+func TestSpendTrendWidensWithWindow(t *testing.T) {
+	s, store := newSpendServer(t)
+	// 40 days of history: 14 < 30 < the full 40 < 90, so each wider window shows
+	// strictly more (older) rows, and 90 is clamped by available history to 40.
+	base := day("2026-04-01T10:00:00Z")
+	for i := 0; i < 40; i++ {
+		if err := store.Append(telemetry.SpendRecord{At: base.AddDate(0, 0, i), Model: "gpt-5", USD: 0.10 * float64(i+1)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	d14, _, _ := s.spendTrend(14)
+	d30, _, _ := s.spendTrend(30)
+	d90, _, _ := s.spendTrend(90)
+	if len(d14) != 14 || len(d30) != 30 || len(d90) != 40 {
+		t.Fatalf("window widths wrong: 14→%d 30→%d 90→%d (want 14/30/40)", len(d14), len(d30), len(d90))
+	}
+	// The widest window reaches the oldest day; the 14-day window does not.
+	if d90[0]["Day"] != "2026-04-01" {
+		t.Fatalf("90-day window should reach the oldest day, got %v", d90[0]["Day"])
+	}
+	if d14[0]["Day"] == "2026-04-01" {
+		t.Fatal("the 14-day window should not reach the oldest day")
+	}
+	// The most-recent day is the same regardless of window (most-recent-last).
+	if d14[len(d14)-1]["Day"] != d90[len(d90)-1]["Day"] {
+		t.Fatal("the most-recent day should be identical across windows")
+	}
+}
+
+func TestTelemetryTrendScalesToVisibleMaxPerWindow(t *testing.T) {
+	// The REGRESSIONS #14 invariant must hold for EVERY window: an off-window
+	// all-time peak must never shrink the visible bars — the busiest IN-WINDOW
+	// day fills 100%. Seed a peak one day older than each window's left edge.
+	for _, win := range spendWindows {
+		win := win
+		t.Run(fmt.Sprintf("window-%d", win), func(t *testing.T) {
+			s, store := newSpendServer(t)
+			base := day("2026-01-01T10:00:00Z")
+			// A towering peak just outside the window (win+1 days back from the last).
+			peakDay := base
+			if err := store.Append(telemetry.SpendRecord{At: peakDay, Model: "gpt-5", USD: 999.0}); err != nil {
+				t.Fatal(err)
+			}
+			// win days of in-window history, growing toward the recent end so the
+			// last day is the in-window max.
+			for i := 1; i <= win; i++ {
+				if err := store.Append(telemetry.SpendRecord{At: base.AddDate(0, 0, i), Model: "gpt-5", USD: 0.10 * float64(i)}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			days, _, has := s.spendTrend(win)
+			if !has {
+				t.Fatal("expected history")
+			}
+			if len(days) != win {
+				t.Fatalf("expected %d in-window days, got %d", win, len(days))
+			}
+			for _, d := range days {
+				if d["Day"] == "2026-01-01" {
+					t.Fatal("the off-window all-time-max day leaked into the window")
+				}
+			}
+			if w := days[len(days)-1]["Width"]; w != "100.0%" {
+				t.Fatalf("busiest in-window day should fill the bar, got width %v", w)
+			}
+		})
+	}
+}
+
+func TestTelemetryPageRendersWindowSelector(t *testing.T) {
+	s, store := newSpendServer(t)
+	for _, r := range []telemetry.SpendRecord{
+		{At: day("2026-06-04T10:00:00Z"), Model: "gpt-5", USD: 0.20},
+		{At: day("2026-06-05T10:00:00Z"), Model: "gpt-5", USD: 0.30},
+	} {
+		if err := store.Append(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	html := s.telemetryPartial(30)
+	// All three windows are offered, each re-fetching the page with its param.
+	for _, w := range []string{"window=14", "window=30", "window=90"} {
+		if !strings.Contains(html, w) {
+			t.Fatalf("window selector missing %q\n%s", w, html)
+		}
+	}
+	// The chosen window is the active button; the others are not.
+	if !strings.Contains(html, `class="window on" hx-get="/page/telemetry?window=30"`) {
+		t.Fatalf("the 30-day window should be marked active\n%s", html)
+	}
+	if strings.Contains(html, `class="window on" hx-get="/page/telemetry?window=14"`) ||
+		strings.Contains(html, `class="window on" hx-get="/page/telemetry?window=90"`) {
+		t.Fatalf("only the chosen window should be active\n%s", html)
+	}
+}
+
 func TestTelemetryPageEmptyHistoryNote(t *testing.T) {
 	s, _ := newSpendServer(t) // ledger wired but empty
-	html := s.telemetryPartial()
+	html := s.telemetryPartial(defaultSpendWindow)
 	if !strings.Contains(html, "no persisted history yet") {
 		t.Fatalf("empty ledger should show the no-history note:\n%s", html)
 	}

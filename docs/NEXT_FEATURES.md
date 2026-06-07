@@ -135,11 +135,23 @@ differentiator is folded in where it earns its place.
   build of epic [0024](issues/0024-epic-convergence-dashboards-cost-surface.md) (roadmap
   v4); issue [0028](issues/0028-per-session-cost-sessions-page.md); PR #53.**
 
-### G3 / V9 — Telemetry spend-window selector  — **S**  ·  *candidate*
-- **What:** the trend view hardcodes a 14-day window (`pages.go` `spendTrend:249`); add a
-  30/90-day selector threaded through `DailyTotals` truncation + re-scale. Users with
-  months of history can't see the full picture today. **Touches:** `internal/web`
-  (`pages.go` `spendTrend`, `server.go` `handlePage`).
+### G3 / V9 — Telemetry spend-window selector  — **S**  ·  **SHIPPED** (epic 0024, issue [0029](issues/0029-telemetry-spend-window-selector.md))
+- **What:** the trend view hardcoded a 14-day window (`pages.go` `spendTrend`); a
+  **14/30/90-day** selector (three buttons, active one marked) threaded through
+  `DailyTotals` truncation + re-scale. Users with months of history couldn't see the full
+  picture before. **Touches:** `internal/web` (`pages.go` `spendTrend`/`telemetryPartial`/
+  `renderPage`, `server.go` `handlePage`, `templates/fragments.html`).
+- **Shipped:** `spendTrend(window int)` takes the window; `handlePage` reads `?window=`
+  (default 14, clamp to {14,30,90} via `clampWindow`, garbage/out-of-range → 14) and threads
+  it through `renderPage` → `telemetryPartial` → `spendTrend`; the `maxUSD` bar-scaling stays
+  **after** the window slice (the REGRESSIONS #14 invariant, now asserted per window via
+  `TestTelemetryTrendScalesToVisibleMaxPerWindow`). The `telemetryPage` template gained a
+  window-selector control that re-fetches `GET /page/telemetry?window=N` into `#main`,
+  mirroring the Models-page effort row. No schema change, no new store (a presentation-layer
+  slice over the existing pure reader). No ADR. **Fifth and final build of epic
+  [0024](issues/0024-epic-convergence-dashboards-cost-surface.md) (roadmap v4) — its last
+  child; on merge epic 0024 closes. Issue
+  [0029](issues/0029-telemetry-spend-window-selector.md).**
 
 ## Tier H — paydown that advances the architecture
 

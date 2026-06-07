@@ -186,9 +186,19 @@ each share row keyed by raw agent/workflow id under `forgeMu`, with **one** `now
 both the per-bucket `Forecast` and the month projection. It is a **pure-reader composition** over
 the existing ledger (no schema change, no new IO); a wired-but-degenerate bucket (idle / too-new /
 no budget) renders its explanatory sentence or no line, never a bogus date. Values flow through
-`html/template` (ADR-0001). — see
+`html/template` (ADR-0001). The **spend-over-time trend** carries a **window selector** (G3): an
+optional **`?window=` query param** on `GET /page/telemetry` (threaded `handlePage` →
+`renderPage` → `telemetryPartial` → `spendTrend`) chooses the trend's day window from the allowed
+set **{14, 30, 90}**, **defaulting to 14** (the historical behavior) and **clamping** an
+empty / unparseable / out-of-range value back to 14 (`clampWindow`). The selector renders as three
+buttons (the active window marked) that re-fetch `GET /page/telemetry?window=N` into `#main`. The
+trend slices `DailyTotals` to the chosen window **first**, **then** computes the bar-scaling
+`maxUSD` over what's shown — the scaling stays **window-local** so an off-window all-time peak can
+never shrink the visible bars (REGRESSIONS #14, now asserted per window). It is a presentation-layer
+slice over the existing pure reader (no schema change, no new store). — see
 [ADR-0019](adr/0019-budget-burn-rate-forecast-trailing-window-average.md),
-[ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md)
+[ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md),
+[ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md)
 
 The **Settings page** (`GET /page/settings`, `POST /settings`) edits `config.json`'s
 user-facing knobs through `editConfig` (snapshot → apply → validating `Save` →

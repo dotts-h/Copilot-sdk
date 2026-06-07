@@ -639,7 +639,9 @@ func elicitContent(fields []copilot.ElicitField, form url.Values) map[string]any
 
 func (s *Server) handlePage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte(s.renderPage(r.PathValue("name"))))
+	// ?window= scopes the Telemetry trend (clamped to the allowed set in renderPage);
+	// every other page ignores it.
+	_, _ = w.Write([]byte(s.renderPage(r.PathValue("name"), r.URL.Query().Get("window"))))
 }
 
 // --- forge mutators (list pages) ---
