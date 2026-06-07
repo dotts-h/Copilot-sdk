@@ -308,32 +308,28 @@ _Last generated: 2026-06-07 (UTC)._
 - L45: `type Projection struct`
 - L76: `func Forecast(daily []DayTotal, budget Budget, now time.Time) Projection`
 
-### history.go (398 LOC)
-- L29: `type SpendRecord struct`
-- L55: `func (r SpendRecord) Credits() float64 { return r.USD / USDPerCredit }`
-- L58: `func (r SpendRecord) Day() string { return r.At.UTC().Format("2006-01-02") }`
-- L72: `type spendDoc struct`
-- L80: `type SpendStore struct`
-- L89: `func LoadSpendStore(dir string) (*SpendStore, error)`
-- L115: `func (s *SpendStore) Append(r SpendRecord) error`
-- L127: `func (s *SpendStore) save() error`
-- L148: `func (s *SpendStore) Records() []SpendRecord`
-- L157: `func (s *SpendStore) Count() int`
-- L164: `type DayTotal struct`
-- L173: `func DailyTotals(records []SpendRecord) []DayTotal`
-- L211: `func MonthToDate(records []SpendRecord, now time.Time) Cost`
-- L225: `type share struct`
-- L239: `func shareBy(records []SpendRecord, keyOf func(SpendRecord) string, includeEmpty bool) []share`
-- L270: `type ModelShare struct`
-- L280: `func ModelShares(records []SpendRecord) []ModelShare`
-- L292: `type AgentShare struct`
-- L303: `func AgentShares(records []SpendRecord) []AgentShare`
-- L314: `type WorkflowShare struct`
-- L326: `func WorkflowShares(records []SpendRecord) []WorkflowShare`
-- L337: `type SessionShare struct`
-- L350: `func SessionShares(records []SpendRecord) []SessionShare`
-- L362: `func WriteCSV(w io.Writer, records []SpendRecord) error`
-- L396: `func csvFloat(v float64) string`
+### history.go (334 LOC)
+- L24: `type SpendRecord struct`
+- L50: `func (r SpendRecord) Credits() float64 { return r.USD / USDPerCredit }`
+- L53: `func (r SpendRecord) Day() string { return r.At.UTC().Format("2006-01-02") }`
+- L72: `type SpendStore struct`
+- L82: `func LoadSpendStore(dir string) (*SpendStore, error)`
+- L92: `func stampSpend(r SpendRecord) SpendRecord`
+- L100: `type DayTotal struct`
+- L109: `func DailyTotals(records []SpendRecord) []DayTotal`
+- L147: `func MonthToDate(records []SpendRecord, now time.Time) Cost`
+- L161: `type share struct`
+- L175: `func shareBy(records []SpendRecord, keyOf func(SpendRecord) string, includeEmpty bool) []share`
+- L206: `type ModelShare struct`
+- L216: `func ModelShares(records []SpendRecord) []ModelShare`
+- L228: `type AgentShare struct`
+- L239: `func AgentShares(records []SpendRecord) []AgentShare`
+- L250: `type WorkflowShare struct`
+- L262: `func WorkflowShares(records []SpendRecord) []WorkflowShare`
+- L273: `type SessionShare struct`
+- L286: `func SessionShares(records []SpendRecord) []SessionShare`
+- L298: `func WriteCSV(w io.Writer, records []SpendRecord) error`
+- L332: `func csvFloat(v float64) string`
 
 ### pricing.go (188 LOC)
 - L27: `type ModelRate struct`
@@ -348,22 +344,30 @@ _Last generated: 2026-06-07 (UTC)._
 - L177: `func normalizeModel(m string) string`
 - L185: `func (r ModelRate) String() string`
 
-### runs.go (276 LOC)
-- L27: `type RunLane struct`
-- L38: `type RunRecord struct`
-- L53: `func (r RunRecord) Credits() float64`
-- L65: `func (r RunRecord) Duration() time.Duration`
-- L84: `type runDoc struct`
-- L92: `type RunStore struct`
-- L101: `func LoadRunStore(dir string) (*RunStore, error)`
-- L127: `func (s *RunStore) Append(r RunRecord) error`
-- L139: `func (s *RunStore) save() error`
-- L160: `func (s *RunStore) Records() []RunRecord`
-- L169: `func (s *RunStore) Count() int`
-- L182: `type RunAggregate struct`
-- L205: `func (a RunAggregate) FailureRate() float64`
-- L221: `func RunAggregates(records []RunRecord) []RunAggregate`
-- L271: `func laterRun(s2, f2, s1, f1 time.Time) bool`
+### runs.go (211 LOC)
+- L22: `type RunLane struct`
+- L33: `type RunRecord struct`
+- L48: `func (r RunRecord) Credits() float64`
+- L60: `func (r RunRecord) Duration() time.Duration`
+- L85: `type RunStore struct`
+- L93: `func LoadRunStore(dir string) (*RunStore, error)`
+- L103: `func stampRun(r RunRecord) RunRecord`
+- L117: `type RunAggregate struct`
+- L140: `func (a RunAggregate) FailureRate() float64`
+- L156: `func RunAggregates(records []RunRecord) []RunAggregate`
+- L206: `func laterRun(s2, f2, s1, f1 time.Time) bool`
+
+### store.go (185 LOC)
+- L41: `type AppendOnlyStore[T any] struct`
+- L57: `func loadAppendOnlyStore[T any](dir, file, key, what string, version int, stamp func(T) T) (*AppendOnlyStore[T], error)`
+- L82: `func decodeEnvelope[T any](data []byte, key string) ([]T, error)`
+- L102: `func (s *AppendOnlyStore[T]) Append(r T) error`
+- L114: `func (s *AppendOnlyStore[T]) save() error`
+- L134: `func (s *AppendOnlyStore[T]) Records() []T`
+- L143: `func (s *AppendOnlyStore[T]) Count() int`
+- L155: `type envelope[T any] struct`
+- L161: `func (e envelope[T]) MarshalJSON() ([]byte, error)`
+- L183: `func encodeEnvelope[T any](version int, key string, records []T) ([]byte, error)`
 
 ## internal/web
 

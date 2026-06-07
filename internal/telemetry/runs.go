@@ -1,12 +1,7 @@
 package telemetry
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
-	"sync"
 	"time"
 )
 
@@ -80,96 +75,36 @@ const (
 	RunSchemaVersion = 1
 )
 
-// runDoc is the on-disk envelope: a version tag plus the run array.
-type runDoc struct {
-	Version int         `json:"version"`
-	Runs    []RunRecord `json:"runs"`
-}
-
-// RunStore is the persisted workflow-run history. It is goroutine-safe and atomic on
-// write. A store with an empty dir is ephemeral (in-memory only) — used by the offline
-// demo and tests so they never touch a real config directory.
+// RunStore is the persisted workflow-run history: a thin typed wrapper over the
+// shared AppendOnlyStore[RunRecord] (store.go), a sibling of SpendStore. It is
+// goroutine-safe and atomic on write. A store with an empty dir is ephemeral
+// (in-memory only) — used by the offline demo and tests so they never touch a
+// real config directory. Append, Records, and Count are promoted from the
+// embedded generic store; the on-disk envelope (`{"version":1,"runs":[…]}`) is
+// unchanged — the stable contract.
 type RunStore struct {
-	mu   sync.Mutex
-	dir  string
-	runs []RunRecord
+	*AppendOnlyStore[RunRecord]
 }
 
 // LoadRunStore reads the history from dir/runs.json, returning an empty store when the
 // file is absent (first run) and an error when it is present but unparseable. An empty
-// dir yields an ephemeral, in-memory-only store.
+// dir yields an ephemeral, in-memory-only store. Append stamps FinishedAt with the
+// current time when zero (the per-record hook).
 func LoadRunStore(dir string) (*RunStore, error) {
-	s := &RunStore{dir: dir}
-	if dir == "" {
-		return s, nil
-	}
-	data, err := os.ReadFile(filepath.Join(dir, runFile))
-	if os.IsNotExist(err) {
-		return s, nil
-	}
+	inner, err := loadAppendOnlyStore(dir, runFile, "runs", "run history", RunSchemaVersion, stampRun)
 	if err != nil {
-		return nil, fmt.Errorf("read run history: %w", err)
+		return nil, err
 	}
-	var doc runDoc
-	if err := json.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("parse run history %s: %w", filepath.Join(dir, runFile), err)
-	}
-	// The runs array is the stable contract; a newer version's extra fields are
-	// ignored by json.Unmarshal, so the file stays forward-readable.
-	s.runs = doc.Runs
-	return s, nil
+	return &RunStore{inner}, nil
 }
 
-// Append records a completed run (stamping FinishedAt with the current time when zero)
-// and persists the whole history atomically. An ephemeral store keeps it in memory
-// only. The atomic temp-file + rename means a crash mid-write never leaves a partial
-// file — the prior history stays intact.
-func (s *RunStore) Append(r RunRecord) error {
+// stampRun defaults a record's FinishedAt to now when the caller left it zero —
+// the run store's per-record Append hook.
+func stampRun(r RunRecord) RunRecord {
 	if r.FinishedAt.IsZero() {
 		r.FinishedAt = time.Now()
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.runs = append(s.runs, r)
-	return s.save()
-}
-
-// save writes the in-memory history to disk atomically. Caller holds s.mu. A no-op for
-// an ephemeral store. Mirrors config.Save / SpendStore.save: temp-file + rename.
-func (s *RunStore) save() error {
-	if s.dir == "" {
-		return nil
-	}
-	doc := runDoc{Version: RunSchemaVersion, Runs: s.runs}
-	data, err := json.MarshalIndent(doc, "", "  ")
-	if err != nil {
-		return fmt.Errorf("encode run history: %w", err)
-	}
-	if err := os.MkdirAll(s.dir, 0o755); err != nil {
-		return fmt.Errorf("create config dir: %w", err)
-	}
-	path := filepath.Join(s.dir, runFile)
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return fmt.Errorf("write run history: %w", err)
-	}
-	return os.Rename(tmp, path)
-}
-
-// Records returns a snapshot copy of the history, safe to read without the lock.
-func (s *RunStore) Records() []RunRecord {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	out := make([]RunRecord, len(s.runs))
-	copy(out, s.runs)
-	return out
-}
-
-// Count returns how many runs the history holds.
-func (s *RunStore) Count() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return len(s.runs)
+	return r
 }
 
 // RunAggregate rolls one workflow's run history into a summary: how many times it
