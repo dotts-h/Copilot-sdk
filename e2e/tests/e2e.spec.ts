@@ -574,6 +574,38 @@ test.describe("budget guardrails (hard cap)", () => {
   });
 });
 
+test.describe("settings price overrides (G1)", () => {
+  // The per-model rate table mutates the shared demo config, so always clear the
+  // override again afterwards — a left-over rate would skew every later test's
+  // cost figures (same shared-config gotcha as the hard-cap reset above).
+  test.afterEach(async ({ page }) => {
+    await navTo(page, "Settings");
+    await expect(page.locator("#main form.forge-form")).toBeVisible();
+    const row = page.locator("#main .price-row", { hasText: "claude-opus-4.7" });
+    const inputs = row.locator("input[type=number]");
+    for (let i = 0; i < 3; i++) await inputs.nth(i).fill("");
+    await page.locator("#main button[type=submit]").click();
+    await expect(page.locator("#main p.ok")).toContainText("saved");
+  });
+
+  test("renders the per-model rate table and saves an override", async ({ page }) => {
+    await gotoApp(page);
+    await navTo(page, "Settings");
+    // The section and its structure: a subhead and one row per model, each with
+    // three numeric fields (input / cached / output per-MTok).
+    await expect(page.locator("#main")).toContainText("Per-model price overrides");
+    const row = page.locator("#main .price-row", { hasText: "claude-opus-4.7" });
+    await expect(row).toBeVisible();
+    await expect(row.locator("input[type=number]")).toHaveCount(3);
+    await expect(row.locator('input[type=hidden][value="claude-opus-4.7"]')).toHaveCount(1);
+
+    // Drive a save — never assert exact figures (the demo config is shared).
+    await row.locator("input[type=number]").first().fill("123");
+    await page.locator("#main button[type=submit]").click();
+    await expect(page.locator("#main p.ok")).toContainText("saved");
+  });
+});
+
 test.describe("sessions", () => {
   test("lists persisted sessions and resumes one, rebuilding its transcript", async ({ page }) => {
     await gotoApp(page);

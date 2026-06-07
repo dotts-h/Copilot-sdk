@@ -190,6 +190,30 @@ no budget) renders its explanatory sentence or no line, never a bogus date. Valu
 [ADR-0019](adr/0019-budget-burn-rate-forecast-trailing-window-average.md),
 [ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md)
 
+The **Settings page** (`GET /page/settings`, `POST /settings`) edits `config.json`'s
+user-facing knobs through `editConfig` (snapshot → apply → validating `Save` →
+rollback-on-invalid). Alongside the model/agent/budget/keybinding fields it carries the
+**per-model price-override table** (G1): one row per model — seeded from
+`telemetry.DefaultPriceBook().Models()` ∪ any model already overridden, sorted — with
+three numeric (float) fields each (input · cached · output USD per million tokens),
+pre-filled from `config.Telemetry.PriceOverrides` with the built-in default shown as the
+placeholder. Field names are index-keyed (`price.<i>.{model,in,cached,out}`, the model id
+in a hidden field) so a model id containing dots can't collide with the delimiter. On
+save the rows parse into the override map: a row whose three fields are all blank/zero
+contributes **no** override (so the model keeps its default — a blank row must never
+persist a `$0`-rate override), a negative rate is rejected by `config.Validate` (rolled
+back). The save then **reprices the live meter** — it rebuilds the price book from
+`telemetry.BuildPriceBook(overrides)` (defaults + overrides) and `Replace`s the shared
+book's contents in place, so the account meter **and** every per-session meter (which
+share the one `*PriceBook` by reference) price the next turn at the new rate without a
+restart — the same live-apply discipline `refreshBudget` uses for the budget knobs. The
+section is preserved-on-absent (a partial POST that omits it leaves stored overrides
+untouched, like the keyboard-shortcut section). Values flow through `html/template`
+(ADR-0001); the rate fields are numbers and the model id labels are escaped. No ADR —
+additive UI over an existing config field, with the live-apply seam an obvious mirror of
+the startup price-book build (`internal/bootstrap`). — see
+[ADR-0008](adr/0008-budget-guardrails-soft-warn-and-hard-cap-gate.md)
+
 ## 4. Persisted schemas (forge + config)
 
 **Producer/consumer:** `internal/ctxforge` and `internal/config`; written to disk.
@@ -250,6 +274,17 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   overrides (`DefaultPriceBook`). `TelemetryConfig.WarnFraction` (soft-warn threshold,
   `[0,1]`) and `TelemetryConfig.HardCapCredits` (absolute credit ceiling, `>= 0`,
   `0` = off) back the budget guardrails. — see [ADR-0008](adr/0008-budget-guardrails-soft-warn-and-hard-cap-gate.md)
+  `TelemetryConfig.PriceOverrides` (`priceOverrides`, omitempty) maps a model id to its
+  `[input, cached, output]` USD-per-million-token rate triple; it is applied over
+  `DefaultPriceBook` at startup (`internal/bootstrap`) and live on a Settings save (G1).
+  `Validate` enforces each rate **`>= 0`** (a negative rate is rejected; absent overrides
+  stay valid, so older configs load unchanged). The **live-reprice seam** is pure and
+  dependency-free in `internal/telemetry`: `telemetry.BuildPriceBook(overrides
+  map[string][3]float64) *PriceBook` builds a fresh book from defaults + overrides
+  (rebuild-not-incremental — a removed override reverts to its default), and
+  `(*PriceBook).Replace(src *PriceBook)` atomically swaps a shared book's contents in
+  place under its own RWMutex, so every meter holding that book by reference reprices at
+  once. — see [ADR-0008](adr/0008-budget-guardrails-soft-warn-and-hard-cap-gate.md)
   `Config.KeyBindings` (`keyBindings`, omitempty) holds per-action keyboard-shortcut
   **overrides** keyed by action id; the rebindable action set is fixed in code
   (`config.KeyActions()` — ordered `{id, label, default}`), and `Config.Keymap()`

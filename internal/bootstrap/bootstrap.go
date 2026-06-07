@@ -41,14 +41,10 @@ func Build(configDir string, demo bool) (srv *web.Hub, close func(), err error) 
 		return nil, nil, fmt.Errorf("load forge: %w", err)
 	}
 
-	// Build the price book, applying any settings overrides.
-	pb := telemetry.DefaultPriceBook()
-	for model, r := range cfg.Telemetry.PriceOverrides {
-		pb.Set(telemetry.ModelRate{
-			Model: model, InputPerMTok: r[0], CachedInputPerMTok: r[1], OutputPerMTok: r[2],
-		})
-	}
-	meter := telemetry.NewMeter(pb)
+	// Build the price book from defaults + any settings overrides. The Settings
+	// price-override editor (G1) reprices this same book live via the identical
+	// BuildPriceBook rebuild, so startup and the live reprice stay single-sourced.
+	meter := telemetry.NewMeter(telemetry.BuildPriceBook(cfg.Telemetry.PriceOverrides))
 
 	// Persisted, append-only spend ledger (survives restart; feeds the Telemetry
 	// trend view). Demo uses an ephemeral, pre-seeded store so the trend renders

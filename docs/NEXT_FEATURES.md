@@ -106,14 +106,19 @@ differentiator is folded in where it earns its place.
 
 ## Tier G — complete the cost surface (small, self-contained)
 
-### G1 / V2 — Settings price-override editor  — **S**  ·  *candidate*
+### G1 / V2 — Settings price-override editor  — **S**  ·  **SHIPPED** (issue [0027](issues/0027-settings-price-override-editor.md))
 - **What:** a per-model rate table on the Settings page for
   `config.TelemetryConfig.PriceOverrides` (loaded at startup, applied to the price book,
-  but the **only** cost knob with no UI — `settings.go` `renderSettingsForm` omits it by
+  but the **only** cost knob with no UI — `settings.go` `renderSettingsForm` omitted it by
   design). Three numeric fields per model; closes the last hand-edit-JSON cost step.
-- **Why now:** as new models arrive, rate tweaks shouldn't require editing `config.json`;
-  small and entirely additive. **Touches:** `internal/web` (`settings.go`, `forms.go`),
-  `internal/config` (already has the field + validation hook).
+- **Shipped:** a per-model rate table on the Settings page, persisted through `editConfig`
+  (rollback-on-invalid, with a new non-negative-rate `config.Validate` hook) and applied
+  **live** by rebuilding the price book from `DefaultPriceBook()` + overrides
+  (`telemetry.BuildPriceBook`) and `Replace`-ing the shared book in place — repricing the
+  account meter and every per-session meter without a restart. No ADR (additive UI;
+  CONTRACTS §3/§4 + a REGRESSIONS note). **Third build of epic
+  [0024](issues/0024-epic-convergence-dashboards-cost-surface.md) (roadmap v4); issue
+  [0027](issues/0027-settings-price-override-editor.md).**
 
 ### G2 / V5 — Per-session cost on the Sessions page  — **M**  ·  *candidate*
 - **What:** a pure `SessionShares(records)` aggregation (parallel to `AgentShares`) so

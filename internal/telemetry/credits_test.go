@@ -89,6 +89,63 @@ func TestPriceBookSetAndOverride(t *testing.T) {
 	approx(t, c.InputUSD, 99)
 }
 
+func TestBuildPriceBookAppliesOverridesOverDefaults(t *testing.T) {
+	pb := BuildPriceBook(map[string][3]float64{
+		"gpt-5": {99, 9, 88},
+	})
+	// The overridden model prices at the new rate.
+	gpt := Price(pb, Usage{Model: "gpt-5", InputTokens: 1_000_000, CachedTokens: 1_000_000, OutputTokens: 1_000_000})
+	approx(t, gpt.InputUSD, 99)
+	approx(t, gpt.CachedUSD, 9)
+	approx(t, gpt.OutputUSD, 88)
+	// A non-overridden model prices at its built-in default (claude-opus-4.7 = $15/Mt in).
+	opus := Price(pb, Usage{Model: "claude-opus-4.7", InputTokens: 1_000_000})
+	approx(t, opus.InputUSD, 15)
+}
+
+func TestBuildPriceBookPreservesNonPriceFields(t *testing.T) {
+	// Overriding the three prices must not reset the model's other rate fields
+	// (e.g. the display-only PremiumMultiplier) to zero.
+	pb := BuildPriceBook(map[string][3]float64{"claude-opus-4.7": {20, 2, 100}})
+	r, ok := pb.Rate("claude-opus-4.7")
+	if !ok {
+		t.Fatal("overridden model should still be a known rate")
+	}
+	approx(t, r.InputPerMTok, 20)
+	if r.PremiumMultiplier != 27 {
+		t.Errorf("PremiumMultiplier reset by override: got %v, want the default 27", r.PremiumMultiplier)
+	}
+}
+
+func TestBuildPriceBookRemovedOverrideRevertsToDefault(t *testing.T) {
+	// Rebuild-not-incremental: a model overridden in one build but absent from the
+	// next reverts to its default, because each build starts from DefaultPriceBook.
+	withOverride := BuildPriceBook(map[string][3]float64{"gpt-5": {99, 9, 88}})
+	approx(t, Price(withOverride, Usage{Model: "gpt-5", InputTokens: 1_000_000}).InputUSD, 99)
+
+	withoutOverride := BuildPriceBook(nil)
+	approx(t, Price(withoutOverride, Usage{Model: "gpt-5", InputTokens: 1_000_000}).InputUSD, 1.25)
+}
+
+func TestPriceBookReplaceRepricesSharedMeters(t *testing.T) {
+	// The account meter and a per-session meter share one *PriceBook by reference
+	// (web.Hub.newSession builds the session meter on the account book). Replacing
+	// the shared book's contents in place must reprice BOTH at once — no drift.
+	live := DefaultPriceBook()
+	account := NewMeter(live)
+	session := NewMeter(live) // shares the same book, as the hub does
+
+	live.Replace(BuildPriceBook(map[string][3]float64{"gpt-5": {99, 9, 88}}))
+
+	approx(t, account.EstimateTurn("gpt-5", 1_000_000).InputUSD, 99)
+	approx(t, session.EstimateTurn("gpt-5", 1_000_000).InputUSD, 99)
+
+	// Removing the override and replacing again reverts both to the default.
+	live.Replace(BuildPriceBook(nil))
+	approx(t, account.EstimateTurn("gpt-5", 1_000_000).InputUSD, 1.25)
+	approx(t, session.EstimateTurn("gpt-5", 1_000_000).InputUSD, 1.25)
+}
+
 func TestFormatHelpers(t *testing.T) {
 	if got := FormatUSD(1.23456); got != "$1.2346" {
 		t.Errorf("FormatUSD = %q, want $1.2346 (4-decimal precision)", got)

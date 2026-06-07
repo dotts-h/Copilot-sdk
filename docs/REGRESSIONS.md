@@ -332,6 +332,30 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
   selectors route through one `composer()` helper. Guarded by `internal/web`
   `TestComposerRendersTextarea` / `TestComposerKeydownAndAutosizeWired` /
   `TestCommandsMenuPreservesMultilineSnippetBody`.
+- **A live price-override reprice must REBUILD from defaults and mutate the SHARED
+  price book in place — not Set incrementally, not swap the pointer.** The Settings
+  price-override editor (G1) applies `config.Telemetry.PriceOverrides` to the live meter
+  on save. Two ways to get it wrong: (1) **incrementally `Set`-ing** the overrides onto
+  the existing book would never *reset* a removed/lowered override back toward the default
+  (the book would keep a stale high rate forever) — so the save rebuilds a fresh book via
+  `telemetry.BuildPriceBook(overrides)` (`DefaultPriceBook` + overrides) every time; (2)
+  **swapping the meter's `pb` pointer** (e.g. a `Meter.SetPriceBook`) would reprice only
+  the account meter — every per-session meter is built on the **same** `*PriceBook` by
+  reference (`web.Hub.newSession` → `NewMeter(h.meter.PriceBook())`), so the statusline
+  (sessionMeter) would drift from the gate (account meter). Instead `(*PriceBook).Replace`
+  mutates the **shared** book's contents in place under the book's own RWMutex, so the
+  account meter AND every session meter reprice the next turn at once. A **blank/zero**
+  override row must not persist (it would price that model's turns at `$0`); a **negative**
+  rate is rejected by `config.Validate` and rolled back by `editConfig`. The `Replace`
+  runs **after** `editConfig` releases `forgeMu` and touches only the price book's leaf
+  lock, so it adds no lock-order risk (`forgeMu → s.mu` stays intact). No bug was shipped —
+  these were guarded preemptively. Guarded by `internal/telemetry`
+  `TestBuildPriceBookAppliesOverridesOverDefaults`, `TestBuildPriceBookRemovedOverrideRevertsToDefault`,
+  `TestPriceBookReplaceRepricesSharedMeters`; `internal/config`
+  `TestValidateRejectsBadValues`, `TestValidateAcceptsPriceOverrides`; `internal/web`
+  `TestSettingsSaveRoundTripsPriceOverrideAndRepricesLive` (asserts both the account and
+  session meters reprice — the no-drift guarantee), `TestSettingsSaveBlankPriceRowPersistsNoOverride`,
+  `TestSettingsSaveNegativeRateRollsBack`, `TestSettingsFormRendersPriceOverrideRows`.
 - **Go's `regexp` is RE2 — no backreferences.** A pattern like `([-*_])( *\1){2,}`
   panics at `MustCompile` ("invalid escape sequence: \1"). For repeated-char
   matching (e.g. the markdown horizontal rule), scan the string directly
