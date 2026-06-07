@@ -7,7 +7,7 @@ group:
 github:
 links:
   adr:
-  prs: [56]
+  prs: [56, 57]
   issues: [0031, 0032]
   regression:
 assets: []

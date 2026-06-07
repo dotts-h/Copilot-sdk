@@ -7,7 +7,7 @@ group: 0030
 github:
 links:
   adr: adr/0014-keybinding-surface-config-backed-keymap-with-minimal-js-dispatch.md
-  prs:
+  prs: [57]
   issues: [0030]
   regression: REGRESSIONS #18
 assets: []

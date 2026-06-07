@@ -44,4 +44,4 @@ issues are added or closed.
 | [0028](0028-per-session-cost-sessions-page.md) | Per-session cost on the Sessions page (item G2/V5) | closed | medium | 0024 | CONTRACTS §3/§4 |
 | [0029](0029-telemetry-spend-window-selector.md) | Telemetry spend-window selector (item G3/V9) | closed | medium | 0024 | CONTRACTS §3 |
 | [0031](0031-subagent-description-activity-strip.md) | Surface SubagentInfo.Description on the sub-agent activity strip (item V3) | closed | medium | 0030 | CONTRACTS §2, PR #56 |
-| [0032](0032-keybinding-live-apply.md) | Keybinding live-apply — rebind without a full page reload (item V10) | closed | low | 0030 | ADR-0014, TECH_DEBT #13, REGRESSIONS #18 |
+| [0032](0032-keybinding-live-apply.md) | Keybinding live-apply — rebind without a full page reload (item V10) | closed | low | 0030 | ADR-0014, TECH_DEBT #13, REGRESSIONS #18, PR #57 |
