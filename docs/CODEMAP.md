@@ -344,18 +344,20 @@ _Last generated: 2026-06-07 (UTC)._
 - L177: `func normalizeModel(m string) string`
 - L185: `func (r ModelRate) String() string`
 
-### runs.go (211 LOC)
-- L22: `type RunLane struct`
-- L33: `type RunRecord struct`
-- L48: `func (r RunRecord) Credits() float64`
-- L60: `func (r RunRecord) Duration() time.Duration`
-- L85: `type RunStore struct`
-- L93: `func LoadRunStore(dir string) (*RunStore, error)`
-- L103: `func stampRun(r RunRecord) RunRecord`
-- L117: `type RunAggregate struct`
-- L140: `func (a RunAggregate) FailureRate() float64`
-- L156: `func RunAggregates(records []RunRecord) []RunAggregate`
-- L206: `func laterRun(s2, f2, s1, f1 time.Time) bool`
+### runs.go (260 LOC)
+- L25: `type RunLane struct`
+- L36: `type RunRecord struct`
+- L51: `func (r RunRecord) Credits() float64`
+- L63: `func (r RunRecord) Duration() time.Duration`
+- L88: `type RunStore struct`
+- L96: `func LoadRunStore(dir string) (*RunStore, error)`
+- L106: `func stampRun(r RunRecord) RunRecord`
+- L120: `type RunAggregate struct`
+- L143: `func (a RunAggregate) FailureRate() float64`
+- L159: `func RunAggregates(records []RunRecord) []RunAggregate`
+- L214: `func WriteRunsCSV(w io.Writer, records []RunRecord) error`
+- L244: `func csvTime(t time.Time) string`
+- L255: `func laterRun(s2, f2, s1, f1 time.Time) bool`
 
 ### store.go (185 LOC)
 - L41: `type AppendOnlyStore[T any] struct`
@@ -459,7 +461,7 @@ _Last generated: 2026-06-07 (UTC)._
 - L184: `func (s *Server) handleAgentUpdate(w http.ResponseWriter, r *http.Request) { agentCRUD.Update(s, w, r) }`
 - L187: `func parseCSV(s string) []string`
 
-### hub.go (294 LOC)
+### hub.go (295 LOC)
 - L28: `type Hub struct`
 - L62: `type Options struct`
 - L84: `func New(opts Options) *Hub`
@@ -469,8 +471,8 @@ _Last generated: 2026-06-07 (UTC)._
 - L182: `func (h *Hub) route(copilotID string) *Server`
 - L198: `func (h *Hub) pump()`
 - L208: `func (h *Hub) Handler() http.Handler`
-- L287: `func (s *Server) Handler() http.Handler { return s.hub.Handler() }`
-- L290: `func newID() string`
+- L288: `func (s *Server) Handler() http.Handler { return s.hub.Handler() }`
+- L291: `func newID() string`
 
 ### instructions_import.go (65 LOC)
 - L31: `func importInstructionFiles(dir string) []ctxforge.Instruction`
@@ -505,7 +507,7 @@ _Last generated: 2026-06-07 (UTC)._
 - L333: `func (s *Server) handleMCPServerToggle(w http.ResponseWriter, r *http.Request)`
 - L339: `func (s *Server) handleMCPServerDelete(w http.ResponseWriter, r *http.Request)`
 
-### pages.go (639 LOC)
+### pages.go (655 LOC)
 - L48: `func clampWindow(raw string) int`
 - L64: `func (s *Server) renderPage(slug, window string) string`
 - L98: `func renderShortcuts(keymap []config.ResolvedKey) string`
@@ -530,14 +532,15 @@ _Last generated: 2026-06-07 (UTC)._
 - L499: `func (s *Server) agentLabel(id string) string`
 - L511: `func (s *Server) workflowLabel(id string) string`
 - L521: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
-- L533: `func (s *Server) skillsPartial() string`
-- L545: `func (s *Server) instructionsPartial() string`
-- L558: `func (s *Server) agentsPartial() string`
-- L582: `func addData(kind, noun string) map[string]any { return map[string]any{"Kind": kind, "Noun": noun} }`
-- L588: `func (s *Server) modelsPartial() string`
-- L618: `func (s *Server) settingsPartial() string`
-- L622: `func def(s, fallback string) string`
-- L630: `func truncate(s string, n int) string`
+- L537: `func (s *Server) handleRunsExport(w http.ResponseWriter, r *http.Request)`
+- L549: `func (s *Server) skillsPartial() string`
+- L561: `func (s *Server) instructionsPartial() string`
+- L574: `func (s *Server) agentsPartial() string`
+- L598: `func addData(kind, noun string) map[string]any { return map[string]any{"Kind": kind, "Noun": noun} }`
+- L604: `func (s *Server) modelsPartial() string`
+- L634: `func (s *Server) settingsPartial() string`
+- L638: `func def(s, fallback string) string`
+- L646: `func truncate(s string, n int) string`
 
 ### render.go (452 LOC)
 - L25: `func esc(s string) string`

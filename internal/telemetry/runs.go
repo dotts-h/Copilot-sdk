@@ -1,7 +1,10 @@
 package telemetry
 
 import (
+	"encoding/csv"
+	"io"
 	"sort"
+	"strconv"
 	"time"
 )
 
@@ -197,6 +200,52 @@ func RunAggregates(records []RunRecord) []RunAggregate {
 		return out[i].WorkflowID < out[j].WorkflowID
 	})
 	return out
+}
+
+// WriteRunsCSV writes the run history as CSV for export — the orchestration sibling
+// of the spend ledger's WriteCSV. It flattens to **one row per lane** (the run-level
+// columns repeated on each), so a branched run's SKIPPED lane — which leaves no spend
+// record and so can't appear in the spend export — is first-class here, the reason the
+// run store exists alongside the ledger (ADR-0022). Column order is fixed (CONTRACTS
+// §3); credits come straight off RunLane.Credits (already in credits, not USD); the
+// run-level durationSeconds is RunRecord.Duration in seconds. A run with no lanes emits
+// no rows (Validate enforces ≥1 step). Deterministic for the same input; pure (the only
+// IO is the writer the caller owns).
+func WriteRunsCSV(w io.Writer, records []RunRecord) error {
+	cw := csv.NewWriter(w)
+	if err := cw.Write([]string{
+		"run", "workflow", "name", "mode", "startedAt", "finishedAt",
+		"durationSeconds", "outcome", "lane", "agent", "status", "credits",
+	}); err != nil {
+		return err
+	}
+	for _, r := range records {
+		dur := csvFloat(r.Duration().Seconds())
+		started := csvTime(r.StartedAt)
+		finished := csvTime(r.FinishedAt)
+		for _, l := range r.Lanes {
+			row := []string{
+				r.ID, r.WorkflowID, r.Name, r.Mode, started, finished,
+				dur, r.Outcome,
+				strconv.Itoa(l.Index), l.AgentID, l.Status, csvFloat(l.Credits),
+			}
+			if err := cw.Write(row); err != nil {
+				return err
+			}
+		}
+	}
+	cw.Flush()
+	return cw.Error()
+}
+
+// csvTime formats a timestamp as RFC3339 UTC for CSV export, emitting an empty cell
+// for a zero time (an unfinished/unstamped run) rather than the "0001-01-01…" zero
+// value — so a spreadsheet reads a blank, not a bogus epoch.
+func csvTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format(time.RFC3339)
 }
 
 // laterRun reports whether the run (s2, f2) is strictly more recent than (s1, f1):

@@ -387,6 +387,16 @@ test.describe("multi-agent workflows", () => {
     await expect(page.locator("table.run-summary")).toBeVisible();
     await expect(page.locator(".run-summary-row").first()).toBeVisible();
     await expect(page.locator(".run-record .run-duration").first()).toBeVisible();
+
+    // The run history exports as a CSV (the orchestration sibling of the spend export):
+    // the link is present and the route streams a CSV with the documented header.
+    const runsLink = page.locator('#main a.export[href="/runs/export.csv"]');
+    await expect(runsLink).toBeVisible();
+    const runsRes = await page.request.get("/runs/export.csv");
+    expect(runsRes.status()).toBe(200);
+    expect(runsRes.headers()["content-type"]).toContain("text/csv");
+    expect(await runsRes.text()).toContain("run,workflow,name");
+
     const before = await page.locator(".run-record").count();
 
     // Run a workflow and wait for it to finish.

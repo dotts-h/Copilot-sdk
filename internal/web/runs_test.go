@@ -1,6 +1,9 @@
 package web
 
 import (
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -200,5 +203,77 @@ func TestRunsPartialEmpty(t *testing.T) {
 	html := s.runsPartial()
 	if !strings.Contains(html, "no runs yet") {
 		t.Errorf("empty runs partial should hint at no runs: %s", html)
+	}
+}
+
+func TestRunsExportReturnsCSV(t *testing.T) {
+	// The Runs page's export mirrors the spend ledger export: a CSV attachment over the
+	// persisted run history, so orchestration runs can be analysed outside the app.
+	s, _ := newTestServer()
+	rs := withRunStore(s)
+	if err := rs.Append(telemetry.RunRecord{
+		ID: "run-1", WorkflowID: "build-and-harden", Name: "Build & harden", Mode: "sequential",
+		StartedAt: time.Date(2026, 6, 6, 10, 0, 0, 0, time.UTC),
+		Outcome:   "finished",
+		Lanes:     []telemetry.RunLane{{Index: 0, AgentID: "builder", Status: "done", Credits: 2.6}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/runs/export.csv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/csv") {
+		t.Fatalf("Content-Type = %q, want text/csv", ct)
+	}
+	if cd := resp.Header.Get("Content-Disposition"); !strings.Contains(cd, "attachment") {
+		t.Fatalf("Content-Disposition = %q, want attachment", cd)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	out := string(body)
+	if !strings.Contains(out, "run,workflow,name") || !strings.Contains(out, "build-and-harden") {
+		t.Fatalf("CSV body missing header or data:\n%s", out)
+	}
+}
+
+func TestRunsExportHeaderOnlyWithoutStore(t *testing.T) {
+	// No run store wired (e.g. ephemeral chat-only build): the export is the header
+	// alone, never a 500 — mirrors the spend export's empty case.
+	s, _ := newTestServer() // s.runs == nil
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/runs/export.csv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.HasPrefix(string(body), "run,workflow,name") {
+		t.Fatalf("want header-only CSV, got:\n%s", body)
+	}
+}
+
+func TestRunsPageHasExportLink(t *testing.T) {
+	// The Runs page surfaces the export affordance only when history exists (mirroring
+	// the Telemetry "Spend history" export link).
+	s, _ := newTestServer()
+	rs := withRunStore(s)
+	if err := rs.Append(telemetry.RunRecord{
+		ID: "run-1", WorkflowID: "w", Name: "W", Mode: "sequential", Outcome: "finished",
+		Lanes: []telemetry.RunLane{{Index: 0, Status: "done"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	html := s.runsPartial()
+	if !strings.Contains(html, `href="/runs/export.csv"`) {
+		t.Fatalf("Runs page should carry the export link:\n%s", html)
 	}
 }

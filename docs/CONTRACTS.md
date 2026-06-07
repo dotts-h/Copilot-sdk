@@ -98,7 +98,7 @@ for the streaming/turn routes (`/events`, `/send`, the `/perm|ask|plan|elicit/{i
 | Core | `GET /` · `GET /events` (SSE) · `POST /send` · `POST /abort` |
 | Turn answers | `POST /perm/{id}` · `POST /ask/{id}` · `POST /plan/{id}` · `POST /elicit/{id}` · `POST /budget/{action}` |
 | Navigation | `GET /page/{name}` · `GET /commands` · `GET /static/…` |
-| Telemetry | `GET /telemetry/export.csv` |
+| Telemetry | `GET /telemetry/export.csv` · `GET /runs/export.csv` |
 | Skills | `GET /skills/new` · `GET /skills/{id}/edit` · `POST /skills` · `POST /skills/{id}` · `POST /skills/{id}/toggle` · `POST /skills/{id}/delete` |
 | Instructions | `POST /instructions/import` · `GET /instructions/new` · `GET /instructions/{id}/edit` · `POST /instructions` · `POST /instructions/{id}` · `POST /instructions/{id}/toggle` · `POST /instructions/{id}/delete` |
 | Agents | `GET /agents/new` · `GET /agents/{id}/edit` · `POST /agents` · `POST /agents/{id}` · `POST /agents/{id}/select` · `POST /agents/{id}/delete` |
@@ -184,6 +184,19 @@ one row per metered turn). The `agent,workflow,lane` attribution columns are
 (backward-compatible header bump). Empty (header only) when no ledger is wired. —
 see [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md),
 [ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md)
+
+`GET /runs/export.csv` (item V11) is the **orchestration sibling** of the spend
+export: it streams the full persisted **workflow-run history** as a CSV attachment
+(`telemetry.WriteRunsCSV` → header
+`run,workflow,name,mode,startedAt,finishedAt,durationSeconds,outcome,lane,agent,status,credits`).
+It flattens to **one row per lane** (run-level columns repeated on each), so a
+branched run's **skipped** lane — which leaves no spend record, the reason the run
+store exists alongside the ledger — is first-class in the export (something the spend
+CSV can't carry). Empty (header only) when no run store is wired. A **pure-reader +
+route** composition over the existing v1 run records — no schema change, no new store,
+no ADR (pre-blessed by the ADR-0009 export precedent). — see
+[ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md),
+[ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md)
 
 The **Telemetry page** (`GET /page/telemetry`) reads the persisted ledger account-wide
 (month-to-date budget rows, the spend-over-time trend, per-model / per-agent / per-workflow
@@ -446,6 +459,14 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   can't answer. The Runs page (§3) renders a per-workflow summary from `RunAggregates`
   above the history and a duration cell per run; the **Workflows page** (§3) badges each
   row with the last-run signal + run count joined to `WorkflowShares` spend. — see
+  [ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md)
+  **CSV export (pure reader — V11):** `telemetry.WriteRunsCSV(w io.Writer, records
+  []RunRecord) error` is the orchestration sibling of `WriteCSV` — it flattens the run
+  history to **one row per lane** (run-level columns repeated) with the fixed header
+  `run,workflow,name,mode,startedAt,finishedAt,durationSeconds,outcome,lane,agent,status,credits`,
+  so a branched run's **skipped** lane (which leaves no spend record) is first-class.
+  Streamed by `GET /runs/export.csv` (§3); pure (the writer is the only IO), no schema
+  change, no ADR. — see
   [ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md)
 
 ## 5. Invariants (promises that aren't a signature)

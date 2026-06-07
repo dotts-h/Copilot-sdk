@@ -530,6 +530,22 @@ func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleRunsExport streams the full persisted workflow-run history as a CSV download —
+// the orchestration sibling of handleSpendExport — so runs (including skipped branches,
+// which leave no spend record) can be analysed outside the app. Empty (header only) when
+// no run store is wired.
+func (s *Server) handleRunsExport(w http.ResponseWriter, r *http.Request) {
+	var records []telemetry.RunRecord
+	if s.runs != nil {
+		records = s.runs.Records()
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="my-orchestra-runs.csv"`)
+	if err := telemetry.WriteRunsCSV(w, records); err != nil {
+		s.logger.Printf("export runs csv: %v", err)
+	}
+}
+
 func (s *Server) skillsPartial() string {
 	s.hub.forgeMu.Lock()
 	defer s.hub.forgeMu.Unlock()

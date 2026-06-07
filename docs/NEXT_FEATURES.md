@@ -235,6 +235,105 @@ issue takes **0023** (next free after 0021). No ADR is consumed by the aggregati
 
 ---
 
+## Roadmap v6 — orchestration accountability (code re-read 2026-06-07)
+
+> Fresh pass appended this session. Roadmaps **v1–v5** are shipped and closed (epics
+> 0001/0005/0007/0013/0022/0024/0030); their picks are summarized above + in the
+> appendices. This section grounds the **next** candidates in the current code, after H1
+> collapsed both stores onto one `telemetry.AppendOnlyStore[T]` (epic 0030). The v6 epic
+> takes **0031**; its first child takes issue **0034** (next free after 0033). No ADR is
+> consumed (the first pick is a pure additive reader + route).
+
+### The teed-up paydown (TECH_DEBT #8) — validated, then superseded
+
+The carried lead-in for this pass was TECH_DEBT #8: now that both stores share one
+`AppendOnlyStore[T]`, switch the persistence to an **append-only JSONL log** for O(1)
+appends behind the same generic API. The research **rejects** it as the v6 build, on the
+evidence:
+
+- **ADR-0009 already considered and rejected JSON Lines**, explicitly, with reasoning
+  that still holds: JSONL with `O_APPEND` is genuinely O(1) on disk, *but* it abandons
+  the **temp-file+rename atomicity the codebase standardises on** across config / forge /
+  spend, and a torn final line needs bespoke recovery. "For this localhost single-user
+  tool the per-turn volume is tiny, so the O(n) full rewrite is a non-issue and buys one
+  consistent persistence pattern."
+- The **#8 trigger is unmet.** Its own row says pay it down "when turn volume or session
+  count makes the per-turn rewrite visible" — at one record per turn on a localhost tool,
+  the write is sub-millisecond and the rewrite is invisible. Severity *low*, interest
+  *low*.
+- Reversing a sound, accepted ADR (changing a persisted on-disk contract, adding
+  torn-line recovery + a migration) **to fix a non-problem** is negative-value. #8 stays
+  a candidate, deferred to its trigger.
+
+So v6 is a **product** epic, not this paydown.
+
+### Where the product is now (v6 framing)
+
+Both differentiators are deep *and* surfaced. The fresh leverage is **not more depth**
+within either — it's the **parity gap between the two persisted stores' surfaces.** The
+**cost** ledger (`SpendStore`) is a mature accountable surface: a windowed trend,
+per-model/agent/workflow shares, a burn-rate forecast, **and a CSV export**
+(`WriteCSV` → `/telemetry/export.csv`). Its orchestration sibling, the **run history**
+(`RunStore`, ADR-0022), has a Runs view with a per-workflow roll-up + per-lane breakdown
+— but **can't be exported**, has **no window selector**, and surfaces only *average*
+cost. A run records **skipped** branches that leave no spend record (the reason the store
+exists), so it holds data the spend export can't — yet that data can't leave the tool.
+
+### Tier J — bring the Runs surface to cost-surface parity (pure readers / UI composition)
+
+Ranked by value × fit; all are pure readers / presentation-layer compositions over the
+**existing v1 run records** — no schema change, no new store.
+
+#### V11 — Runs CSV export — **S** · **BUILD FIRST** · *first child of epic 0031*
+- **What:** `telemetry.WriteRunsCSV(w, records)` (the sibling of `WriteCSV`) flattening
+  the run history to **one row per lane** (run-level columns repeated) so a branched
+  run's **skipped** lane is first-class; a `GET /runs/export.csv` route
+  (`handleRunsExport`, sibling of `handleSpendExport`); an "Export CSV" link on the Runs
+  page. Columns: `run, workflow, name, mode, startedAt, finishedAt, durationSeconds,
+  outcome, lane, agent, status, credits`.
+- **Why now:** completes the **accountable** half of the orchestration story — the run
+  history becomes exportable like the cost ledger, and the export carries the
+  skipped-branch data unique to the run store. Lowest-risk: mirrors the proven, tested
+  spend-export pattern end-to-end. Highest value × fit of the parity gaps.
+- **Touches:** `internal/telemetry` (`runs.go`: `WriteRunsCSV`, `csvTime`),
+  `internal/web` (`pages.go` `handleRunsExport`, `hub.go` route,
+  `templates/fragments.html` `runsPage` link).
+- **No ADR** (pure additive reader + route, pre-blessed by the ADR-0009 export
+  precedent). **Issue [0034](issues/0034-runs-csv-export.md); epic
+  [0031](issues/0031-epic-orchestration-accountability.md).**
+
+#### V12 — Runs time-window selector — **S** · candidate
+- **What:** mirror the Telemetry trend's 14/30/90-day selector on the Runs page,
+  threading a clamped `?window=` (reuse `clampWindow`) so a long run history can be
+  sliced. **Touches:** `internal/web` (`runs.go` `runsPartial`, `handlePage`,
+  `templates`). Presentation-layer slice; **no schema change, no ADR.**
+
+#### V13 — Total cost on the per-workflow Runs summary — **S** · candidate
+- **What:** the Runs summary table shows `AvgCredits` but not `TotalCredits` (already on
+  `RunAggregate`); add the column so a workflow's *cumulative* orchestrated spend reads
+  beside its average. **Touches:** `internal/web` (`runs.go` `runSummaryRow`,
+  `templates`). **No schema change, no ADR.**
+
+#### V14 — Per-lane cost roll-up — **M** · candidate
+- **What:** a `LaneShares`-style pure reader keyed by (workflow, lane) over the run
+  history (or the `WorkflowID`+`LaneIndex`-tagged spend records, ADR-0018), surfacing
+  *"which lane in a workflow costs / fails most?"* — the finest orchestration-attribution
+  grain, currently computed nowhere. **Touches:** `internal/telemetry` (new reader),
+  `internal/web` (Telemetry or Runs section). **No schema change**; an ADR only if it
+  introduces a cross-package seam (it shouldn't).
+
+### Recommended sequencing (v6)
+
+1. **V11 — Runs CSV export** *(BUILD FIRST)*. Closes the export parity gap; S; pure
+   reader + route; mirrors the spend export. → issue **0034**, epic **0031**.
+2. **V13 → V12** — total-cost column, then the window selector: smallest parity gaps,
+   compounding, both presentation-layer.
+3. **V14** — per-lane roll-up: the one new *analytical* reader, once the cheaper parity
+   gaps are closed.
+4. **TECH_DEBT #8** only when its volume trigger actually fires.
+
+---
+
 ## Appendix — roadmap v2 (shipped, epic 0013, for context)
 
 | item | feature | ADR | issue |
