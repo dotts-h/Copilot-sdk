@@ -171,10 +171,11 @@ differentiator is folded in where it earns its place.
 
 ## Tier I — small surface polish (pull opportunistically)
 
-- **V3 — surface `SubagentInfo.Description`** (S, orchestration): the SDK populates it
-  (`normalize.go:89`) but `renderSubagents` (`render.go:283`) drops it — show it as a
-  chip tooltip/subline so concurrent sub-agents during a parallel run say *what* they're
-  doing.
+- **V3 — surface `SubagentInfo.Description`** ✅ **shipped** (roadmap v5, epic 0030, issue
+  [0031](issues/0031-subagent-description-activity-strip.md)): the SDK populated it
+  (`normalize.go`) but `renderSubagents` (`render.go`) dropped it — now the `subagentChip`
+  surfaces it as a `title=` tooltip (escaped per ADR-0001) so concurrent sub-agents during
+  a parallel run say *what* they're doing; an empty description renders the prior chip.
 - **V10 — keybinding live-apply** (S, polish): TECH_DEBT #13 — a rebind takes effect only
   on the next full page load; an OOB swap of `<body data-keymap>` + the help overlay on
   the Settings POST closes it.

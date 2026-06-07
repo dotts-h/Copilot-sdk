@@ -405,9 +405,9 @@ _Last generated: 2026-06-07 (UTC)._
 - L384: `func isNavSlug(slug string) bool`
 - L395: `func commandHelp() string`
 
-### demo.go (129 LOC)
+### demo.go (131 LOC)
 - L16: `func streamDemoReply(m *copilot.MockClient, prompt string)`
-- L120: `func tokenize(s string) []string`
+- L122: `func tokenize(s string) []string`
 
 ### diff.go (157 LOC)
 - L15: `type diffLineKind int`
@@ -532,7 +532,7 @@ _Last generated: 2026-06-07 (UTC)._
 - L589: `func def(s, fallback string) string`
 - L597: `func truncate(s string, n int) string`
 
-### render.go (444 LOC)
+### render.go (452 LOC)
 - L25: `func esc(s string) string`
 - L31: `func deltaSpan(text string) string { return frag("deltaSpan", text) }`
 - L34: `func renderTurn(t convo.Turn) string`
@@ -551,15 +551,15 @@ _Last generated: 2026-06-07 (UTC)._
 - L235: `func elicitFieldView(f copilot.ElicitField) map[string]any`
 - L260: `func elicitFieldKey(name string) string { return "f." + name }`
 - L264: `func subagentLabel(sa copilot.SubagentInfo) string`
-- L277: `func renderSubagents(active []copilot.SubagentInfo) string`
-- L292: `func renderStatus(text string, active bool, startMs int64) string`
-- L300: `func renderCtx(cur, limit int64, compacting bool) string`
-- L335: `func renderStatline(s *Server) string`
-- L382: `func statlineForecast(s *Server, now time.Time) (show bool, short string, warn bool, title string)`
-- L396: `func humanTokens(n int64) string`
-- L412: `func renderCostFooter(credits float64, budget telemetry.Budget) string`
-- L429: `func renderBudgetForm(projected, capCredits float64) string`
-- L438: `func clampLines(s string, n int) string`
+- L279: `func renderSubagents(active []copilot.SubagentInfo) string`
+- L300: `func renderStatus(text string, active bool, startMs int64) string`
+- L308: `func renderCtx(cur, limit int64, compacting bool) string`
+- L343: `func renderStatline(s *Server) string`
+- L390: `func statlineForecast(s *Server, now time.Time) (show bool, short string, warn bool, title string)`
+- L404: `func humanTokens(n int64) string`
+- L420: `func renderCostFooter(credits float64, budget telemetry.Budget) string`
+- L437: `func renderBudgetForm(projected, capCredits float64) string`
+- L446: `func clampLines(s string, n int) string`
 
 ### runs.go (120 LOC)
 - L23: `func (s *Server) runsPartial() string`

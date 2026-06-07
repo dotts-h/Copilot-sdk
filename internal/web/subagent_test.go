@@ -22,6 +22,12 @@ func subStart(tc, name string) copilot.Event {
 	}}
 }
 
+func subStartDesc(tc, name, desc string) copilot.Event {
+	return copilot.Event{Type: copilot.EvSubagentStart, Subagent: &copilot.SubagentInfo{
+		ToolCallID: tc, Name: "explorer", DisplayName: name, Description: desc, Model: "sonnet",
+	}}
+}
+
 func subEnd(tc, name string, ok bool, detail string) copilot.Event {
 	return copilot.Event{Type: copilot.EvSubagentEnd, Subagent: &copilot.SubagentInfo{
 		ToolCallID: tc, Name: "explorer", DisplayName: name, Success: ok, Detail: detail,
@@ -79,6 +85,37 @@ func TestClearResetsSubagents(t *testing.T) {
 	}
 	if !strings.Contains(out, `id="subagents"`) {
 		t.Errorf("clear should OOB-clear the #subagents strip: %s", out)
+	}
+}
+
+func TestSubagentChipSurfacesDescription(t *testing.T) {
+	s, _ := newTestServer()
+	html := fragFor(s, subStartDesc("tc-1", "Explore", "search the repo"), "subagents")
+	if !strings.Contains(html, `title="search the repo"`) {
+		t.Errorf("chip should surface the description as a title tooltip: %q", html)
+	}
+}
+
+func TestSubagentChipEmptyDescriptionKeepsPriorShape(t *testing.T) {
+	s, _ := newTestServer()
+	// subStart leaves Description empty — the chip must render no title attribute,
+	// preserving the prior shape (not every sub-agent carries a description).
+	html := fragFor(s, subStart("tc-1", "Explore"), "subagents")
+	if strings.Contains(html, "title=") {
+		t.Errorf("an empty description must not render a title attribute: %q", html)
+	}
+}
+
+func TestSubagentChipEscapesDescription(t *testing.T) {
+	s, _ := newTestServer()
+	// Description is model/SDK-originated text → it must be HTML-escaped (ADR-0001),
+	// mirroring TestWorkflowLanesEscapeModelText.
+	html := fragFor(s, subStartDesc("tc-1", "Explore", "<b>grep</b> & scan"), "subagents")
+	if strings.Contains(html, "<b>grep</b>") {
+		t.Fatalf("description must be HTML-escaped, not raw: %q", html)
+	}
+	if !strings.Contains(html, "&lt;b&gt;grep&lt;/b&gt;") || !strings.Contains(html, "&amp;") {
+		t.Errorf("description not escaped as expected: %q", html)
 	}
 }
 

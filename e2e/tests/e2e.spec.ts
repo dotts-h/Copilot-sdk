@@ -48,10 +48,14 @@ test.describe("streaming a turn", () => {
     await expect(page.locator(sel.reasoning).last()).toBeVisible();
     // The tool call renders as a first-class timeline card with its name.
     await expect(page.locator(sel.tool).filter({ hasText: "bash" }).last()).toBeVisible();
-    // The streamed answer finalizes into an assistant turn echoing the prompt.
-    await expect(page.locator(sel.agentTurn).last()).toContainText("You said: summarize the repo", {
-      timeout: 15_000,
-    });
+    // The streamed answer finalizes into a committed assistant turn echoing the
+    // prompt. Target the committed turn (`:not(#cur)`) rather than `.last()`, which
+    // also matches the transient `#cur` streaming buffer — otherwise the assertion
+    // races the buffer reset that fires when EvMessage commits (mirrors the
+    // `:not(#cur)` idiom already used by the budget-guardrails spec below).
+    await expect(
+      page.locator(`${sel.agentTurn}:not(#cur)`).filter({ hasText: "You said: summarize the repo" }).last(),
+    ).toBeVisible({ timeout: 15_000 });
   });
 
   test("the cost footer and context meter update after a turn", async ({ page }) => {
@@ -87,6 +91,16 @@ test.describe("streaming a turn", () => {
     await send(page, "spend some credits");
     // Sending a prompt bumps the messages-sent counter immediately (OOB refresh).
     await expect.poll(msgs, { timeout: 15_000 }).toBeGreaterThan(before);
+  });
+
+  test("the sub-agent activity strip surfaces each agent's description", async ({ page }) => {
+    await gotoApp(page);
+    await send(page, "explore");
+    // While the scripted sub-agent runs, its chip carries the agent's description
+    // as a title tooltip so a watcher can see WHAT each concurrent agent is doing.
+    // Assert STRUCTURE (a non-empty title attribute), never the exact text.
+    const chip = page.locator(`${sel.subagents} .subagent-chip`).first();
+    await expect(chip).toHaveAttribute("title", /\S/, { timeout: 15_000 });
   });
 
   test("the sub-agent activity strip does not leak a chip after the turn settles", async ({ page }) => {

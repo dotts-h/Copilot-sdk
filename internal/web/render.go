@@ -274,13 +274,21 @@ func subagentLabel(sa copilot.SubagentInfo) string {
 
 // renderSubagents renders the background-activity strip: one animated chip per
 // running sub-agent. Empty when nothing is running, so the strip is ambient.
+// Each chip surfaces the sub-agent's Description as a title= tooltip so that,
+// during a parallel run, concurrent sub-agents say *what* they are doing.
 func renderSubagents(active []copilot.SubagentInfo) string {
 	if len(active) == 0 {
 		return ""
 	}
 	var b strings.Builder
 	for _, sa := range active {
-		b.WriteString(frag("subagentChip", map[string]any{"Label": subagentLabel(sa), "Model": sa.Model}))
+		// Description is model/SDK-originated text → it flows through html/template
+		// auto-escaping (attribute context) exactly like Label, never trusted() raw
+		// (ADR-0001). Empty descriptions render the prior chip shape: the template
+		// omits the title attribute entirely.
+		b.WriteString(frag("subagentChip", map[string]any{
+			"Label": subagentLabel(sa), "Model": sa.Model, "Description": sa.Description,
+		}))
 	}
 	return b.String()
 }

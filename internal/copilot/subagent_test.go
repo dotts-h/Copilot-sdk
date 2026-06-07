@@ -29,6 +29,9 @@ func TestHandlerMapsSubagentLifecycle(t *testing.T) {
 	if start.Subagent.DisplayName != "Explore" || start.Subagent.ToolCallID != "tc-1" || start.Subagent.Model != model {
 		t.Fatalf("start subagent not normalized: %+v", start.Subagent)
 	}
+	if start.Subagent.Description != "search the repo" {
+		t.Fatalf("AgentDescription not mapped to Description: %+v", start.Subagent)
+	}
 	end := <-c.events
 	if end.Type != EvSubagentEnd || end.Subagent == nil || !end.Subagent.Success {
 		t.Fatalf("end: %+v", end)
