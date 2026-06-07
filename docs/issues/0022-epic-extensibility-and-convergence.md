@@ -40,8 +40,8 @@ in `NEXT_FEATURES.md` until promoted.
 
 ## Tasks
 
-- [ ] **C1 — MCP secrets / Env editor** → [0019](0019-mcp-secrets-env-editor.md)
-      (ADR-0020, promotes TECH_DEBT #10). A masked `Env` editor on the MCP form whose
+- [x] **C1 — MCP secrets / Env editor** → [0019](0019-mcp-secrets-env-editor.md)
+      (ADR-0020, promotes TECH_DEBT #10) — **shipped**. A masked `Env` editor on the MCP form whose
       secret rows persist only a `${VAR}` **reference** (resolved from the environment
       at session start via `web.MCPServerSpecs`, behind a lookup seam) — **no secret at
       rest**, following the `config.GitHubTokenEnv` precedent. Unblocks key-requiring
@@ -58,9 +58,10 @@ in `NEXT_FEATURES.md` until promoted.
 
 ## Status
 
-**Open.** Build-first sequence: **C1 → V1**. C1 first (extensibility gate; ADR-0020
-already decided; claims reserved 0019/0020); then V1 (pure-reader convergence; lowest
-risk, builds on B3). Everything else stays a candidate in `NEXT_FEATURES.md`.
+**Open.** Build-first sequence: **C1 → V1**. **C1 shipped** (the MCP Env editor /
+secret references, ADR-0020 — extensibility gate opened). **V1 next** (pure-reader
+convergence; lowest risk, builds on B3). Everything else stays a candidate in
+`NEXT_FEATURES.md`.
 
 ## Notes
 

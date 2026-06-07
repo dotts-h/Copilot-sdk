@@ -39,7 +39,12 @@ to the SDK session's `AvailableTools`. — see [ADR-0003](adr/0003-claude-cli-st
 `MCPServers` carries the forge's **enabled** servers (compiled in, translated via
 `web.MCPServerSpecs`); each `copilot.MCPServer` registers under its unique `Key()`
 (its `ID`, or `Name` for legacy callers) so a non-unique `Name` can't collide in the
-SDK config map. — see [ADR-0010](adr/0010-mcp-server-management-page-curated-defaults-disabled-with-preflight.md)
+SDK config map. `MCPServerSpecs` is also where each server's `Env` is resolved:
+a value of the reference shape `${VAR_NAME}` is expanded via a lookup seam
+(default `os.Getenv`) and a reference that resolves empty is left **unset** (never
+forwarded as the literal `${VAR_NAME}`). — see
+[ADR-0010](adr/0010-mcp-server-management-page-curated-defaults-disabled-with-preflight.md),
+[ADR-0020](adr/0020-mcp-secrets-via-env-var-reference-indirection.md)
 
 ## 2. Normalized event vocabulary — `EventType` (`Ev*`)
 
@@ -165,10 +170,17 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
 - **`ctxforge.Skill`** (`types.go:22`), **`ctxforge.Instruction`** (`types.go:35`).
 - **`ctxforge.MCPServer`** (`types.go:77`): `id, name, command, args?, env?, enabled`.
   A stdio server: `command`+`args` are exec'd by the runtime (`MCPStdioServerConfig`).
-  Managed via the MCP page (validated builders, rollback-on-invalid). `env` is **not**
-  edited in the UI (no secrets surface yet) but is preserved across edits. Curated
-  defaults are seeded **disabled** and key-free; the page preflights `command` on
-  `PATH`. — see [ADR-0010](adr/0010-mcp-server-management-page-curated-defaults-disabled-with-preflight.md)
+  Managed via the MCP page (validated builders, rollback-on-invalid). `env` is **edited
+  via masked key/value rows**: a literal value persists verbatim, while a **secret** row
+  persists **only** a `${VAR}` reference (the on-disk shape `[A-Z_][A-Z0-9_]*`), never
+  the secret itself — it is resolved from the process environment at session start
+  (`web.MCPServerSpecs`, behind a lookup seam), following the `config.GitHubTokenEnv`
+  precedent (**no secret at rest**). A pre-C1 forge (all literal values) loads
+  identically. Curated defaults are seeded **disabled** and key-free; the page
+  preflights `command` on `PATH` and flags an enabled server's `${VAR}` that resolves
+  empty. — see
+  [ADR-0010](adr/0010-mcp-server-management-page-curated-defaults-disabled-with-preflight.md),
+  [ADR-0020](adr/0020-mcp-secrets-via-env-var-reference-indirection.md)
 - **`ctxforge.Workflow`** / **`ctxforge.WorkflowStep`** (`workflow.go`): a multi-agent
   run. `Workflow` is `{id, name, description, mode, steps}` where `mode` ∈
   {`sequential`, `parallel`} (`""` reads as sequential); each `WorkflowStep` is

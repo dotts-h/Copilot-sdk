@@ -86,7 +86,7 @@ func Build(configDir string, demo bool) (srv *web.Hub, close func(), err error) 
 	if err != nil {
 		log.Printf("compile default agent %q: %v", cfg.DefaultAgent, err)
 	}
-	spec := web.SeamSpec(cspec, cfg.DefaultModel, cfg.ReasoningEffort)
+	spec := web.SeamSpec(cspec, cfg.DefaultModel, cfg.ReasoningEffort, os.Getenv)
 
 	var client copilot.Client
 	var closeFn func()

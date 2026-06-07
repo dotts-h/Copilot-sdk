@@ -54,8 +54,12 @@ type Server struct {
 	// isolating the one impurity behind a seam (defaults to exec.LookPath; tests
 	// inject a fake).
 	lookPath func(string) (string, error)
-	logger   *log.Logger
-	demo     bool
+	// lookupEnv resolves an MCP Env ${VAR} reference at the forge→seam boundary
+	// and in the secrets preflight (ADR-0020), behind a seam so tests inject a
+	// fake env without touching the process environment (defaults to os.Getenv).
+	lookupEnv func(string) string
+	logger    *log.Logger
+	demo      bool
 
 	mu          sync.Mutex
 	spec        copilot.SessionSpec // per-session model/effort (mutable via /model, /agent)

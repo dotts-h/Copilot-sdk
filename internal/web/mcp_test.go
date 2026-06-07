@@ -19,7 +19,11 @@ func TestMCPNewForm(t *testing.T) {
 	defer srv.Close()
 
 	body := get(t, srv, "/mcp/new")
-	for _, sub := range []string{`<form`, `hx-post="/mcp"`, `name="id"`, `name="command"`, `name="args"`, `name="name"`} {
+	for _, sub := range []string{
+		`<form`, `hx-post="/mcp"`, `name="id"`, `name="command"`, `name="args"`, `name="name"`,
+		// The Env editor renders repeatable masked key/value/secret rows (ADR-0020).
+		`name="env.key.0"`, `name="env.val.0"`, `name="env.secret.0"`, `env-editor`,
+	} {
 		if !strings.Contains(body, sub) {
 			t.Errorf("new MCP form missing %q: %s", sub, body)
 		}
@@ -89,17 +93,51 @@ func TestMCPEditFormPrefilled(t *testing.T) {
 	}
 }
 
-func TestMCPUpdatePreservesEnv(t *testing.T) {
+// TestMCPEditFormShowsEnvRows: editing a server with an existing Env preloads
+// its rows — a literal as a plain row, a ${VAR} reference as a masked secret row
+// showing the bare VAR_NAME (never a raw secret).
+func TestMCPEditFormShowsEnvRows(t *testing.T) {
 	s, _ := newTestServer()
 	s.forge.MCPServers = []ctxforge.MCPServer{{
-		ID: "fetch", Name: "fetch", Command: "uvx", Env: map[string]string{"TOKEN": "secret"}, Enabled: true,
+		ID: "gh", Name: "github", Command: "uvx",
+		Env: map[string]string{"REGION": "eu", "GITHUB_TOKEN": "${GH_PAT}"}, Enabled: true,
 	}}
 	srv := httptest.NewServer(s.Handler())
 	defer srv.Close()
 
-	// The form has no env field; an edit must not wipe a manually-set Env.
+	body := get(t, srv, "/mcp/gh/edit")
+	// Literal row round-trips its value in a plain text input.
+	if !strings.Contains(body, `value="REGION"`) || !strings.Contains(body, `value="eu"`) {
+		t.Errorf("literal env row not prefilled: %s", body)
+	}
+	// Secret row shows the VAR_NAME masked, with the secret box checked — and the
+	// reference's ${…} wrapper never leaks into the value attribute.
+	if !strings.Contains(body, `value="GITHUB_TOKEN"`) || !strings.Contains(body, `value="GH_PAT"`) {
+		t.Errorf("secret env row not prefilled with VAR_NAME: %s", body)
+	}
+	if strings.Contains(body, `value="${GH_PAT}"`) {
+		t.Errorf("secret value input must show the bare VAR_NAME, not the ${...} reference: %s", body)
+	}
+	if !strings.Contains(body, `type="password"`) {
+		t.Errorf("secret value input should be masked: %s", body)
+	}
+}
+
+// TestMCPUpdateRoundTripsEnvViaEditor: the masked editor is authoritative on
+// save. A literal row persists verbatim; a secret row persists ONLY the
+// ${VAR_NAME} reference (never the raw value field) — the core ADR-0020 guard.
+func TestMCPUpdateRoundTripsEnvViaEditor(t *testing.T) {
+	s, _ := newTestServer()
+	s.forge.MCPServers = []ctxforge.MCPServer{{
+		ID: "fetch", Name: "fetch", Command: "uvx", Enabled: true,
+	}}
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
 	resp, err := http.PostForm(srv.URL+"/mcp/fetch", url.Values{
 		"id": {"fetch"}, "name": {"Fetch v2"}, "command": {"uvx"},
+		"env.key.0": {"REGION"}, "env.val.0": {"eu"}, // literal
+		"env.key.1": {"GITHUB_TOKEN"}, "env.val.1": {"GH_PAT"}, "env.secret.1": {"1"}, // secret
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -109,8 +147,103 @@ func TestMCPUpdatePreservesEnv(t *testing.T) {
 	if got.Name != "Fetch v2" {
 		t.Fatalf("update did not apply: %+v", got)
 	}
-	if got.Env["TOKEN"] != "secret" {
-		t.Errorf("update should preserve Env, got %+v", got.Env)
+	if got.Env["REGION"] != "eu" {
+		t.Errorf("literal env value should round-trip verbatim, got %q", got.Env["REGION"])
+	}
+	// Only the reference is on disk — the var name wrapped, and crucially nothing
+	// that looks like the raw secret the value field might have carried.
+	if got.Env["GITHUB_TOKEN"] != "${GH_PAT}" {
+		t.Errorf("secret row should persist only the ${VAR} reference, got %q", got.Env["GITHUB_TOKEN"])
+	}
+}
+
+// TestMCPCreateRejectsMalformedSecretRef: a secret row whose value isn't a valid
+// UPPER_SNAKE environment-variable name is rejected (re-render with error), so a
+// reference that could never expand is never written — which would otherwise be
+// sent to the runtime as an unexpanded literal.
+func TestMCPCreateRejectsMalformedSecretRef(t *testing.T) {
+	s, _ := newTestServer()
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	resp, err := http.PostForm(srv.URL+"/mcp", url.Values{
+		"id": {"bad"}, "name": {"Bad"}, "command": {"uvx"},
+		"env.key.0": {"TOKEN"}, "env.val.0": {"not a var name"}, "env.secret.0": {"1"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if len(s.forge.MCPServers) != 0 {
+		t.Fatalf("server with a malformed secret reference must not be added: %+v", s.forge.MCPServers)
+	}
+	if !strings.Contains(string(body), `<form`) || !strings.Contains(string(body), "error") {
+		t.Errorf("malformed secret ref should reshow the form with an error: %s", body)
+	}
+	// The user's work is preserved on the error re-render (their typed rows).
+	if !strings.Contains(string(body), `value="TOKEN"`) {
+		t.Errorf("error re-render should preserve the typed env rows: %s", body)
+	}
+}
+
+// TestMCPServerSpecsResolvesEnv exercises the forge→seam secret resolution
+// (ADR-0020) behind an injected env lookup: a literal passes through, a resolved
+// ${VAR} expands to its value, and an UNRESOLVED ${VAR} is left unset — never
+// forwarded as the literal "${VAR}" string.
+func TestMCPServerSpecsResolvesEnv(t *testing.T) {
+	in := []ctxforge.MCPServer{{
+		ID: "gh", Name: "github", Command: "uvx", Enabled: true,
+		Env: map[string]string{
+			"REGION":       "eu",        // literal
+			"GITHUB_TOKEN": "${GH_PAT}", // resolves
+			"EXTRA_KEY":    "${ABSENT}", // unresolved → unset
+		},
+	}}
+	env := map[string]string{"GH_PAT": "ghp_xxx"} // ABSENT deliberately missing
+	got := MCPServerSpecs(in, func(k string) string { return env[k] })
+	if len(got) != 1 {
+		t.Fatalf("expected one spec, got %d", len(got))
+	}
+	gotEnv := got[0].Env
+	if gotEnv["REGION"] != "eu" {
+		t.Errorf("literal should pass through, got %q", gotEnv["REGION"])
+	}
+	if gotEnv["GITHUB_TOKEN"] != "ghp_xxx" {
+		t.Errorf("resolved reference should expand to the env value, got %q", gotEnv["GITHUB_TOKEN"])
+	}
+	if v, ok := gotEnv["EXTRA_KEY"]; ok {
+		t.Errorf("unresolved reference must be left unset, not sent as %q", v)
+	}
+}
+
+// TestMCPPreflightFlagsUnresolvedEnv: the page preflight flags an ENABLED
+// server whose ${VAR} resolves empty (behind the injected env seam) with a
+// "missing key" badge, and does not flag a disabled one or a resolved reference.
+func TestMCPPreflightFlagsUnresolvedEnv(t *testing.T) {
+	s, _ := newTestServer()
+	s.forge.MCPServers = []ctxforge.MCPServer{
+		{ID: "needs", Name: "needs", Command: "present-cmd", Enabled: true, Env: map[string]string{"GITHUB_TOKEN": "${MISSING_PAT}"}},
+		{ID: "ok", Name: "ok", Command: "present-cmd", Enabled: true, Env: map[string]string{"GITHUB_TOKEN": "${HAVE_PAT}"}},
+		{ID: "off", Name: "off", Command: "present-cmd", Enabled: false, Env: map[string]string{"GITHUB_TOKEN": "${MISSING_PAT}"}},
+	}
+	s.lookPath = func(string) (string, error) { return "/usr/bin/present-cmd", nil }
+	s.lookupEnv = func(k string) string {
+		if k == "HAVE_PAT" {
+			return "ghp_present"
+		}
+		return ""
+	}
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	body := get(t, srv, "/page/mcp")
+	// Exactly the enabled-with-unresolved-ref row is flagged missing-key.
+	if n := strings.Count(body, "missing-key"); n != 1 {
+		t.Errorf("expected exactly one missing-key row, got %d: %s", n, body)
+	}
+	if !strings.Contains(body, ">missing key</span>") {
+		t.Errorf("expected a missing-key badge for the unresolved reference: %s", body)
 	}
 }
 
@@ -176,13 +309,13 @@ func TestMCPPagePreflightMarksUnavailable(t *testing.T) {
 }
 
 func TestMCPServerSpecsConverts(t *testing.T) {
-	if MCPServerSpecs(nil) != nil {
+	if MCPServerSpecs(nil, nil) != nil {
 		t.Error("empty input should convert to nil")
 	}
 	in := []ctxforge.MCPServer{
 		{ID: "git", Name: "Git", Command: "uvx", Args: []string{"mcp-server-git"}, Env: map[string]string{"K": "v"}, Enabled: true},
 	}
-	got := MCPServerSpecs(in)
+	got := MCPServerSpecs(in, func(string) string { return "" })
 	if len(got) != 1 || got[0].ID != "git" || got[0].Name != "Git" || got[0].Command != "uvx" {
 		t.Fatalf("conversion dropped fields: %+v", got)
 	}

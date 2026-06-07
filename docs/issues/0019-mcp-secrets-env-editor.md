@@ -1,7 +1,7 @@
 ---
 id: 0019
 title: MCP secrets / Env editor (roadmap v3, item C1)
-status: open
+status: closed
 severity: high
 group: 0022
 github:
@@ -35,7 +35,18 @@ tools, so this is the gate to the product's **extensibility** story. The key dec
    - **Actual:** the form has no `Env` field at all; the only way to set a key is to
      hand-edit `forge.json`, and a key set there would sit in cleartext in the forge doc.
 
-## Proposed resolution (per ADR-0020 — not yet built)
+## Resolution (shipped — per ADR-0020)
+
+Built on branch `claude/mcp-secrets-env-editor`. The MCP form now edits `Env` via
+repeatable masked key/value rows with a *secret* checkbox; a secret row persists
+**only** the `${VAR_NAME}` reference (the masked value field names the env var, never
+the secret). `web.MCPServerSpecs` resolves `${VAR}` at the forge→seam boundary behind
+the `s.lookupEnv` seam (default `os.Getenv`), omitting a reference that resolves empty
+(never sent as the literal). `mcpServersPartial` flags an enabled server's unresolved
+`${VAR}` with a *missing key* badge. CONTRACTS §4 flipped; REGRESSIONS #16 guards
+"never persisted as a literal / never sent unexpanded." **No secret at rest.**
+
+## Original proposed resolution (per ADR-0020)
 
 - **`MCPServer.Env` value semantics (additive, no schema change):** a value is a
   literal unless it matches `${VAR_NAME}` (`[A-Z_][A-Z0-9_]*`), which is a reference
