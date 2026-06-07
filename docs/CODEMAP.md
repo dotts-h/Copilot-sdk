@@ -442,6 +442,13 @@ _Last generated: 2026-06-07 (UTC)._
 - L134: `func leadingInt(s string) int`
 - L147: `func isFileHeader(s string) bool`
 
+### entities.go (95 LOC)
+- L11: `func (s *Server) skillsPartial() string`
+- L23: `func (s *Server) instructionsPartial() string`
+- L36: `func (s *Server) agentsPartial() string`
+- L63: `func (s *Server) modelsPartial() string`
+- L93: `func (s *Server) settingsPartial() string`
+
 ### forgecrud.go (120 LOC)
 - L19: `type forgeCRUD[T any] struct`
 - L32: `func (c forgeCRUD[T]) New(s *Server, w http.ResponseWriter, r *http.Request)`
@@ -477,6 +484,14 @@ _Last generated: 2026-06-07 (UTC)._
 - L183: `func (s *Server) handleAgentCreate(w http.ResponseWriter, r *http.Request) { agentCRUD.Create(s, w, r) }`
 - L184: `func (s *Server) handleAgentUpdate(w http.ResponseWriter, r *http.Request) { agentCRUD.Update(s, w, r) }`
 - L187: `func parseCSV(s string) []string`
+
+### help.go (123 LOC)
+- L14: `func renderShortcuts(keymap []config.ResolvedKey) string`
+- L28: `func helpOverlay(keymap []config.ResolvedKey) string { return helpOverlayAttr(keymap, "") }`
+- L34: `func helpOverlayAttr(keymap []config.ResolvedKey, extraAttr string) string`
+- L46: `func keymapJSON(keymap []config.ResolvedKey) string`
+- L63: `func keymapLiveApply(keymap []config.ResolvedKey) string`
+- L71: `func (s *Server) helpPartial() string`
 
 ### hub.go (295 LOC)
 - L28: `type Hub struct`
@@ -524,42 +539,16 @@ _Last generated: 2026-06-07 (UTC)._
 - L333: `func (s *Server) handleMCPServerToggle(w http.ResponseWriter, r *http.Request)`
 - L339: `func (s *Server) handleMCPServerDelete(w http.ResponseWriter, r *http.Request)`
 
-### pages.go (704 LOC)
-- L48: `func clampWindow(raw string) int`
-- L65: `func (s *Server) renderPage(slug, window string) string`
-- L99: `func renderShortcuts(keymap []config.ResolvedKey) string`
-- L113: `func helpOverlay(keymap []config.ResolvedKey) string { return helpOverlayAttr(keymap, "") }`
-- L119: `func helpOverlayAttr(keymap []config.ResolvedKey, extraAttr string) string`
-- L131: `func keymapJSON(keymap []config.ResolvedKey) string`
-- L148: `func keymapLiveApply(keymap []config.ResolvedKey) string`
-- L156: `func (s *Server) helpPartial() string`
-- L214: `func (s *Server) chatPartial() string`
-- L246: `func (s *Server) telemetryPartial(window int) string`
-- L305: `func (s *Server) spendTrend(window int) (days, shares []map[string]any, hasHistory bool)`
-- L362: `func (s *Server) spendShares(now time.Time) (agents, workflows []map[string]any)`
-- L392: `func agentKey(r telemetry.SpendRecord) string    { return r.AgentID }`
-- L393: `func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }`
-- L411: `func (s *Server) workflowReconcile() []map[string]any`
-- L432: `func (s *Server) reconcileRow(r telemetry.WorkflowRecon) map[string]any`
-- L446: `func bucketTrajectories(bs []telemetry.BucketProjection, now time.Time) map[string]string`
-- L462: `func bucketTrajectoryText(p telemetry.Projection, now time.Time) string`
-- L481: `func daysLeftInMonth(now time.Time) int`
-- L492: `func shareRow(label string, credits, fraction float64) map[string]any`
-- L504: `func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any`
-- L528: `func forecastSoon(exhaust, now time.Time) bool`
-- L538: `func plural(n int, one, many string) string`
-- L548: `func (s *Server) agentLabel(id string) string`
-- L560: `func (s *Server) workflowLabel(id string) string`
-- L570: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
-- L586: `func (s *Server) handleRunsExport(w http.ResponseWriter, r *http.Request)`
-- L598: `func (s *Server) skillsPartial() string`
-- L610: `func (s *Server) instructionsPartial() string`
-- L623: `func (s *Server) agentsPartial() string`
-- L647: `func addData(kind, noun string) map[string]any { return map[string]any{"Kind": kind, "Noun": noun} }`
-- L653: `func (s *Server) modelsPartial() string`
-- L683: `func (s *Server) settingsPartial() string`
-- L687: `func def(s, fallback string) string`
-- L695: `func truncate(s string, n int) string`
+### pages.go (183 LOC)
+- L41: `func clampWindow(raw string) int`
+- L58: `func (s *Server) renderPage(slug, window string) string`
+- L93: `func (s *Server) chatPartial() string`
+- L128: `func (s *Server) agentLabel(id string) string`
+- L140: `func (s *Server) workflowLabel(id string) string`
+- L151: `func (s *Server) handleRunsExport(w http.ResponseWriter, r *http.Request)`
+- L164: `func addData(kind, noun string) map[string]any { return map[string]any{"Kind": kind, "Noun": noun} }`
+- L166: `func def(s, fallback string) string`
+- L174: `func truncate(s string, n int) string`
 
 ### render.go (452 LOC)
 - L25: `func esc(s string) string`
@@ -706,6 +695,23 @@ _Last generated: 2026-06-07 (UTC)._
 - L11: `type fragment struct`
 - L21: `func (s *Server) serveEvents(w http.ResponseWriter, r *http.Request)`
 - L62: `func writeSSE(w io.Writer, event, data string)`
+
+### telemetry_render.go (325 LOC)
+- L12: `func (s *Server) telemetryPartial(window int) string`
+- L71: `func (s *Server) spendTrend(window int) (days, shares []map[string]any, hasHistory bool)`
+- L128: `func (s *Server) spendShares(now time.Time) (agents, workflows []map[string]any)`
+- L158: `func agentKey(r telemetry.SpendRecord) string { return r.AgentID }`
+- L160: `func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }`
+- L178: `func (s *Server) workflowReconcile() []map[string]any`
+- L199: `func (s *Server) reconcileRow(r telemetry.WorkflowRecon) map[string]any`
+- L213: `func bucketTrajectories(bs []telemetry.BucketProjection, now time.Time) map[string]string`
+- L229: `func bucketTrajectoryText(p telemetry.Projection, now time.Time) string`
+- L248: `func daysLeftInMonth(now time.Time) int`
+- L259: `func shareRow(label string, credits, fraction float64) map[string]any`
+- L271: `func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any`
+- L295: `func forecastSoon(exhaust, now time.Time) bool`
+- L305: `func plural(n int, one, many string) string`
+- L315: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
 
 ### tmpl.go (55 LOC)
 - L44: `func trusted(s string) template.HTML { return template.HTML(s) } //nolint:gosec // composed from escaped fragments`
