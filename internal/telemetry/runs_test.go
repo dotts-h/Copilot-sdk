@@ -265,6 +265,67 @@ func TestRunAggregatesLatestNameWins(t *testing.T) {
 	}
 }
 
+func TestRunAggregatesLastRun(t *testing.T) {
+	base := time.Date(2026, 6, 6, 10, 0, 0, 0, time.UTC)
+
+	// Across a multi-run workflow, the LATEST run by StartedAt wins — its outcome and
+	// start surface as the last-run signal, regardless of input order. Here the most
+	// recent run (base+20m) FAILED, even though earlier runs finished, and the records
+	// are shuffled to prove the pick doesn't depend on order.
+	multi := []RunRecord{
+		{WorkflowID: "w", Name: "W", StartedAt: base.Add(10 * time.Minute), FinishedAt: base.Add(11 * time.Minute), Outcome: "finished"},
+		{WorkflowID: "w", Name: "W", StartedAt: base.Add(20 * time.Minute), FinishedAt: base.Add(21 * time.Minute), Outcome: "failed"},
+		{WorkflowID: "w", Name: "W", StartedAt: base, FinishedAt: base.Add(time.Minute), Outcome: "finished"},
+	}
+	got := RunAggregates(multi)
+	if len(got) != 1 {
+		t.Fatalf("want one aggregate, got %d", len(got))
+	}
+	if got[0].LastOutcome != "failed" {
+		t.Fatalf("last outcome = %q, want failed (the most recent run)", got[0].LastOutcome)
+	}
+	if !got[0].LastStartedAt.Equal(base.Add(20 * time.Minute)) {
+		t.Fatalf("last started = %v, want %v", got[0].LastStartedAt, base.Add(20*time.Minute))
+	}
+
+	// A single run: the last-run signal is that one run.
+	single := RunAggregates([]RunRecord{
+		{WorkflowID: "s", Name: "S", StartedAt: base, FinishedAt: base.Add(time.Minute), Outcome: "finished"},
+	})
+	if single[0].LastOutcome != "finished" || !single[0].LastStartedAt.Equal(base) {
+		t.Fatalf("single run last-signal wrong: %+v", single[0])
+	}
+
+	// An UNFINISHED latest run (latest StartedAt, zero FinishedAt) is still the last
+	// run — the pick is by StartedAt, and an in-flight/malformed finish must not
+	// demote it to an older, finished run.
+	unfinished := RunAggregates([]RunRecord{
+		{WorkflowID: "u", Name: "U", StartedAt: base, FinishedAt: base.Add(time.Minute), Outcome: "finished"},
+		{WorkflowID: "u", Name: "U", StartedAt: base.Add(5 * time.Minute), FinishedAt: time.Time{}, Outcome: "failed"},
+	})
+	if unfinished[0].LastOutcome != "failed" || !unfinished[0].LastStartedAt.Equal(base.Add(5*time.Minute)) {
+		t.Fatalf("unfinished latest should still be the last run: %+v", unfinished[0])
+	}
+
+	// Tie-break: two runs share a StartedAt — the one with the LATER FinishedAt wins,
+	// deterministically (the Workflows demo hits same-instant runs). Order-independent.
+	for _, order := range [][]RunRecord{
+		{
+			{WorkflowID: "t", StartedAt: base, FinishedAt: base.Add(time.Minute), Outcome: "finished"},
+			{WorkflowID: "t", StartedAt: base, FinishedAt: base.Add(3 * time.Minute), Outcome: "failed"},
+		},
+		{
+			{WorkflowID: "t", StartedAt: base, FinishedAt: base.Add(3 * time.Minute), Outcome: "failed"},
+			{WorkflowID: "t", StartedAt: base, FinishedAt: base.Add(time.Minute), Outcome: "finished"},
+		},
+	} {
+		tie := RunAggregates(order)
+		if tie[0].LastOutcome != "failed" {
+			t.Fatalf("StartedAt tie should break to the later FinishedAt (failed); got %q for order %+v", tie[0].LastOutcome, order)
+		}
+	}
+}
+
 func TestRunRecordCarriesSkippedLane(t *testing.T) {
 	// A branched run's per-lane outcomes — including a skipped lane that incurred no
 	// cost — must round-trip (the reason a sibling run store exists, not spend tags).

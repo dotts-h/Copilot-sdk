@@ -78,14 +78,18 @@ differentiator is folded in where it earns its place.
 - **No ADR** (decision pre-blessed by ADR-0022). **Issue
   [0023](issues/0023-workflow-run-aggregations.md).**
 
-### F2 / V4 — Workflow list "last run" + cost badges  — **M**  ·  *candidate*
-- **What:** each row on the Workflows page (today name + step summary only,
-  `workflow.go` `workflowsPartial:787`) gains a last-run outcome glyph + age, a run
-  count, and total spend — joining `RunStore.Records()` and `WorkflowShares` keyed by
-  workflow id. Makes the page diagnostic, not just navigational.
+### F2 / V4 — Workflow list "last run" + cost badges  — **M**  ·  **SHIPPED** (epic 0024, issue 0025)
+- **What:** each row on the Workflows page (was name + step summary only,
+  `workflow.go` `workflowsPartial`) gains a last-run outcome glyph + age, a run count,
+  and total spend — joining `RunStore.Records()` (via `RunAggregates`, extended with a
+  `LastOutcome`/`LastStartedAt` last-run signal) and `WorkflowShares` keyed by workflow
+  id. Makes the page diagnostic, not just navigational.
 - **Why now:** reuses F1's aggregations + the existing `WorkflowShares`; turns the
   orchestration entry point into a cost-aware dashboard. **Touches:** `internal/web`
-  (`workflow.go` `workflowsPartial`), `internal/telemetry` (F1's readers).
+  (`workflow.go` `workflowsPartial`), `internal/telemetry` (extends F1's `RunAggregate`).
+- **No ADR** (pure-reader composition pre-blessed by ADR-0022). **First build of epic
+  [0024](issues/0024-epic-convergence-dashboards-cost-surface.md) (roadmap v4); issue
+  [0025](issues/0025-workflow-last-run-cost-badges.md).**
 
 ### F3 / V7 — Per-workflow / per-agent burn-rate forecast  — **M**  ·  *candidate*
 - **What:** a bucketed `Forecast` variant (`forecast.go` is account-wide only) that

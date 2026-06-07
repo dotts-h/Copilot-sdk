@@ -787,6 +787,25 @@ func firstLine(s string) string {
 func (s *Server) workflowsPartial() string {
 	s.hub.forgeMu.Lock()
 	defer s.hub.forgeMu.Unlock()
+	// Join the two pure readers keyed by workflow id, each guarded for an absent store:
+	// RunAggregates carries the last-run signal + run count (RunStore), WorkflowShares
+	// the authoritative per-workflow spend (SpendStore). The row already knows its own
+	// id/name, so nothing new is resolved — the join only badges each row (V4). With no
+	// store wired (or no record for a workflow), the maps stay empty and the row renders
+	// its prior shape, no badges. Read under forgeMu like runsPartial; the stores' own
+	// mutex is a leaf lock, so no lock-order risk.
+	runAggs := map[string]telemetry.RunAggregate{}
+	if s.runs != nil {
+		for _, a := range telemetry.RunAggregates(s.runs.Records()) {
+			runAggs[a.WorkflowID] = a
+		}
+	}
+	spendShares := map[string]telemetry.WorkflowShare{}
+	if s.spend != nil {
+		for _, sh := range telemetry.WorkflowShares(s.spend.Records()) {
+			spendShares[sh.WorkflowID] = sh
+		}
+	}
 	rows := make([]map[string]any, 0, len(s.forge.Workflows))
 	for _, w := range s.forge.Workflows {
 		agents := make([]string, len(w.Steps))
@@ -797,9 +816,24 @@ func (s *Server) workflowsPartial() string {
 		if w.EffectiveMode() == ctxforge.WorkflowParallel {
 			desc = w.EffectiveMode() + " · " + strings.Join(agents, " ‖ ")
 		}
-		rows = append(rows, map[string]any{
-			"ID": w.ID, "Name": w.Name, "Desc": truncate(desc, 90),
-		})
+		row := map[string]any{"ID": w.ID, "Name": w.Name, "Desc": truncate(desc, 90)}
+		// Last-run + run-count badges (RunStore). Guard on Runs>0 so a workflow with no
+		// run history shows no run badge, just navigation.
+		if a, ok := runAggs[w.ID]; ok && a.Runs > 0 {
+			glyph, state := runOutcomeGlyph(a.LastOutcome)
+			row["HasRuns"] = true
+			row["Runs"] = a.Runs
+			row["LastGlyph"] = glyph
+			row["LastState"] = state
+			row["LastOutcome"] = a.LastOutcome
+			row["LastWhen"] = humanWhen(a.LastStartedAt)
+		}
+		// Spend badge (SpendStore): the workflow's total metered credits.
+		if sh, ok := spendShares[w.ID]; ok {
+			row["HasSpend"] = true
+			row["Spend"] = telemetry.FormatCredits(sh.Credits)
+		}
+		rows = append(rows, row)
 	}
 	return frag("workflowsPage", map[string]any{"Add": addData("workflows", "workflow"), "Rows": rows})
 }

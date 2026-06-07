@@ -188,6 +188,16 @@ type RunAggregate struct {
 	AvgCredits    float64
 	TotalDuration time.Duration
 	AvgDuration   time.Duration
+	// LastOutcome and LastStartedAt name this workflow's most recent run — the
+	// "last run" signal the Workflows page badges (V4): the outcome
+	// ("finished" | "failed") and when it started, so a row can show how the
+	// workflow last ended and how long ago. "Most recent" is by StartedAt; a tie
+	// keeps the run with the later FinishedAt, then the earlier-seen (stable input
+	// order) — a deterministic pick regardless of record order. The zero value
+	// (empty outcome, zero time) is never produced for a present aggregate (a group
+	// always has ≥ 1 run), so callers can treat a non-zero Runs as the guard.
+	LastOutcome   string
+	LastStartedAt time.Time
 }
 
 // FailureRate is the share of this workflow's runs that failed, in [0,1] (0 when
@@ -210,6 +220,11 @@ func (a RunAggregate) FailureRate() float64 {
 // under its current name. Pure: same records → same result.
 func RunAggregates(records []RunRecord) []RunAggregate {
 	by := map[string]*RunAggregate{}
+	// lastFin tracks the FinishedAt of each group's current latest run, the tie-break
+	// when two runs share a StartedAt (the StartedAt-equal case the Workflows demo and
+	// any same-instant batch hit). Kept beside the aggregate (not on it) since it's a
+	// roll-up internal, not part of the public RunAggregate.
+	lastFin := map[string]time.Time{}
 	for _, r := range records {
 		a := by[r.WorkflowID]
 		if a == nil {
@@ -223,6 +238,14 @@ func RunAggregates(records []RunRecord) []RunAggregate {
 		}
 		a.TotalCredits += r.Credits()
 		a.TotalDuration += r.Duration()
+		// The latest run wins by StartedAt, then by the later FinishedAt, then stable
+		// (the first record of a group seeds it; a later one replaces only when strictly
+		// later) — so the last-run badge is deterministic regardless of input order.
+		if a.Runs == 1 || laterRun(r.StartedAt, r.FinishedAt, a.LastStartedAt, lastFin[r.WorkflowID]) {
+			a.LastOutcome = r.Outcome
+			a.LastStartedAt = r.StartedAt
+			lastFin[r.WorkflowID] = r.FinishedAt
+		}
 	}
 	out := make([]RunAggregate, 0, len(by))
 	for _, a := range by {
@@ -239,4 +262,15 @@ func RunAggregates(records []RunRecord) []RunAggregate {
 		return out[i].WorkflowID < out[j].WorkflowID
 	})
 	return out
+}
+
+// laterRun reports whether the run (s2, f2) is strictly more recent than (s1, f1):
+// a later StartedAt, or — on an equal StartedAt — a later FinishedAt. Equal on both
+// yields false, so an equal pair keeps the incumbent (the earlier-seen record),
+// giving the last-run pick a stable, deterministic tie-break. Pure.
+func laterRun(s2, f2, s1, f1 time.Time) bool {
+	if !s2.Equal(s1) {
+		return s2.After(s1)
+	}
+	return f2.After(f1)
 }

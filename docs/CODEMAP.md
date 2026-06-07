@@ -339,7 +339,7 @@ _Last generated: 2026-06-07 (UTC)._
 - L110: `func normalizeModel(m string) string`
 - L118: `func (r ModelRate) String() string`
 
-### runs.go (242 LOC)
+### runs.go (276 LOC)
 - L27: `type RunLane struct`
 - L38: `type RunRecord struct`
 - L53: `func (r RunRecord) Credits() float64`
@@ -352,8 +352,9 @@ _Last generated: 2026-06-07 (UTC)._
 - L160: `func (s *RunStore) Records() []RunRecord`
 - L169: `func (s *RunStore) Count() int`
 - L182: `type RunAggregate struct`
-- L195: `func (a RunAggregate) FailureRate() float64`
-- L211: `func RunAggregates(records []RunRecord) []RunAggregate`
+- L205: `func (a RunAggregate) FailureRate() float64`
+- L221: `func RunAggregates(records []RunRecord) []RunAggregate`
+- L271: `func laterRun(s2, f2, s1, f1 time.Time) bool`
 
 ## internal/web
 
@@ -545,12 +546,12 @@ _Last generated: 2026-06-07 (UTC)._
 - L429: `func renderBudgetForm(projected, capCredits float64) string`
 - L438: `func clampLines(s string, n int) string`
 
-### runs.go (114 LOC)
+### runs.go (120 LOC)
 - L23: `func (s *Server) runsPartial() string`
 - L44: `func (s *Server) runSummaryRow(a telemetry.RunAggregate) map[string]any`
 - L59: `func (s *Server) runRow(r telemetry.RunRecord) map[string]any`
-- L84: `func humanDuration(d time.Duration) string`
-- L109: `func runOutcomeGlyph(outcome string) (glyph, state string)`
+- L87: `func humanDuration(d time.Duration) string`
+- L115: `func runOutcomeGlyph(outcome string) (glyph, state string)`
 
 ### server.go (884 LOC)
 - L28: `type Server struct`
@@ -663,7 +664,7 @@ _Last generated: 2026-06-07 (UTC)._
 - L44: `func trusted(s string) template.HTML { return template.HTML(s) } //nolint:gosec // composed from escaped fragments`
 - L49: `func frag(name string, data any) string`
 
-### workflow.go (989 LOC)
+### workflow.go (1023 LOC)
 - L29: `type laneStatus int`
 - L42: `func settled(st laneStatus) bool`
 - L48: `type lane struct`
@@ -705,16 +706,16 @@ _Last generated: 2026-06-07 (UTC)._
 - L734: `func streamDemoLane(m *copilot.MockClient, sid, prompt string)`
 - L776: `func firstLine(s string) string`
 - L787: `func (s *Server) workflowsPartial() string`
-- L809: `func renderWorkflowForm(w ctxforge.Workflow, isNew bool, errMsg string) string`
-- L830: `func stepsToText(steps []ctxforge.WorkflowStep) string`
-- L850: `func stepsFromText(raw string) []ctxforge.WorkflowStep`
-- L879: `func splitStepLine(line string) (head, prompt string)`
-- L898: `func formatStepCondition(c *ctxforge.StepCondition) string`
-- L916: `func parseStepCondition(spec string) *ctxforge.StepCondition`
-- L936: `func workflowFromForm(r *http.Request, id string) ctxforge.Workflow`
-- L946: `func (s *Server) handleWorkflowNew(w http.ResponseWriter, r *http.Request)`
-- L950: `func (s *Server) handleWorkflowEdit(w http.ResponseWriter, r *http.Request)`
-- L965: `func (s *Server) handleWorkflowCreate(w http.ResponseWriter, r *http.Request)`
-- L974: `func (s *Server) handleWorkflowUpdate(w http.ResponseWriter, r *http.Request)`
-- L984: `func (s *Server) handleWorkflowDelete(w http.ResponseWriter, r *http.Request)`
+- L843: `func renderWorkflowForm(w ctxforge.Workflow, isNew bool, errMsg string) string`
+- L864: `func stepsToText(steps []ctxforge.WorkflowStep) string`
+- L884: `func stepsFromText(raw string) []ctxforge.WorkflowStep`
+- L913: `func splitStepLine(line string) (head, prompt string)`
+- L932: `func formatStepCondition(c *ctxforge.StepCondition) string`
+- L950: `func parseStepCondition(spec string) *ctxforge.StepCondition`
+- L970: `func workflowFromForm(r *http.Request, id string) ctxforge.Workflow`
+- L980: `func (s *Server) handleWorkflowNew(w http.ResponseWriter, r *http.Request)`
+- L984: `func (s *Server) handleWorkflowEdit(w http.ResponseWriter, r *http.Request)`
+- L999: `func (s *Server) handleWorkflowCreate(w http.ResponseWriter, r *http.Request)`
+- L1008: `func (s *Server) handleWorkflowUpdate(w http.ResponseWriter, r *http.Request)`
+- L1018: `func (s *Server) handleWorkflowDelete(w http.ResponseWriter, r *http.Request)`
 
