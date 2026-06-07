@@ -408,6 +408,7 @@ ul.trend { list-style: none; margin: .25rem 0 .5rem; padding: 0; }
 .meter.trend-meter { flex: 1 1 auto; width: auto; min-width: 4rem; }
 .trend-val { flex: 0 0 auto; color: var(--fg); font-size: .82rem; text-align: right;
   min-width: 8.5rem; }
+.trajectory { margin: 0 0 .3rem 9.1rem; color: var(--dim); font-size: .78rem; }
 
 ul.rows { list-style: none; margin: 0; padding: 0; }
 .row { display: flex; align-items: center; gap: .6rem; padding: .5rem .25rem; border-bottom: 1px solid var(--panel); }

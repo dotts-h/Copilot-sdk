@@ -91,14 +91,18 @@ differentiator is folded in where it earns its place.
   [0024](issues/0024-epic-convergence-dashboards-cost-surface.md) (roadmap v4); issue
   [0025](issues/0025-workflow-last-run-cost-badges.md).**
 
-### F3 / V7 — Per-workflow / per-agent burn-rate forecast  — **M**  ·  *candidate*
-- **What:** a bucketed `Forecast` variant (`forecast.go` is account-wide only) that
-  projects *"at this pace, the `review` workflow burns its share by <date>"* from
-  `DailyTotals` bucketed by the A2 `agent`/`workflow` tag. Trajectory, not just the
-  historical share `AgentShares`/`WorkflowShares` already show.
+### F3 / V7 — Per-workflow / per-agent burn-rate forecast  — **M**  ·  **SHIPPED** (epic 0024, issue 0026)
+- **What:** a bucketed `Forecast` reader (`forecast.go` was account-wide only) that
+  projects *"at this pace, the `review` workflow burns ~X cr/day"* from `DailyTotals`
+  bucketed by the A2 `agent`/`workflow` tag. Trajectory, not just the historical share
+  `AgentShares`/`WorkflowShares` already show.
 - **Why now:** where cost prediction (A3) and attribution (A2) compound; pure reader,
-  no schema change. **Touches:** `internal/telemetry` (`forecast.go` bucketed variant),
+  no schema change. **Touches:** `internal/telemetry` (`bucketforecast.go`:
+  `DailyTotalsBy` + `BucketForecasts`, reusing `Forecast` unchanged per bucket),
   `internal/web` (`pages.go` `spendShares`).
+- **No ADR** (pure-reader composition pre-blessed by ADR-0019 ⋈ ADR-0018). **Second
+  build of epic [0024](issues/0024-epic-convergence-dashboards-cost-surface.md)
+  (roadmap v4); issue [0026](issues/0026-bucketed-burn-rate-forecast.md).**
 
 ## Tier G — complete the cost surface (small, self-contained)
 

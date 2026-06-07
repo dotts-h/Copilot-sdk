@@ -219,8 +219,8 @@ func (s *Server) telemetryPartial() string {
 		})
 	}
 	days, shares, hasHistory := s.spendTrend()
-	agents, workflows := s.spendShares()
 	now := time.Now()
+	agents, workflows := s.spendShares(now)
 	var forecast map[string]any
 	if fc, ok := s.forecast(now); ok {
 		forecast = forecastView(fc, budget.AllowanceCredits, now)
@@ -283,11 +283,16 @@ func (s *Server) spendTrend() (days, shares []map[string]any, hasHistory bool) {
 
 // spendShares builds the per-agent and per-workflow cost breakdowns for the
 // Telemetry page from the persisted ledger — the orchestration-aware "which agent
-// / which workflow burned my budget" view (ADR-0018). Agent/workflow ids are
-// resolved to display names under forgeMu (falling back to the raw id when a
-// persona was renamed or deleted; an empty agent id is the built-in chat). Both
-// lists are empty when no ledger is wired or it holds no relevant records.
-func (s *Server) spendShares() (agents, workflows []map[string]any) {
+// / which workflow burned my budget" view (ADR-0018) — each row joined to its burn
+// TRAJECTORY (F3): the same per-bucket Forecast slope that AgentShares/WorkflowShares
+// can't answer. Agent/workflow ids are resolved to display names under forgeMu
+// (falling back to the raw id when a persona was renamed or deleted; an empty agent
+// id is the built-in chat). The trajectory is keyed by the raw id (BucketForecasts'
+// key), joined before the id is resolved to a label. One `now` is threaded through
+// both the per-bucket Forecast and the month projection (the ADR-0019 single-`now`
+// gotcha, per bucket). Both lists are empty when no ledger is wired or it holds no
+// relevant records.
+func (s *Server) spendShares(now time.Time) (agents, workflows []map[string]any) {
 	agents, workflows = []map[string]any{}, []map[string]any{}
 	if s.spend == nil {
 		return agents, workflows
@@ -296,15 +301,75 @@ func (s *Server) spendShares() (agents, workflows []map[string]any) {
 	if len(records) == 0 {
 		return agents, workflows
 	}
+	budget := s.budget()
+	agentTraj := bucketTrajectories(telemetry.BucketForecasts(records, budget, now, agentKey, true), now)
+	workflowTraj := bucketTrajectories(telemetry.BucketForecasts(records, budget, now, workflowKey, false), now)
 	s.hub.forgeMu.Lock()
 	defer s.hub.forgeMu.Unlock()
 	for _, a := range telemetry.AgentShares(records) {
-		agents = append(agents, shareRow(s.agentLabel(a.AgentID), a.Credits, a.Fraction))
+		row := shareRow(s.agentLabel(a.AgentID), a.Credits, a.Fraction)
+		row["Traj"] = agentTraj[a.AgentID]
+		agents = append(agents, row)
 	}
 	for _, w := range telemetry.WorkflowShares(records) {
-		workflows = append(workflows, shareRow(s.workflowLabel(w.WorkflowID), w.Credits, w.Fraction))
+		row := shareRow(s.workflowLabel(w.WorkflowID), w.Credits, w.Fraction)
+		row["Traj"] = workflowTraj[w.WorkflowID]
+		workflows = append(workflows, row)
 	}
 	return agents, workflows
+}
+
+// agentKey / workflowKey are the bucket keys BucketForecasts projects per (the same
+// keyOf the *Shares readers bucket by), so the trajectory join lines up with the
+// share rows exactly.
+func agentKey(r telemetry.SpendRecord) string    { return r.AgentID }
+func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }
+
+// bucketTrajectories renders each bucket's burn-trajectory sentence keyed by the
+// bucket's raw id, so spendShares can join it onto the matching share row before
+// the id is resolved to a display label. An empty string (no-budget bucket) joins
+// as no trajectory cell.
+func bucketTrajectories(bs []telemetry.BucketProjection, now time.Time) map[string]string {
+	out := make(map[string]string, len(bs))
+	for _, b := range bs {
+		out[b.Key] = bucketTrajectoryText(b.Projection, now)
+	}
+	return out
+}
+
+// bucketTrajectoryText turns a per-bucket Projection into its trajectory sentence
+// (F3). The honest per-bucket framing is rate + month projection, NOT a per-bucket
+// exhaustion date: a bucket has no own allowance, so the account-wide DaysToCap/
+// ExhaustionDate fields are deliberately not surfaced. Each degenerate Status gets
+// its own sentence (or none) rather than a bogus figure, mirroring forecastView:
+//   - OK: the bucket's recent rate + where it lands this month at that pace;
+//   - Idle: no recent spend to project from;
+//   - NoBudget / Exhausted: empty — no per-bucket trajectory line.
+func bucketTrajectoryText(p telemetry.Projection, now time.Time) string {
+	switch p.Status {
+	case telemetry.ProjectionOK:
+		// Project where this bucket lands by month-end at its recent pace: what it has
+		// already spent this month plus the rate over the days still to come. No
+		// per-bucket cap — just the trajectory.
+		month := p.UsedCredits + p.DailyRate*float64(daysLeftInMonth(now))
+		return fmt.Sprintf("at ~%s/day, on pace for ~%s this month",
+			telemetry.FormatCredits(p.DailyRate), telemetry.FormatCredits(month))
+	case telemetry.ProjectionIdle:
+		return "idle — no recent spend to project a rate from"
+	default: // ProjectionNoBudget, ProjectionExhausted — no per-bucket trajectory line
+		return ""
+	}
+}
+
+// daysLeftInMonth counts the whole UTC days remaining after now's day through the
+// end of its calendar month (zero on the last day) — the horizon the per-bucket
+// month projection extrapolates the rate over. Pure: same now → same count.
+func daysLeftInMonth(now time.Time) int {
+	t := now.UTC()
+	y, m, d := t.Date()
+	firstNextMonth := time.Date(y, m+1, 1, 0, 0, 0, 0, time.UTC)
+	daysInMonth := firstNextMonth.AddDate(0, 0, -1).Day()
+	return daysInMonth - d
 }
 
 // shareRow is the template shape shared by every spend-breakdown bar (per-model,

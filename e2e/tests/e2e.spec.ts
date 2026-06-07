@@ -508,6 +508,11 @@ test.describe("persisted spend history + trends", () => {
     // The demo ledger seeds agent ids and a couple of workflow-owned turns.
     await expect(main).toContainText("Cost by agent");
     await expect(main).toContainText("Cost by workflow");
+    // The bucketed burn trajectory (F3): beside each agent/workflow share bar the
+    // page projects that bucket's recent pace. Assert the trajectory STRUCTURE, never
+    // figures — the demo ledger is shared + append-only across the suite (the same
+    // gotcha family as the trend bars above; A2 ⋈ A3 / ADR-0018+0019).
+    await expect(page.locator("#main li.trajectory").first()).toBeVisible();
     // At least one day bar and one share bar are present.
     await expect(page.locator("#main ul.trend .trend-row").first()).toBeVisible();
 
