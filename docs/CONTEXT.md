@@ -37,6 +37,17 @@
   referenced by a condition, steps are **1-based**. — ADR-0021
 - **snippet** — a saved one-shot composer prompt (`ctxforge.Snippet`), inserted via a
   `/trigger`. Not system-message context (never compiled). — ADR-0015
+- **hook** — a forge-backed **governance rule** fired around a tool call
+  (`ctxforge.Hook`): `{event (pre/post-tool-use), match (tool kind + optional command
+  pattern), action (allow|deny|ask), reason, enabled}`. `Forge.Compile` folds the
+  built-in safe defaults + the enabled user hooks into the session; the bridge
+  consults the pure `Evaluate` before the permission gate (**deny > ask > allow**,
+  default **ask**). The third governance pillar — enforced in the bridge, not just
+  config. — ADR-0029
+- **safe-read default** — the built-in `ctxforge.DefaultHooks()` set: auto-approve
+  read-only tool kinds, leave writes/shell/MCP to the gate. Built-ins run through the
+  **same** `Evaluate` as user hooks, so a user `deny` still wins. Makes the
+  out-of-the-box build safe. — ADR-0029
 
 ## Orchestration — running workflows (`internal/web/workflow.go`, `internal/telemetry/runs.go`)
 

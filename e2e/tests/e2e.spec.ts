@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { sel, pages, gotoApp, navTo, send } from "./helpers";
 
 // End-to-end behaviour of the htmx + SSE web UI, driven against the scripted
@@ -109,9 +109,13 @@ test.describe("streaming a turn", () => {
     // The scripted sub-agent starts and finishes before the answer streams, so
     // by the time the assistant turn lands the activity strip must be empty —
     // the indicator is transient and never leaks once the work is done.
-    await expect(page.locator(sel.agentTurn).last()).toContainText("You said: explore", {
-      timeout: 15_000,
-    });
+    // Target the committed turn (`:not(#cur)`), not `.last()` which also matches
+    // the transient `#cur` streaming buffer: once the turn commits, the reply
+    // moves out of #cur and #cur resets empty, so `.last()` races the commit (the
+    // `:not(#cur)` idiom the other streaming specs above already use).
+    await expect(
+      page.locator(`${sel.agentTurn}:not(#cur)`).filter({ hasText: "You said: explore" }),
+    ).toBeVisible({ timeout: 15_000 });
     await expect(page.locator(`${sel.subagents} .subagent-chip`)).toHaveCount(0);
   });
 });
@@ -296,6 +300,12 @@ test.describe("MCP server management", () => {
 });
 
 test.describe("multi-agent workflows", () => {
+  // A workflow run streams several lanes, each replaying the scripted demo
+  // timeline. Under parallel workers the browser competes for CPU rendering the
+  // lane SSE swaps, so run-completion (a structural assertion, not a latency
+  // budget) can lag — give these tests extra headroom over the default timeout.
+  test.describe.configure({ timeout: 60_000 });
+
   // The demo seeds a sequential "Build & harden" workflow (builder → sdet).
   // Running it streams each step as a lane on the chat page; the scripted demo
   // lanes complete quickly so the run reaches the finished state.
@@ -312,7 +322,7 @@ test.describe("multi-agent workflows", () => {
     await expect(page.locator(`${sel.lanes} .workflow-run`)).toBeVisible();
     await expect(page.locator(`${sel.lanes} .lane`).first()).toBeVisible();
     // Both lanes settle and the run reports finished.
-    await expect(page.locator(`${sel.lanes} .run-status.done`)).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator(`${sel.lanes} .run-status.done`)).toBeVisible({ timeout: 30_000 });
     await expect(page.locator(`${sel.lanes} .lane-done`).first()).toBeVisible();
   });
 
@@ -337,11 +347,11 @@ test.describe("multi-agent workflows", () => {
     // Each lane surfaces its own tool timeline and an inline permission form
     // (structure, not figures — the shared demo session).
     await expect(page.locator(`${sel.lanes} .lane-tools .turn.tool`).first()).toBeVisible({
-      timeout: 15_000,
+      timeout: 30_000,
     });
     await expect(page.locator(`${sel.lanes} .lane-perms form.perm`).first()).toBeVisible();
     // Both lanes settle and the run reports finished.
-    await expect(page.locator(`${sel.lanes} .run-status.done`)).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator(`${sel.lanes} .run-status.done`)).toBeVisible({ timeout: 30_000 });
     await expect(page.locator(`${sel.lanes} .lane-done`)).toHaveCount(2);
   });
 
@@ -362,7 +372,7 @@ test.describe("multi-agent workflows", () => {
     await expect(page.locator(`${sel.lanes} .workflow-run`)).toBeVisible();
     await expect(page.locator(`${sel.lanes} .lane`)).toHaveCount(3);
     // The run finishes; the gated fix lane ran (done) and the celebrate lane skipped.
-    await expect(page.locator(`${sel.lanes} .run-status.done`)).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator(`${sel.lanes} .run-status.done`)).toBeVisible({ timeout: 30_000 });
     await expect(page.locator(`${sel.lanes} .lane-skipped`)).toHaveCount(1);
     await expect(page.locator(`${sel.lanes} .lane-skipped`)).toContainText("skipped");
     // Two lanes ran to completion (the review + the satisfied fix step).
@@ -431,7 +441,7 @@ test.describe("multi-agent workflows", () => {
     await navTo(page, "Workflows");
     const row = page.locator(sel.rows, { hasText: "Build & harden" });
     await row.locator("button.run").click();
-    await expect(page.locator(`${sel.lanes} .run-status.done`)).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator(`${sel.lanes} .run-status.done`)).toBeVisible({ timeout: 30_000 });
 
     // The finished run is now in the history.
     await navTo(page, "Runs");

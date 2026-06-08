@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { sel, pages, gotoApp } from "./helpers";
 
 // The canonical start-state smoke: the offline demo binary self-seeds an

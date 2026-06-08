@@ -8,6 +8,8 @@ package copilot
 import (
 	"context"
 	"time"
+
+	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
 )
 
 // EventType enumerates the normalized events the TUI reacts to. They collapse
@@ -212,6 +214,13 @@ type SessionSpec struct {
 	// AllowedTools restricts the session to these tool names (maps to the SDK's
 	// AvailableTools). Empty = all tools available.
 	AllowedTools []string
+	// Hooks is the compiled governance policy for the session (built-in safe
+	// defaults + the forge's enabled user hooks). The permission bridge consults
+	// it via ctxforge.Evaluate before the interactive gate: a PreToolUse decision
+	// of allow auto-approves, deny rejects with the reason, and ask falls through
+	// to the human-in-the-loop gate. This generalizes the flat AutoApproveTools
+	// from an all-or-nothing switch to a per-tool ruleset. — ADR-0029.
+	Hooks []ctxforge.Hook
 }
 
 // MCPServer is a stdio MCP server to expose to the session.

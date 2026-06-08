@@ -32,3 +32,4 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0026 | [Grouped left-sidebar navigation and a ⌘K command palette](0026-grouped-sidebar-navigation-and-command-palette.md) | accepted |
 | 0027 | [Telemetry KPI dashboard: pure readers + pure Go SVG builders, server-rendered inline charts](0027-telemetry-kpi-dashboard-server-rendered-inline-svg.md) | accepted |
 | 0028 | [Motion & polish: htmx per-navigation View Transitions (NOT global), plus a token-driven component pass](0028-motion-and-polish-htmx-per-navigation-view-transitions.md) | accepted |
+| 0029 | [Hooks: a forge-backed Pre/PostToolUse entity, bridge-enforced allow/deny/ask, deny-wins, safe-read defaults](0029-hooks-forge-entity-bridge-enforced-allow-deny-ask-safe-read-defaults.md) | accepted |

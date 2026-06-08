@@ -307,6 +307,7 @@ func SeamSpec(cs ctxforge.SessionSpec, defModel, defEffort string, lookupEnv fun
 		Model: cs.Model, ReasoningEffort: cs.ReasoningEffort,
 		SystemMessage: cs.SystemMessage, Streaming: true,
 		AllowedTools: cs.AllowedTools, MCPServers: MCPServerSpecs(cs.MCPServers, lookupEnv),
+		Hooks: cs.Hooks,
 	}
 	if spec.Model == "" {
 		spec.Model = defModel
@@ -343,6 +344,7 @@ func (s *Server) applyAgentSpec(c copilot.SessionSpec, agentID string) string {
 	s.spec.SystemMessage = c.SystemMessage
 	s.spec.AllowedTools = c.AllowedTools
 	s.spec.MCPServers = c.MCPServers
+	s.spec.Hooks = c.Hooks
 	s.agentID = agentID
 	s.sessionID = ""
 	return s.spec.Model

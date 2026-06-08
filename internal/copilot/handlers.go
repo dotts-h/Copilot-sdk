@@ -1,6 +1,7 @@
 package copilot
 
 import (
+	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
 	sdk "github.com/github/copilot-sdk/go"
 	"github.com/github/copilot-sdk/go/rpc"
 )
@@ -13,9 +14,28 @@ import (
 // "Interactive permissions (sync ↔ async bridge)" section in ARCHITECTURE.md.
 
 // permissionHandler bridges the SDK's synchronous permission callback to the
-// async web UI: it emits an EvPermission and blocks until Respond() (or shutdown).
+// async web UI. Before the interactive gate it consults the session's compiled
+// governance policy (ADR-0029): a PreToolUse decision of allow auto-approves the
+// call (no EvPermission emitted), deny rejects it with the hook's reason fed back
+// to the agent, and ask falls through to the existing behavior — emit an
+// EvPermission and block until Respond() (or shutdown). This generalizes the
+// flat AutoApproveTools from an all-or-nothing switch to a per-tool ruleset.
 func (c *SDKClient) permissionHandler() sdk.PermissionHandlerFunc {
 	return func(req sdk.PermissionRequest, inv sdk.PermissionInvocation) (rpc.PermissionDecision, error) {
+		c.mu.Lock()
+		hooks := c.hooks[inv.SessionID]
+		c.mu.Unlock()
+		switch d := ctxforge.Evaluate(hooks, ctxforge.HookPreToolUse, string(req.Kind()), permCommand(req)); d.Action {
+		case ctxforge.HookAllow:
+			return &rpc.PermissionDecisionApproveOnce{}, nil
+		case ctxforge.HookDeny:
+			fb := d.Reason
+			if fb == "" {
+				fb = "Denied by hook policy"
+			}
+			return &rpc.PermissionDecisionReject{Feedback: &fb}, nil
+		}
+		// ask (or no matching hook): fall through to the interactive gate.
 		id, ch := c.perms.begin()
 		file, intention, diff := permWriteFields(req)
 		c.emit(Event{Type: EvPermission, SessionID: inv.SessionID, Permission: &PermissionRequest{
@@ -33,6 +53,21 @@ func (c *SDKClient) permissionHandler() sdk.PermissionHandlerFunc {
 			return &rpc.PermissionDecisionUserNotAvailable{}, nil
 		}
 	}
+}
+
+// permCommand returns the string a hook Pattern matches against for a request:
+// a shell request's full command, or a write request's target file name (so a
+// pattern can govern writes by path, e.g. outside-workspace denies). Empty for
+// kinds with no meaningful string target (read/mcp in this SDK), where only a
+// kind match applies.
+func permCommand(req sdk.PermissionRequest) string {
+	switch r := req.(type) {
+	case sdk.PermissionRequestShell:
+		return r.FullCommandText
+	case sdk.PermissionRequestWrite:
+		return r.FileName
+	}
+	return ""
 }
 
 // userInputHandler bridges the SDK's synchronous ask_user callback to the async

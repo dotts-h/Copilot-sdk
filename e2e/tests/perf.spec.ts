@@ -1,5 +1,4 @@
-import { test, expect } from "@playwright/test";
-import { BASE_URL } from "../playwright.config";
+import { test, expect } from "./fixtures";
 import { sel, gotoApp, navTo, send } from "./helpers";
 
 // Performance budgets. These are deliberately generous (the demo binary is a
@@ -42,10 +41,10 @@ test("htmx page swaps are well under the interactivity budget", async ({ page })
   }
 });
 
-test("the SSE stream sends its first byte promptly", async () => {
+test("the SSE stream sends its first byte promptly", async ({ appURL }) => {
   const start = Date.now();
   const ctrl = new AbortController();
-  const res = await fetch(`${BASE_URL}/events`, { signal: ctrl.signal });
+  const res = await fetch(`${appURL}/events`, { signal: ctrl.signal });
   const reader = res.body!.getReader();
   await reader.read(); // first chunk (the 'ready' greeting)
   const elapsed = Date.now() - start;

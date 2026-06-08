@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { sel, pages, gotoApp, navTo, send } from "./helpers";
 
 // UX-quality checks: the things that make the UI feel right rather than merely
@@ -94,7 +94,10 @@ test("a full chat turn produces no console or page errors (on-page)", async ({ p
   // Stay on the chat page (targets present) for a full streamed turn.
   await gotoApp(page);
   await send(page, "no console noise please");
-  await expect(page.locator(sel.agentTurn).last()).toContainText("You said", { timeout: 15_000 });
+  // Match the committed turn (`:not(#cur)`), not the transient #cur buffer.
+  await expect(
+    page.locator(`${sel.agentTurn}:not(#cur)`).filter({ hasText: "You said: no console noise please" }),
+  ).toBeVisible({ timeout: 15_000 });
 
   expect(pageErrors, `page errors:\n${pageErrors.join("\n")}`).toEqual([]);
   expect(consoleErrors, `console errors:\n${consoleErrors.join("\n")}`).toEqual([]);
@@ -159,6 +162,9 @@ test("respects prefers-reduced-motion without breaking the stream", async ({ bro
   const page = await ctx.newPage();
   await gotoApp(page);
   await send(page, "reduced motion turn");
-  await expect(page.locator(sel.agentTurn).last()).toContainText("You said", { timeout: 15_000 });
+  // Match the committed turn (`:not(#cur)`), not the transient #cur buffer.
+  await expect(
+    page.locator(`${sel.agentTurn}:not(#cur)`).filter({ hasText: "You said: reduced motion turn" }),
+  ).toBeVisible({ timeout: 15_000 });
   await ctx.close();
 });

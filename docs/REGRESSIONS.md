@@ -363,6 +363,16 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
   panics at `MustCompile` ("invalid escape sequence: \1"). For repeated-char
   matching (e.g. the markdown horizontal rule), scan the string directly
   (`isHR()` in `internal/web/markdown.go`) instead of a backreference.
+- **A View Transition snapshot covers a non-top-layer modal mid-animation (V24).**
+  `::view-transition-old/new(main)` pseudo-elements paint in the browser **top
+  layer**, *above* the `.overlay` (`z-index:50`). A modal (⌘K palette, help) opened
+  **within ~140ms of navigating** is briefly covered by the *old-page* snapshot — which
+  looked like "Workflows rendered under the palette" in a screenshot. **Verified a
+  capture-timing artifact, not a stuck DOM**: let the transition finish and the modal
+  sits over the correct page (`#main #composer` present, no stale `h2`). Real impact is
+  near-zero (the fade is 140ms). Candidate fix (v10 polish, issue 0052-adjacent): open
+  overlays in the **top layer** (a real `<dialog>`/`:modal`) or await the transition
+  before opening; not yet guarded.
 
 ## Dead-ends (tried/considered, rejected — don't redo)
 

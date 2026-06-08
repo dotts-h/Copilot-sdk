@@ -55,12 +55,26 @@ export async function gotoApp(page: Page) {
   // runs at document-start; re-runs (resetting to 0) on any reload, which is fine.
   await page.addInitScript(() => {
     (window as unknown as { __settles: number }).__settles = 0;
+    (window as unknown as { __sseOpen: boolean }).__sseOpen = false;
     document.addEventListener("htmx:afterSettle", () => {
       (window as unknown as { __settles: number }).__settles++;
+    });
+    // htmx-ext-sse fires htmx:sseOpen (bubbling to document) when the body-level
+    // sse-connect="/events" stream actually opens.
+    document.addEventListener("htmx:sseOpen", () => {
+      (window as unknown as { __sseOpen: boolean }).__sseOpen = true;
     });
   });
   await page.goto("/");
   await expect(page.locator(sel.prompt)).toBeVisible();
+  // Wait for the SSE stream to be open before returning. Otherwise the first
+  // send() can outrace the /events subscription on a cold connection: the user
+  // bubble still appears (the synchronous /send OOB swap), but the streamed
+  // assistant turn is broadcast to zero subscribers and never arrives. This bit
+  // the first turn against a freshly-spawned per-worker server (tests/fixtures.ts).
+  await page.waitForFunction(
+    () => (window as unknown as { __sseOpen?: boolean }).__sseOpen === true,
+  );
 }
 
 // navTo clicks a nav link and waits for the target page to swap into #main.

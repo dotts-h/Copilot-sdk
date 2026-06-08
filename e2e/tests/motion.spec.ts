@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { gotoApp, navTo } from "./helpers";
 
 // Motion & polish (V24, ADR-0028). Page navigation opts into htmx's same-document

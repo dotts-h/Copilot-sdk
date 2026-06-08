@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { sel, gotoApp, navTo } from "./helpers";
 
 // Keyboard-shortcut surface (item 3.3): a config-backed keymap rendered onto the
