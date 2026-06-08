@@ -21,6 +21,7 @@ type Forge struct {
 	MCPServers   []MCPServer   `json:"mcpServers"`
 	Workflows    []Workflow    `json:"workflows,omitempty"`
 	Snippets     []Snippet     `json:"snippets,omitempty"`
+	Hooks        []Hook        `json:"hooks,omitempty"`
 }
 
 const forgeFile = "forge.json"
@@ -95,6 +96,9 @@ func (f *Forge) Validate() error {
 	if err := uniqueIDs("snippet", len(f.Snippets), func(i int) string { return f.Snippets[i].ID }); err != nil {
 		return err
 	}
+	if err := uniqueIDs("hook", len(f.Hooks), func(i int) string { return f.Hooks[i].ID }); err != nil {
+		return err
+	}
 	for _, s := range f.Skills {
 		if err := s.Validate(); err != nil {
 			return err
@@ -132,6 +136,11 @@ func (f *Forge) Validate() error {
 	}
 	for _, s := range f.Snippets {
 		if err := s.Validate(); err != nil {
+			return err
+		}
+	}
+	for _, h := range f.Hooks {
+		if err := h.Validate(); err != nil {
 			return err
 		}
 	}
@@ -196,6 +205,7 @@ type forgeState struct {
 	mcpServers   []MCPServer
 	workflows    []Workflow
 	snippets     []Snippet
+	hooks        []Hook
 }
 
 func (f *Forge) snapshot() forgeState {
@@ -206,12 +216,14 @@ func (f *Forge) snapshot() forgeState {
 		mcpServers:   append([]MCPServer(nil), f.MCPServers...),
 		workflows:    append([]Workflow(nil), f.Workflows...),
 		snippets:     append([]Snippet(nil), f.Snippets...),
+		hooks:        append([]Hook(nil), f.Hooks...),
 	}
 }
 
 func (f *Forge) restore(s forgeState) {
 	f.Skills, f.Instructions, f.Agents = s.skills, s.instructions, s.agents
 	f.MCPServers, f.Workflows, f.Snippets = s.mcpServers, s.workflows, s.snippets
+	f.Hooks = s.hooks
 }
 
 // mutate applies a forge mutation, then validates the whole forge and rolls the
@@ -465,6 +477,11 @@ type SessionSpec struct {
 	// AllowedTools restricts the session's tools (maps to the SDK's
 	// AvailableTools). Set from the active agent; empty = all tools.
 	AllowedTools []string
+	// Hooks is the compiled governance policy for the session: the built-in
+	// safe-by-default hooks (DefaultHooks) followed by the forge's enabled user
+	// hooks. The bridge consults it via ctxforge.Evaluate before each tool runs.
+	// — ADR-0029.
+	Hooks []Hook
 }
 
 // Compile produces a SessionSpec for the given agent ID (empty = no agent
@@ -531,6 +548,18 @@ func (f *Forge) Compile(agentID string) (SessionSpec, error) {
 	for _, m := range f.MCPServers {
 		if m.Enabled {
 			spec.MCPServers = append(spec.MCPServers, m)
+		}
+	}
+
+	// Governance policy: the built-in safe-by-default hooks first, then the
+	// forge's enabled user hooks. The evaluator's action precedence (deny > ask >
+	// allow) is order-independent, so the ordering only chooses which same-action
+	// reason is surfaced; putting user hooks after built-ins lets a user's reason
+	// win for a kind the built-ins also cover. — ADR-0029.
+	spec.Hooks = append(spec.Hooks, DefaultHooks()...)
+	for _, h := range f.Hooks {
+		if h.Enabled {
+			spec.Hooks = append(spec.Hooks, h)
 		}
 	}
 	return spec, nil

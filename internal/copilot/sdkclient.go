@@ -8,6 +8,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
 	sdk "github.com/github/copilot-sdk/go"
 )
 
@@ -30,8 +31,9 @@ type SDKClient struct {
 	mu        sync.Mutex
 	sessions  map[string]*sdk.Session
 	unsubs    map[string]func()
-	toolNames map[string]string // toolCallID -> toolName, for matching end events
-	reasoned  map[string]bool   // sid -> reasoning deltas streamed in the current segment
+	toolNames map[string]string          // toolCallID -> toolName, for matching end events
+	reasoned  map[string]bool            // sid -> reasoning deltas streamed in the current segment
+	hooks     map[string][]ctxforge.Hook // sid -> compiled governance policy (ADR-0029)
 	closed    bool
 
 	// modelEfforts caches each model's supported reasoning efforts (from
@@ -105,6 +107,7 @@ func NewSDKClient(ctx context.Context, opts Options) (*SDKClient, error) {
 		unsubs:    make(map[string]func()),
 		toolNames: make(map[string]string),
 		reasoned:  make(map[string]bool),
+		hooks:     make(map[string][]ctxforge.Hook),
 		events:    make(chan Event, 256),
 		done:      make(chan struct{}),
 	}, nil
@@ -160,7 +163,7 @@ func (c *SDKClient) CreateSession(ctx context.Context, spec SessionSpec) (string
 	if err != nil {
 		return "", fmt.Errorf("create session: %w", err)
 	}
-	c.register(session)
+	c.register(session, spec.Hooks)
 	return session.SessionID, nil
 }
 
@@ -207,7 +210,7 @@ func (c *SDKClient) ResumeSession(ctx context.Context, sessionID string, spec Se
 	if err != nil {
 		return "", fmt.Errorf("resume session %q: %w", sessionID, err)
 	}
-	c.register(session)
+	c.register(session, spec.Hooks)
 	return session.SessionID, nil
 }
 
@@ -239,6 +242,7 @@ func (c *SDKClient) DeleteSession(ctx context.Context, sessionID string) error {
 	}
 	delete(c.sessions, sessionID)
 	delete(c.unsubs, sessionID)
+	delete(c.hooks, sessionID)
 	c.mu.Unlock()
 	return nil
 }
@@ -287,12 +291,15 @@ func (c *SDKClient) modelReasoningEfforts(ctx context.Context, model string) (ef
 	return efforts, known
 }
 
-// register wires a session's event handler and tracks it for Send/Abort/Close.
-func (c *SDKClient) register(session *sdk.Session) {
+// register wires a session's event handler and tracks it for Send/Abort/Close,
+// and records the session's compiled hook policy so permissionHandler can consult
+// it by SessionID when a tool-permission callback fires (ADR-0029).
+func (c *SDKClient) register(session *sdk.Session, hooks []ctxforge.Hook) {
 	unsub := session.On(c.makeHandler(session.SessionID))
 	c.mu.Lock()
 	c.sessions[session.SessionID] = session
 	c.unsubs[session.SessionID] = unsub
+	c.hooks[session.SessionID] = hooks
 	c.mu.Unlock()
 }
 
@@ -414,6 +421,7 @@ func (c *SDKClient) Close() error {
 		sessions := c.sessions
 		c.sessions = map[string]*sdk.Session{}
 		c.unsubs = map[string]func(){}
+		c.hooks = map[string][]ctxforge.Hook{}
 		c.mu.Unlock()
 
 		for _, s := range sessions {

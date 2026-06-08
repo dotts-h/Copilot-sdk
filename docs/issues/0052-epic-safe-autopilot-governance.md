@@ -6,9 +6,9 @@ severity: high
 group:
 github:
 links:
-  adr: []
+  adr: [0029]
   prs: []
-  issues: []
+  issues: [0053]
   regression: []
 ---
 
@@ -48,25 +48,31 @@ or **ask** (the existing HITL gate). This generalizes `AutoApproveTools` from a 
 
 ## Children
 
-- [ ] **G0 · Policy model + seam** (M; ADR). A forge-backed policy of `allow / deny / ask` rules matched
+- [x] **G0 · Policy model + seam** (M; ADR). A forge-backed policy of `allow / deny / ask` rules matched
       on tool **kind** + **bash patterns**, evaluated inside `permissionHandler` before the gate. Deny
-      wins over allow. Pure, table-tested matcher; the bridge consults it.
-- [ ] **G1 · Default safe policy (auto-approve reads)** (M). Ship a safe-by-default policy: read-only
+      wins over allow. Pure, table-tested matcher; the bridge consults it. — **shipped in V25**
+      ([0053](0053-hooks-foundation-forge-entity-bridge-evaluator.md), ADR-0029).
+- [x] **G1 · Default safe policy (auto-approve reads)** (M). Ship a safe-by-default policy: read-only
       tools (file read, search, navigation, plan transitions) auto-approved; writes/exec → the gate.
-      The default build is safe out of the box.
+      The default build is safe out of the box. — **shipped in V25**
+      ([0053](0053-hooks-foundation-forge-entity-bridge-evaluator.md), `ctxforge.DefaultHooks`).
 - [ ] **G2 · Dangerous-action deny + mandatory HITL** (M/L; ADR). Built-in deny/gate for destructive
       patterns — `rm -rf` on `$HOME`/root, `curl|sh` / pipe-a-download-into-an-editor-or-shell, writes
       outside the workspace, `sudo`, obvious exfiltration — hard-denied or forced through a **mandatory**
-      gate **even in auto mode**, enforced in the bridge (unbypassable).
-- [ ] **G3 · Hooks as a first-class forge entity** (L; ADR) — *the headline feature*. A new
+      gate **even in auto mode**, enforced in the bridge (unbypassable). — *next build*
+- [x] **G3 · Hooks as a first-class forge entity** (L; ADR) — *the headline feature*. A new
       `ctxforge.Hook` `{id, event (pre/post-tool-use), match (tool kind / pattern), action
       (command or built-in allow|deny|ask), enabled}`, compiled into the session and fired by the bridge:
       PreToolUse returns `allow|deny|ask`; PostToolUse observes/logs. Persisted in `forge.json` like every
-      other forge type. Reuse `${VAR}` + preflight; **hook command output is untrusted** — sanitize.
+      other forge type. Reuse `${VAR}` + preflight; **hook command output is untrusted** — sanitize. —
+      **mechanism shipped in V25** ([0053](0053-hooks-foundation-forge-entity-bridge-evaluator.md),
+      ADR-0029): the entity + persistence + compile + built-in allow/deny/ask. **External command-ref
+      execution** (PostToolUse running a user command, `${VAR}` + preflight, untrusted output) is
+      deferred to a later child.
 - [ ] **G4 · Hook/policy editor UI + mode binding** (M). Full **CRUD in the app** — add / edit /
       enable-disable / remove hooks from a Hooks page, exactly like the skills/MCP/workflow forms (list +
       form + preflight). Bind a hook set to **agent modes** (auto mode → strict defaults on; ask mode →
-      fully interactive); surface *why* a call was auto-approved/denied in the timeline.
+      fully interactive); surface *why* a call was auto-approved/denied in the timeline. — *after G2*
 
 ## Acceptance (epic)
 

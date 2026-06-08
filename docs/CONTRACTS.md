@@ -34,8 +34,19 @@ no SDK import is allowed on the consumer side (see CONVENTIONS architecture rule
 | `Close() error` | Release all resources. |
 
 **`SessionSpec`** (`copilot.go:198`): `Model, ReasoningEffort, SystemMessage, Streaming,
-AutoApproveTools, MCPServers, AllowedTools`. `AllowedTools` empty = all tools; otherwise maps
+AutoApproveTools, MCPServers, AllowedTools, Hooks`. `AllowedTools` empty = all tools; otherwise maps
 to the SDK session's `AvailableTools`. — see [ADR-0003](adr/0003-claude-cli-style-agents-built-in-chat-agent-and-per-agent-tool-allowlist.md)
+`Hooks` (`[]ctxforge.Hook`) carries the session's compiled **governance policy** — the built-in
+safe-by-default hooks (`ctxforge.DefaultHooks`, auto-approve reads) followed by the forge's **enabled**
+user hooks, compiled in by `Forge.Compile` and threaded via `web.SeamSpec` (mirroring `MCPServers`).
+The `SDKClient` records it per `SessionID`; **`permissionHandler` consults `ctxforge.Evaluate` before
+the interactive gate** — a PreToolUse decision of `allow` returns `PermissionDecisionApproveOnce` (no
+`EvPermission` emitted), `deny` returns `PermissionDecisionReject{Feedback: reason}`, and `ask` falls
+through to the existing emit-and-block gate. This generalizes the flat `AutoApproveTools` (still honored
+as a blanket approve-all above the policy) into a per-tool ruleset, **enforced in the bridge, not
+bypassable by config alone**. The seam imports `ctxforge` (the pure domain package) for the single
+shared `Hook` type + evaluator — no SDK type crosses into `ctxforge`. — see
+[ADR-0029](adr/0029-hooks-forge-entity-bridge-enforced-allow-deny-ask-safe-read-defaults.md)
 `MCPServers` carries the forge's **enabled** servers (compiled in, translated via
 `web.MCPServerSpecs`); each `copilot.MCPServer` registers under its unique `Key()`
 (its `ID`, or `Name` for legacy callers) so a non-unique `Name` can't collide in the
@@ -391,6 +402,23 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   files read clean). `Validate` enforces a slug id, a name, and a body; managed via
   the Snippets page (validated builders, rollback-on-invalid). The `id` doubles as
   the composer `/trigger`. — see [ADR-0015](adr/0015-prompt-snippet-library-forge-backed-composer-insertion.md)
+- **`ctxforge.Hook`** (`hook.go`): `{id, event (pre-tool-use|post-tool-use), match
+  {toolKind?, pattern?}, action (allow|deny|ask), reason?, enabled}` — a first-class
+  forge **governance rule**. Persisted under the additive `hooks` key on `forge.json`
+  (omitempty, so older files read clean) and CRUD-managed via the shared `mutate`
+  rollback discipline (`AddHook`/`UpdateHook`/`ToggleHook`/`RemoveHook`, like MCP/snippet)
+  — the management **UI** is a later child (G4). `Validate` enforces a slug id, a known
+  `event` and `action`, a non-empty `match` (a valid `toolKind` ∈ {read, write, shell,
+  mcp} when set), and **no dangling `${VAR}`** reference (the well-formed `${NAME}` shape
+  of ADR-0020) in `pattern`/`reason`. The pure **`Evaluate(hooks, event, toolKind,
+  command) Decision`** resolves the policy: a hook participates when `Enabled`, its
+  `Event` matches, and its `Match` applies (an empty `toolKind` matches any kind; a
+  `pattern` with `*`/`?` is a glob over the **whole** command, else a substring).
+  Precedence is **deny > ask > allow** and the no-match default is **ask** (fall through
+  to the gate) — order-independent, deterministic. `DefaultHooks()` is the built-in
+  safe-read set; `Forge.Compile` prepends it to the enabled user hooks into
+  `SessionSpec.Hooks` (§1). **Determinism:** `Compile`'s hook order is part of its stable
+  output. — see [ADR-0029](adr/0029-hooks-forge-entity-bridge-enforced-allow-deny-ask-safe-read-defaults.md)
 - **`config.Config`** / **`config.TelemetryConfig`** (`config.go`): user settings + pricing
   overrides (`DefaultPriceBook`). `TelemetryConfig.WarnFraction` (soft-warn threshold,
   `[0,1]`) and `TelemetryConfig.HardCapCredits` (absolute credit ceiling, `>= 0`,
