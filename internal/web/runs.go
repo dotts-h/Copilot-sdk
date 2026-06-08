@@ -33,7 +33,7 @@ func (s *Server) runsPartial(window int) string {
 		records := windowRuns(s.runs.Records(), window)
 		s.hub.forgeMu.Lock()
 		for i := len(records) - 1; i >= 0; i-- { // newest first
-			rows = append(rows, s.runRow(records[i]))
+			rows = append(rows, s.runRow(records[i], window))
 		}
 		for _, a := range telemetry.RunAggregates(records) {
 			summary = append(summary, s.runSummaryRow(a))
@@ -121,9 +121,15 @@ func (s *Server) laneShareRow(l telemetry.LaneShare) map[string]any {
 }
 
 // runRow builds the template shape for one persisted run: its header (name, mode,
-// outcome glyph, when, total cost) and a per-lane breakdown. Agent ids resolve to
-// display names via agentLabel — caller holds forgeMu.
-func (s *Server) runRow(r telemetry.RunRecord) map[string]any {
+// outcome glyph, when, total cost), a per-lane breakdown, and a "Rerun" control. Agent
+// ids resolve to display names via agentLabel — caller holds forgeMu.
+//
+// CanRerun gates the rerun button on the run's workflow still existing in the forge
+// (ADR-0023): an orphan run — one whose workflow was renamed or deleted since — has
+// nothing to re-execute, so it shows no control. The active window rides along so the
+// button's POST carries it, preserving the selection if the rerun is refused (a
+// just-deleted workflow or a busy server) and the Runs page re-renders.
+func (s *Server) runRow(r telemetry.RunRecord, window int) map[string]any {
 	glyph, state := runOutcomeGlyph(r.Outcome)
 	lanes := make([]map[string]any, len(r.Lanes))
 	for i, l := range r.Lanes {
@@ -141,6 +147,8 @@ func (s *Server) runRow(r telemetry.RunRecord) map[string]any {
 		"When": humanWhen(r.StartedAt), "Lanes": lanes,
 		"Duration": humanDuration(dur), "HasDuration": dur > 0,
 		"Credits": telemetry.FormatCredits(credits), "HasCredits": credits > 0,
+		"WorkflowID": r.WorkflowID, "CanRerun": s.forge != nil && s.forge.Workflow(r.WorkflowID) != nil,
+		"Window": window,
 	}
 }
 

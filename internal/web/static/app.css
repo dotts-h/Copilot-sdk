@@ -276,6 +276,13 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
 .run-when { font-size: .8rem; margin-left: auto; }
 .run-duration { font-size: .8rem; }
 .run-cost { font-size: .82rem; color: var(--good); }
+/* Rerun control on a recorded run (ADR-0023): re-execute the workflow's current
+   definition. A disjoint `rerun` class (≠ the Workflows-page button.run) so it can't
+   collide with an existing strict-mode locator. */
+.run-rec-head .rerun { font-size: .8rem; color: var(--accent); font-weight: 600;
+  background: none; border: 1px solid var(--subtle); border-radius: 6px;
+  padding: .1rem .45rem; cursor: pointer; }
+.run-rec-head .rerun:hover { border-color: var(--accent); }
 /* Per-workflow roll-up table above the run history (V1, ADR-0022): run count,
    failure rate, average cost & duration — the cost ⋈ orchestration summary. */
 .run-summary { width: 100%; border-collapse: collapse; margin: .2rem 0 .4rem;

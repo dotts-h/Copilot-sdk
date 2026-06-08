@@ -675,6 +675,80 @@ func TestWorkflowRunHandlerStartsLanes(t *testing.T) {
 	}
 }
 
+// TestRunRerunHandlerStartsRecordedWorkflow proves the Runs-page rerun (ADR-0023)
+// re-executes a recorded run's workflow through the SAME launchWorkflow trigger as the
+// Workflows-page run: a POST to /runs/rerun/{workflow} compiles the workflow by id, opens
+// a backing session, sends its first lane's prompt, and lands the user on the chat page.
+// The new run carries the same workflow id (run.id == "ship"), so its spend rolls up under
+// the same per-workflow totals — a rerun is a re-execution, not a separate workflow.
+func TestRunRerunHandlerStartsRecordedWorkflow(t *testing.T) {
+	hub, mock := newWorkflowHub()
+	s := hub.newSession("t")
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	resp, err := http.Post(srv.URL+"/runs/rerun/ship?window=30", "application/x-www-form-urlencoded", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	// On success the rerun lands the user on the chat page with the lanes panel showing.
+	if !strings.Contains(string(body), "workflow-run") || !strings.Contains(string(body), "Builder") {
+		t.Errorf("rerun response should render the lanes panel: %q", string(body))
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if mock.SentCount() >= 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if mock.SentCount() < 1 {
+		t.Fatal("the first lane should send its prompt to a backing session")
+	}
+	if got := mock.SentAt(0); got != "build" {
+		t.Errorf("first lane prompt = %q, want %q", got, "build")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.run == nil || !s.busy {
+		t.Fatal("a run should be active after rerunning the workflow")
+	}
+	if s.run.id != "ship" {
+		t.Errorf("rerun must launch under the recorded WorkflowID (rolls up together), got %q", s.run.id)
+	}
+}
+
+// TestRunRerunUnknownWorkflowNoLaunch proves the rerun fails safe when the workflow no
+// longer exists (an orphan run raced a delete, ADR-0023): no run starts, no state changes,
+// and the Runs page is re-rendered unchanged.
+func TestRunRerunUnknownWorkflowNoLaunch(t *testing.T) {
+	hub, mock := newWorkflowHub()
+	s := hub.newSession("t")
+	withRunStore(s)
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	resp, err := http.Post(srv.URL+"/runs/rerun/gone?window=14", "application/x-www-form-urlencoded", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "Workflow Runs") {
+		t.Errorf("an unknown-workflow rerun should re-render the Runs page: %q", string(body))
+	}
+	if mock.SentCount() != 0 {
+		t.Errorf("no lane should run for an unknown workflow, sent %d", mock.SentCount())
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.run != nil || s.busy {
+		t.Error("no run should be active after rerunning an unknown workflow")
+	}
+}
+
 // TestParallelDemoRunDrivesConcurrentLanes is the end-to-end proof B1 exists for:
 // in demo mode the mock hands out distinct session ids and streamDemoLane tags its
 // events with them, so a PARALLEL run drives two concurrent lanes through the real

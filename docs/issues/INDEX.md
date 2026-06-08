@@ -17,6 +17,7 @@ issues are added or closed.
 | [0030](0030-epic-orchestration-visibility-polish.md) | Epic: orchestration visibility & polish (roadmap v5) | closed | 0031, 0032, 0033 |
 | [0031](0031-epic-orchestration-accountability.md) | Epic: orchestration accountability — Runs surface parity (roadmap v6) | closed | 0034, 0035, 0036, 0037 |
 | [0038](0038-epic-cost-run-reconciliation.md) | Epic: cost⋈run reconciliation — converge the two persisted stores (roadmap v7) | closed | 0039, 0040, 0041 |
+| [0042](0042-epic-interactive-orchestration.md) | Epic: interactive orchestration — the Runs surface goes actionable (roadmap v8) | open | 0043 |
 
 ## Issues
 
@@ -55,3 +56,4 @@ issues are added or closed.
 | [0039](0039-cost-run-reconciliation.md) | Cost⋈run reconciliation — Ledger vs runs on the Telemetry page (item V15) | closed | medium | 0038 | CONTRACTS §3/§4, PR #66 |
 | [0040](0040-per-lane-cost-run-reconciliation.md) | Per-lane cost⋈run reconciliation — Ledger vs runs by lane on the Telemetry page (item V16) | closed | medium | 0038 | CONTRACTS §3/§4, PR #74 |
 | [0041](0041-reconciliation-csv-export.md) | Reconciliation CSV export — WriteReconcileCSV + GET /telemetry/reconcile.csv (item V17) | closed | low | 0038 | CONTRACTS §3/§4, PR #75 |
+| [0043](0043-rerun-workflow-from-runs-page.md) | Rerun a recorded run from the Runs page — re-execute its workflow's current definition (item V18) | closed | medium | 0042 | ADR-0023, PR #76 |

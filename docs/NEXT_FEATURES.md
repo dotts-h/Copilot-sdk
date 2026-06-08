@@ -525,6 +525,94 @@ reader takes two record slices and returns ids; the web layer resolves labels un
 
 ---
 
+## Roadmap v8 — interactive orchestration (code re-read 2026-06-08)
+
+> Fresh pass appended this session. Roadmaps **v1–v7** are shipped and closed (epics
+> 0001/0005/0007/0013/0022/0024/0030/0031/0038); their picks are summarized above + in the
+> appendices. This section grounds the **next** candidates after epic 0038 exhausted the
+> cost⋈run **reconciliation** surface (workflow + lane grain, on-page and exportable). The
+> v8 epic takes **0042**; its first child takes issue **0043** (next free after 0041), and
+> — being the first **action** child — consumes **ADR-0023** (the v7 reader epic consumed
+> none).
+
+### Where the product is now (v8 framing)
+
+The product can now **meter**, **attribute** (agent/workflow/lane/session), **forecast**,
+**budget-cap**, run workflows (sequential/parallel/branching), and — after v6/v7 — fully
+**observe** the orchestration surface: run history, per-workflow + per-lane aggregates,
+ledger⋈runs reconciliation, and CSV export of all three. Re-reading against the two
+differentiators, the leverage is no longer *more depth* or *more readers* (v4–v7 were all
+pure-reader + presentation cadence, and both surfaces are mature). The standout gap is that
+**the orchestration surface is entirely READ-ONLY**: a user can *see* a run failed or cost
+too much but cannot **ACT** on it — every control (the sole run-trigger,
+`POST /workflows/{id}/run`) lives only on the Workflows page; the rich Runs / Telemetry
+history has no action at all. (Verified against the code: slash commands, the MCP
+secrets/Env editor, the price-override editor, and keybinding live-apply are **shipped** —
+not re-proposed.) So v8's theme is **the orchestration surface goes interactive.**
+
+### Tier L — make the orchestration surface actionable
+
+Ranked by value × fit. Unlike v4–v7, the lead pick is an **action with side effects** (it
+spawns live orchestration via the `copilot.Client` seam), so it takes an ADR.
+
+#### V18 — rerun a recorded run from the Runs page — **M** · **BUILD FIRST** · *first child of epic 0042*
+- **What:** a `↻ rerun` control on each recorded run (Runs page) that re-executes that
+  run's workflow — looked up by `WorkflowID` and run as its **current** definition (a
+  re-execution, *not* a historical replay; `RunRecord` carries no step definitions) —
+  through a single shared `launchWorkflow` trigger extracted from `handleWorkflowRun`. The
+  new run carries the **same `WorkflowID`**, so its spend rolls up under the same
+  per-workflow totals / aggregates / reconciliation (coherent with V13/V15). Gated on the
+  workflow still existing (`CanRerun` — an orphan run shows no control) and refused while
+  the server is busy; lands the user on the Chat page where the lanes stream.
+- **Why now:** the orchestration surface has been read-only through all of v4–v7; this is
+  the first action on it — the highest-value gap — at lower risk than feared because the
+  run-trigger action **already exists** (rerun is a second entry point to it, not a new
+  mechanism). Highest value × fit of the interactive candidates.
+- **Touches:** `internal/web` (`workflow.go` `launchWorkflow`/`handleRunRerun`, `runs.go`
+  `runRow` `CanRerun`, `hub.go` route, `templates/fragments.html` `runRecord` button,
+  `static/app.css` `.rerun`).
+- **Takes [ADR-0023](adr/0023-rerun-a-recorded-run-re-executes-the-current-workflow-definition.md)**
+  (written first, ADR-0004) — the first **action** child: the rerun semantics
+  (re-execute current definition, not replay) + the shared trigger seam (no new runtime
+  seam). **Issue [0043](issues/0043-rerun-workflow-from-runs-page.md); epic
+  [0042](issues/0042-epic-interactive-orchestration.md).**
+
+#### V19 — abort / cancel an in-flight run from the surface — **M** · candidate
+- **What:** the dual of rerun — a control to **stop** a running workflow (the seam already
+  has `Abort`; `handleAbort` aborts the chat turn but not a multi-lane run cleanly). Lets a
+  user halt a run that's clearly going wrong (cost runaway, wrong path). **Touches:**
+  `internal/web` (`workflow.go` run-abort path, the lanes panel). An action child — likely
+  reuses the V18 trigger/seam discipline; ADR only if a genuinely new seam appears.
+
+#### V20 — rerun a single failed lane — **L** · candidate
+- **What:** finer than V18 — re-execute just the failed lane of a run rather than the whole
+  workflow. Higher value for long workflows, but needs care (a lane's input is its
+  predecessor's handoff output, which a historical record may not fully carry). **Touches:**
+  `internal/web`, possibly `internal/telemetry` (lane lineage). An action child; likely an
+  ADR for the partial-rerun semantics.
+
+#### B (deferred from this pass) — cost-spike / anomaly reader — **M** · candidate
+- **What:** a pure `DetectAnomalies` reader (trailing burn-rate shift > N%, or a workflow's
+  per-turn cost jump > M%) ambered on the Telemetry page — the **active** cost surface
+  (passive cost-awareness predicts/warns/caps but never flags anomalies). Mirrors the
+  V15/V16/F3 pure-reader + presentation pattern exactly (no ADR, pre-blessed by ADR-0019's
+  forecast math). **Deferred** behind V18: lower marginal value (the cost surface is
+  already deep) than opening the interactive theme, but the natural pick if the interactive
+  surface is judged exhausted. **Touches:** `internal/telemetry` (`forecast.go`/`history.go`
+  readers), `internal/web` (`telemetry_render.go`).
+
+### Recommended sequencing (v8)
+
+1. **V18 — rerun from the Runs page** *(BUILD FIRST)*. Opens the interactive theme; M;
+   reuses the existing run-trigger behind one shared `launchWorkflow`; takes ADR-0023. →
+   issue **0043**, epic **0042**.
+2. **V19 → V20** — abort an in-flight run, then per-lane rerun: extend the interactive
+   surface once the rerun trigger discipline exists.
+3. **B (anomaly reader)** if the interactive surface is exhausted — a pure reader, no ADR.
+4. **TECH_DEBT #8** only when its volume trigger actually fires.
+
+---
+
 ## Appendix — roadmap v2 (shipped, epic 0013, for context)
 
 | item | feature | ADR | issue |
