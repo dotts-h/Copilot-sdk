@@ -1,13 +1,13 @@
 ---
 id: 0048
 title: "Telemetry dashboard — KPI cards + server-rendered inline-SVG sparklines (roadmap v9, item V23)"
-status: open
+status: closed
 severity: medium
 group: 0045
 github: 80
 links:
   adr: [0027]
-  prs:
+  prs: [81]
   issues: [0045]
   regression: [20]
 ---
@@ -80,6 +80,35 @@ change**.
 - **e2e `a11y.spec.ts`:** the both-theme axe scan covers the SVG dashboard (Telemetry page) and now
   waits for the chat elicit form so its contrast is guarded (REGRESSIONS #20); `ux.spec.ts` (no
   overflow) and `theme.spec.ts` stay green.
+
+## Resolution (shipped)
+
+Shipped in **PR #81** (ADR-0027), the third child of epic 0045 — no separate docs-only PR
+(ADR-0004): the ADR, the CONTEXT terms, REGRESSIONS #20, and this issue record fold into the feature
+branch.
+
+- **`internal/telemetry/dashboard.go`:** `Dashboard(records, now, window)` → current/prior
+  `WindowSpend` + the zero-filled `[]DayPoint` series; `WindowSpend.AvgCostPerTurn`/`DailyRate`;
+  `ChangePct(prior,current) Delta` (with a `HasPrior` "new" flag). Table-tested with a fixed `now`.
+- **`internal/web/svg.go`:** pure Go SVG builders — `sparkPoints`/`areaPath`/`bulletGeom`
+  (coordinate-tested) + `sparklineSVG`/`trendBandSVG`/`bulletSVG`, each `role="img"` with a
+  `<title>`+aria-label and token/`currentColor` strokes (no literals).
+- **`internal/web/dashboard_render.go`:** `dashboardView(window, now)` joins the reader + builders
+  into 4 cards (value + `deltaView` badge — direction + tone via a per-metric higher-is-worse flag —
+  + a sparkline), the trend band, and the spend-vs-budget bullet; month-to-date reads the threaded
+  `now` (caught by the pre-merge `/code-review`).
+- **`internal/web/telemetry_render.go` + `templates/fragments.html`:** `telemetryPartial` computes it;
+  the `.kpi` card row + `.kpi-charts` render above the existing tables.
+- **`internal/web/static/app.css`:** the `.kpi*`/`.spark`/`.band`/`.bullet` styles (tokens only; cards
+  wrap, no overflow). Also tokenized the chat elicit form's dimmed text (REGRESSIONS #20).
+- **`internal/bootstrap/bootstrap.go`:** seeds two prior-window records so the offline deltas are real.
+- **Tests:** `dashboard_test.go` / `svg_test.go` / `dashboard_render_test.go` (Go); `telemetry.spec.ts`
+  (e2e — cards + Δ badge, per-card sparkline accessible name, band + bullet, `?window=` re-render);
+  `a11y.spec.ts` both-theme axe covers the SVG dashboard and now guards the elicit-form contrast.
+- **Gates:** `make lint && make test` green (telemetry 96.2%, web 90.1%); `make e2e`
+  (Playwright/Chromium) green under CI's retry — the both-theme a11y scan passes over the SVG
+  dashboard. **No build step, no framework, no charting lib, no server route, no schema change** —
+  CONTRACTS unchanged; CODEMAP gains only the additive `telemetry` declarations.
 
 ## Notes
 - **ADR-0027:** the telemetry-dashboard child. Decisions: pure Go SVG builders (coordinate-tested,

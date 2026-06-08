@@ -18,7 +18,7 @@ issues are added or closed.
 | [0031](0031-epic-orchestration-accountability.md) | Epic: orchestration accountability — Runs surface parity (roadmap v6) | closed | 0034, 0035, 0036, 0037 |
 | [0038](0038-epic-cost-run-reconciliation.md) | Epic: cost⋈run reconciliation — converge the two persisted stores (roadmap v7) | closed | 0039, 0040, 0041 |
 | [0042](0042-epic-interactive-orchestration.md) | Epic: interactive orchestration — the Runs surface goes actionable (roadmap v8) | open | 0043, 0044 |
-| [0045](0045-epic-ui-ux-refresh.md) | Epic: UI/UX refresh — token foundation, theming, navigation IA, telemetry dashboard (roadmap v9) | open | 0046, 0047 |
+| [0045](0045-epic-ui-ux-refresh.md) | Epic: UI/UX refresh — token foundation, theming, navigation IA, telemetry dashboard (roadmap v9) | open | 0046, 0047, 0048 |
 
 ## Issues
 
@@ -61,3 +61,4 @@ issues are added or closed.
 | [0044](0044-abort-in-flight-run.md) | Abort an in-flight run from the Chat lanes panel — the dual of rerun (item V19) | closed | medium | 0042 | ADR-0024, PR #77 |
 | [0046](0046-design-token-foundation-light-dark-theme.md) | Design-token foundation + light/dark theme — the UI/UX refresh foundation (item V21) | closed | medium | 0045 | ADR-0025, PR #44 |
 | [0047](0047-grouped-sidebar-command-palette.md) | Navigation → grouped left sidebar + ⌘K command palette (item V22) | closed | medium | 0045 | ADR-0026, PR #79 |
+| [0048](0048-telemetry-kpi-dashboard.md) | Telemetry dashboard — KPI cards + server-rendered inline-SVG sparklines (item V23) | closed | medium | 0045 | ADR-0027, REGRESSIONS #20, PR #81 |
