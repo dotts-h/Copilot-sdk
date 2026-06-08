@@ -48,6 +48,20 @@
   read-only tool kinds, leave writes/shell/MCP to the gate. Built-ins run through the
   **same** `Evaluate` as user hooks, so a user `deny` still wins. Makes the
   out-of-the-box build safe. — ADR-0029
+- **mandatory gate** — a built-in hook whose decision is **unbypassable by config**
+  (`Hook.Mandatory`): a mandatory `deny` rejects and a mandatory `ask` gates **even when the
+  session runs with `AutoApproveTools`**. The dangerous-action ruleset
+  (`ctxforge.DangerousHooks()`) is all mandatory — hard-`deny` the clearly-destructive
+  (`rm -rf /`, `curl|sh`, exfiltration), force-`ask` the risky-but-legitimate (`sudo`, an
+  out-of-workspace write). It does **not** change `deny > ask > allow` (a user `deny`, being
+  more restrictive, still wins over a mandatory `ask`); it only forecloses the auto-approve
+  escape hatch, enforced on the auto path in the bridge. — ADR-0030
+- **workspace fence** — the path-aware match dimension (`HookMatch.OutsideWorkspace`) the glob
+  matcher can't express: a built-in mandatory hook that gates a **write whose target resolves
+  OUTSIDE the session workspace root**. The root is a runtime fact threaded at the seam
+  (`copilot.SessionSpec.Workspace`, set to the process cwd by `bootstrap`) into the pure
+  `Evaluate`, which normalizes the path with `filepath.Rel`; an empty root makes the fence
+  inert. — ADR-0030
 
 ## Orchestration — running workflows (`internal/web/workflow.go`, `internal/telemetry/runs.go`)
 

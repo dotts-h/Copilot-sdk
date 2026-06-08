@@ -82,7 +82,14 @@ func Build(configDir string, demo bool) (srv *web.Hub, close func(), err error) 
 	if err != nil {
 		log.Printf("compile default agent %q: %v", cfg.DefaultAgent, err)
 	}
-	spec := web.SeamSpec(cspec, cfg.DefaultModel, cfg.ReasoningEffort, os.Getenv)
+	// The workspace root the built-in fence gates writes against (ADR-0030): the
+	// process working directory, resolved to an absolute path. An unresolvable cwd
+	// leaves it empty, which disables the fence rather than gating every write.
+	workspace, werr := os.Getwd()
+	if werr != nil {
+		workspace = ""
+	}
+	spec := web.SeamSpec(cspec, cfg.DefaultModel, cfg.ReasoningEffort, os.Getenv, workspace)
 
 	var client copilot.Client
 	var closeFn func()

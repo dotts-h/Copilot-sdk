@@ -205,7 +205,7 @@ func TestEvaluate(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := Evaluate(tc.hooks, tc.event, tc.kind, tc.command)
+			got := Evaluate(tc.hooks, tc.event, tc.kind, tc.command, "")
 			if got.Action != tc.wantAction {
 				t.Fatalf("Evaluate action = %q, want %q", got.Action, tc.wantAction)
 			}
@@ -230,14 +230,16 @@ func TestDefaultHooksAutoApproveReads(t *testing.T) {
 		}
 	}
 	// A read-only tool is auto-approved by the defaults.
-	if got := Evaluate(hooks, HookPreToolUse, "read", ""); got.Action != HookAllow {
+	if got := Evaluate(hooks, HookPreToolUse, "read", "", ""); got.Action != HookAllow {
 		t.Fatalf("default read decision = %q, want allow", got.Action)
 	}
-	// Writes and shell are left to the interactive gate (ask).
-	if got := Evaluate(hooks, HookPreToolUse, "write", ""); got.Action != HookAsk {
+	// Writes and shell are left to the interactive gate (ask). NOTE: DefaultHooks
+	// alone (the safe-read set) does not deny `rm -rf /` — that hard-deny lives in
+	// the separate mandatory DangerousHooks set (see TestDangerousHooks).
+	if got := Evaluate(hooks, HookPreToolUse, "write", "", ""); got.Action != HookAsk {
 		t.Fatalf("default write decision = %q, want ask", got.Action)
 	}
-	if got := Evaluate(hooks, HookPreToolUse, "shell", "rm -rf /"); got.Action != HookAsk {
+	if got := Evaluate(hooks, HookPreToolUse, "shell", "rm -rf /", ""); got.Action != HookAsk {
 		t.Fatalf("default shell decision = %q, want ask", got.Action)
 	}
 }
@@ -254,15 +256,15 @@ func TestCompileIncludesHooks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Compile: %v", err)
 	}
-	// The built-in safe-read default plus the one enabled user hook; the disabled
-	// hook is excluded.
-	if got := len(spec.Hooks); got != len(DefaultHooks())+1 {
-		t.Fatalf("compiled hooks = %d, want %d", got, len(DefaultHooks())+1)
+	// The built-in safe-read defaults + the built-in mandatory dangerous ruleset +
+	// the one enabled user hook; the disabled hook is excluded.
+	if got, want := len(spec.Hooks), len(DefaultHooks())+len(DangerousHooks())+1; got != want {
+		t.Fatalf("compiled hooks = %d, want %d", got, want)
 	}
-	if d := Evaluate(spec.Hooks, HookPreToolUse, "read", ""); d.Action != HookAllow {
+	if d := Evaluate(spec.Hooks, HookPreToolUse, "read", "", ""); d.Action != HookAllow {
 		t.Fatalf("read via compiled spec = %q, want allow", d.Action)
 	}
-	if d := Evaluate(spec.Hooks, HookPreToolUse, "shell", "sudo rm"); d.Action != HookDeny {
+	if d := Evaluate(spec.Hooks, HookPreToolUse, "shell", "sudo rm", ""); d.Action != HookDeny {
 		t.Fatalf("sudo via compiled spec = %q, want deny", d.Action)
 	}
 }
@@ -322,7 +324,7 @@ func TestDefaultHooksUserDenyOverridesBuiltinAllow(t *testing.T) {
 	hooks := append([]Hook{
 		{ID: "user-deny-read", Event: HookPreToolUse, Match: HookMatch{ToolKind: "read"}, Action: HookDeny, Reason: "locked down", Enabled: true},
 	}, DefaultHooks()...)
-	got := Evaluate(hooks, HookPreToolUse, "read", "")
+	got := Evaluate(hooks, HookPreToolUse, "read", "", "")
 	if got.Action != HookDeny || got.Reason != "locked down" {
 		t.Fatalf("Evaluate = %+v, want deny/locked down", got)
 	}

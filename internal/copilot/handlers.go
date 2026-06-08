@@ -15,17 +15,24 @@ import (
 
 // permissionHandler bridges the SDK's synchronous permission callback to the
 // async web UI. Before the interactive gate it consults the session's compiled
-// governance policy (ADR-0029): a PreToolUse decision of allow auto-approves the
-// call (no EvPermission emitted), deny rejects it with the hook's reason fed back
-// to the agent, and ask falls through to the existing behavior — emit an
-// EvPermission and block until Respond() (or shutdown). This generalizes the
-// flat AutoApproveTools from an all-or-nothing switch to a per-tool ruleset.
+// governance policy (ADR-0029/0030): a PreToolUse decision of allow auto-approves
+// the call (no EvPermission emitted), deny rejects it with the hook's reason fed
+// back to the agent, and ask falls through to the existing behavior — emit an
+// EvPermission and block until Respond() (or shutdown).
+//
+// This is the ONLY permission handler (the SDK's blanket ApproveAll is never
+// wired): the mandatory dangerous ruleset (G2) must run even under
+// AutoApproveTools. A mandatory deny still rejects and a mandatory ask still
+// gates regardless of auto-approve; only the non-mandatory remainder (an ordinary
+// ask, or a no-match default-ask) is blanket-approved when the session set
+// AutoApproveTools — so config alone cannot bypass the dangerous policy. — ADR-0030.
 func (c *SDKClient) permissionHandler() sdk.PermissionHandlerFunc {
 	return func(req sdk.PermissionRequest, inv sdk.PermissionInvocation) (rpc.PermissionDecision, error) {
 		c.mu.Lock()
-		hooks := c.hooks[inv.SessionID]
+		pol := c.policies[inv.SessionID]
 		c.mu.Unlock()
-		switch d := ctxforge.Evaluate(hooks, ctxforge.HookPreToolUse, string(req.Kind()), permCommand(req)); d.Action {
+		d := ctxforge.Evaluate(pol.hooks, ctxforge.HookPreToolUse, string(req.Kind()), permCommand(req), pol.workspace)
+		switch d.Action {
 		case ctxforge.HookAllow:
 			return &rpc.PermissionDecisionApproveOnce{}, nil
 		case ctxforge.HookDeny:
@@ -35,7 +42,12 @@ func (c *SDKClient) permissionHandler() sdk.PermissionHandlerFunc {
 			}
 			return &rpc.PermissionDecisionReject{Feedback: &fb}, nil
 		}
-		// ask (or no matching hook): fall through to the interactive gate.
+		// ask: a non-mandatory decision under blanket auto-approve is approved; a
+		// mandatory ask (dangerous-action gate) is never auto-approved.
+		if pol.autoApprove && !d.Mandatory {
+			return &rpc.PermissionDecisionApproveOnce{}, nil
+		}
+		// Otherwise fall through to the interactive gate.
 		id, ch := c.perms.begin()
 		file, intention, diff := permWriteFields(req)
 		c.emit(Event{Type: EvPermission, SessionID: inv.SessionID, Permission: &PermissionRequest{

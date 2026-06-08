@@ -34,19 +34,28 @@ no SDK import is allowed on the consumer side (see CONVENTIONS architecture rule
 | `Close() error` | Release all resources. |
 
 **`SessionSpec`** (`copilot.go:198`): `Model, ReasoningEffort, SystemMessage, Streaming,
-AutoApproveTools, MCPServers, AllowedTools, Hooks`. `AllowedTools` empty = all tools; otherwise maps
-to the SDK session's `AvailableTools`. — see [ADR-0003](adr/0003-claude-cli-style-agents-built-in-chat-agent-and-per-agent-tool-allowlist.md)
+AutoApproveTools, MCPServers, AllowedTools, Hooks, Workspace`. `AllowedTools` empty = all tools;
+otherwise maps to the SDK session's `AvailableTools`. — see [ADR-0003](adr/0003-claude-cli-style-agents-built-in-chat-agent-and-per-agent-tool-allowlist.md)
 `Hooks` (`[]ctxforge.Hook`) carries the session's compiled **governance policy** — the built-in
-safe-by-default hooks (`ctxforge.DefaultHooks`, auto-approve reads) followed by the forge's **enabled**
-user hooks, compiled in by `Forge.Compile` and threaded via `web.SeamSpec` (mirroring `MCPServers`).
-The `SDKClient` records it per `SessionID`; **`permissionHandler` consults `ctxforge.Evaluate` before
-the interactive gate** — a PreToolUse decision of `allow` returns `PermissionDecisionApproveOnce` (no
-`EvPermission` emitted), `deny` returns `PermissionDecisionReject{Feedback: reason}`, and `ask` falls
-through to the existing emit-and-block gate. This generalizes the flat `AutoApproveTools` (still honored
-as a blanket approve-all above the policy) into a per-tool ruleset, **enforced in the bridge, not
-bypassable by config alone**. The seam imports `ctxforge` (the pure domain package) for the single
-shared `Hook` type + evaluator — no SDK type crosses into `ctxforge`. — see
-[ADR-0029](adr/0029-hooks-forge-entity-bridge-enforced-allow-deny-ask-safe-read-defaults.md)
+safe-by-default hooks (`ctxforge.DefaultHooks`, auto-approve reads), the built-in **mandatory**
+dangerous-action ruleset (`ctxforge.DangerousHooks`), then the forge's **enabled** user hooks,
+compiled in by `Forge.Compile` and threaded via `web.SeamSpec` (mirroring `MCPServers`). `Workspace`
+is the session's **workspace root** (absolute; the process cwd, set by `bootstrap` and carried on
+every `SeamSpec` path), threaded into `Evaluate` so the built-in fence can gate a write whose target
+resolves outside it (empty = fence inert). The `SDKClient` records both per `SessionID` (a
+`sessionPolicy{hooks, autoApprove, workspace}`); **`permissionHandler` is the only permission handler**
+(the SDK's blanket `ApproveAll` is never wired) and consults `ctxforge.Evaluate` before the interactive
+gate — a PreToolUse decision of `allow` returns `PermissionDecisionApproveOnce` (no `EvPermission`
+emitted), `deny` returns `PermissionDecisionReject{Feedback: reason}`, and `ask` falls through to the
+emit-and-block gate. Under `AutoApproveTools` the handler blanket-approves only the **non-mandatory**
+remainder: a **mandatory** deny still rejects and a mandatory ask (e.g. `sudo`, an out-of-workspace
+write) still gates **even with auto-approve set** — `Decision.Mandatory` drives this — so the dangerous
+policy is **enforced in the bridge, unbypassable by config**. This generalizes the flat
+`AutoApproveTools` into a per-tool ruleset; the override now sits **above the non-mandatory policy and
+below every deny**. The seam imports `ctxforge` (the pure domain package) for the single shared `Hook`
+type + evaluator — no SDK type crosses into `ctxforge`. — see
+[ADR-0029](adr/0029-hooks-forge-entity-bridge-enforced-allow-deny-ask-safe-read-defaults.md),
+[ADR-0030](adr/0030-dangerous-action-deny-and-mandatory-hitl-unbypassable-by-config.md)
 `MCPServers` carries the forge's **enabled** servers (compiled in, translated via
 `web.MCPServerSpecs`); each `copilot.MCPServer` registers under its unique `Key()`
 (its `ID`, or `Name` for legacy callers) so a non-unique `Name` can't collide in the
@@ -403,22 +412,30 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   the Snippets page (validated builders, rollback-on-invalid). The `id` doubles as
   the composer `/trigger`. — see [ADR-0015](adr/0015-prompt-snippet-library-forge-backed-composer-insertion.md)
 - **`ctxforge.Hook`** (`hook.go`): `{id, event (pre-tool-use|post-tool-use), match
-  {toolKind?, pattern?}, action (allow|deny|ask), reason?, enabled}` — a first-class
-  forge **governance rule**. Persisted under the additive `hooks` key on `forge.json`
-  (omitempty, so older files read clean) and CRUD-managed via the shared `mutate`
-  rollback discipline (`AddHook`/`UpdateHook`/`ToggleHook`/`RemoveHook`, like MCP/snippet)
-  — the management **UI** is a later child (G4). `Validate` enforces a slug id, a known
-  `event` and `action`, a non-empty `match` (a valid `toolKind` ∈ {read, write, shell,
-  mcp} when set), and **no dangling `${VAR}`** reference (the well-formed `${NAME}` shape
-  of ADR-0020) in `pattern`/`reason`. The pure **`Evaluate(hooks, event, toolKind,
-  command) Decision`** resolves the policy: a hook participates when `Enabled`, its
-  `Event` matches, and its `Match` applies (an empty `toolKind` matches any kind; a
-  `pattern` with `*`/`?` is a glob over the **whole** command, else a substring).
-  Precedence is **deny > ask > allow** and the no-match default is **ask** (fall through
-  to the gate) — order-independent, deterministic. `DefaultHooks()` is the built-in
-  safe-read set; `Forge.Compile` prepends it to the enabled user hooks into
-  `SessionSpec.Hooks` (§1). **Determinism:** `Compile`'s hook order is part of its stable
-  output. — see [ADR-0029](adr/0029-hooks-forge-entity-bridge-enforced-allow-deny-ask-safe-read-defaults.md)
+  {toolKind?, pattern?, outsideWorkspace?}, action (allow|deny|ask), reason?, enabled,
+  mandatory?}` — a first-class forge **governance rule**. Persisted under the additive `hooks`
+  key on `forge.json` (omitempty, so older files read clean) and CRUD-managed via the shared
+  `mutate` rollback discipline (`AddHook`/`UpdateHook`/`ToggleHook`/`RemoveHook`, like
+  MCP/snippet) — the management **UI** is a later child (G4). `Validate` enforces a slug id, a
+  known `event` and `action`, a non-empty `match` (a valid `toolKind` ∈ {read, write, shell, mcp}
+  when set; `outsideWorkspace` also satisfies the non-empty requirement), and **no dangling
+  `${VAR}`** reference (the well-formed `${NAME}` shape of ADR-0020) in `pattern`/`reason`.
+  `mandatory` marks a hook whose decision is **unbypassable by config** (the dangerous-action
+  ruleset); `outsideWorkspace` is the path-aware **workspace fence** dimension (G2). The pure
+  **`Evaluate(hooks, event, toolKind, command, workspace) Decision{Action, Reason, Mandatory}`**
+  resolves the policy: a hook participates when `Enabled`, its `Event` matches, and its `Match`
+  applies (an empty `toolKind` matches any kind; a `pattern` with `*`/`?` is a glob over the
+  **whole** command, else a substring; `outsideWorkspace` requires the command — a write's target
+  path — to resolve outside `workspace` via `filepath.Rel`, empty `workspace` = inert). Precedence
+  is **deny > ask > allow** and the no-match default is **ask** (fall through to the gate) —
+  order-independent, deterministic. `Decision.Mandatory` reports whether a mandatory hook drove
+  the winning action; the bridge enforces a mandatory deny/ask **even under `AutoApproveTools`**
+  (§1), while a user `deny` (more restrictive) still wins over a mandatory `ask`. `DefaultHooks()`
+  is the built-in safe-read set and `DangerousHooks()` is the built-in mandatory dangerous ruleset;
+  `Forge.Compile` prepends both to the enabled user hooks into `SessionSpec.Hooks` (§1).
+  **Determinism:** `Compile`'s hook order is part of its stable output. — see
+  [ADR-0029](adr/0029-hooks-forge-entity-bridge-enforced-allow-deny-ask-safe-read-defaults.md),
+  [ADR-0030](adr/0030-dangerous-action-deny-and-mandatory-hitl-unbypassable-by-config.md)
 - **`config.Config`** / **`config.TelemetryConfig`** (`config.go`): user settings + pricing
   overrides (`DefaultPriceBook`). `TelemetryConfig.WarnFraction` (soft-warn threshold,
   `[0,1]`) and `TelemetryConfig.HardCapCredits` (absolute credit ceiling, `>= 0`,

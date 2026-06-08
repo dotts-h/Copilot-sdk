@@ -215,12 +215,18 @@ type SessionSpec struct {
 	// AvailableTools). Empty = all tools available.
 	AllowedTools []string
 	// Hooks is the compiled governance policy for the session (built-in safe
-	// defaults + the forge's enabled user hooks). The permission bridge consults
-	// it via ctxforge.Evaluate before the interactive gate: a PreToolUse decision
-	// of allow auto-approves, deny rejects with the reason, and ask falls through
-	// to the human-in-the-loop gate. This generalizes the flat AutoApproveTools
-	// from an all-or-nothing switch to a per-tool ruleset. — ADR-0029.
+	// defaults + the built-in mandatory dangerous ruleset + the forge's enabled
+	// user hooks). The permission bridge consults it via ctxforge.Evaluate before
+	// the interactive gate: a PreToolUse decision of allow auto-approves, deny
+	// rejects with the reason, and ask falls through to the human-in-the-loop gate.
+	// This generalizes the flat AutoApproveTools from an all-or-nothing switch to a
+	// per-tool ruleset. The mandatory subset (dangerous-action deny/ask) is enforced
+	// even when AutoApproveTools is set. — ADR-0029, ADR-0030.
 	Hooks []ctxforge.Hook
+	// Workspace is the session's workspace root (absolute), threaded to the
+	// evaluator so the built-in fence can deny/gate a write whose target resolves
+	// OUTSIDE the project tree. Empty disables the fence. — ADR-0030.
+	Workspace string
 }
 
 // MCPServer is a stdio MCP server to expose to the session.

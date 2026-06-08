@@ -500,7 +500,7 @@ func (s *Server) workflowLaneSpec(cs ctxforge.SessionSpec) copilot.SessionSpec {
 	if s.config != nil {
 		defModel, defEffort = s.config.DefaultModel, s.config.ReasoningEffort
 	}
-	return SeamSpec(cs, defModel, defEffort, s.lookupEnv)
+	return SeamSpec(cs, defModel, defEffort, s.lookupEnv, s.hub.baseSpec.Workspace)
 }
 
 // launchLanes starts each given lane's sub-run concurrently.

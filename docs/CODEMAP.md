@@ -23,16 +23,16 @@ _Last generated: 2026-06-08 (UTC)._
 
 ## internal/bootstrap
 
-### bootstrap.go (378 LOC)
+### bootstrap.go (385 LOC)
 - L34: `func Build(configDir string, demo bool) (srv *web.Hub, close func(), err error)`
-- L113: `func demoClient(forge *ctxforge.Forge, spec *copilot.SessionSpec) (copilot.Client, func())`
-- L153: `func seedSpend(store *telemetry.SpendStore)`
-- L179: `func seedRuns(store *telemetry.RunStore)`
-- L207: `func dialClient(cfg *config.Config) (copilot.Client, func())`
-- L229: `func ServeLocal(h http.Handler) (port int, stop func(), err error)`
-- L241: `func DefaultConfigDir() string`
-- L255: `func SeedForge(forge *ctxforge.Forge)`
-- L366: `func curatedMCPServers() []ctxforge.MCPServer`
+- L120: `func demoClient(forge *ctxforge.Forge, spec *copilot.SessionSpec) (copilot.Client, func())`
+- L160: `func seedSpend(store *telemetry.SpendStore)`
+- L186: `func seedRuns(store *telemetry.RunStore)`
+- L214: `func dialClient(cfg *config.Config) (copilot.Client, func())`
+- L236: `func ServeLocal(h http.Handler) (port int, stop func(), err error)`
+- L248: `func DefaultConfigDir() string`
+- L262: `func SeedForge(forge *ctxforge.Forge)`
+- L373: `func curatedMCPServers() []ctxforge.MCPServer`
 
 ## internal/config
 
@@ -93,7 +93,7 @@ _Last generated: 2026-06-08 (UTC)._
 - L70: `type planDecision struct`
 - L79: `type elicitDecision struct`
 
-### copilot.go (288 LOC)
+### copilot.go (294 LOC)
 - L17: `type EventType int`
 - L46: `type SessionMeta struct`
 - L57: `type PermissionRequest struct`
@@ -108,16 +108,16 @@ _Last generated: 2026-06-08 (UTC)._
 - L181: `type ModelInfo struct`
 - L190: `type ToolCall struct`
 - L207: `type SessionSpec struct`
-- L227: `type MCPServer struct`
-- L242: `func (m MCPServer) Key() string`
-- L250: `type Client interface`
+- L233: `type MCPServer struct`
+- L248: `func (m MCPServer) Key() string`
+- L256: `type Client interface`
 
-### handlers.go (144 LOC)
-- L23: `func (c *SDKClient) permissionHandler() sdk.PermissionHandlerFunc`
-- L63: `func permCommand(req sdk.PermissionRequest) string`
-- L77: `func (c *SDKClient) userInputHandler() sdk.UserInputHandler`
-- L104: `func (c *SDKClient) exitPlanModeHandler() sdk.ExitPlanModeRequestHandler`
-- L127: `func (c *SDKClient) elicitationHandler() sdk.ElicitationHandler`
+### handlers.go (156 LOC)
+- L29: `func (c *SDKClient) permissionHandler() sdk.PermissionHandlerFunc`
+- L75: `func permCommand(req sdk.PermissionRequest) string`
+- L89: `func (c *SDKClient) userInputHandler() sdk.UserInputHandler`
+- L116: `func (c *SDKClient) exitPlanModeHandler() sdk.ExitPlanModeRequestHandler`
+- L139: `func (c *SDKClient) elicitationHandler() sdk.ElicitationHandler`
 
 ### mock.go (230 LOC)
 - L11: `type MockClient struct`
@@ -169,35 +169,36 @@ _Last generated: 2026-06-08 (UTC)._
 - L410: `func subagentSummary(durationMs, totalTokens *int64) string`
 - L422: `func humanTokenCount(n int64) string`
 
-### sdkclient.go (446 LOC)
+### sdkclient.go (459 LOC)
 - L23: `type SDKClient struct`
 - L51: `type Options struct`
 - L69: `func ResolveAuth(token string) (githubToken string, useLoggedInUser *bool)`
 - L79: `func NewSDKClient(ctx context.Context, opts Options) (*SDKClient, error)`
-- L119: `func (c *SDKClient) applyHandlers(autoApprove bool) (onPerm sdk.PermissionHandlerFunc, onInput sdk.UserInputHandler, onPlan sdk.ExitPlanModeRequestHandler, onElicit sdk.ElicitationHandler)`
-- L129: `func (c *SDKClient) CreateSession(ctx context.Context, spec SessionSpec) (string, error)`
-- L171: `func (c *SDKClient) ListSessions(ctx context.Context) ([]SessionMeta, error)`
-- L192: `func (c *SDKClient) ResumeSession(ctx context.Context, sessionID string, spec SessionSpec) (string, error)`
-- L219: `func (c *SDKClient) SessionHistory(ctx context.Context, sessionID string) ([]Event, error)`
-- L235: `func (c *SDKClient) DeleteSession(ctx context.Context, sessionID string) error`
-- L254: `func shouldDropReasoningEffort(effort string, supported []string, known bool) bool`
-- L272: `func (c *SDKClient) modelReasoningEfforts(ctx context.Context, model string) (efforts []string, known bool)`
-- L297: `func (c *SDKClient) register(session *sdk.Session, hooks []ctxforge.Hook)`
-- L308: `func (c *SDKClient) ListModels(ctx context.Context) ([]ModelInfo, error)`
-- L321: `func (c *SDKClient) Respond(id string, approve bool) error`
-- L329: `func (c *SDKClient) RespondInput(id, answer string) error`
-- L337: `func (c *SDKClient) RespondPlan(id string, approved bool, action, feedback string) error`
-- L345: `func (c *SDKClient) RespondElicit(id, action string, content map[string]any) error`
-- L353: `func (c *SDKClient) Send(ctx context.Context, sessionID, prompt string, attachments []string, agentMode string) error`
-- L373: `func toAgentMode(mode string) sdk.AgentMode`
-- L389: `func (c *SDKClient) Abort(ctx context.Context, sessionID string) error`
-- L400: `func (c *SDKClient) Events() <-chan Event { return c.events }`
-- L403: `func (c *SDKClient) emit(e Event)`
-- L411: `func (c *SDKClient) Close() error`
+- L120: `type sessionPolicy struct`
+- L132: `func (c *SDKClient) applyHandlers() (onPerm sdk.PermissionHandlerFunc, onInput sdk.UserInputHandler, onPlan sdk.ExitPlanModeRequestHandler, onElicit sdk.ElicitationHandler)`
+- L137: `func (c *SDKClient) CreateSession(ctx context.Context, spec SessionSpec) (string, error)`
+- L179: `func (c *SDKClient) ListSessions(ctx context.Context) ([]SessionMeta, error)`
+- L200: `func (c *SDKClient) ResumeSession(ctx context.Context, sessionID string, spec SessionSpec) (string, error)`
+- L227: `func (c *SDKClient) SessionHistory(ctx context.Context, sessionID string) ([]Event, error)`
+- L243: `func (c *SDKClient) DeleteSession(ctx context.Context, sessionID string) error`
+- L262: `func shouldDropReasoningEffort(effort string, supported []string, known bool) bool`
+- L280: `func (c *SDKClient) modelReasoningEfforts(ctx context.Context, model string) (efforts []string, known bool)`
+- L306: `func (c *SDKClient) register(session *sdk.Session, spec SessionSpec)`
+- L321: `func (c *SDKClient) ListModels(ctx context.Context) ([]ModelInfo, error)`
+- L334: `func (c *SDKClient) Respond(id string, approve bool) error`
+- L342: `func (c *SDKClient) RespondInput(id, answer string) error`
+- L350: `func (c *SDKClient) RespondPlan(id string, approved bool, action, feedback string) error`
+- L358: `func (c *SDKClient) RespondElicit(id, action string, content map[string]any) error`
+- L366: `func (c *SDKClient) Send(ctx context.Context, sessionID, prompt string, attachments []string, agentMode string) error`
+- L386: `func toAgentMode(mode string) sdk.AgentMode`
+- L402: `func (c *SDKClient) Abort(ctx context.Context, sessionID string) error`
+- L413: `func (c *SDKClient) Events() <-chan Event { return c.events }`
+- L416: `func (c *SDKClient) emit(e Event)`
+- L424: `func (c *SDKClient) Close() error`
 
 ## internal/ctxforge
 
-### forge.go (591 LOC)
+### forge.go (593 LOC)
 - L13: `type Forge struct`
 - L30: `func New(dir string) *Forge`
 - L36: `func Load(dir string) (*Forge, error)`
@@ -230,24 +231,26 @@ _Last generated: 2026-06-08 (UTC)._
 - L456: `func (f *Forge) RemoveMCPServer(id string) error`
 - L469: `type SessionSpec struct`
 - L492: `func (f *Forge) Compile(agentID string) (SessionSpec, error)`
-- L571: `func (f *Forge) activeSkills(agent *Agent) []Skill`
+- L573: `func (f *Forge) activeSkills(agent *Agent) []Skill`
 
-### hook.go (290 LOC)
-- L46: `type HookMatch struct`
-- L56: `type Hook struct`
-- L72: `func hasDanglingVarRef(s string) bool`
-- L89: `func (h Hook) Validate() error`
-- L114: `func (m HookMatch) matches(toolKind, command string) bool`
-- L126: `func patternMatch(pattern, command string) bool`
-- L139: `func globMatch(pattern, s string) bool`
-- L161: `type Decision struct`
-- L177: `func Evaluate(hooks []Hook, event, toolKind, command string) Decision`
-- L212: `func (f *Forge) Hook(id string) *Hook`
-- L222: `func (f *Forge) AddHook(h Hook) error`
-- L238: `func (f *Forge) UpdateHook(id string, h Hook) error`
-- L250: `func (f *Forge) ToggleHook(id string) (bool, error)`
-- L261: `func (f *Forge) RemoveHook(id string) error`
-- L279: `func DefaultHooks() []Hook`
+### hook.go (464 LOC)
+- L54: `type HookMatch struct`
+- L65: `type Hook struct`
+- L89: `func hasDanglingVarRef(s string) bool`
+- L106: `func (h Hook) Validate() error`
+- L133: `func (m HookMatch) matches(toolKind, command, workspace string) bool`
+- L153: `func isOutsideWorkspace(target, workspace string) bool`
+- L183: `func patternMatch(pattern, command string) bool`
+- L196: `func globMatch(pattern, s string) bool`
+- L222: `type Decision struct`
+- L244: `func Evaluate(hooks []Hook, event, toolKind, command, workspace string) Decision`
+- L294: `func (f *Forge) Hook(id string) *Hook`
+- L304: `func (f *Forge) AddHook(h Hook) error`
+- L320: `func (f *Forge) UpdateHook(id string, h Hook) error`
+- L332: `func (f *Forge) ToggleHook(id string) (bool, error)`
+- L343: `func (f *Forge) RemoveHook(id string) error`
+- L361: `func DefaultHooks() []Hook`
+- L394: `func DangerousHooks() []Hook`
 
 ### snippet.go (87 LOC)
 - L14: `type Snippet struct`
@@ -435,7 +438,7 @@ _Last generated: 2026-06-08 (UTC)._
 - L82: `func (s *Server) forecast(now time.Time) (telemetry.Projection, bool)`
 - L92: `func (s *Server) overCap() (projected float64, capped bool)`
 
-### commands.go (411 LOC)
+### commands.go (413 LOC)
 - L23: `func parseCommand(input string) (name, args string, ok bool)`
 - L34: `func (s *Server) runCommand(input string) string`
 - L66: `func (s *Server) systemNote(text string) string`
@@ -450,14 +453,14 @@ _Last generated: 2026-06-08 (UTC)._
 - L210: `func (s *Server) cmdModel(name string) string`
 - L225: `func (s *Server) setModel(name string)`
 - L244: `func (s *Server) cmdAgent(arg string) string`
-- L305: `func SeamSpec(cs ctxforge.SessionSpec, defModel, defEffort string, lookupEnv func(string) string) copilot.SessionSpec`
-- L323: `func (s *Server) compiledSpec(agentID string) copilot.SessionSpec`
-- L337: `func (s *Server) applyAgentSpec(c copilot.SessionSpec, agentID string) string`
-- L354: `func (s *Server) cmdCost() string`
-- L367: `func (s *Server) cmdAttach(path string) string`
-- L381: `func (s *Server) cmdNav(slug string) string`
-- L386: `func isNavSlug(slug string) bool`
-- L397: `func commandHelp() string`
+- L307: `func SeamSpec(cs ctxforge.SessionSpec, defModel, defEffort string, lookupEnv func(string) string, workspace string) copilot.SessionSpec`
+- L325: `func (s *Server) compiledSpec(agentID string) copilot.SessionSpec`
+- L339: `func (s *Server) applyAgentSpec(c copilot.SessionSpec, agentID string) string`
+- L356: `func (s *Server) cmdCost() string`
+- L369: `func (s *Server) cmdAttach(path string) string`
+- L383: `func (s *Server) cmdNav(slug string) string`
+- L388: `func isNavSlug(slug string) bool`
+- L399: `func commandHelp() string`
 
 ### dashboard_render.go (153 LOC)
 - L25: `func (s *Server) dashboardView(window int, now time.Time) map[string]any`
