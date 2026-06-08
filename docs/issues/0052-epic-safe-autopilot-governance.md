@@ -1,6 +1,6 @@
 ---
 id: 0052
-title: "Epic: Safe autopilot — tool-governance policy (allow/deny/ask) + Pre/PostToolUse hooks (roadmap v10)"
+title: "Epic: Hooks & safe autopilot — first-class forge-managed Pre/PostToolUse hooks + a safe-by-default tool-governance policy (roadmap v10)"
 status: open
 severity: high
 group:
@@ -26,11 +26,18 @@ is **no governance layer** that makes that safe. Two concrete gaps in the curren
    the CI workflow-guard scripts). There is no place to enforce policy a user cannot bypass.
 
 This is arguably the **third product pillar** (alongside cost-awareness and orchestration): governance is
-what lets orchestration run *unattended* without being reckless. Industry practice (Claude Code's
-allow/deny/ask rules + PreToolUse hooks + an auto-mode risk classifier) is the reference model:
-**auto-approve read-only ops, hard-deny destructive patterns, and force a mandatory human-in-the-loop
-gate for the risky-but-legitimate** — enforced in the bridge, *not just config* (deny-rules-alone have
-documented bypass bugs; the mitigation is to combine them with a PreToolUse hook).
+what lets orchestration run *unattended* without being reckless. Reference models (Claude Code's
+allow/deny/ask rules + PreToolUse hooks + an auto-mode risk classifier) inform the *shape*, but the goal
+is **our own, in-app feature**: **auto-approve read-only ops, hard-deny destructive patterns, and force a
+mandatory human-in-the-loop gate for the risky-but-legitimate** — enforced in the bridge, *not just
+config* (deny-rules-alone have documented bypass bugs; combine them with a hook).
+
+**Hooks are a first-class forge primitive, managed in the app.** The headline deliverable is that a
+my-orchestra user can **add, edit, enable/disable, and remove their own Pre/PostToolUse hooks from the
+UI** — a new `ctxforge.Hook` entity persisted in `forge.json` and CRUD-managed exactly like skills,
+instructions, agents, MCP servers, workflows, and snippets (same form/list/preflight patterns). The
+safe-by-default governance policy (G0–G2) is then expressible as **built-in hooks/rules** on that same
+mechanism — the user's hooks and the shipped defaults run through one evaluator.
 
 ### The seam
 
@@ -51,21 +58,25 @@ or **ask** (the existing HITL gate). This generalizes `AutoApproveTools` from a 
       patterns — `rm -rf` on `$HOME`/root, `curl|sh` / pipe-a-download-into-an-editor-or-shell, writes
       outside the workspace, `sudo`, obvious exfiltration — hard-denied or forced through a **mandatory**
       gate **even in auto mode**, enforced in the bridge (unbypassable).
-- [ ] **G3 · PreToolUse / PostToolUse hooks** (L; ADR). A forge **hook** surface: run a user-defined
-      command/check before a tool call returning `allow|deny|ask` (PreToolUse) and after (PostToolUse,
-      observe/log). The built-in policy is the first consumer. Reuse `${VAR}` + preflight; **hook output
-      is untrusted** — sanitize.
-- [ ] **G4 · Policy/hook editor UI + mode binding** (M). Edit rules + hooks in the UI; bind a policy to
-      **agent modes** (auto mode → strict default; ask mode → fully interactive); surface *why* a call
-      was auto-approved/denied in the timeline.
+- [ ] **G3 · Hooks as a first-class forge entity** (L; ADR) — *the headline feature*. A new
+      `ctxforge.Hook` `{id, event (pre/post-tool-use), match (tool kind / pattern), action
+      (command or built-in allow|deny|ask), enabled}`, compiled into the session and fired by the bridge:
+      PreToolUse returns `allow|deny|ask`; PostToolUse observes/logs. Persisted in `forge.json` like every
+      other forge type. Reuse `${VAR}` + preflight; **hook command output is untrusted** — sanitize.
+- [ ] **G4 · Hook/policy editor UI + mode binding** (M). Full **CRUD in the app** — add / edit /
+      enable-disable / remove hooks from a Hooks page, exactly like the skills/MCP/workflow forms (list +
+      form + preflight). Bind a hook set to **agent modes** (auto mode → strict defaults on; ask mode →
+      fully interactive); surface *why* a call was auto-approved/denied in the timeline.
 
 ## Acceptance (epic)
 
 - [ ] Read-only tools are auto-approved by default; writes/exec are gated; the default build is safe.
 - [ ] A documented set of destructive patterns is hard-denied or force a mandatory gate **even in auto
       mode**, enforced in the bridge (not bypassable by config alone), and **table-tested**.
-- [ ] Pre/PostToolUse hooks exist, return allow/deny/ask, and treat hook output as untrusted.
-- [ ] Policy + hooks are editable in the UI and bound to agent modes; decisions are explainable.
+- [ ] Hooks are a **first-class forge entity** persisted in `forge.json`, with full **add/edit/
+      enable-disable/remove CRUD in the app**; Pre/PostToolUse hooks fire from the bridge, return
+      allow/deny/ask, and treat hook command output as untrusted.
+- [ ] Hooks/policy are bound to agent modes; every auto-approve/deny decision is explainable in the UI.
 - [ ] Each child: failing test first, ADR where it sets policy semantics, `make lint && make test`
       (floor 65%) + `make e2e` green, born in its PR, SemVer minor.
 

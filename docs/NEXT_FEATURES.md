@@ -803,13 +803,15 @@ drifts on every multiplier change. Instead, a **three-tier source hierarchy**:
   writes outside the workspace, `sudo`, secret exfiltration — **hard-denied or forced through a
   mandatory gate even in auto mode** (unbypassable, enforced in the bridge). The "security stuff that
   makes autopilot safe."
-- **G3 · PreToolUse / PostToolUse hooks** — **L** · ADR. A forge **hook** surface: run a user-defined
-  command/check before/after a tool call, returning `allow|deny|ask` (PreToolUse) or observing/logging
-  (PostToolUse). Closes the "do we cover hooks?" gap; the built-in policy (G0–G2) is the first consumer.
-  Reuses the `${VAR}` + preflight patterns; hook output is untrusted input (sanitize).
-- **G4 · Policy/hook editor UI + mode binding** — **M**. Edit rules + hooks in the UI (like the
-  allowlist/MCP forms); bind a policy to **agent modes** so **auto mode** uses the strict default while
-  **ask mode** stays fully interactive. Surfaces *why* a call was auto-approved/denied in the timeline.
+- **G3 · Hooks as a first-class forge entity (the headline feature)** — **L** · ADR. A new
+  `ctxforge.Hook` `{id, event: pre/post-tool-use, match, action: command | built-in allow|deny|ask,
+  enabled}`, **persisted in `forge.json` like skills/agents/MCP/workflows** and fired by the bridge.
+  *This is the "bake hooks into the app" ask* — the built-in safe policy (G0–G2) rides the same
+  evaluator. Reuses `${VAR}` + preflight; hook command output is untrusted (sanitize).
+- **G4 · Hooks/policy editor UI + mode binding** — **M**. Full **CRUD in the app** — a Hooks page to
+  add / edit / enable-disable / remove hooks, exactly like the MCP/workflow forms; bind a hook set to
+  **agent modes** (auto mode → strict defaults; ask mode → fully interactive). Surfaces *why* a call was
+  auto-approved/denied in the timeline.
 
 ### Epic — Auth & connection (enablement) → issue [0051](issues/0051-epic-auth-and-connection.md)
 

@@ -65,4 +65,4 @@ issues are added or closed.
 | [0049](0049-motion-and-polish.md) | Motion & polish — htmx per-navigation View-Transition page swaps + a token-driven component pass (item V24) | closed | low | 0045 | ADR-0028, REGRESSIONS (global-VT dead-end), PR #82 |
 | [0050](0050-epic-billing-fidelity.md) | Epic: Billing fidelity — price cache-write + reasoning tokens; authoritative-cost-first source hierarchy (roadmap v10, P0–P4) | open | high | — | NEXT_FEATURES v10 |
 | [0051](0051-epic-auth-and-connection.md) | Epic: Auth & connection — device flow / local ${VAR} token / gh reuse (roadmap v10, A0–A1) | open | medium | — | NEXT_FEATURES v10 |
-| [0052](0052-epic-safe-autopilot-governance.md) | Epic: Safe autopilot — tool-governance policy (allow/deny/ask) + Pre/PostToolUse hooks (roadmap v10, G0–G4) | open | high | — | NEXT_FEATURES v10, REGRESSIONS (VT-modal artifact) |
+| [0052](0052-epic-safe-autopilot-governance.md) | Epic: Hooks & safe autopilot — first-class forge-managed Pre/PostToolUse hooks + safe-by-default governance policy (roadmap v10, G0–G4) | open | high | — | NEXT_FEATURES v10, REGRESSIONS (VT-modal artifact) |
