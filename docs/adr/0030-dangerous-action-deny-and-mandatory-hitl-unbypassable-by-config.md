@@ -74,17 +74,23 @@ unbypassable by config — including on the auto-approve path**.
     the single evaluator exists to prevent. One handler, one evaluator, a per-decision mandatory
     bit is the DRY shape.
 
-- **The ruleset itself — deny vs. force-gate per pattern.** Clearly-destructive / RCE /
-  exfiltration patterns are **hard-denied** (`rm -rf` of `/`·`~`·`$HOME`, `curl|sh` / `wget|sh`
-  incl. `bash`, download-into-editor, pipe-to-`nc`, POSTing `id_rsa`/`.ssh`/`.aws/credentials`/
-  `.netrc` via curl). Risky-but-legitimate patterns are **force-gated** as a *mandatory ask*
-  (`sudo`, an out-of-workspace write) — a human must approve even in auto, but the action isn't
-  forbidden. Patterns are **unanchored** (match anywhere, so a leading token can't dodge them)
-  and deliberately conservative: this is defense-in-depth at the permission gate, **not** a
-  hardened sandbox. Two matcher limits are accepted and documented in `DangerousHooks`: a
-  recursive force-delete of any **absolute** path under `/` or `~`/`$HOME` is denied (relative
-  cleanup like `rm -rf ./build` is left to the gate — the required near-miss), and exotic
-  obfuscation (process substitution, unusual spacing) is out of scope for the string matcher.
+- **The ruleset itself — deny vs. force-gate per pattern.** **Unambiguously** destructive / RCE /
+  exfiltration patterns are **hard-denied** (`rm -rf` of `/`·`~`·`$HOME`; `curl|sh` / `wget|sh`
+  incl. `bash` and `|nano`/`|vim`, where the interpreter token must follow the pipe **directly** so
+  a benign later `sh` substring like `curl … | grep ssh` is **not** caught; pipe-to-`nc`; POSTing an
+  SSH private key `id_rsa` via curl/wget). **Heuristic** patterns that could also hit a benign
+  command are **force-gated** as a *mandatory ask*, not denied — a false positive asks a human
+  instead of an unoverridable block: a curl referencing a credential **store** (`.ssh/`,
+  `.aws/credentials`, `.netrc` — substrings that can appear in a URL path), `sudo`, and an
+  out-of-workspace write. Patterns are **unanchored** (match anywhere, so a leading token can't
+  dodge them) and deliberately conservative: this is defense-in-depth at the permission gate,
+  **not** a hardened sandbox. Accepted, documented matcher limits: a recursive force-delete of any
+  **absolute** path under `/` or `~`/`$HOME` is denied (relative cleanup like `rm -rf ./build` is
+  left to the gate — the required near-miss); an interpreter sharing a prefix with the pipe target
+  (`curl … | sha256sum`) is a rare residual over-match; and non-pipe netcat (`nc host < file`) plus
+  exotic obfuscation (process substitution, unusual spacing) are out of scope for the string
+  matcher. The workspace fence also treats a `~`/`$VAR` write target as outside (fail-safe — such a
+  path is never workspace-relative).
 
 ## Decision
 

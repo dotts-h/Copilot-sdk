@@ -233,24 +233,24 @@ _Last generated: 2026-06-08 (UTC)._
 - L492: `func (f *Forge) Compile(agentID string) (SessionSpec, error)`
 - L573: `func (f *Forge) activeSkills(agent *Agent) []Skill`
 
-### hook.go (429 LOC)
+### hook.go (464 LOC)
 - L54: `type HookMatch struct`
 - L65: `type Hook struct`
 - L89: `func hasDanglingVarRef(s string) bool`
 - L106: `func (h Hook) Validate() error`
 - L133: `func (m HookMatch) matches(toolKind, command, workspace string) bool`
 - L153: `func isOutsideWorkspace(target, workspace string) bool`
-- L175: `func patternMatch(pattern, command string) bool`
-- L188: `func globMatch(pattern, s string) bool`
-- L214: `type Decision struct`
-- L236: `func Evaluate(hooks []Hook, event, toolKind, command, workspace string) Decision`
-- L286: `func (f *Forge) Hook(id string) *Hook`
-- L296: `func (f *Forge) AddHook(h Hook) error`
-- L312: `func (f *Forge) UpdateHook(id string, h Hook) error`
-- L324: `func (f *Forge) ToggleHook(id string) (bool, error)`
-- L335: `func (f *Forge) RemoveHook(id string) error`
-- L353: `func DefaultHooks() []Hook`
-- L382: `func DangerousHooks() []Hook`
+- L183: `func patternMatch(pattern, command string) bool`
+- L196: `func globMatch(pattern, s string) bool`
+- L222: `type Decision struct`
+- L244: `func Evaluate(hooks []Hook, event, toolKind, command, workspace string) Decision`
+- L294: `func (f *Forge) Hook(id string) *Hook`
+- L304: `func (f *Forge) AddHook(h Hook) error`
+- L320: `func (f *Forge) UpdateHook(id string, h Hook) error`
+- L332: `func (f *Forge) ToggleHook(id string) (bool, error)`
+- L343: `func (f *Forge) RemoveHook(id string) error`
+- L361: `func DefaultHooks() []Hook`
+- L394: `func DangerousHooks() []Hook`
 
 ### snippet.go (87 LOC)
 - L14: `type Snippet struct`

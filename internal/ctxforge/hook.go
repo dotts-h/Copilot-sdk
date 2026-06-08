@@ -154,6 +154,14 @@ func isOutsideWorkspace(target, workspace string) bool {
 	if workspace == "" || target == "" {
 		return false
 	}
+	// A target that references the home directory (`~`) or carries an unexpanded
+	// shell variable (`$HOME`, `${VAR}`) is NOT a workspace-relative path — joining
+	// it onto the root would wrongly judge `~/.ssh/authorized_keys` "inside" the
+	// tree. Treat such targets as outside so the fence gates them (fail-safe),
+	// mirroring how the dangerous ruleset treats `~`/`$HOME` for `rm`.
+	if strings.HasPrefix(target, "~") || strings.ContainsRune(target, '$') {
+		return true
+	}
 	ws := filepath.Clean(workspace)
 	p := target
 	if !filepath.IsAbs(p) {
@@ -364,26 +372,33 @@ func DefaultHooks() []Hook {
 }
 
 // DangerousHooks returns the built-in, MANDATORY dangerous-action ruleset (G2):
-// clearly-destructive patterns are hard-denied and risky-but-legitimate ones are
+// clearly-destructive patterns are hard-denied and risky-but-heuristic ones are
 // force-gated, even when a session runs with AutoApproveTools — config alone
 // cannot bypass them (Hook.Mandatory; ADR-0030). They run through the SAME
 // Evaluate as the safe-read defaults and user hooks, so deny > ask > allow holds:
 // a user deny (more restrictive) still wins over a mandatory ask, but a user allow
 // (or a blanket auto-approve) can never weaken a mandatory deny/ask. Compile folds
-// these into every session's policy.
+// these into every session's policy. The set has a deterministic order.
 //
 // Patterns are unanchored substrings/globs (matching anywhere, so a leading token
 // can't dodge them) and are deliberately conservative — defense-in-depth at the
-// permission gate, not a hardened sandbox. Two limits of the string matcher are
-// accepted and documented here: a recursive force-delete of any ABSOLUTE path
-// under `/` or `~`/`$HOME` is denied (relative cleanup like `rm -rf ./build` is
-// left to the gate), and exotic obfuscations (process substitution, unusual
-// spacing) are out of scope.
+// permission gate, not a hardened sandbox. Where a substring is heuristic enough to
+// hit a benign command (a credential-store path that could appear in a URL), the
+// rule is a mandatory **gate** (ask) rather than a hard deny, so a false positive
+// asks a human instead of an unoverridable block. Accepted/documented matcher limits:
+// a recursive force-delete of any ABSOLUTE path under `/` or `~`/`$HOME` is denied
+// (relative `rm -rf ./build` is left to the gate); a shell/editor token sharing a
+// prefix with the pipe target (`curl … | sha256sum`) is a rare residual over-match;
+// and non-pipe netcat (`nc host < file`) and exotic obfuscation (process
+// substitution, unusual spacing) are out of scope for the string matcher.
 func DangerousHooks() []Hook {
 	deny := func(id, pattern, reason string) Hook {
 		return Hook{ID: id, Event: HookPreToolUse, Match: HookMatch{ToolKind: "shell", Pattern: pattern}, Action: HookDeny, Reason: reason, Mandatory: true, Enabled: true}
 	}
-	return []Hook{
+	gate := func(id, pattern, reason string) Hook {
+		return Hook{ID: id, Event: HookPreToolUse, Match: HookMatch{ToolKind: "shell", Pattern: pattern}, Action: HookAsk, Reason: reason, Mandatory: true, Enabled: true}
+	}
+	hooks := []Hook{
 		// rm -rf / -fr targeting the root filesystem or the home directory:
 		// irreversible mass deletion, never a legitimate unattended action. The
 		// pattern requires the path to begin at `/`, `~`, or `$HOME` (right after
@@ -394,36 +409,56 @@ func DangerousHooks() []Hook {
 		deny("builtin-deny-rm-home-fr", "rm -fr ~", "blocked: recursive force-delete targeting the home directory"),
 		deny("builtin-deny-rm-homevar", "rm -rf $HOME", "blocked: recursive force-delete targeting $HOME"),
 		deny("builtin-deny-rm-homevar-fr", "rm -fr $HOME", "blocked: recursive force-delete targeting $HOME"),
-		// Pipe a download straight into a shell — remote code execution. The glob
-		// `curl*|*sh` covers `| sh`, `|sh`, and `| bash` (bash ends in "sh").
-		deny("builtin-deny-curl-pipe-shell", "curl*|*sh", "blocked: piping a download into a shell (remote code execution)"),
-		deny("builtin-deny-wget-pipe-shell", "wget*|*sh", "blocked: piping a download into a shell (remote code execution)"),
-		// Pipe a download into an editor — editors run startup/macro code, so this is
-		// RCE-adjacent.
-		deny("builtin-deny-curl-pipe-editor", "curl*|*vim", "blocked: piping a download into an editor (executes editor macros)"),
-		deny("builtin-deny-wget-pipe-editor", "wget*|*vim", "blocked: piping a download into an editor (executes editor macros)"),
-		// Obvious exfiltration: piping data to netcat (a reverse shell / data tunnel),
-		// or POSTing well-known secret material over the network with curl.
+		// Pipe data to netcat — a reverse shell / data tunnel, almost never benign.
+		// The space-delimited `nc ` avoids matching `sync`/`rsync`/`func`.
 		deny("builtin-deny-pipe-netcat", "| nc ", "blocked: piping data to netcat (exfiltration / reverse shell)"),
 		deny("builtin-deny-pipe-netcat-nospace", "|nc ", "blocked: piping data to netcat (exfiltration / reverse shell)"),
-		deny("builtin-deny-curl-ssh-key", "curl*id_rsa", "blocked: sending an SSH private key over the network"),
-		deny("builtin-deny-curl-ssh-dir", "curl*.ssh/", "blocked: sending .ssh material over the network"),
-		deny("builtin-deny-curl-aws-creds", "curl*.aws/credentials", "blocked: sending AWS credentials over the network"),
-		deny("builtin-deny-curl-netrc", "curl*.netrc", "blocked: sending .netrc credentials over the network"),
+	}
+	// Pipe a download straight into a shell interpreter (sh/bash) or an editor
+	// (vim/nano) — remote code execution. The target token must follow the pipe
+	// DIRECTLY (no `*` between the pipe and the token), so a benign later "sh"
+	// substring — `curl … | grep ssh`, `curl … | less` — does NOT match; only a
+	// real pipe-into-interpreter does. The `*` before the pipe still allows the
+	// URL + flags. Both spaced (`| sh`) and tight (`|sh`) forms are covered.
+	pipeTargets := []struct{ tok, reason string }{
+		{"sh", "blocked: piping a download into a shell (remote code execution)"},
+		{"bash", "blocked: piping a download into a shell (remote code execution)"},
+		{"vim", "blocked: piping a download into an editor (executes editor macros)"},
+		{"nano", "blocked: piping a download into an editor (executes editor macros)"},
+	}
+	for _, dl := range []string{"curl", "wget"} {
+		for _, t := range pipeTargets {
+			for _, sep := range []struct{ id, s string }{{"sp", "| "}, {"tight", "|"}} {
+				hooks = append(hooks, deny(
+					fmt.Sprintf("builtin-deny-%s-pipe-%s-%s", dl, t.tok, sep.id),
+					dl+"*"+sep.s+t.tok, t.reason))
+			}
+		}
+	}
+	// Sending an SSH private key over the network is unambiguous exfiltration.
+	for _, dl := range []string{"curl", "wget"} {
+		hooks = append(hooks, deny("builtin-deny-"+dl+"-ssh-key", dl+"*id_rsa",
+			"blocked: sending an SSH private key over the network"))
+	}
+	hooks = append(hooks,
+		// curl referencing a well-known credential STORE (.ssh dir, AWS creds,
+		// .netrc). These substrings can also appear in a benign URL path, so they
+		// are force-gated (mandatory ask) rather than hard-denied — a human confirms
+		// instead of an unoverridable block on a possible false positive.
+		gate("builtin-ask-curl-ssh-dir", "curl*.ssh/", "confirm: command references .ssh material over the network"),
+		gate("builtin-ask-curl-aws-creds", "curl*.aws/credentials", "confirm: command references AWS credentials over the network"),
+		gate("builtin-ask-curl-netrc", "curl*.netrc", "confirm: command references .netrc credentials over the network"),
 		// sudo — privilege escalation. Sometimes legitimate, so it is force-gated
 		// (mandatory ask) rather than hard-denied: a human must approve even in auto.
-		{
-			ID: "builtin-ask-sudo", Event: HookPreToolUse,
-			Match:  HookMatch{ToolKind: "shell", Pattern: "sudo "},
-			Action: HookAsk, Reason: "confirm: sudo escalates privileges", Mandatory: true, Enabled: true,
-		},
+		gate("builtin-ask-sudo", "sudo ", "confirm: sudo escalates privileges"),
 		// A write whose target resolves OUTSIDE the session workspace — the path-aware
 		// fence (ADR-0030). Legitimate sometimes (writing to /tmp, ~/.config), so it is
 		// force-gated, not denied; the fence is inert when no workspace root is known.
-		{
+		Hook{
 			ID: "builtin-ask-write-outside-workspace", Event: HookPreToolUse,
 			Match:  HookMatch{ToolKind: "write", OutsideWorkspace: true},
 			Action: HookAsk, Reason: "confirm: write target is outside the workspace", Mandatory: true, Enabled: true,
 		},
-	}
+	)
+	return hooks
 }
