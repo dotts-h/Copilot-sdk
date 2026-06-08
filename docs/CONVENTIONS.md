@@ -84,6 +84,26 @@ Exact commands CI enforces (`.github/workflows/ci.yml`, `Makefile`):
   `scripts/hook-check-workflows.sh` (matcher `Edit|Write|MultiEdit`) — the agent can't edit
   that file (it enables an external plugin marketplace), so wire it by hand.
 
+## Releases & versioning
+
+Versions are **SemVer** (`vMAJOR.MINOR.PATCH`), bumped per landed change:
+
+- **Feature → minor** (`v0.1.0 → v0.2.0`). A shipped roadmap item / epic child is a feature.
+- **Bug fix → patch** (`v0.2.0 → v0.2.1`).
+- **Breaking change → major.** Pre-1.0, a breaking change may ride a **minor** (`0.x` is unstable
+  by SemVer); call it out in the release notes either way.
+- An epic that lands several feature children closes on a single **minor** bump (e.g. epic 0045 /
+  roadmap v9 → `v0.2.0`), not one bump per child.
+
+The release is **tag-driven**: pushing a `v*` tag (or a manual `workflow_dispatch` with the tag)
+runs `.github/workflows/release.yml`, which cross-compiles the 6-target matrix and publishes a
+GitHub Release with `checksums.txt` + auto-generated notes. **GitHub cost is negligible** — release
+assets don't count against storage, and Actions minutes are free on public repos (a few minutes per
+release on private). In a sandbox where a direct tag `push` is blocked, cut the tag with the
+**`cut-release` skill** (it verifies the resolved version end-to-end so a misconfigured workflow
+can't publish a mis-tagged release). Never hand-edit the version-resolution step — the workflow
+guard (`scripts/check-workflows.sh`) fails on the `${GITHUB_REF_NAME:-…}` regression.
+
 ## Docs & comments — one fact, one home
 
 The why lives in **exactly one** canonical place; everything else **points**, never copies.
