@@ -717,15 +717,98 @@ All four children shipped; **on V24's merge epic 0045 is exhausted.**
 V21 (foundation) → V22 (IA) → V23 (dashboard) → V24 (motion/polish), each born in its PR, the epic
 re-ranked on each merge. All four shipped.
 
-> **→ Next: roadmap v10.** With the presentation layer refreshed (themed, regrouped, dashboarded,
-> in motion) *and* the functional surface mature, a fresh value×fit pass scopes the next epic
-> against the two differentiators (cost-awareness ⋈ orchestration). Candidates carried into that
-> pass: **V20 — per-lane rerun** (L, the last interactive-orchestration child of the still-open
-> epic 0042, likely an ADR for the partial-rerun semantics + lane lineage); **B — cost-anomaly
-> reader** (M, a pure `DetectAnomalies` reader ambered on the Telemetry page — the *active* cost
-> surface); and the deferred **Open Props / `@layer`** additive CSS structuring + a literal-cleanup
-> paydown of the older component rules. **TECH_DEBT #8** stays deferred to its (still-unmet) volume
-> trigger.
+> **→ Next: roadmap v10 (scoped below).** A real-world audit (2026-06-08) surfaced that our meter
+> has drifted from **GitHub Copilot's June-2026 usage-based token billing** — so v10 leads with
+> **billing fidelity** (the core cost-awareness differentiator), adds an **auth/connection** surface,
+> and carries V20 / B / the Open Props paydown. A **dedicated tech-debt + code-quality + architecture
+> audit** follows the pricing work. **TECH_DEBT #8** stays deferred to its (unmet) volume trigger.
+
+---
+
+## Roadmap v10 — billing fidelity + connection (code + live-billing re-read 2026-06-08)
+
+> **Trigger.** Two findings from using the shipped UI: (1) the Telemetry **"per-model breakdown"
+> reads empty next to "11.20 cr spent"** — three deliberately-separate sources (ledger / month-to-date
+> / **live in-process meter**), and the demo seeds the ledger but never the live meter, so the
+> token table reads zero until a real turn streams; the ledger records *do* carry the token counts,
+> so the table can be computed from history instead. (2) **Copilot moved to usage-based token billing
+> (2026-06-01)** — input/output/cached priced per model rate → AI Credits (1 cr = $0.01, our model
+> exactly), **plus a billed cache-write cost (Anthropic ~1.25× input) and reasoning tokens billed at
+> the output rate** — *neither of which we price* (both sit in display-only `ExtraTokens`,
+> REGRESSIONS #3). Our meter therefore **under-counts real spend**. This is a correctness gap in the
+> product's core differentiator. Live sources exist to keep us honest:
+> `models.github.ai/catalog/models` (per-model multipliers) and `/rest/billing/usage` (GitHub's
+> authoritative billed `usageItems` with `pricePerUnit`), and the SDK already reports per-turn
+> `ReportedAIU`. — sources in the v10 research log (issue 0050).
+
+**Consistency design (the spine).** Don't try to *replicate* GitHub's billing perfectly offline — that
+drifts on every multiplier change. Instead, a **three-tier source hierarchy**:
+1. **Per-turn truth** = the SDK's **`ReportedAIU`** (GitHub's authoritative cost, already captured) —
+   no network. The static price book is demoted to an **estimate** (pre-flight composer + forecast),
+   never the source of truth for *actual* spend.
+2. **Rate freshness (optional)** = poll `catalog/models` for current multipliers, **cached + fail-open
+   to the static book**, so a stale hard-coded rate self-heals without breaking the offline-single-
+   binary doctrine (no CDN dependency — the fetch is opt-in, cached, and degradable).
+3. **Reconciliation (optional)** = pull `/rest/billing/usage` to reconcile our ledger against GitHub's
+   billed records — the cost cousin of the V15/V16 ledger⋈runs reconciliation.
+
+### Epic — Billing fidelity (cost-awareness) → issue [0050](issues/0050-epic-billing-fidelity.md)
+
+- **P0 · Authoritative-cost-first metering** — **M** · ADR. Make `ReportedAIU` the source of truth for
+  *actual* turn spend when present; keep the price book as the *estimate* for pre-flight/forecast and
+  the offline fallback. Surface estimate-vs-reported so drift is visible. Re-frames `Meter`/`SpendRecord`
+  around "estimated vs reported." *The answer to "how do we stay consistent."*
+- **P1 · Price cache-write + reasoning tokens** — **L** · ADR (money math + price-book migration).
+  Add `CacheWritePerMTok` + reasoning pricing to `ModelRate`; promote the cache-write + reasoning
+  counts out of display-only `ExtraTokens` into priced `Usage`; show them in the statusline split and
+  the per-model breakdown. **Default rule (confirmed): cache-write = 1.25× input, reasoning = output
+  rate**, overridable per-model via the existing Settings price editor (G1). Table-tested; the price
+  book stays deterministic.
+- **P2 · Per-model breakdown from the ledger** — **M** · no ADR. Compute the per-model token table
+  (in / cached / **cache-write** / out / **reasoning** + credits/usd) from the **persisted ledger**
+  (records already carry the counts) so it's populated and restart-surviving; relabel the live-meter
+  table "this session" vs the ledger table "all-time." **Closes the empty-table finding.** Pure reader
+  + render; adds the integration coverage that was missing.
+- **P3 · Estimate-vs-reported reconciliation + drift** — **M** · no ADR. A Telemetry row joining our
+  computed credits to `ReportedAIU` (and optionally `/billing/usage`), ambered past an epsilon — the
+  cost-side cousin of ledger⋈runs reconciliation (V15).
+- **P4 · Live price-book refresh (optional, opt-in)** — **L** · ADR (network in an offline-first tool).
+  Fetch current per-model multipliers from `catalog/models` on a cadence, cached to disk, **fail-open**
+  to the static `DefaultPriceBook`. A spike first: confirm the catalog payload shape + auth/network
+  policy. Strictly additive — the binary still runs fully offline.
+
+### Epic — Auth & connection (enablement) → issue [0051](issues/0051-epic-auth-and-connection.md)
+
+- **A0 · Auth spike** — **S**. Document how `SDKClient` authenticates **today** (which of the four
+  Copilot methods the underlying CLI/SDK resolves: device-flow keychain, env-var token, fine-grained
+  PAT with "Copilot Requests", or `gh` reuse — precedence
+  `COPILOT_GITHUB_TOKEN → GITHUB_TOKEN → GH_TOKEN → gh → device flow`). Feeds A1.
+- **A1 · Auth-method surface** — **L** · ADR. A Connection page to choose + see the active method:
+  **(a)** device flow (current/auto), **(b)** a pasted token saved locally **masked via the `${VAR}`
+  indirection** (ADR-0020 reuse — *no secret at rest in plaintext*, unlike `~/.copilot/config.json`),
+  **(c)** reuse the `gh` CLI token. Shows the resolved precedence + which credential is live.
+
+### Carried from v9 (re-ranked into v10, lower than the correctness work)
+
+- **V20 — per-lane rerun** (L, ADR) — the last child of the still-open **epic 0042**; re-run only a
+  failed lane. Carries the partial-rerun/lane-lineage ADR question.
+- **B — cost-anomaly reader** (M, no ADR) — pure `DetectAnomalies`, ambered on Telemetry; pairs
+  naturally with P3 (both make the cost surface *active*).
+- **Open Props / `@layer` + literal-cleanup** — the deferred additive CSS structuring (ADR-0025).
+
+### Then — dedicated quality audit (after P1/P2, confirmed)
+
+A focused **tech-debt + code-quality + architecture + workflow** review with its own findings doc
+(retro/ADR as warranted): re-scan `TECH_DEBT.md`, the web layer's growing render modules, the
+`Meter`/price-book seams after the P0/P1 reshape, and the e2e/demo-seeding gap this audit already
+exposed. Scoped as its own pass so the pricing correctness lands first on the current base, then the
+base is cleaned deliberately rather than mid-feature.
+
+### Recommended sequencing (v10)
+
+P0 (consistency spine) → P1 (price the two token types) → P2 (fix the empty table) → **quality audit**
+→ P3 / P4 / A0→A1 / V20 / B, re-ranked on each merge. Numbering: next issues **0050+**, next ADRs
+**0029+**. Each item born in its PR; SemVer per CONVENTIONS (features → minor: this epic → `v0.3.0`).
 
 ---
 

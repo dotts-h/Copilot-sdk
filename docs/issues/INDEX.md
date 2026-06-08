@@ -62,4 +62,6 @@ issues are added or closed.
 | [0046](0046-design-token-foundation-light-dark-theme.md) | Design-token foundation + light/dark theme — the UI/UX refresh foundation (item V21) | closed | medium | 0045 | ADR-0025, PR #44 |
 | [0047](0047-grouped-sidebar-command-palette.md) | Navigation → grouped left sidebar + ⌘K command palette (item V22) | closed | medium | 0045 | ADR-0026, PR #79 |
 | [0048](0048-telemetry-kpi-dashboard.md) | Telemetry dashboard — KPI cards + server-rendered inline-SVG sparklines (item V23) | closed | medium | 0045 | ADR-0027, REGRESSIONS #20, PR #81 |
-| [0049](0049-motion-and-polish.md) | Motion & polish — htmx View-Transition page swaps + a token-driven component pass (item V24) | open | low | 0045 | ADR-0028 |
+| [0049](0049-motion-and-polish.md) | Motion & polish — htmx per-navigation View-Transition page swaps + a token-driven component pass (item V24) | closed | low | 0045 | ADR-0028, REGRESSIONS (global-VT dead-end), PR #82 |
+| [0050](0050-epic-billing-fidelity.md) | Epic: Billing fidelity — price cache-write + reasoning tokens; authoritative-cost-first source hierarchy (roadmap v10, P0–P4) | open | high | — | NEXT_FEATURES v10 |
+| [0051](0051-epic-auth-and-connection.md) | Epic: Auth & connection — device flow / local ${VAR} token / gh reuse (roadmap v10, A0–A1) | open | medium | — | NEXT_FEATURES v10 |
