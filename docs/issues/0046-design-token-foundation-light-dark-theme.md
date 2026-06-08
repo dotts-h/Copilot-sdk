@@ -1,13 +1,13 @@
 ---
 id: 0046
 title: "Design-token foundation + light/dark theme — the UI/UX refresh foundation (roadmap v9, item V21)"
-status: open
+status: closed
 severity: medium
 group: 0045
 github:
 links:
   adr: [0025]
-  prs:
+  prs: [44]
   issues: [0045]
   regression:
 ---
@@ -77,6 +77,29 @@ explosion).
 - **Contrast proof (pre-commit):** every text/background pair in both palettes computed against
   the WCAG formula (≥ 4.5:1), including `--on-bright` over each solid fill and colored text over
   its real tint — recorded in the PR. (Locks the retune before the browser gate runs.)
+
+## Resolution (shipped)
+
+Shipped in **PR #44** (ADR-0025), the first child of epic 0045 — no separate docs-only PR
+(ADR-0004): ADR, CONTEXT terms, and this issue record fold into the feature branch.
+
+- **`internal/web/static/app.css`:** flat dark-only `:root` replaced with a semantic token
+  layer — both palettes via `light-dark()` keyed on `color-scheme`; `html[data-theme]` hooks;
+  the `--on-bright` companion text token for solid fills; theme-aware overlays
+  (`--hover` / `--raised` / `--raised-2` / `--code-bg` / `--sunken`); the palette retuned to
+  clear WCAG AA in **both** themes (dark `--bad` `#f85149`→`#ff7b72`); a global
+  `:focus-visible` ring + a `prefers-reduced-motion` reset.
+- **`internal/web/templates/index.html`:** a synchronous `<head>` script sets `data-theme`
+  from `localStorage` (OS-preference fallback) before first paint (no FOUC); a topbar
+  `.theme-toggle` button + `toggleTheme()` / `currentTheme()`. Client-only — no server route.
+- **Tests:** `a11y.spec.ts` rewritten to scan every page in **both** themes; the
+  `KNOWN_CONTRAST_SELECTORS` allowlist + its `[baseline]` test **deleted**. New
+  `theme.spec.ts` covers toggle → flip, persistence across reload, and OS-preference
+  resolution.
+- **Gates:** `make lint && make test` green (web 89.6%, telemetry 96.0%); `make e2e`
+  (Playwright/Chromium) — the V21 surfaces (`theme.spec.ts` + the both-theme `a11y.spec.ts`)
+  pass. **No build step, no framework, no server route, no schema / `copilot.Client` change**
+  — CONTRACTS and CODEMAP unchanged. Open Props + CSS `@layer` recorded deferred-additive.
 
 ## Notes
 - **ADR-0025:** the foundation child. Three decisions: `light-dark()` + `color-scheme` (one token
