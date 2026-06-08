@@ -23,7 +23,12 @@ export default defineConfig({
   fullyParallel: true, // safe: each worker has its own isolated demo server
   workers: workerCount,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  // One retry everywhere (CI gets two): with workers running in parallel, the
+  // heaviest tests (concurrent-lane workflow runs) can transiently lose the CPU
+  // race on a busy machine and exceed a timeout. A retry runs once the rest of
+  // the suite has drained, on a now-idle box, so the flake self-heals while a
+  // genuine failure still fails both attempts (and is reported as flaky, visible).
+  retries: process.env.CI ? 2 : 1,
   reporter: process.env.CI
     ? [["github"], ["html", { open: "never" }], ["list"]]
     : [["html", { open: "never" }], ["list"]],

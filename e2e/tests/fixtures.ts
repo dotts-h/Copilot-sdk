@@ -33,7 +33,7 @@ async function waitReady(url: string, timeoutMs: number): Promise<void> {
   while (Date.now() < deadline) {
     try {
       const res = await fetch(url, { redirect: "manual" });
-      if (res.status > 0) return;
+      if (res.ok) return;
     } catch (err) {
       lastErr = err;
     }
@@ -59,14 +59,18 @@ export const test = base.extend<{ appURL: string }, { appServer: WorkerServer }>
         ["-demo", "-addr", `127.0.0.1:${port}`, "-config-dir", configDir],
         { stdio: "ignore" },
       );
-      const exited = new Promise<never>((_, reject) =>
-        proc.once("exit", (code) => reject(new Error(`demo server exited early (code ${code})`))),
-      );
-      // The teardown kill below fires 'exit', rejecting `exited` again with nobody
+      // Reject fast if the process exits early OR fails to spawn (e.g. a missing
+      // binary emits 'error', not 'exit'), so a startup failure surfaces
+      // immediately instead of after the full waitReady timeout.
+      const failed = new Promise<never>((_, reject) => {
+        proc.once("exit", (code) => reject(new Error(`demo server exited early (code ${code})`)));
+        proc.once("error", (err) => reject(new Error(`demo server failed to start: ${err}`)));
+      });
+      // The teardown kill below fires 'exit', rejecting `failed` again with nobody
       // awaiting it; swallow that to avoid an unhandled rejection.
-      exited.catch(() => {});
+      failed.catch(() => {});
       try {
-        await Promise.race([waitReady(url, 30_000), exited]);
+        await Promise.race([waitReady(url, 30_000), failed]);
         await use({ url, proc, configDir });
       } finally {
         proc.kill("SIGKILL");
