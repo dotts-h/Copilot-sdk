@@ -6,9 +6,9 @@ severity: high
 group:
 github:
 links:
-  adr: [0029]
+  adr: [0029, 0030]
   prs: []
-  issues: [0053]
+  issues: [0053, 0054]
   regression: []
 ---
 
@@ -56,10 +56,13 @@ or **ask** (the existing HITL gate). This generalizes `AutoApproveTools` from a 
       tools (file read, search, navigation, plan transitions) auto-approved; writes/exec → the gate.
       The default build is safe out of the box. — **shipped in V25**
       ([0053](0053-hooks-foundation-forge-entity-bridge-evaluator.md), `ctxforge.DefaultHooks`).
-- [ ] **G2 · Dangerous-action deny + mandatory HITL** (M/L; ADR). Built-in deny/gate for destructive
+- [x] **G2 · Dangerous-action deny + mandatory HITL** (M/L; ADR). Built-in deny/gate for destructive
       patterns — `rm -rf` on `$HOME`/root, `curl|sh` / pipe-a-download-into-an-editor-or-shell, writes
       outside the workspace, `sudo`, obvious exfiltration — hard-denied or forced through a **mandatory**
-      gate **even in auto mode**, enforced in the bridge (unbypassable). — *next build*
+      gate **even in auto mode**, enforced in the bridge (unbypassable). — **shipped in V26**
+      ([0054](0054-dangerous-action-deny-mandatory-hitl.md), ADR-0030): `ctxforge.DangerousHooks`
+      (mandatory ruleset) + the `OutsideWorkspace` fence + the always-on policy-aware
+      `permissionHandler` that enforces the mandatory subset even with `AutoApproveTools`.
 - [x] **G3 · Hooks as a first-class forge entity** (L; ADR) — *the headline feature*. A new
       `ctxforge.Hook` `{id, event (pre/post-tool-use), match (tool kind / pattern), action
       (command or built-in allow|deny|ask), enabled}`, compiled into the session and fired by the bridge:

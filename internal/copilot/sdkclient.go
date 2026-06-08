@@ -31,9 +31,9 @@ type SDKClient struct {
 	mu        sync.Mutex
 	sessions  map[string]*sdk.Session
 	unsubs    map[string]func()
-	toolNames map[string]string          // toolCallID -> toolName, for matching end events
-	reasoned  map[string]bool            // sid -> reasoning deltas streamed in the current segment
-	hooks     map[string][]ctxforge.Hook // sid -> compiled governance policy (ADR-0029)
+	toolNames map[string]string        // toolCallID -> toolName, for matching end events
+	reasoned  map[string]bool          // sid -> reasoning deltas streamed in the current segment
+	policies  map[string]sessionPolicy // sid -> compiled governance policy (ADR-0029/0030)
 	closed    bool
 
 	// modelEfforts caches each model's supported reasoning efforts (from
@@ -107,22 +107,30 @@ func NewSDKClient(ctx context.Context, opts Options) (*SDKClient, error) {
 		unsubs:    make(map[string]func()),
 		toolNames: make(map[string]string),
 		reasoned:  make(map[string]bool),
-		hooks:     make(map[string][]ctxforge.Hook),
+		policies:  make(map[string]sessionPolicy),
 		events:    make(chan Event, 256),
 		done:      make(chan struct{}),
 	}, nil
 }
 
+// sessionPolicy is the per-session governance context the permission bridge
+// consults by SessionID: the compiled hook set, whether the session runs with
+// blanket auto-approve, and the workspace root the fence evaluates writes
+// against. — ADR-0029, ADR-0030.
+type sessionPolicy struct {
+	hooks       []ctxforge.Hook
+	autoApprove bool
+	workspace   string
+}
+
 // applyHandlers wires the permission/input/plan/elicit callbacks shared by
-// CreateSession and ResumeSession. AutoApproveTools swaps the interactive
-// permission bridge for the SDK's approve-all handler.
-func (c *SDKClient) applyHandlers(autoApprove bool) (onPerm sdk.PermissionHandlerFunc, onInput sdk.UserInputHandler, onPlan sdk.ExitPlanModeRequestHandler, onElicit sdk.ElicitationHandler) {
-	if autoApprove {
-		onPerm = sdk.PermissionHandler.ApproveAll
-	} else {
-		onPerm = c.permissionHandler()
-	}
-	return onPerm, c.userInputHandler(), c.exitPlanModeHandler(), c.elicitationHandler()
+// CreateSession and ResumeSession. The policy-aware permissionHandler is ALWAYS
+// used — the SDK's blanket ApproveAll is no longer wired, because the mandatory
+// dangerous ruleset (G2) must run even when AutoApproveTools is set. The handler
+// reads the session's recorded autoApprove flag and only blanket-approves the
+// non-mandatory remainder. — ADR-0030.
+func (c *SDKClient) applyHandlers() (onPerm sdk.PermissionHandlerFunc, onInput sdk.UserInputHandler, onPlan sdk.ExitPlanModeRequestHandler, onElicit sdk.ElicitationHandler) {
+	return c.permissionHandler(), c.userInputHandler(), c.exitPlanModeHandler(), c.elicitationHandler()
 }
 
 // CreateSession implements Client.
@@ -144,7 +152,7 @@ func (c *SDKClient) CreateSession(ctx context.Context, spec SessionSpec) (string
 	if spec.SystemMessage != "" {
 		cfg.SystemMessage = &sdk.SystemMessageConfig{Mode: "append", Content: spec.SystemMessage}
 	}
-	cfg.OnPermissionRequest, cfg.OnUserInputRequest, cfg.OnExitPlanModeRequest, cfg.OnElicitationRequest = c.applyHandlers(spec.AutoApproveTools)
+	cfg.OnPermissionRequest, cfg.OnUserInputRequest, cfg.OnExitPlanModeRequest, cfg.OnElicitationRequest = c.applyHandlers()
 	if len(spec.AllowedTools) > 0 {
 		cfg.AvailableTools = spec.AllowedTools
 	}
@@ -163,7 +171,7 @@ func (c *SDKClient) CreateSession(ctx context.Context, spec SessionSpec) (string
 	if err != nil {
 		return "", fmt.Errorf("create session: %w", err)
 	}
-	c.register(session, spec.Hooks)
+	c.register(session, spec)
 	return session.SessionID, nil
 }
 
@@ -201,7 +209,7 @@ func (c *SDKClient) ResumeSession(ctx context.Context, sessionID string, spec Se
 			cfg.ReasoningEffort = ""
 		}
 	}
-	cfg.OnPermissionRequest, cfg.OnUserInputRequest, cfg.OnExitPlanModeRequest, cfg.OnElicitationRequest = c.applyHandlers(spec.AutoApproveTools)
+	cfg.OnPermissionRequest, cfg.OnUserInputRequest, cfg.OnExitPlanModeRequest, cfg.OnElicitationRequest = c.applyHandlers()
 	if len(spec.AllowedTools) > 0 {
 		cfg.AvailableTools = spec.AllowedTools
 	}
@@ -210,7 +218,7 @@ func (c *SDKClient) ResumeSession(ctx context.Context, sessionID string, spec Se
 	if err != nil {
 		return "", fmt.Errorf("resume session %q: %w", sessionID, err)
 	}
-	c.register(session, spec.Hooks)
+	c.register(session, spec)
 	return session.SessionID, nil
 }
 
@@ -242,7 +250,7 @@ func (c *SDKClient) DeleteSession(ctx context.Context, sessionID string) error {
 	}
 	delete(c.sessions, sessionID)
 	delete(c.unsubs, sessionID)
-	delete(c.hooks, sessionID)
+	delete(c.policies, sessionID)
 	c.mu.Unlock()
 	return nil
 }
@@ -292,14 +300,19 @@ func (c *SDKClient) modelReasoningEfforts(ctx context.Context, model string) (ef
 }
 
 // register wires a session's event handler and tracks it for Send/Abort/Close,
-// and records the session's compiled hook policy so permissionHandler can consult
-// it by SessionID when a tool-permission callback fires (ADR-0029).
-func (c *SDKClient) register(session *sdk.Session, hooks []ctxforge.Hook) {
+// and records the session's compiled governance policy (hooks + auto-approve +
+// workspace root) so permissionHandler can consult it by SessionID when a
+// tool-permission callback fires (ADR-0029, ADR-0030).
+func (c *SDKClient) register(session *sdk.Session, spec SessionSpec) {
 	unsub := session.On(c.makeHandler(session.SessionID))
 	c.mu.Lock()
 	c.sessions[session.SessionID] = session
 	c.unsubs[session.SessionID] = unsub
-	c.hooks[session.SessionID] = hooks
+	c.policies[session.SessionID] = sessionPolicy{
+		hooks:       spec.Hooks,
+		autoApprove: spec.AutoApproveTools,
+		workspace:   spec.Workspace,
+	}
 	c.mu.Unlock()
 }
 
@@ -421,7 +434,7 @@ func (c *SDKClient) Close() error {
 		sessions := c.sessions
 		c.sessions = map[string]*sdk.Session{}
 		c.unsubs = map[string]func(){}
-		c.hooks = map[string][]ctxforge.Hook{}
+		c.policies = map[string]sessionPolicy{}
 		c.mu.Unlock()
 
 		for _, s := range sessions {

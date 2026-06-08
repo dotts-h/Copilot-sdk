@@ -297,17 +297,19 @@ func (s *Server) cmdAgent(arg string) string {
 // servers and applying the config defaults for an unset model/effort (the
 // built-in chat agent and the no-agent case carry no model of their own).
 // Streaming is always on. lookupEnv resolves each enabled server's Env ${VAR}
-// references at this boundary (ADR-0020). It is the single forge→seam translation
-// shared by the startup path (bootstrap.Build), the agent-restart path
-// (compiledSpec), and each workflow lane (workflowLaneSpec) — so a newly added
-// spec field can't be dropped on one path and not another (the class of bug
+// references at this boundary (ADR-0020). workspace is the session's workspace
+// root, threaded onto the seam spec so the bridge's built-in fence can gate a
+// write that escapes the project tree (ADR-0030). It is the single forge→seam
+// translation shared by the startup path (bootstrap.Build), the agent-restart
+// path (compiledSpec), and each workflow lane (workflowLaneSpec) — so a newly
+// added spec field can't be dropped on one path and not another (the class of bug
 // behind REGRESSIONS #13/#15).
-func SeamSpec(cs ctxforge.SessionSpec, defModel, defEffort string, lookupEnv func(string) string) copilot.SessionSpec {
+func SeamSpec(cs ctxforge.SessionSpec, defModel, defEffort string, lookupEnv func(string) string, workspace string) copilot.SessionSpec {
 	spec := copilot.SessionSpec{
 		Model: cs.Model, ReasoningEffort: cs.ReasoningEffort,
 		SystemMessage: cs.SystemMessage, Streaming: true,
 		AllowedTools: cs.AllowedTools, MCPServers: MCPServerSpecs(cs.MCPServers, lookupEnv),
-		Hooks: cs.Hooks,
+		Hooks: cs.Hooks, Workspace: workspace,
 	}
 	if spec.Model == "" {
 		spec.Model = defModel
@@ -325,7 +327,7 @@ func (s *Server) compiledSpec(agentID string) copilot.SessionSpec {
 	if err != nil {
 		s.logger.Printf("compile agent %q: %v", agentID, err)
 	}
-	return SeamSpec(cspec, s.config.DefaultModel, s.config.ReasoningEffort, s.lookupEnv)
+	return SeamSpec(cspec, s.config.DefaultModel, s.config.ReasoningEffort, s.lookupEnv, s.hub.baseSpec.Workspace)
 }
 
 // applyAgentSpec applies a compiled spec to this session and restarts it. An

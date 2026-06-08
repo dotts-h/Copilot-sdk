@@ -551,12 +551,14 @@ func (f *Forge) Compile(agentID string) (SessionSpec, error) {
 		}
 	}
 
-	// Governance policy: the built-in safe-by-default hooks first, then the
-	// forge's enabled user hooks. The evaluator's action precedence (deny > ask >
-	// allow) is order-independent, so the ordering only chooses which same-action
-	// reason is surfaced; putting user hooks after built-ins lets a user's reason
-	// win for a kind the built-ins also cover. — ADR-0029.
+	// Governance policy: the built-in safe-by-default hooks (G1) and the built-in
+	// MANDATORY dangerous-action ruleset (G2) first, then the forge's enabled user
+	// hooks. The evaluator's action precedence (deny > ask > allow) is
+	// order-independent, so the ordering only chooses which same-action reason is
+	// surfaced; the dangerous rules are unbypassable by config via Hook.Mandatory,
+	// not by their position here. — ADR-0029, ADR-0030.
 	spec.Hooks = append(spec.Hooks, DefaultHooks()...)
+	spec.Hooks = append(spec.Hooks, DangerousHooks()...)
 	for _, h := range f.Hooks {
 		if h.Enabled {
 			spec.Hooks = append(spec.Hooks, h)
