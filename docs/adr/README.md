@@ -30,3 +30,4 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0024 | [Abort an in-flight run — settle it as failed and abort its lane sessions](0024-abort-an-in-flight-run-settles-it-as-failed-and-aborts-its-lane-sessions.md) | accepted |
 | 0025 | [Design-token foundation and light/dark theming via `light-dark()` + `color-scheme`](0025-design-token-foundation-and-light-dark-theming.md) | accepted |
 | 0026 | [Grouped left-sidebar navigation and a ⌘K command palette](0026-grouped-sidebar-navigation-and-command-palette.md) | accepted |
+| 0027 | [Telemetry KPI dashboard: pure readers + pure Go SVG builders, server-rendered inline charts](0027-telemetry-kpi-dashboard-server-rendered-inline-svg.md) | accepted |

@@ -6,10 +6,10 @@ severity: medium
 group:
 github:
 links:
-  adr: [0025, 0026]
-  prs: [44, 79]
-  issues: [0046, 0047]
-  regression:
+  adr: [0025, 0026, 0027]
+  prs: [44, 79, 81]
+  issues: [0046, 0047, 0048]
+  regression: [20]
 ---
 
 ## Charter
@@ -59,11 +59,12 @@ kept as *deferred, additive* options (they need no markup change).
       disclosure). A ⌘/Ctrl-K command palette (input + filtered list + one global keydown — minimal
       vanilla JS, reusing the existing keymap dispatch) so grouping never blocks a power user.
       **Shipped.**
-- [ ] **V23 — telemetry dashboard: KPI cards + server-rendered SVG sparklines** (L; **own ADR**).
-      A top row of "big number" KPI cards each with a period-over-period delta (▲/▼ %) and an
-      inline sparkline; a trend band (cumulative spend area; burn-rate actuals solid / forecast
-      dashed); a spend-vs-budget bullet. Charts are **server-rendered inline `<svg>` from Go
-      templates** (zero JS, htmx-swappable) — no charting library. *Teed up; not started.*
+- [x] **V23 — telemetry dashboard: KPI cards + server-rendered SVG sparklines** (L; **own ADR**) →
+      [0048](0048-telemetry-kpi-dashboard.md) (ADR-0027, PR #81). A top row of "big number" KPI cards
+      each with a period-over-period delta (▲/▼ %) and an inline sparkline; a trend band (cumulative
+      spend area; burn-rate forecast dashed); a spend-vs-budget bullet. Charts are **server-rendered
+      inline `<svg>` from pure Go builders** (zero JS, htmx-swappable via the existing `?window=`
+      selector) — no charting library, no new route, no schema change. **Shipped.**
 - [ ] **V24 — motion & polish: View-Transition swaps + component pass** (S/M; enhancement).
       Opt into htmx's same-document View Transitions (`htmx.config.globalViewTransitions`) for
       page swaps (degrades to instant where unsupported), and a component polish pass (cards,
@@ -72,11 +73,12 @@ kept as *deferred, additive* options (they need no markup change).
 
 ## Status
 
-**Open — building the first child (V21).** The functional surface (v4–v8) is mature; v9 is a
-**presentation** epic. V21 lays the token + theme + a11y foundation every later child depends on
-(a light theme, the contrast fix, the design-token vocabulary). V22 (navigation IA) is the
-highest-impact follow-on, then V23 (the telemetry dashboard). Per repo convention each child is
-born in its PR and the epic is re-ranked from a fresh value×fit pass on each merge.
+**Open — V21, V22, and V23 shipped; V24 (motion & polish) is the last child.** The functional
+surface (v4–v8) is mature; v9 is a **presentation** epic. V21 laid the token + theme + a11y
+foundation (PR #44); V22 regrouped the nav into a sidebar + ⌘K palette (PR #79); V23 turned the
+Telemetry page into a KPI/SVG dashboard (PR #81). The remaining child is V24 (View-Transition swaps
++ a component polish pass). Per repo convention each child is born in its PR and the epic is
+re-ranked from a fresh value×fit pass on each merge.
 
 ## Notes
 
@@ -91,5 +93,5 @@ classes **disjoint** (the V16–V19 lesson). Fold ADR/CONTEXT updates into the f
 ## Numbering
 
 Highest on disk before this pass: issues → **0044**, epic → **0042**, ADRs → **0024**. This epic
-takes **0045**; its first child **V21** takes issue **0046**. **ADR-0025 consumed** (the token +
-theming foundation; highest ADR becomes 0025).
+takes **0045**; V21 → issue **0046** / ADR-0025, V22 → issue **0047** / ADR-0026, V23 → issue
+**0048** / ADR-0027. Highest issue is now **0048**, highest ADR **0027**.

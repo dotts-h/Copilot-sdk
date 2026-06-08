@@ -56,7 +56,8 @@ func (s *Server) telemetryPartial(window int) string {
 	}
 	return frag("telemetryPage", map[string]any{
 		"Rows": rows, "Width": fmt.Sprintf("%.1f%%", pct), "Models": models,
-		"Days": days, "Shares": shares, "HasHistory": hasHistory,
+		"Dashboard": s.dashboardView(window, now),
+		"Days":      days, "Shares": shares, "HasHistory": hasHistory,
 		"AgentShares": agents, "WorkflowShares": workflows,
 		"Reconcile":     s.workflowReconcile(),
 		"LaneReconcile": s.laneReconcile(),

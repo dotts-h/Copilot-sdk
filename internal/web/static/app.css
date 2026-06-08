@@ -284,11 +284,16 @@ main { flex: 1 1 auto; min-width: 0; overflow: hidden; display: flex; }
   padding: .6rem .75rem; border-radius: 8px;
   background: rgba(110,168,254,.10); border-left: 3px solid var(--accent2, #6ea8fe); }
 .elicit .elicit-msg { font-size: 1.02em; }
-.elicit .elicit-source { font-size: .8em; opacity: .65; }
+/* Dim the secondary form text with the AA-tuned --dim token rather than `opacity`
+   on inherited --fg: opacity composites the text toward the bluish form fill and
+   drops .elicit-desc to ~4.13:1 on the light theme (below WCAG AA), which the
+   both-theme axe scan catches once the demo's elicit form is in the timeline. --dim
+   clears 4.5:1 on the form fill in both themes. — REGRESSIONS #20, ADR-0025/0027 */
+.elicit .elicit-source { font-size: .8em; color: var(--dim); }
 .elicit-field { display: flex; flex-direction: column; gap: .2rem; }
-.elicit-field .elicit-label { font-size: .85em; opacity: .85; }
+.elicit-field .elicit-label { font-size: .85em; }
 .elicit-field .elicit-label .req { color: var(--bad); }
-.elicit-field .elicit-desc { font-size: .78em; opacity: .6; }
+.elicit-field .elicit-desc { font-size: .78em; color: var(--dim); }
 .elicit-field input[type=text], .elicit-field input[type=number], .elicit-field select {
   border-radius: 6px; border: 1px solid var(--panel); padding: .3rem .5rem; font: inherit;
   background: var(--bg, #1b1d1e); color: inherit; max-width: 24rem; }
@@ -514,6 +519,37 @@ table.shortcuts th { padding-right: 1.25rem; }
 .cmdk-item-group { color: var(--dim); font-size: .76rem; margin-left: auto;
   text-transform: uppercase; letter-spacing: .04em; }
 .cmdk-card .overlay-close { margin-top: .8rem; }
+
+/* Telemetry KPI dashboard (V23, ADR-0027): a row of big-number cards with a
+   period-over-period delta + a per-card sparkline, then the cumulative trend band
+   and the spend-vs-budget bullet. Server-rendered inline SVG (zero JS), tokens
+   only — charts stroke/fill via currentColor or a token so they theme with the
+   page. The cards wrap on a narrow viewport (no horizontal overflow). */
+.kpi { display: flex; flex-wrap: wrap; gap: .6rem; margin: .25rem 0 1rem; }
+.kpi-card { flex: 1 1 9rem; min-width: 8.5rem; display: flex; flex-direction: column;
+  gap: .2rem; padding: .6rem .7rem; border: 1px solid var(--panel);
+  border-radius: 8px; background: var(--raised); }
+.kpi-head { display: flex; align-items: baseline; justify-content: space-between; gap: .4rem; }
+.kpi-label { color: var(--dim); font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; }
+.kpi-value { color: var(--fg); font-size: 1.25rem; font-weight: 600;
+  font-variant-numeric: tabular-nums; }
+/* Δ badge: a direction (up/down/flat) for the glyph + a tone (good/warn/neutral)
+   for the color. Spend ▲ is warn, not green — the tone, not the direction, carries
+   favorability (per-metric higher-is-worse). */
+.kpi-delta { font-size: .76rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kpi-delta.good { color: var(--good); }
+.kpi-delta.warn { color: var(--warn); }
+.kpi-delta.neutral { color: var(--dim); }
+.kpi-arrow { font-size: .72rem; }
+/* The per-card sparkline fills the card width; its currentColor is the accent, so
+   the polyline (stroke=currentColor) themes with the token. */
+.kpi-card .spark { width: 100%; height: 1.6rem; margin-top: .15rem; color: var(--accent); display: block; }
+/* The trend band + bullet charts, side by side (wrapping on narrow viewports). */
+.kpi-charts { display: flex; flex-wrap: wrap; gap: 1rem; margin: 0 0 1.25rem; }
+.chart { margin: 0; flex: 1 1 16rem; min-width: 0; display: flex; flex-direction: column; gap: .25rem; }
+.chart-cap { color: var(--dim); font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; }
+.chart .band { width: 100%; height: 4.5rem; display: block; }
+.chart .bullet { width: 100%; height: 1.4rem; display: block; }
 
 /* Burn-rate forecast line (Telemetry page, A3). */
 .forecast { margin: .6rem 0 0; font-size: .9rem; color: var(--fg); }
