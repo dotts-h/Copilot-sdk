@@ -12,22 +12,32 @@ import (
 // swapped into #main. They mirror the TUI's per-page views (internal/tui/views.go)
 // as server-rendered HTML.
 
-// pageNames is the nav order.
-var pageNames = []struct{ slug, label string }{
-	{"chat", "Chat"},
-	{"sessions", "Sessions"},
-	{"telemetry", "Telemetry"},
-	{"skills", "Skills"},
-	{"instructions", "Instructions"},
-	{"agents", "Agents"},
-	{"workflows", "Workflows"},
-	{"runs", "Runs"},
-	{"mcp", "MCP"},
-	{"snippets", "Snippets"},
-	{"models", "Models"},
-	{"settings", "Settings"},
-	{"help", "Help"},
+// pageNames is the nav order, grouped by user intent (V22, ADR-0026): the group
+// field is the single source the sidebar folds into labelled clusters and the
+// command palette tags each entry with. The slice is ordered by group —
+// Primary · Build · Observe · Config · Help — with Config + Help last so they
+// pin to the bottom of the sidebar (progressive disclosure). Every other reader
+// of pageNames (isNavSlug, the /slug autocomplete, commandHelp) ignores group.
+var pageNames = []struct{ slug, label, group string }{
+	{"chat", "Chat", "Primary"},
+	{"sessions", "Sessions", "Primary"},
+	{"agents", "Agents", "Build"},
+	{"workflows", "Workflows", "Build"},
+	{"skills", "Skills", "Build"},
+	{"instructions", "Instructions", "Build"},
+	{"snippets", "Snippets", "Build"},
+	{"runs", "Runs", "Observe"},
+	{"telemetry", "Telemetry", "Observe"},
+	{"models", "Models", "Config"},
+	{"mcp", "MCP", "Config"},
+	{"settings", "Settings", "Config"},
+	{"help", "Help", "Help"},
 }
+
+// pinnedGroups are the nav groups deferred to the bottom of the sidebar. The
+// first of them carries navGroup.PinnedStart, which CSS pushes down with
+// margin-top:auto so it (and everything after) sits at the foot of the column.
+var pinnedGroups = map[string]bool{"Config": true, "Help": true}
 
 // spendWindows is the allowed set of Telemetry "spend over time" trend windows
 // (days); defaultSpendWindow is the fallback for a missing/out-of-range value and

@@ -21,14 +21,21 @@
   <script src="/static/htmx-ext-sse.js" defer></script>
 </head>
 <body hx-ext="sse" sse-connect="/events" data-keymap="{{.KeymapJSON}}">
-  <header class="topbar">
+  {{/* Grouped left sidebar (V22, ADR-0026). Still the single <header> banner
+       containing <nav class="nav">, so `header nav a` selectors, navClick, and
+       cmdNav are unchanged; CSS lays it out as a left column (wide) or a compact
+       wrapping top bar (narrow). The Config group carries .pinned-start so it and
+       Help defer to the bottom of the column. */}}
+  <header class="topbar sidebar">
     <span class="brand">my-orchestra</span>
-    <nav class="nav">
-      {{range .Nav}}<a hx-get="/page/{{.Slug}}" hx-target="#main" hx-swap="innerHTML" href="#">{{.Label}}</a>{{end}}
+    <nav class="nav" aria-label="Main navigation">
+      {{range .Nav}}<div class="nav-group{{if .PinnedStart}} pinned-start{{end}}"><div class="nav-group-label">{{.Label}}</div>{{range .Items}}<a hx-get="/page/{{.Slug}}" hx-target="#main" hx-swap="innerHTML" href="#">{{.Label}}</a>{{end}}</div>{{end}}
     </nav>
-    <button class="theme-toggle" type="button" onclick="toggleTheme()"
-            aria-label="Toggle light or dark theme" title="Toggle theme">◑</button>
-    <div id="cost-footer" class="cost">{{.Cost}}</div>
+    <div class="sidebar-foot">
+      <button class="theme-toggle" type="button" onclick="toggleTheme()"
+              aria-label="Toggle light or dark theme" title="Toggle theme">◑</button>
+      <div id="cost-footer" class="cost">{{.Cost}}</div>
+    </div>
   </header>
 
   <main id="main">{{.Main}}</main>
@@ -53,6 +60,7 @@
   </div>
 
   {{.Overlay}}
+  {{.Palette}}
 
   <script>
     // composer() returns the composer's prompt field. It is a <textarea> (not a
@@ -170,26 +178,99 @@
       applyKeymap(JSON.parse(document.body.dataset.keymap || '{}'));
     } catch (e) { /* a malformed keymap simply leaves shortcuts off */ }
 
-    function toggleHelpOverlay(show) {
-      var o = document.getElementById('help-overlay');
+    // setOverlay shows/hides a body-level modal by id: a missing `show` toggles
+    // from the current state, opening runs onOpen (move focus into the dialog so
+    // Esc/Tab work and a screen reader lands on it), and closing returns focus to
+    // the composer if present. The single home for the modal focus/close contract,
+    // shared by the help overlay and the command palette.
+    function setOverlay(id, show, onOpen) {
+      var o = document.getElementById(id);
       if (!o) return;
       if (show === undefined) show = o.hidden;
       o.hidden = !show;
-      // Move focus into the dialog on open so Esc/Tab work and a screen reader
-      // lands on it; on close, return focus to the composer if it's present.
       if (show) {
-        var close = o.querySelector('.overlay-close');
-        if (close) close.focus();
+        if (onOpen) onOpen(o);
       } else {
         var input = composer();
         if (input) input.focus();
       }
     }
 
+    function toggleHelpOverlay(show) {
+      setOverlay('help-overlay', show, function (o) {
+        var close = o.querySelector('.overlay-close');
+        if (close) close.focus();
+      });
+    }
+
     function navClick(slug) {
       var a = document.querySelector('.nav a[hx-get="/page/' + slug + '"]');
       if (a) a.click();
     }
+
+    // --- ⌘K command palette (V22, ADR-0026) ---
+    // The palette mirrors the help overlay: a body-level aria-modal dialog that
+    // survives htmx swaps. Its items are server-rendered from the same pageNames
+    // source the sidebar groups; filtering is client-only and navigation reuses
+    // navClick — no new key system and no router.
+    function cmdkInput() { return document.querySelector('#cmdk-overlay .cmdk-input'); }
+
+    // toggleCmdk shows/hides the palette via the shared setOverlay contract: on
+    // open it clears + reveals the full list and focuses the filter input; on
+    // close setOverlay returns focus to the composer.
+    function toggleCmdk(show) {
+      setOverlay('cmdk-overlay', show, function () {
+        var inp = cmdkInput();
+        if (inp) { inp.value = ''; cmdkFilter(); inp.focus(); }
+      });
+    }
+
+    // cmdkFilter hides every item whose label/group/slug doesn't contain the
+    // typed query (a blank query shows all). Uses the [hidden] attribute so the
+    // :visible set the keyboard/Enter path reads is the matching set.
+    function cmdkFilter() {
+      var inp = cmdkInput();
+      if (!inp) return;
+      var q = inp.value.trim().toLowerCase();
+      var items = document.querySelectorAll('#cmdk-overlay .cmdk-item');
+      items.forEach(function (it) {
+        var hay = ((it.getAttribute('data-label') || '') + ' ' +
+                   (it.getAttribute('data-group') || '') + ' ' +
+                   (it.getAttribute('data-slug') || '')).toLowerCase();
+        it.hidden = q !== '' && hay.indexOf(q) === -1;
+      });
+    }
+
+    // cmdkNav closes the palette and navigates to a page through the existing
+    // nav dispatch.
+    function cmdkNav(slug) {
+      toggleCmdk(false);
+      navClick(slug);
+    }
+
+    // cmdkActivate navigates to the first still-visible item (the top match),
+    // driving Enter from the filter input.
+    function cmdkActivate() {
+      var first = document.querySelector('#cmdk-overlay .cmdk-item:not([hidden])');
+      if (first) cmdkNav(first.getAttribute('data-slug'));
+    }
+
+    // cmdkKeydown handles Enter within the filter input (navigate the top match).
+    // Esc is handled by the global keydown listener so it works from the input too.
+    function cmdkKeydown(e) {
+      if (e.key === 'Enter') { e.preventDefault(); cmdkActivate(); }
+    }
+
+    // A delegated click on the palette list navigates to the clicked item's page
+    // (data-slug), so the target rides an HTML attribute, never a JS-string
+    // onclick. The list is server-rendered into the shell, so it exists at load.
+    (function () {
+      var list = document.querySelector('#cmdk-overlay .cmdk-list');
+      if (list) list.addEventListener('click', function (e) {
+        var item = e.target.closest('.cmdk-item');
+        if (item) cmdkNav(item.getAttribute('data-slug'));
+      });
+    })();
 
     function runShortcut(action) {
       switch (action) {
@@ -214,10 +295,25 @@
       }
     }
 
+    function overlayOpen(id) {
+      var o = document.getElementById(id);
+      return !!(o && !o.hidden);
+    }
+
     document.addEventListener('keydown', function (e) {
+      // ⌘/Ctrl-K toggles the command palette from anywhere — a FIXED modifier
+      // chord, handled before the configurable single-key keymap (which is
+      // unmodified-keys-only and gates out modifiers below) and before the
+      // text-field guard, so it fires even while the composer is focused
+      // (ADR-0026 / ADR-0014).
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        toggleCmdk();
+        return;
+      }
       if (e.key === 'Escape') {
-        var o = document.getElementById('help-overlay');
-        if (o && !o.hidden) { toggleHelpOverlay(false); e.preventDefault(); }
+        if (overlayOpen('cmdk-overlay')) { toggleCmdk(false); e.preventDefault(); return; }
+        if (overlayOpen('help-overlay')) { toggleHelpOverlay(false); e.preventDefault(); }
         return;
       }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -225,10 +321,12 @@
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
       var action = keyToAction[e.key];
       if (!action) return;
-      // While the modal overlay is open, only its own toggle fires — other
-      // bound keys must not act on the page behind it (aria-modal).
-      var o = document.getElementById('help-overlay');
-      if (o && !o.hidden && action !== 'help') return;
+      // While a modal overlay is open, bound keys must not act on the page
+      // behind it (aria-modal). The palette blocks every bound key (it has no
+      // toggle key of its own — ⌘K and Esc are handled above); the help overlay
+      // blocks all but its own toggle, so its key still closes it.
+      if (overlayOpen('cmdk-overlay')) return;
+      if (overlayOpen('help-overlay') && action !== 'help') return;
       e.preventDefault();
       runShortcut(action);
     });

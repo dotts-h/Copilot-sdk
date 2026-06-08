@@ -59,6 +59,23 @@ for (const theme of THEMES) {
   });
 }
 
+// The grouped sidebar (V22) is always visible, so it is covered by every page
+// scan above. The command palette is hidden until opened, so scan it open, in
+// both themes, to cover the dialog + its filter input and items (ADR-0026).
+for (const theme of THEMES) {
+  test(`command palette is accessible when open — ${theme}`, async ({ page }) => {
+    await gotoApp(page);
+    await setTheme(page, theme);
+    await page.keyboard.press("Control+k");
+    await expect(page.locator("#cmdk-overlay")).toBeVisible();
+    const results = await scan(page);
+    expect(
+      results.violations,
+      formatViolations(`command palette (${theme})`, results.violations),
+    ).toEqual([]);
+  });
+}
+
 test("the page exposes a single top-level landmark structure", async ({ page }) => {
   await gotoApp(page);
   await expect(page.locator("header")).toHaveCount(1);

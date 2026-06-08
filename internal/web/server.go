@@ -136,10 +136,11 @@ func (s *Server) broadcastSendFailure(err error) {
 
 // indexData is the data for the page shell.
 type indexData struct {
-	Nav     []navItem
+	Nav     []navGroup
 	Cost    template.HTML
 	Main    template.HTML
 	Overlay template.HTML
+	Palette template.HTML
 	// KeymapJSON is the action→key map the frontend dispatcher reads from
 	// <body data-keymap>; html/template escapes it in the attribute context.
 	KeymapJSON string
@@ -149,19 +150,48 @@ type navItem struct {
 	Slug, Label string
 }
 
-func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	nav := make([]navItem, len(pageNames))
-	for i, p := range pageNames {
-		nav[i] = navItem{Slug: p.slug, Label: p.label}
+// navGroup is one labelled cluster of the sidebar (V22, ADR-0026): a group label
+// with its ordered pages. PinnedStart marks the first bottom-pinned group
+// (Config), which CSS pushes to the foot of the column with margin-top:auto so
+// Config + Help defer to the bottom (progressive disclosure).
+type navGroup struct {
+	Label       string
+	Items       []navItem
+	PinnedStart bool
+}
+
+// navGroups folds pageNames into ordered, labelled groups: a new group starts
+// whenever the group field changes (pageNames is ordered by group), and the
+// first pinned group is flagged PinnedStart. One source — the grouping lives on
+// pageNames, not a second table.
+func navGroups() []navGroup {
+	var groups []navGroup
+	seenPinned := false
+	for _, p := range pageNames {
+		if len(groups) == 0 || groups[len(groups)-1].Label != p.group {
+			g := navGroup{Label: p.group}
+			if pinnedGroups[p.group] && !seenPinned {
+				g.PinnedStart = true
+				seenPinned = true
+			}
+			groups = append(groups, g)
+		}
+		last := &groups[len(groups)-1]
+		last.Items = append(last.Items, navItem{Slug: p.slug, Label: p.label})
 	}
+	return groups
+}
+
+func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	s.hub.forgeMu.Lock()
 	keymap := s.config.Keymap()
 	s.hub.forgeMu.Unlock()
 	data := indexData{
-		Nav:        nav,
+		Nav:        navGroups(),
 		Cost:       template.HTML(renderCostFooter(s.monthToDate().Credits(), s.budget())), //nolint:gosec // internally rendered, escaped via esc()
 		Main:       template.HTML(s.chatPartial()),                                         //nolint:gosec // internally rendered, escaped via esc()
 		Overlay:    template.HTML(helpOverlay(keymap)),                                     //nolint:gosec // internally rendered, escaped via esc()
+		Palette:    template.HTML(commandPalette()),                                        //nolint:gosec // internally rendered, escaped via esc()
 		KeymapJSON: keymapJSON(keymap),                                                     // shared with the Settings live-apply OOB swap
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

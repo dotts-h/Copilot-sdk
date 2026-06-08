@@ -140,6 +140,18 @@
   `<html data-theme>` (→ `color-scheme`), persisted **client-side** in `localStorage`, with the
   **OS preference** as the default. A synchronous `<head>` script sets the attribute before first
   paint (no flash). Client-only — no server route, no schema. — ADR-0025
+- **sidebar** — the shell's left **navigation column**: the single `<header>` banner, laid out as a
+  left column on wide viewports and reflowed to a compact wrapping top bar on narrow ones (CSS-only,
+  no JS router). It contains the grouped `<nav>`, the theme toggle, and the `#cost-footer`. — ADR-0026
+- **nav group** — one labelled cluster of the sidebar's pages, by user intent: **Primary** (Chat,
+  Sessions) · **Build** (Agents, Workflows, Skills, Instructions, Snippets) · **Observe** (Runs,
+  Telemetry) · **Config** (Models, MCP, Settings) · **Help**. The grouping lives on the `group` field
+  of `pageNames` (one source); Config + Help are pinned to the bottom (progressive disclosure).
+  — ADR-0026
+- **command palette** — the ⌘/Ctrl-K modal (`web.commandPalette`, mirroring the help overlay): a
+  filter input over a server-rendered `{slug,label,group}` list, filtered client-side and navigating
+  the match via the existing keymap `navClick` seam (no new route). ⌘K is a **fixed** modifier chord,
+  outside the single-key configurable keymap (ADR-0014). — ADR-0026
 
 ## Process vocabulary
 

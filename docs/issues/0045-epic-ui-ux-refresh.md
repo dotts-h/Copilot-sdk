@@ -6,9 +6,9 @@ severity: medium
 group:
 github:
 links:
-  adr: [0025]
-  prs: [44]
-  issues: [0046]
+  adr: [0025, 0026]
+  prs: [44, 79]
+  issues: [0046, 0047]
   regression:
 ---
 
@@ -51,13 +51,14 @@ kept as *deferred, additive* options (they need no markup change).
       **deleted** and the a11y scan runs over **both** themes; a global `:focus-visible` ring +
       `prefers-reduced-motion` reset. **No build step, no framework, no server route.** **First
       child** — the epic is born in its PR.
-- [ ] **V22 — navigation → grouped sidebar + ⌘K command palette** (M/L; the highest-impact IA
-      change; **own ADR**). Top bar → a left sidebar grouping the 13 items into *Primary*
-      (Chat, Sessions) · *Build* (Agents, Workflows, Skills, Instructions, Snippets) · *Observe*
-      (Runs, Telemetry) · *Config* (Models, MCP, Settings) · *Help*, with config/help deferred
-      to the bottom (progressive disclosure). A ⌘/Ctrl-K command palette (input + filtered list
-      + one global keydown — minimal vanilla JS, reusing the existing keymap dispatch) so
-      grouping never blocks a power user. *Teed up; not started.*
+- [x] **V22 — navigation → grouped sidebar + ⌘K command palette** (M/L; the highest-impact IA
+      change; **own ADR**) → [0047](0047-grouped-sidebar-command-palette.md) (ADR-0026, PR #79).
+      Top bar → a left sidebar grouping the 13 items into *Primary* (Chat, Sessions) · *Build*
+      (Agents, Workflows, Skills, Instructions, Snippets) · *Observe* (Runs, Telemetry) · *Config*
+      (Models, MCP, Settings) · *Help*, with config/help deferred to the bottom (progressive
+      disclosure). A ⌘/Ctrl-K command palette (input + filtered list + one global keydown — minimal
+      vanilla JS, reusing the existing keymap dispatch) so grouping never blocks a power user.
+      **Shipped.**
 - [ ] **V23 — telemetry dashboard: KPI cards + server-rendered SVG sparklines** (L; **own ADR**).
       A top row of "big number" KPI cards each with a period-over-period delta (▲/▼ %) and an
       inline sparkline; a trend band (cumulative spend area; burn-rate actuals solid / forecast
