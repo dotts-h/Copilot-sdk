@@ -28,8 +28,18 @@
        Help defer to the bottom of the column. */}}
   <header class="topbar sidebar">
     <span class="brand">my-orchestra</span>
+    {{/* Page navigation opts into same-document View Transitions (V24, ADR-0028)
+         with the per-swap `transition:true` modifier — htmx wraps just this
+         #main swap in document.startViewTransition, so navigation cross-fades
+         (scoped to #main by view-transition-name in app.css; instant where the
+         API is unsupported; silenced under prefers-reduced-motion). Per-swap,
+         NOT globalViewTransitions: the global flag would wrap the streaming SSE
+         deltas and the hx-swap-oob updates (timeline/status/lanes) too, colliding
+         with the constant stream and dropping swaps. Navigation never streams,
+         so opting it in alone is collision-free. The ⌘K palette routes through
+         these same links (navClick), so it inherits the transition. */}}
     <nav class="nav" aria-label="Main navigation">
-      {{range .Nav}}<div class="nav-group{{if .PinnedStart}} pinned-start{{end}}"><div class="nav-group-label">{{.Label}}</div>{{range .Items}}<a hx-get="/page/{{.Slug}}" hx-target="#main" hx-swap="innerHTML" href="#">{{.Label}}</a>{{end}}</div>{{end}}
+      {{range .Nav}}<div class="nav-group{{if .PinnedStart}} pinned-start{{end}}"><div class="nav-group-label">{{.Label}}</div>{{range .Items}}<a hx-get="/page/{{.Slug}}" hx-target="#main" hx-swap="innerHTML transition:true" href="#">{{.Label}}</a>{{end}}</div>{{end}}
     </nav>
     <div class="sidebar-foot">
       <button class="theme-toggle" type="button" onclick="toggleTheme()"
@@ -42,7 +52,9 @@
 
   {{/* Body-level SSE listeners stay connected across page navigation. Each
        routes its event to a chat-page target; off the chat page the targets are
-       absent and the swap is a harmless no-op (state re-renders on return). */}}
+       absent and the swap is a harmless no-op (state re-renders on return).
+       These swaps do NOT transition (V24 opts in per-navigation, not globally —
+       see the nav above), so the streaming deltas/OOB updates swap directly. */}}
   <div class="sse-listeners" hidden>
     <div sse-swap="delta"    hx-target="#cur"         hx-swap="beforeend"></div>
     <div sse-swap="timeline" hx-target="#timeline"    hx-swap="innerHTML"></div>

@@ -45,15 +45,38 @@ export const pages = [
 ] as const;
 
 // gotoApp opens the shell and waits for the composer to be interactive, which
-// only happens after htmx has booted and the SSE stream is connecting.
+// only happens after htmx has booted and the SSE stream is connecting. It also
+// installs a settle counter (see navTo) so navigation can be awaited even though
+// V24's View-Transition page swaps (ADR-0028) defer the #main DOM update.
 export async function gotoApp(page: Page) {
+  // Count every htmx settle on the document. afterSettle fires AFTER the swap's
+  // DOM update — even inside a View Transition's update callback — so a test can
+  // wait for it before reading the just-swapped DOM. Registered before goto so it
+  // runs at document-start; re-runs (resetting to 0) on any reload, which is fine.
+  await page.addInitScript(() => {
+    (window as unknown as { __settles: number }).__settles = 0;
+    document.addEventListener("htmx:afterSettle", () => {
+      (window as unknown as { __settles: number }).__settles++;
+    });
+  });
   await page.goto("/");
   await expect(page.locator(sel.prompt)).toBeVisible();
 }
 
 // navTo clicks a nav link and waits for the target page to swap into #main.
+// V24 (ADR-0028) opts the nav swap into a same-document View Transition, which
+// defers the #main DOM update by a frame; without waiting, a synchronous read
+// right after navTo (e.g. a baseline `.count()`) would see the OLD page. Waiting
+// for htmx's next settle makes navigation deterministic again for every caller.
 export async function navTo(page: Page, label: string) {
+  const before = await page.evaluate(
+    () => (window as unknown as { __settles?: number }).__settles ?? 0,
+  );
   await page.locator(sel.nav, { hasText: new RegExp(`^${label}$`) }).click();
+  await page.waitForFunction(
+    (n) => ((window as unknown as { __settles?: number }).__settles ?? 0) > n,
+    before,
+  );
 }
 
 // send types a prompt and submits it, then waits for the user bubble to appear

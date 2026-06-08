@@ -653,6 +653,82 @@ basic control set (start → rerun → stop) is now complete; whether the intera
 
 ---
 
+## Roadmap v9 — UI/UX refresh (presentation pass; code re-read 2026-06-08)
+
+> Appended after epic 0045 was scoped + driven to completion. Roadmaps **v1–v8** are shipped
+> (epics 0001/0005/0007/0013/0022/0024/0030/0031/0038/0042); their picks are summarized above +
+> in the appendices. v9 is the first **presentation** epic — every prior roadmap deepened or
+> surfaced the two differentiators (cost-awareness ⋈ orchestration); a dedicated UX/front-end
+> research pass found the standout gap was no longer a missing reader or action but the
+> **presentation layer** itself. The epic took **0045**; its children took issues **0046–0049**
+> and **ADR-0025–0028**.
+
+### Where the product was (v9 framing)
+
+The *functional* surface (v4–v8) was mature: meter, attribute, forecast, budget-cap, run
+workflows, fully observe + reconcile + export the orchestration surface, and (v8) act on it. The
+research re-read the web UI against modern front-end practice and found three presentation gaps:
+**no theme system** (dark-only, raw color literals blocking a light theme, a carried WCAG-AA
+contrast shortfall), **navigation overload** (~13 flat top-bar items, past where a top bar scans),
+and **a flat telemetry surface** (plain tables where the data could read like a BI report). The
+hard constraints — **no build chain, single committed CSS file, htmx + server templates, minimal
+JS / no framework** — were confirmed *not* limiting: modern vanilla CSS (`light-dark()`,
+custom-property tokens, View Transitions) + server-rendered inline SVG cover theming, charting, and
+polish with no framework and no build step.
+
+### Tier M — refresh the presentation layer (CSS + templates, no build chain)
+
+All four children shipped; **on V24's merge epic 0045 is exhausted.**
+
+#### V21 — design-token foundation + light/dark theme — **M** · **SHIPPED** (issue 0046, ADR-0025, PR #44)
+- A semantic design-token layer expressing both palettes via `light-dark()` keyed on
+  `color-scheme`; an OS-default, persisted, no-FOUC theme toggle; a palette retune that **deleted**
+  the destructive-control contrast allowlist so the axe scan runs over **both** themes; a global
+  `:focus-visible` ring + `prefers-reduced-motion` reset. The foundation every later child builds on.
+
+#### V22 — navigation → grouped sidebar + ⌘K command palette — **M/L** · **SHIPPED** (issue 0047, ADR-0026, PR #79)
+- The 13-item top bar → a left sidebar grouping pages into *Primary · Build · Observe · Config ·
+  Help* (config/help pinned to the bottom, progressive disclosure) + a ⌘/Ctrl-K command palette
+  (minimal vanilla JS reusing the existing keymap dispatch) so grouping never blocks a power user.
+
+#### V23 — telemetry dashboard: KPI cards + server-rendered SVG sparklines — **L** · **SHIPPED** (issue 0048, ADR-0027, PR #81)
+- A top row of big-number KPI cards (each a period-over-period Δ + a sparkline, per-metric
+  higher-is-worse coloring), a cumulative trend band (+ dashed burn-rate forecast), and a
+  spend-vs-budget bullet — **server-rendered inline `<svg>` from pure Go builders**, zero JS, no
+  charting library, re-rendering through the existing `?window=` swap. Bonus: REGRESSIONS #20 (a
+  latent light-theme contrast bug on the chat elicit form, surfaced by the both-theme axe scan).
+
+#### V24 — motion & polish: View-Transition page swaps + component pass — **S/M** · **SHIPPED** (issue 0049, ADR-0028)
+- Opts the sidebar nav links into the browser View Transitions API with per-swap `transition:true`
+  (one `{{range .Nav}}` loop; the ⌘K palette inherits it), scoped to `#main` with a
+  `view-transition-name` so navigation cross-fades (degrades to instant); an explicit
+  `::view-transition-*` guard silences it under `prefers-reduced-motion`. **`globalViewTransitions`
+  was tried and rejected** — it wraps the `hx-swap-oob` streaming updates a `/send`/run response
+  pushes mid-stream and **dropped run/turn completion swaps** (REGRESSIONS); per-nav opt-in touches no
+  streaming swap. A settle-aware `navTo` (waits for `htmx:afterSettle`) keeps the now-async nav
+  deterministic. A token-driven component pass (new `--speed`/`--ease`/`--shadow`/`--shadow-lg`
+  tokens, eased interactive controls, a 1px button press, resting card elevation) that changes no
+  color pairing, so the both-theme axe scan is unaffected. **No build step, no framework, no new JS,
+  no route, no schema.** The deferred **Open Props** primitives + CSS **`@layer`** stay
+  deferred-additive (a conscious trade-off in ADR-0028). **Last child — its merge closes epic 0045.**
+
+### Recommended sequencing (v9) — done
+
+V21 (foundation) → V22 (IA) → V23 (dashboard) → V24 (motion/polish), each born in its PR, the epic
+re-ranked on each merge. All four shipped.
+
+> **→ Next: roadmap v10.** With the presentation layer refreshed (themed, regrouped, dashboarded,
+> in motion) *and* the functional surface mature, a fresh value×fit pass scopes the next epic
+> against the two differentiators (cost-awareness ⋈ orchestration). Candidates carried into that
+> pass: **V20 — per-lane rerun** (L, the last interactive-orchestration child of the still-open
+> epic 0042, likely an ADR for the partial-rerun semantics + lane lineage); **B — cost-anomaly
+> reader** (M, a pure `DetectAnomalies` reader ambered on the Telemetry page — the *active* cost
+> surface); and the deferred **Open Props / `@layer`** additive CSS structuring + a literal-cleanup
+> paydown of the older component rules. **TECH_DEBT #8** stays deferred to its (still-unmet) volume
+> trigger.
+
+---
+
 ## Appendix — roadmap v2 (shipped, epic 0013, for context)
 
 | item | feature | ADR | issue |

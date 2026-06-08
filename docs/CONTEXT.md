@@ -168,6 +168,16 @@
   month-to-date **measure bar**, and a **target marker** at the projected month-end spend at the
   current pace (flipped to `--bad` when over budget). Renders only when a monthly budget is set.
   — ADR-0027
+- **View Transition** — a same-document page swap that **cross-fades** instead of hard-cutting:
+  htmx wraps the `#main` swap in the browser's `document.startViewTransition`, opted in **per
+  navigation** with `transition:true` on the sidebar nav links (NOT `globalViewTransitions`, which
+  would wrap the `hx-swap-oob` streaming updates and drop run/turn completion swaps), scoped to the
+  panel by a `view-transition-name` and silenced under `prefers-reduced-motion`. The swap is async, so
+  the e2e `navTo` waits for `htmx:afterSettle`. Templates + CSS, **zero new JS**. — ADR-0028
+- **component polish pass** — a contrast-neutral refinement over the V21 tokens: shared
+  `--speed`/`--ease` motion + `--shadow`/`--shadow-lg` elevation tokens, an eased transition on the
+  interactive controls, a 1px `:active` press on the solid buttons, and a resting shadow on the card
+  surfaces. Changes **no color pairing**, so the both-theme axe scan is unaffected. — ADR-0028
 
 ## Process vocabulary
 

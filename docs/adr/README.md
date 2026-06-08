@@ -31,3 +31,4 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0025 | [Design-token foundation and light/dark theming via `light-dark()` + `color-scheme`](0025-design-token-foundation-and-light-dark-theming.md) | accepted |
 | 0026 | [Grouped left-sidebar navigation and a ⌘K command palette](0026-grouped-sidebar-navigation-and-command-palette.md) | accepted |
 | 0027 | [Telemetry KPI dashboard: pure readers + pure Go SVG builders, server-rendered inline charts](0027-telemetry-kpi-dashboard-server-rendered-inline-svg.md) | accepted |
+| 0028 | [Motion & polish: htmx per-navigation View Transitions (NOT global), plus a token-driven component pass](0028-motion-and-polish-htmx-per-navigation-view-transitions.md) | accepted |
