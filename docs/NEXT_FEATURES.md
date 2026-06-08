@@ -718,10 +718,12 @@ V21 (foundation) → V22 (IA) → V23 (dashboard) → V24 (motion/polish), each 
 re-ranked on each merge. All four shipped.
 
 > **→ Next: roadmap v10 (scoped below).** A real-world audit (2026-06-08) surfaced that our meter
-> has drifted from **GitHub Copilot's June-2026 usage-based token billing** — so v10 leads with
-> **billing fidelity** (the core cost-awareness differentiator), adds an **auth/connection** surface,
-> and carries V20 / B / the Open Props paydown. A **dedicated tech-debt + code-quality + architecture
-> audit** follows the pricing work. **TECH_DEBT #8** stays deferred to its (unmet) volume trigger.
+> has drifted from **GitHub Copilot's June-2026 usage-based token billing**, *and* that the product can
+> run on **autopilot with no governance layer** to make it safe — so v10 has **two co-lead pillars**:
+> **billing fidelity** (cost-awareness correctness) and **safe autopilot** (a tool-governance policy +
+> hooks), plus an **auth/connection** surface and the carried V20 / B / Open-Props paydown. A
+> **dedicated tech-debt + code-quality + architecture audit** follows the pricing work. **TECH_DEBT #8**
+> stays deferred to its (unmet) volume trigger.
 
 ---
 
@@ -777,6 +779,38 @@ drifts on every multiplier change. Instead, a **three-tier source hierarchy**:
   to the static `DefaultPriceBook`. A spike first: confirm the catalog payload shape + auth/network
   policy. Strictly additive — the binary still runs fully offline.
 
+### Epic — Safe autopilot: tool-governance policy + hooks (the third pillar) → issue [0052](issues/0052-epic-safe-autopilot-governance.md)
+
+> **Why (maybe the highest-value pillar).** The product can run agents on **autopilot** (auto mode) and
+> orchestrate multi-lane workflows — but there is **no governance layer** that makes that *safe*. Today
+> `permissionHandler` (`internal/copilot/handlers.go:17`) **always** blocks for an interactive decision;
+> there is only a flat `AutoApproveTools` allowlist (`sdkclient.go:144`) and **no hooks at all** (the
+> repo's only "hooks" are the CI workflow-guard scripts). So a user either click-approves everything or
+> turns approvals off — neither is safe. Industry practice (Claude Code's allow/deny/ask + PreToolUse
+> hooks + auto-mode risk classifier) is the model: **auto-approve read-only ops, hard-deny destructive
+> patterns, and force a mandatory human-in-the-loop gate for the risky-but-legitimate** — enforced in
+> the bridge, not just config (deny-rules-alone have known bypass bugs; combine with a hook).
+
+- **G0 · Policy model + seam** — **M** · ADR. A forge-backed **permission policy** of `allow / deny /
+  ask` rules, matched on tool **kind** (read/write/shell/MCP) and **bash patterns**, evaluated **inside
+  `permissionHandler` before the gate emits**: allow → auto-approve, deny → `PermissionDecisionReject`
+  with a reason, ask → the existing HITL gate. Generalizes the flat `AutoApproveTools`. Deny wins.
+- **G1 · Default safe policy (auto-approve reads)** — **M**. Ship a **safe-by-default** policy: read-only
+  tools (file read, search, navigation, plan transitions) auto-approved; writes/exec fall to the gate.
+  *The "pre-permission with auto-approve read stuff" — the default build is safe out of the box.*
+- **G2 · Dangerous-action deny + mandatory HITL** — **M/L** · ADR. A built-in **deny/gate** ruleset for
+  destructive patterns — `rm -rf` on `$HOME`/root, `curl|sh` / pipe-a-download-into-an-editor or shell,
+  writes outside the workspace, `sudo`, secret exfiltration — **hard-denied or forced through a
+  mandatory gate even in auto mode** (unbypassable, enforced in the bridge). The "security stuff that
+  makes autopilot safe."
+- **G3 · PreToolUse / PostToolUse hooks** — **L** · ADR. A forge **hook** surface: run a user-defined
+  command/check before/after a tool call, returning `allow|deny|ask` (PreToolUse) or observing/logging
+  (PostToolUse). Closes the "do we cover hooks?" gap; the built-in policy (G0–G2) is the first consumer.
+  Reuses the `${VAR}` + preflight patterns; hook output is untrusted input (sanitize).
+- **G4 · Policy/hook editor UI + mode binding** — **M**. Edit rules + hooks in the UI (like the
+  allowlist/MCP forms); bind a policy to **agent modes** so **auto mode** uses the strict default while
+  **ask mode** stays fully interactive. Surfaces *why* a call was auto-approved/denied in the timeline.
+
 ### Epic — Auth & connection (enablement) → issue [0051](issues/0051-epic-auth-and-connection.md)
 
 - **A0 · Auth spike** — **S**. Document how `SDKClient` authenticates **today** (which of the four
@@ -804,11 +838,26 @@ A focused **tech-debt + code-quality + architecture + workflow** review with its
 exposed. Scoped as its own pass so the pricing correctness lands first on the current base, then the
 base is cleaned deliberately rather than mid-feature.
 
+### Known artifact — modal over an in-flight View Transition (verified 2026-06-08)
+
+The capture that showed *"Workflows rendered under the ⌘K palette"* (over the Chat page) is a **transient
+cross-fade artifact, not a stuck-DOM bug** — **verified**: navigating to Chat, letting the ~140ms
+transition finish, then opening the palette shows Chat behind it (`#main #composer` present, no Workflows
+`h2`). The cause: `::view-transition-old(main)` snapshots render in the browser **top layer**, *above*
+the `.overlay` (`z-index:50`), so a modal opened **within ~140ms of navigating** is briefly covered by
+the old-page snapshot. Real-world impact is near-zero (the fade completes in 140ms), but it's a genuine
+interaction. **Small fix item (v10 polish):** make ⌘K/help open in the **top layer** (a real
+`<dialog>`/`:modal`, or raise above the transition), or have the palette opener await the transition;
+add a guard. Recorded in REGRESSIONS as a known interaction.
+
 ### Recommended sequencing (v10)
 
-P0 (consistency spine) → P1 (price the two token types) → P2 (fix the empty table) → **quality audit**
-→ P3 / P4 / A0→A1 / V20 / B, re-ranked on each merge. Numbering: next issues **0050+**, next ADRs
-**0029+**. Each item born in its PR; SemVer per CONVENTIONS (features → minor: this epic → `v0.3.0`).
+Two co-lead pillars, interleaved by value: **billing** P0 (consistency spine) → P1 (price the two token
+types) → P2 (fix the empty table); **governance** G0 (policy seam) → G1 (auto-approve reads) → G2
+(dangerous-action deny + HITL) → **quality audit** → G3/G4 / P3 / P4 / A0→A1 / V20 / B, re-ranked on each
+merge. The small View-Transition modal guard is pulled opportunistically. Numbering: next issues
+**0050+**, next ADRs **0029+**. Each item born in its PR; SemVer per CONVENTIONS (features → minor: this
+epic burst → `v0.3.0`).
 
 ---
 
