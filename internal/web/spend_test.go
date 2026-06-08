@@ -201,6 +201,104 @@ func TestTelemetryPageShowsPerLaneReconciliation(t *testing.T) {
 	}
 }
 
+func TestReconcileExportReturnsCSV(t *testing.T) {
+	// The reconciliation export (V17) mirrors the spend and runs exports: a CSV
+	// attachment over the cross-store join, so the ledger-vs-runs divergence can be
+	// analysed outside the app. One file carries both grains — the per-workflow rows
+	// then the per-(workflow, lane) rows.
+	s, store := newSpendServer(t)
+	rs := withRunStore(s)
+	if err := store.Append(telemetry.SpendRecord{
+		At: day("2026-06-05T10:00:00Z"), Model: "gpt-5", USD: 0.05, WorkflowID: "ship", LaneIndex: 0,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := rs.Append(telemetry.RunRecord{
+		ID: "r1", WorkflowID: "ship", Name: "Ship", Mode: "sequential", Outcome: "finished",
+		Lanes: []telemetry.RunLane{{Index: 0, Status: "done", Credits: 4}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/telemetry/reconcile.csv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/csv") {
+		t.Fatalf("Content-Type = %q, want text/csv", ct)
+	}
+	if cd := resp.Header.Get("Content-Disposition"); !strings.Contains(cd, "attachment") {
+		t.Fatalf("Content-Disposition = %q, want attachment", cd)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	out := string(body)
+	if !strings.Contains(out, "grain,workflow,lane,ledgerCredits,runCredits,delta") || !strings.Contains(out, "ship") {
+		t.Fatalf("CSV body missing header or data:\n%s", out)
+	}
+}
+
+func TestReconcileExportHeaderOnlyWithoutStores(t *testing.T) {
+	// No stores wired (or nothing to reconcile): the export is the header alone, never a
+	// 500 — mirrors the spend and runs exports' empty case.
+	s, _ := newSpendServer(t) // ephemeral ledger left empty, s.runs == nil
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL + "/telemetry/reconcile.csv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.HasPrefix(string(body), "grain,workflow,lane,ledgerCredits,runCredits,delta") {
+		t.Fatalf("want header-only CSV, got:\n%s", body)
+	}
+}
+
+func TestTelemetryPageHasReconcileExportLink(t *testing.T) {
+	// The Telemetry page surfaces the reconciliation export affordance only when there is
+	// a reconciliation to show (a run store wired with reconcilable spend) — a DISJOINT
+	// marker class (reconcile-export) so it can't collide with the spend export's selector.
+	s, store := newSpendServer(t)
+	rs := withRunStore(s)
+	if err := store.Append(telemetry.SpendRecord{
+		At: day("2026-06-05T10:00:00Z"), Model: "gpt-5", USD: 0.05, WorkflowID: "ship", LaneIndex: 0,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := rs.Append(telemetry.RunRecord{
+		ID: "r1", WorkflowID: "ship", Name: "Ship", Mode: "sequential", Outcome: "finished",
+		Lanes: []telemetry.RunLane{{Index: 0, Status: "done", Credits: 4}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	html := s.telemetryPartial(defaultSpendWindow)
+	if !strings.Contains(html, `href="/telemetry/reconcile.csv"`) {
+		t.Fatalf("Telemetry page should carry the reconciliation export link:\n%s", html)
+	}
+}
+
+func TestTelemetryReconcileExportLinkHiddenWithoutReconciliation(t *testing.T) {
+	// No run store → no reconciliation → the export link is absent (the same gate as the
+	// reconciliation tables themselves), so a chat-only build shows no dangling affordance.
+	s, store := newSpendServer(t)
+	if err := store.Append(telemetry.SpendRecord{
+		At: day("2026-06-05T10:00:00Z"), Model: "gpt-5", USD: 0.05, WorkflowID: "ship", LaneIndex: 0,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	html := s.telemetryPartial(defaultSpendWindow)
+	if strings.Contains(html, "/telemetry/reconcile.csv") {
+		t.Fatalf("reconciliation export link should be absent without a reconciliation:\n%s", html)
+	}
+}
+
 func TestTelemetryReconciliationHiddenWithoutRunStore(t *testing.T) {
 	// Reconciliation needs BOTH stores — with no run store wired there is nothing to
 	// reconcile against, so the section is absent (the page keeps its prior shape).

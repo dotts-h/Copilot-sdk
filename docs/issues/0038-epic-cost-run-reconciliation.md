@@ -1,14 +1,14 @@
 ---
 id: 0038
 title: "Epic: cost⋈run reconciliation — converge the two persisted stores (roadmap v7)"
-status: open
+status: closed
 severity: medium
 group:
 github:
 links:
   adr:
   prs: [66, 74]
-  issues: [0039, 0040]
+  issues: [0039, 0040, 0041]
   regression:
 ---
 
@@ -76,21 +76,42 @@ negative-value. The v7 epic is a **product/convergence** epic instead.
       page renders a **"Ledger vs runs by lane"** table below the per-workflow "Ledger vs
       runs", resolving ids → labels under `forgeMu` and ambering a non-trivial delta. **Second
       child.**
+- [x] **V17 — reconciliation CSV export reader + `GET /telemetry/reconcile.csv`** (S; pure
+      writer + export route) → [0041](0041-reconciliation-csv-export.md)
+      (**shipped**, PR #75; no ADR — a pure writer over the existing readers, pre-blessed by
+      the ADR-0009 CSV-export precedent, no cross-package seam).
+      `telemetry.WriteReconcileCSV(w io.Writer, spend []SpendRecord, runs []RunRecord) error`
+      serializes the cross-store reconciliation to CSV — the export sibling of
+      `WriteCSV`/`WriteRunsCSV` — so the ledger-vs-runs divergence **leaves the tool** the way
+      spend and runs already do. One file carries **both grains** (the per-workflow rows then the
+      per-`(workflow, lane)` rows, each labelled by a leading `grain` column so a consumer never
+      double-counts; header `grain,workflow,lane,ledgerCredits,runCredits,delta`, the readers' own
+      deterministic order).
+      Streamed by a new `GET /telemetry/reconcile.csv` route (`handleReconcileExport`, mirroring
+      `handleSpendExport`/`handleRunsExport`), surfaced as an "Export CSV" link beside the
+      "Ledger vs runs" heading with a **disjoint `reconcile-export`** marker class. **Third and
+      final child** — on its merge the reconciliation surface is exhausted (workflow + lane
+      grain, on-page and exportable).
 
 ## Status
 
-**Open — first child shipped, second in flight.** First child **V15 (cost⋈run reconciliation, 0039)** shipped
-in this epic's opening **PR #66** — per the repo convention an epic is born in its first
-child's PR (cf. epic 0031 in V11's PR #59). `telemetry.WorkflowReconcile` joins the spend
-ledger's and the run history's per-workflow roll-ups and surfaces the **delta**, rendered
-as a "Ledger vs runs" comparison on the Telemetry page (ids → labels under `forgeMu`, a
-non-trivial delta ambered). Second child **V16 (per-lane cost⋈run reconciliation, 0040)** is
-in flight — `telemetry.LaneReconcile` joins the same two stores one grain finer (per
-`(workflow, lane)`), rendered as a "Ledger vs runs by lane" table on the Telemetry page, so a
-divergence the per-workflow row only totals is locatable at the exact step. The epic stays
-**open** with at least one more convergence slice possible — **V17** (surface the delta in
-the CSV export / forecast in NEXT_FEATURES "roadmap v7"), to be scoped from a fresh value×fit
-pass; close the epic only when the reconciliation surface is exhausted.
+**Closed — reconciliation surface exhausted (workflow + lane grain, on-page and exportable).**
+First child **V15 (cost⋈run reconciliation, 0039)** shipped in this epic's opening **PR #66** —
+per the repo convention an epic is born in its first child's PR (cf. epic 0031 in V11's PR #59).
+`telemetry.WorkflowReconcile` joins the spend ledger's and the run history's per-workflow
+roll-ups and surfaces the **delta**, rendered as a "Ledger vs runs" comparison on the Telemetry
+page (ids → labels under `forgeMu`, a non-trivial delta ambered). Second child **V16 (per-lane
+cost⋈run reconciliation, 0040, PR #74)** joined the same two stores one grain finer (per
+`(workflow, lane)`), rendered as a "Ledger vs runs by lane" table, so a divergence the
+per-workflow row only totals is locatable at the exact step. Third and final child **V17
+(reconciliation CSV export, 0041, PR #75)** added `telemetry.WriteReconcileCSV` + `GET
+/telemetry/reconcile.csv` — the export sibling of `WriteCSV`/`WriteRunsCSV` — so the divergence
+**leaves the tool** for outside analysis. From a fresh value×fit pass the convergence is **done**:
+orchestrated spend is reconcilable at the **workflow** grain (V15) and the **lane** grain (V16)
+on-page, and **exportable** (V17); the per-**session** grain is unsupported (`RunRecord` carries no
+session id), and the forecast-annotation alternative was dropped as an altitude mismatch. **Epic
+CLOSED — roadmap v7 done.** TECH_DEBT #8 stays deferred to its (still-unmet) volume trigger; the
+next epic (roadmap v8) is scoped from a fresh value×fit pass against the two differentiators.
 
 ## Notes
 

@@ -1,8 +1,11 @@
 package telemetry
 
 import (
+	"encoding/csv"
+	"io"
 	"math"
 	"sort"
+	"strconv"
 )
 
 // This file converges the two persisted stores. The spend ledger (history.go) and
@@ -196,4 +199,39 @@ func LaneReconcile(spend []SpendRecord, runs []RunRecord) []LaneRecon {
 		return out[i].LaneIndex < out[j].LaneIndex
 	})
 	return out
+}
+
+// WriteReconcileCSV serializes the cross-store reconciliation to CSV — the export
+// sibling of WriteCSV (spend) and WriteRunsCSV (runs) — so the ledger-vs-runs
+// divergence the Telemetry page surfaces can LEAVE the tool and be analysed in a
+// spreadsheet, the convergence's natural last reach (CONTRACTS §3/§4). One file
+// carries BOTH grains the page shows as two tables: the per-workflow rows
+// (WorkflowReconcile, V15) then the per-(workflow, lane) rows (LaneReconcile, V16). A
+// leading `grain` column ("workflow" | "lane") labels which — so the two grains stay
+// self-documenting in one file and a consumer never double-counts a workflow total
+// against its lane breakdown by summing blindly (filter `grain` first); the `lane`
+// cell is blank on a workflow row and the lane index on a lane row. Column order is
+// fixed; credits use csvFloat (the same precision-rounded format as the sibling
+// writers). Rows are the readers' own output, so ordering is deterministic (biggest
+// |delta| first within each grain) and a chat-only or empty input yields the header
+// alone. Pure: the writer is the only IO and the caller owns it.
+func WriteReconcileCSV(w io.Writer, spend []SpendRecord, runs []RunRecord) error {
+	cw := csv.NewWriter(w)
+	if err := cw.Write([]string{"grain", "workflow", "lane", "ledgerCredits", "runCredits", "delta"}); err != nil {
+		return err
+	}
+	for _, r := range WorkflowReconcile(spend, runs) {
+		row := []string{"workflow", r.WorkflowID, "", csvFloat(r.LedgerCredits), csvFloat(r.RunCredits), csvFloat(r.Delta)}
+		if err := cw.Write(row); err != nil {
+			return err
+		}
+	}
+	for _, r := range LaneReconcile(spend, runs) {
+		row := []string{"lane", r.WorkflowID, strconv.Itoa(r.LaneIndex), csvFloat(r.LedgerCredits), csvFloat(r.RunCredits), csvFloat(r.Delta)}
+		if err := cw.Write(row); err != nil {
+			return err
+		}
+	}
+	cw.Flush()
+	return cw.Error()
 }

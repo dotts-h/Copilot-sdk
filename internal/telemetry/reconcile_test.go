@@ -1,6 +1,8 @@
 package telemetry
 
 import (
+	"bytes"
+	"encoding/csv"
 	"testing"
 	"time"
 )
@@ -269,5 +271,86 @@ func TestLaneReconcileEmpty(t *testing.T) {
 	runs := []RunRecord{{WorkflowID: "wf", Lanes: []RunLane{{Index: 0, Status: "skipped"}}}}
 	if got := LaneReconcile(spend, runs); len(got) != 0 {
 		t.Fatalf("no spend or run credits on any lane should reconcile to no rows, got %+v", got)
+	}
+}
+
+func TestWriteReconcileCSV(t *testing.T) {
+	// WriteReconcileCSV serializes the cross-store reconciliation to CSV — the export
+	// sibling of WriteCSV/WriteRunsCSV — so the ledger-vs-runs divergence can leave the
+	// tool the way spend and runs already do. One file carries BOTH grains: the per-
+	// workflow rows (V15) first, then the per-(workflow, lane) rows (V16), each labelled
+	// by a leading `grain` column ("workflow" | "lane") so a consumer never double-counts
+	// a total against its breakdown. Rows are the readers' own output, so the order is
+	// deterministic and the biggest delta reads first within each grain.
+	spend := []SpendRecord{
+		{Model: "gpt-5", USD: 0.02, WorkflowID: "alpha", LaneIndex: 0},
+		{Model: "gpt-5", USD: 0.01, WorkflowID: "alpha", LaneIndex: 1},
+		{Model: "gpt-5", USD: 0.05, WorkflowID: "beta", LaneIndex: 0},
+		{Model: "gpt-5", USD: 0.10}, // plain chat — excluded from reconciliation
+	}
+	runs := []RunRecord{
+		{WorkflowID: "alpha", Name: "Alpha", Lanes: []RunLane{
+			{Index: 0, Status: "done", Credits: 2},
+			{Index: 1, Status: "done", Credits: 1},
+		}},
+		// beta's run meters 4.00 cr vs the ledger's 5.00 — a +1.00 delta on both grains.
+		{WorkflowID: "beta", Name: "Beta", Lanes: []RunLane{
+			{Index: 0, Status: "done", Credits: 4},
+		}},
+	}
+	var buf bytes.Buffer
+	if err := WriteReconcileCSV(&buf, spend, runs); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := csv.NewReader(&buf).ReadAll()
+	if err != nil {
+		t.Fatalf("CSV is not parseable: %v", err)
+	}
+	// header + 2 per-workflow rows (alpha, beta) + 3 per-lane rows (alpha/0, alpha/1, beta/0).
+	if len(rows) != 6 {
+		t.Fatalf("want header + 2 workflow + 3 lane rows, got %d: %+v", len(rows), rows)
+	}
+	want := []string{"grain", "workflow", "lane", "ledgerCredits", "runCredits", "delta"}
+	if len(rows[0]) != len(want) {
+		t.Fatalf("header width = %d, want %d: %+v", len(rows[0]), len(want), rows[0])
+	}
+	for i, h := range want {
+		if rows[0][i] != h {
+			t.Fatalf("header[%d] = %q, want %q", i, rows[0][i], h)
+		}
+	}
+	// Per-workflow grain first, biggest |delta| leading: beta (+1) before alpha (0); the
+	// grain cell is "workflow" and the lane cell is blank at this grain.
+	if got := rows[1]; got[0] != "workflow" || got[1] != "beta" || got[2] != "" || got[3] != "5" || got[4] != "4" || got[5] != "1" {
+		t.Fatalf("workflow row[1] = %+v, want [workflow, beta, \"\", 5, 4, 1]", got)
+	}
+	if got := rows[2]; got[0] != "workflow" || got[1] != "alpha" || got[2] != "" || got[5] != "0" {
+		t.Fatalf("workflow row[2] = %+v, want workflow/alpha with delta 0 and blank lane", got)
+	}
+	// Per-lane grain follows, grain "lane" and the lane index filled in.
+	if got := rows[3]; got[0] != "lane" || got[1] != "beta" || got[2] != "0" || got[3] != "5" || got[4] != "4" || got[5] != "1" {
+		t.Fatalf("lane row[3] = %+v, want [lane, beta, 0, 5, 4, 1]", got)
+	}
+	if got := rows[4]; got[0] != "lane" || got[1] != "alpha" || got[2] != "0" || got[3] != "2" {
+		t.Fatalf("lane row[4] = %+v, want lane/(alpha, lane 0) ledger 2", got)
+	}
+}
+
+func TestWriteReconcileCSVHeaderOnlyWhenEmpty(t *testing.T) {
+	// Nothing to reconcile (no records, or only non-workflow chat spend) exports the
+	// header alone — never a bare/empty body — mirroring the spend and runs exports.
+	var buf bytes.Buffer
+	if err := WriteReconcileCSV(&buf, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := csv.NewReader(&buf).ReadAll()
+	if err != nil {
+		t.Fatalf("CSV is not parseable: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("empty reconciliation exports the header only, got %d rows", len(rows))
+	}
+	if rows[0][0] != "grain" {
+		t.Fatalf("header should lead with the grain column, got %+v", rows[0])
 	}
 }
