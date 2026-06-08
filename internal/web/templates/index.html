@@ -4,6 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>my-orchestra</title>
+  <script>
+    // Set the theme BEFORE first paint to avoid a flash of the wrong theme (FOUC):
+    // a deferred/DOMContentLoaded read is too late and flickers. With no stored
+    // choice the attribute stays off so color-scheme:light dark follows the OS
+    // preference. Client-only (localStorage) — no server round-trip. — ADR-0025
+    (function () {
+      try {
+        var t = localStorage.getItem('theme');
+        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) { /* private-mode localStorage can throw; fall through to OS pref */ }
+    })();
+  </script>
   <link rel="stylesheet" href="/static/app.css">
   <script src="/static/htmx.min.js" defer></script>
   <script src="/static/htmx-ext-sse.js" defer></script>
@@ -14,6 +26,8 @@
     <nav class="nav">
       {{range .Nav}}<a hx-get="/page/{{.Slug}}" hx-target="#main" hx-swap="innerHTML" href="#">{{.Label}}</a>{{end}}
     </nav>
+    <button class="theme-toggle" type="button" onclick="toggleTheme()"
+            aria-label="Toggle light or dark theme" title="Toggle theme">◑</button>
     <div id="cost-footer" class="cost">{{.Cost}}</div>
   </header>
 
@@ -46,6 +60,23 @@
     // keep their newlines (TECH_DEBT #15 / ADR-0015).
     function composer() {
       return document.querySelector('#composer textarea[name=prompt]');
+    }
+
+    // toggleTheme flips light/dark and persists the choice (localStorage), so the
+    // <head> script restores it before paint on the next load. The current theme is
+    // the explicit attribute, or the OS preference when unset. Flipping data-theme
+    // re-points color-scheme, so every light-dark() token re-resolves at once.
+    // Client-only — no server round-trip (ADR-0025).
+    function currentTheme() {
+      var t = document.documentElement.getAttribute('data-theme');
+      if (t === 'light' || t === 'dark') return t;
+      return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)
+        ? 'light' : 'dark';
+    }
+    function toggleTheme() {
+      var next = currentTheme() === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      try { localStorage.setItem('theme', next); } catch (e) { /* private mode: in-memory only */ }
     }
 
     // autosize grows the composer to fit its content (capped by a CSS max-height,

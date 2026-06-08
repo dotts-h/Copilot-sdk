@@ -23,4 +23,9 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0017 | [Per-lane tool + permission surface for parallel workflow lanes](0017-per-lane-tool-and-permission-surface-for-parallel-workflow-lanes.md) | accepted |
 | 0018 | [Additive agent/workflow attribution tags on spend records](0018-additive-attribution-tags-on-spend-records.md) | accepted |
 | 0019 | [Budget burn-rate forecast: a trailing-window average over the daily ledger](0019-budget-burn-rate-forecast-trailing-window-average.md) | accepted |
+| 0020 | [MCP secrets via `${VAR}` env-reference indirection](0020-mcp-secrets-via-env-var-reference-indirection.md) | accepted |
 | 0021 | [Conditional / branching workflow steps — a declarative step predicate](0021-conditional-branching-workflow-steps-declarative-predicate.md) | accepted |
+| 0022 | [Workflow run history: a sibling append-only run store](0022-workflow-run-history-sibling-append-only-run-store.md) | accepted |
+| 0023 | [Rerun a recorded run re-executes the current workflow definition](0023-rerun-a-recorded-run-re-executes-the-current-workflow-definition.md) | accepted |
+| 0024 | [Abort an in-flight run — settle it as failed and abort its lane sessions](0024-abort-an-in-flight-run-settles-it-as-failed-and-aborts-its-lane-sessions.md) | accepted |
+| 0025 | [Design-token foundation and light/dark theming via `light-dark()` + `color-scheme`](0025-design-token-foundation-and-light-dark-theming.md) | accepted |

@@ -128,6 +128,19 @@
 - **demo / mock mode** — the offline path (`-demo`): a scripted `MockClient` + seeded
   forge/ledger/runs, so every page renders with no CLI/token. — `internal/bootstrap`
 
+## Presentation — tokens & theming (`internal/web/static/app.css`)
+
+- **design token** — a **semantic** CSS custom property (`--bg`, `--fg`, `--accent`, `--good`,
+  …) that names a **role**, not a raw color; the single home for a color value (new UI uses the
+  token, never a literal hex / `rgba(255,255,255,…)`). `--on-bright` is the text color for **any**
+  solid accent/good/warn/bad fill; `--hover`/`--raised`/`--sunken` are theme-aware neutral
+  elevations. — ADR-0025
+- **theme** — the **light** or **dark** color scheme. Tokens carry both values in one declaration
+  via the CSS `light-dark()` function, resolved by `color-scheme`; the toggle flips
+  `<html data-theme>` (→ `color-scheme`), persisted **client-side** in `localStorage`, with the
+  **OS preference** as the default. A synchronous `<head>` script sets the attribute before first
+  paint (no flash). Client-only — no server route, no schema. — ADR-0025
+
 ## Process vocabulary
 
 - **ADR** — Architecture Decision Record (`docs/adr/`): the **single home of a decision's
