@@ -11,6 +11,24 @@ import (
 	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
 )
 
+func TestSeamSpecThreadsWorkspaceAndAutoApprove(t *testing.T) {
+	cs := ctxforge.SessionSpec{Hooks: ctxforge.DefaultHooks()}
+	env := func(string) string { return "" }
+
+	on := SeamSpec(cs, "gpt-5", "high", env, "/home/u/project", true)
+	if !on.AutoApproveTools {
+		t.Fatal("SeamSpec dropped AutoApproveTools=true; the settings toggle never reaches the seam")
+	}
+	if on.Workspace != "/home/u/project" {
+		t.Fatalf("Workspace = %q, want the threaded root", on.Workspace)
+	}
+
+	off := SeamSpec(cs, "gpt-5", "high", env, "", false)
+	if off.AutoApproveTools {
+		t.Fatal("SeamSpec set AutoApproveTools when the toggle was off")
+	}
+}
+
 func TestParseCommand(t *testing.T) {
 	for _, tc := range []struct {
 		in              string

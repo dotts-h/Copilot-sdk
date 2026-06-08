@@ -1,13 +1,13 @@
 ---
 id: 0054
 title: "Dangerous-action deny + mandatory HITL — a built-in unbypassable ruleset enforced on the auto path (roadmap v10, V26 = G2)"
-status: open
+status: closed
 severity: high
 group: 0052
 github:
 links:
   adr: [0030]
-  prs: []
+  prs: [83, 85]
   issues: [0052]
 ---
 
@@ -73,3 +73,15 @@ mandatory flag + auto-path enforcement; the ruleset's deny-vs-gate split). The s
   like the MCP/workflow pages, mode binding, and timeline "why" surfacing.
 - **External command-ref hook execution** — PostToolUse running a user command with `${VAR}` +
   preflight, treating output as untrusted.
+
+## Resolution (shipped)
+
+Shipped in **PR #83** (V26), with the auto-mode wiring follow-up in **PR #85**. `Hook.Mandatory` +
+`HookMatch.OutsideWorkspace`, the workspace-aware `Evaluate(…, workspace)` + `Decision.Mandatory`,
+and `DangerousHooks()` (hard-deny destructive/RCE/`id_rsa`/netcat; mandatory-gate `sudo`,
+out-of-workspace writes, heuristic credential-store refs) all landed, enforced on the auto path —
+the SDK `ApproveAll` was dropped so `permissionHandler` always runs and the mandatory subset fires
+even with `AutoApproveTools` — ADR-0030. `/code-review` (high) caught and fixed three issues before
+merge (the `~`/`$HOME` fence bypass, the `curl*|*sh` over-deny, an over-aggressive credential-store
+deny). #85 then threaded the `AutoApproveTools` config toggle through `SeamSpec` so the guarantee is
+reachable in production, not just in tests. Next child: G4 the Hooks management UI.

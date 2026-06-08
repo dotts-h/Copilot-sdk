@@ -66,5 +66,5 @@ issues are added or closed.
 | [0050](0050-epic-billing-fidelity.md) | Epic: Billing fidelity — price cache-write + reasoning tokens; authoritative-cost-first source hierarchy (roadmap v10, P0–P4) | open | high | — | NEXT_FEATURES v10 |
 | [0051](0051-epic-auth-and-connection.md) | Epic: Auth & connection — device flow / local ${VAR} token / gh reuse (roadmap v10, A0–A1) | open | medium | — | NEXT_FEATURES v10 |
 | [0052](0052-epic-safe-autopilot-governance.md) | Epic: Hooks & safe autopilot — first-class forge-managed Pre/PostToolUse hooks + safe-by-default governance policy (roadmap v10, G0–G4) | open | high | — | 0053, 0054, ADR-0029, ADR-0030, NEXT_FEATURES v10 |
-| [0053](0053-hooks-foundation-forge-entity-bridge-evaluator.md) | Hooks foundation — Hook forge entity + bridge evaluator + safe-read defaults (V25, G0+G3-mechanism+G1) | open | high | 0052 | ADR-0029 |
-| [0054](0054-dangerous-action-deny-mandatory-hitl.md) | Dangerous-action deny + mandatory HITL — built-in unbypassable ruleset enforced on the auto path (V26, G2) | open | high | 0052 | ADR-0030 |
+| [0053](0053-hooks-foundation-forge-entity-bridge-evaluator.md) | Hooks foundation — Hook forge entity + bridge evaluator + safe-read defaults (V25, G0+G3-mechanism+G1) | closed | high | 0052 | ADR-0029, PR #84 |
+| [0054](0054-dangerous-action-deny-mandatory-hitl.md) | Dangerous-action deny + mandatory HITL — built-in unbypassable ruleset enforced on the auto path (V26, G2) | closed | high | 0052 | ADR-0030, PR #83 #85 |
