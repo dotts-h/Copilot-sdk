@@ -6,9 +6,9 @@ severity: medium
 group:
 github:
 links:
-  adr: [0025, 0026, 0027]
+  adr: [0025, 0026, 0027, 0028]
   prs: [44, 79, 81]
-  issues: [0046, 0047, 0048]
+  issues: [0046, 0047, 0048, 0049]
   regression: [20]
 ---
 
@@ -65,20 +65,33 @@ kept as *deferred, additive* options (they need no markup change).
       spend area; burn-rate forecast dashed); a spend-vs-budget bullet. Charts are **server-rendered
       inline `<svg>` from pure Go builders** (zero JS, htmx-swappable via the existing `?window=`
       selector) — no charting library, no new route, no schema change. **Shipped.**
-- [ ] **V24 — motion & polish: View-Transition swaps + component pass** (S/M; enhancement).
-      Opt into htmx's same-document View Transitions (`htmx.config.globalViewTransitions`) for
-      page swaps (degrades to instant where unsupported), and a component polish pass (cards,
-      buttons, tables, meters) on the new tokens. Candidate to fold the deferred **Open Props**
-      primitives + CSS **`@layer`** structure here. *Teed up; not started.*
+- [x] **V24 — motion & polish: View-Transition swaps + component pass** (S/M; enhancement) →
+      [0049](0049-motion-and-polish.md) (ADR-0028). Opts the sidebar nav links into the browser View
+      Transitions API with per-swap `transition:true` (one `{{range .Nav}}` loop; the ⌘K palette
+      inherits it), scoped to `#main` with a `view-transition-name` so navigation cross-fades (instant
+      where unsupported); an explicit `::view-transition-*` guard silences it under
+      `prefers-reduced-motion`. **`globalViewTransitions` was tried and rejected** — it wraps the
+      `hx-swap-oob` streaming updates and dropped run/turn completion swaps (REGRESSIONS); per-nav
+      opt-in touches no streaming swap. A settle-aware `navTo` (waits for `htmx:afterSettle`) keeps the
+      now-async nav deterministic. A token-driven component pass (new `--speed`/`--ease`/`--shadow`/
+      `--shadow-lg` tokens; eased interactive controls; a 1px button press; resting card elevation)
+      that changes no color pairing, so the both-theme axe scan is unaffected. The deferred **Open
+      Props** primitives + CSS **`@layer`** stay deferred-additive (a conscious trade-off recorded in
+      ADR-0028). **No build step, no framework, no new JS, no server route, no schema change.** **Last
+      child — its merge closes the epic. Shipped.**
 
 ## Status
 
-**Open — V21, V22, and V23 shipped; V24 (motion & polish) is the last child.** The functional
-surface (v4–v8) is mature; v9 is a **presentation** epic. V21 laid the token + theme + a11y
-foundation (PR #44); V22 regrouped the nav into a sidebar + ⌘K palette (PR #79); V23 turned the
-Telemetry page into a KPI/SVG dashboard (PR #81). The remaining child is V24 (View-Transition swaps
-+ a component polish pass). Per repo convention each child is born in its PR and the epic is
-re-ranked from a fresh value×fit pass on each merge.
+**All four children shipped — epic exhausted, closes on V24's merge.** The functional surface (v4–v8)
+is mature; v9 was a **presentation** epic. V21 laid the token + theme + a11y foundation (PR #44); V22
+regrouped the nav into a sidebar + ⌘K palette (PR #79); V23 turned the Telemetry page into a KPI/SVG
+dashboard (PR #81); V24 added motion & polish — View-Transition page swaps (scoped to `#main`, with a
+streaming opt-out and a reduced-motion guard) + a token-driven component pass (issue 0049, ADR-0028,
+on branch `claude/next-features-research-8aBvS-Hq8Tb`). The presentation layer is now refreshed —
+themed, regrouped, dashboarded, and in motion — while every hard constraint held (no build chain,
+single committed CSS file, htmx + server templates, minimal JS / no framework). Per repo convention
+the epic is re-ranked from a fresh value×fit pass on each merge; with all children shipped, **next is
+a roadmap v10 value×fit pass** against the two differentiators (cost-awareness ⋈ orchestration).
 
 ## Notes
 

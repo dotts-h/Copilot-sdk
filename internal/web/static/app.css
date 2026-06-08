@@ -31,6 +31,15 @@
   --code-bg:  light-dark(rgba(0,0,0,.06),  rgba(255,255,255,.07));
   --sunken:   light-dark(rgba(0,0,0,.06),  rgba(0,0,0,.25));
   --focus:    var(--accent2);
+
+  /* Motion & elevation tokens (V24, ADR-0028). One speed/ease so every hover,
+     focus, and page cross-fade share a motion language; theme-aware shadows
+     (deeper on the dark canvas) for a consistent resting elevation on cards.
+     All motion is collapsed to ~0 under prefers-reduced-motion below. */
+  --speed:     .14s;
+  --ease:      cubic-bezier(.2, .6, .2, 1);
+  --shadow:    0 1px 2px light-dark(rgba(0,0,0,.06), rgba(0,0,0,.32));
+  --shadow-lg: 0 6px 22px light-dark(rgba(0,0,0,.12), rgba(0,0,0,.5));
 }
 /* The toggle forces a scheme; with no data-theme, color-scheme:light dark above
    follows the OS preference. */
@@ -53,7 +62,56 @@ html[data-theme="dark"]  { color-scheme: dark; }
     transition-duration: .01ms !important;
     scroll-behavior: auto !important;
   }
+  /* The View-Transition pseudo-elements live on the document root, so the `*`
+     reset above can't reach them — silence their cross-fade explicitly so a
+     page swap is instant under reduced motion (V24, ADR-0028). */
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
 }
+
+/* Same-document View-Transition page swaps (V24, ADR-0028). The nav links opt in
+   per-swap (hx-swap="… transition:true"), so htmx wraps the navigation #main swap
+   in document.startViewTransition; naming the main panel scopes the cross-fade to
+   it, so the sidebar shell stays put while the page content fades. Per-navigation,
+   NOT globalViewTransitions — that would wrap the hx-swap-oob streaming updates too
+   and drop run/turn completion swaps (REGRESSIONS). The browser supplies the
+   default fade animation; we only tune its speed. Unsupported browsers swap
+   instantly. */
+main#main { view-transition-name: main; }
+::view-transition-old(main),
+::view-transition-new(main) {
+  animation-duration: var(--speed);
+  animation-timing-function: var(--ease);
+}
+
+/* ---- component polish pass (V24, ADR-0028) ----
+   Interactive controls ease their hover/focus states instead of snapping, so
+   the element-level motion matches the page-level cross-fade. Only the
+   already-animated properties transition (color/border/background/box-shadow/
+   filter/transform) — never layout — and the reduced-motion reset above
+   collapses every duration to ~0, so this is opt-out. */
+.nav a, .theme-toggle, .effort, .window, .cmdk-item, .cmd-item,
+button.add, button.abort, .run-head .stop-run, .run-rec-head .rerun,
+#composer button, .form-actions button, .overlay-close, .trends-head .export,
+.row button, .session-actions button, .perm button, .ask-choice, .plan-action,
+.elicit-ok, .elicit-no, .ask-send, .plan-reject {
+  transition: color var(--speed) var(--ease),
+              background-color var(--speed) var(--ease),
+              border-color var(--speed) var(--ease),
+              box-shadow var(--speed) var(--ease),
+              filter var(--speed) var(--ease),
+              transform var(--speed) var(--ease);
+}
+/* A tactile press on the solid primary buttons — a 1px sink confirms the click. */
+#composer button:active,
+.form-actions button[type=submit]:active,
+.session-actions button:active { transform: translateY(1px); }
+
+/* Resting elevation on the card surfaces (KPI cards, run records, the live run
+   panel, session rows) so they read as raised against the page, consistent with
+   the overlay's existing shadow. Shadow only — no contrast impact. */
+.kpi-card, .run-record, .workflow-run, .session-row { box-shadow: var(--shadow); }
 
 /* Visually-hidden but exposed to assistive tech (e.g. the diff lane's per-line
    "added"/"removed" label, since the +/- marker is aria-hidden). */

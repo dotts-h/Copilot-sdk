@@ -373,6 +373,7 @@ ux · perf). See [ARCHITECTURE.md](ARCHITECTURE.md#testing-philosophy-tdd--sdet)
 | Client-side state reducer (SPA framework) | Duplicates the transcript reducer client-side + forces a JSON API and build chain. | Server owns all state; htmx projects SSE fragments. |
 | Dual frontend (keep TUI alongside web) | Two reducers/renderers to maintain. | Hard cut — `internal/tui` deleted; web is the only frontend. |
 | htmx from a CDN | Offline/single-binary tool can't depend on a CDN. | Vendor htmx + htmx-ext-sse under `internal/web/static/`. |
+| `htmx.config.globalViewTransitions` for page-swap cross-fades (V24) | Wraps **every** swap in a View Transition — including the `hx-swap-oob` updates a `/send` or workflow-run response pushes into `#timeline`/`#status`/`#lanes` mid-stream, and the per-token SSE deltas. The browser runs one transition at a time, so an OOB-heavy stream **dropped run/turn completion swaps** (`run-status.done` never rendered; a turn's `.abort` never cleared) — caught by the e2e suite. `transition:false` opts out the SSE listeners but **not** the OOB swaps inside a POST response. | Opt in **per-navigation** with `transition:true` on the sidebar nav links only (navigation never streams). A view transition defers the swap a frame, so make `navTo` settle-aware (await `htmx:afterSettle`). See [ADR 0028](adr/0028-motion-and-polish-htmx-per-navigation-view-transitions.md). |
 
 ## Known gaps (fixed behavior, not yet guarded — or not yet built)
 
