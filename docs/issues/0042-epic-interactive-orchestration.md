@@ -6,9 +6,9 @@ severity: medium
 group:
 github:
 links:
-  adr: [0023]
-  prs: [76]
-  issues: [0043]
+  adr: [0023, 0024]
+  prs: [76, 77]
+  issues: [0043, 0044]
   regression:
 ---
 
@@ -54,16 +54,28 @@ negative-value. The v8 epic is a **product/interactivity** epic instead.
       / aggregates / reconciliation (coherent with V13/V15). The control is gated on the
       workflow still existing (`CanRerun`) and refused while the server is busy. **First
       child** — the epic is born in its PR.
+- [x] **V19 — abort an in-flight run from the Chat lanes panel** (M; the dual of rerun) →
+      [0044](0044-abort-in-flight-run.md) (**shipped**, PR #77; ADR-0024). A `⏹ stop run`
+      control on the lanes panel stops a running workflow: each still-running lane's backing
+      session is aborted over the existing `copilot.Client.Abort` seam, the unsettled lanes
+      settle **failed** (detail `⏹ aborted`) and the run records as a **failed** outcome —
+      *a stopped run is a failed run*, **no new lane status / schema change**. Completes the
+      basic interactive control set (start → rerun → stop). The single completion path
+      (`runFrags`) was made **idempotent** (`run.recorded`) to close a double-record race
+      where `laneError` (called from a lane goroutine that bypasses the reducer guard)
+      re-enters it after the abort already settled the run. **Second child.**
 
 ## Status
 
-**Open — first child shipped (V18, PR #76).** V18 (rerun, 0043) opened the epic and the
-"interactive orchestration" theme: the first action on a surface that was read-only through
-all of v4–v7. Per the repo convention the epic is born in its first child's PR. After V18,
-re-rank the epic from a fresh value×fit pass — candidate later children include: an
-**abort/cancel** control on an in-flight run from the Runs/Chat surface; **rerun a single
-failed lane**; or a **cost-spike/anomaly** reader (the deferred Candidate B from the v8
-pass, a pure reader needing no ADR) if the interactive surface is judged exhausted.
+**Open — first two children shipped (V18 rerun PR #76; V19 abort PR #77).** V18 (rerun,
+0043) opened the "interactive orchestration" theme — the first action on a surface that was
+read-only through all of v4–v7. V19 (abort, 0044, ADR-0024) added its **dual**, completing
+the basic interactive control set (**start → rerun → stop**). The interactive surface still
+has a teed-up higher-grain child (**V20 — rerun a single failed lane**, L, likely an ADR for
+the partial-rerun semantics + lane lineage); the next session's fresh value×fit pass decides
+whether the epic stays open for V20 or closes as exhausted and pivots to the deferred
+**Candidate B** (cost-spike/anomaly reader, a pure reader needing no ADR). Per the repo
+convention each child is born in its PR.
 
 ## Notes
 

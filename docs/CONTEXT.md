@@ -55,6 +55,13 @@
   so its spend rolls up with the original's — a **re-execution, not a historical replay**
   (`web.handleRunRerun` via the shared `launchWorkflow` trigger). The first **action** on
   the orchestration history surface. — ADR-0023
+- **abort** (a run) — **stopping an in-flight run** from the Chat lanes panel (`⏹ stop run`
+  → `web.handleRunAbort`): each still-running lane's backing session is aborted over the
+  `copilot.Client.Abort` seam, the unsettled lanes settle as **failed** (detail `⏹
+  aborted`) and the run records as a **failed** outcome — a stopped run is a failed run, no
+  new terminal status. The **dual of rerun**, completing the interactive control set (start
+  → rerun → stop). Distinct from the **chat-turn** abort (`web.handleAbort`, `POST /abort`),
+  which stops the chat session, not a run. — ADR-0024
 
 ## Cost — the meter and the ledger (`internal/telemetry`)
 

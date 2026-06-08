@@ -124,13 +124,14 @@ func (l *lane) dropPerm(id string) bool {
 // indices the adapter should launch next, with no IO — so it is fully testable
 // without a client. The Server guards it with s.mu.
 type workflowRun struct {
-	id     string
-	name   string
-	mode   string
-	lanes  []*lane
-	cur    int // index of the running lane in sequential mode
-	done   bool
-	failed bool
+	id       string
+	name     string
+	mode     string
+	lanes    []*lane
+	cur      int // index of the running lane in sequential mode
+	done     bool
+	failed   bool
+	recorded bool // the terminal completion path (runFrags) has run — guards a second record
 	// runID and started are stamped by the Server adapter (outside the pure engine)
 	// for run history: runID is a unique id for this run instance (distinct from id,
 	// which is the workflow definition's id), started is the launch time (ADR-0022).
@@ -314,6 +315,27 @@ func (r *workflowRun) failLane(l *lane, msg string) []int {
 	return r.advance(l)
 }
 
+// abort settles a run the user stopped (ADR-0024). Every not-yet-settled lane (running
+// or pending) is marked failed with an "aborted" detail and the run is flipped
+// done+failed, so the shared runFrags completion path records it once and clears busy —
+// a stopped run is a failed run, no new terminal status. It returns the backing session
+// ids of the lanes that were still running, for the caller to abort over the seam.
+func (r *workflowRun) abort() []string {
+	var running []string
+	for _, l := range r.lanes {
+		if l.status == laneRunning && l.sessionID != "" {
+			running = append(running, l.sessionID)
+		}
+		if !settled(l.status) {
+			l.status = laneFailed
+			l.detail = "⏹ aborted"
+		}
+	}
+	r.done = true
+	r.failed = true
+	return running
+}
+
 // advance runs the post-settle transition after lane l reached a terminal status.
 // Sequential: walk forward to the next runnable step, skipping unsatisfied gated
 // ones, and run the first satisfied one (or finish). Parallel: re-evaluate pending
@@ -386,6 +408,44 @@ func (s *Server) handleRunRerun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.writePartial(w, s.chatPartial())
+}
+
+// handleRunAbort stops an in-flight workflow run from the Chat lanes panel — the second
+// action on the orchestration surface and the dual of rerun (ADR-0024). It settles the run
+// in place via abortRun (running lanes' sessions aborted over the existing client.Abort
+// seam, unsettled lanes marked failed, the run recorded once and busy cleared) and lands the
+// user back on the chat page where the settled lanes render. A no-op when no run is in flight,
+// so a racing double-click can't double-settle a finished run.
+func (s *Server) handleRunAbort(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	s.abortRun(r.Context())
+	s.writePartial(w, s.chatPartial())
+}
+
+// abortRun settles the active run as aborted and aborts its still-running lanes' backing
+// sessions. Under s.mu it marks the run done+failed (run.abort), then runs the shared
+// runFrags completion path (records the run once, clears busy) and broadcasts the terminal
+// fragments to every connected view; the per-lane client.Abort calls happen OUTSIDE the lock
+// (like handleAbort), since the seam call may block. A no-op when no run is active or it
+// already finished — events stop routing to a done run (session.go), so this can't race the
+// reducer into a double-record.
+func (s *Server) abortRun(ctx context.Context) {
+	s.mu.Lock()
+	run := s.run
+	if run == nil || run.done {
+		s.mu.Unlock()
+		return
+	}
+	running := run.abort()
+	frags := s.runFrags(run, true)
+	s.mu.Unlock()
+
+	s.broadcast(frags)
+	for _, sid := range running {
+		if err := s.client.Abort(ctx, sid); err != nil {
+			s.logger.Printf("abort run lane %q: %v", sid, err)
+		}
+	}
 }
 
 // launchWorkflow compiles a workflow by id and, if no run or turn is in flight, installs a
@@ -600,11 +660,19 @@ func (s *Server) runFrags(run *workflowRun, done bool) []fragment {
 	if !done {
 		return []fragment{s.lanesFrag()}
 	}
+	if run.recorded {
+		// The terminal path already ran (e.g. an abort settled the run, then a still
+		// in-flight lane goroutine erred and re-entered here, ADR-0024). Idempotent:
+		// don't re-clear busy, re-record, or re-note the outcome — just re-render the
+		// (already-settled) lanes.
+		return []fragment{s.lanesFrag()}
+	}
+	run.recorded = true
 	s.busy = false
 	s.turnStartMs = 0
-	// Persist the finished run to history. This is the one completion point — reached
-	// exactly once per run (after run.done flips, events stop routing here) — so the
-	// run is recorded once, including any skipped (branched) lanes (ADR-0022).
+	// Persist the finished run to history. This is the one completion point — guarded by
+	// run.recorded so it runs exactly once even if abort and a late lane error both reach
+	// it — so the run is recorded once, including any skipped (branched) lanes (ADR-0022).
 	s.recordRun(run)
 	outcome := "✓ workflow " + run.name + " finished"
 	if run.failed {

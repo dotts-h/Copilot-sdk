@@ -20,7 +20,7 @@ no SDK import is allowed on the consumer side (see CONVENTIONS architecture rule
 |--------|---------|
 | `CreateSession(ctx, SessionSpec) (id, error)` | Open a session, return its id. |
 | `Send(ctx, sessionID, prompt, attachments, agentMode) error` | Submit a turn; output arrives as `Events()`. `agentMode` ∈ {plan, autopilot, interactive, shell, ""}. |
-| `Abort(ctx, sessionID) error` | Cancel the in-flight turn. |
+| `Abort(ctx, sessionID) error` | Cancel the in-flight turn. Driven by the chat-turn abort (`handleAbort`) and, per running lane, by the run abort (`handleRunAbort`, V19/ADR-0024). |
 | `Respond(id, approve) error` | Answer a pending `EvPermission`. |
 | `RespondInput(id, answer) error` | Answer a pending `EvUserInput` (ask_user). |
 | `RespondPlan(id, approved, action, feedback) error` | Answer a pending `EvPlanReview`. |
@@ -99,7 +99,7 @@ for the streaming/turn routes (`/events`, `/send`, the `/perm|ask|plan|elicit/{i
 | Turn answers | `POST /perm/{id}` · `POST /ask/{id}` · `POST /plan/{id}` · `POST /elicit/{id}` · `POST /budget/{action}` |
 | Navigation | `GET /page/{name}` · `GET /commands` · `GET /static/…` |
 | Telemetry | `GET /telemetry/export.csv` · `GET /runs/export.csv` |
-| Runs | `POST /runs/rerun/{workflow}` |
+| Runs | `POST /runs/rerun/{workflow}` · `POST /run/abort` |
 | Skills | `GET /skills/new` · `GET /skills/{id}/edit` · `POST /skills` · `POST /skills/{id}` · `POST /skills/{id}/toggle` · `POST /skills/{id}/delete` |
 | Instructions | `POST /instructions/import` · `GET /instructions/new` · `GET /instructions/{id}/edit` · `POST /instructions` · `POST /instructions/{id}` · `POST /instructions/{id}/toggle` · `POST /instructions/{id}/delete` |
 | Agents | `GET /agents/new` · `GET /agents/{id}/edit` · `POST /agents` · `POST /agents/{id}` · `POST /agents/{id}/select` · `POST /agents/{id}/delete` |
@@ -139,6 +139,21 @@ re-execution, **not** a historical replay. It reuses the **same** run-trigger as
 runtime**). The control is gated on the workflow still existing (`CanRerun` — an orphan run
 shows none) and refused while the server is busy; on success the user lands on the chat
 page where the lanes stream. — see [ADR-0023](adr/0023-rerun-a-recorded-run-re-executes-the-current-workflow-definition.md)
+
+`POST /run/abort` (item V19) is the **dual of rerun** and the second action on the
+orchestration surface: a `⏹ stop run` control on the Chat lanes panel **stops the
+in-flight run**. `handleRunAbort` → `abortRun` marks every not-yet-settled lane **failed**
+(detail `⏹ aborted`), flips the run done+failed so the **same** `runFrags` completion path
+records it once and clears `s.busy`, and aborts each still-running lane's backing session
+over the existing `copilot.Client.Abort` seam (per lane) — **no new runtime seam, no new
+lane status** (a stopped run is a **failed** run, so it rolls up under the same
+aggregates/reconciliation as any failed run). A no-op when no run is in flight (the chat
+page re-renders), so a racing double-click can't double-settle; the completion path is
+guarded idempotent (`run.recorded`) because `laneError` — called from a lane goroutine that
+bypasses the reducer's `!s.run.done` guard — can re-enter `runFrags` after the abort already
+settled the run. The `stop-run` marker class is **disjoint** from the chat-turn `.abort`,
+the Workflows `button.run`, the Runs `button.rerun`, and the `a.export` links. — see
+[ADR-0024](adr/0024-abort-an-in-flight-run-settles-it-as-failed-and-aborts-its-lane-sessions.md)
 
 The **Workflows page** (`GET /page/workflows`) lists each workflow (name + step
 summary) with a run control — and, when history exists, **badges** each row (V4): the
