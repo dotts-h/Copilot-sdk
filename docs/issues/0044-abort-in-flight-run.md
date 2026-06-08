@@ -7,7 +7,7 @@ group: 0042
 github:
 links:
   adr: [0024]
-  prs: []
+  prs: [77]
   issues: [0042]
   regression:
 ---
@@ -87,7 +87,7 @@ section ("v8 update (after V19)").
 
 ## Resolution (shipped)
 
-Shipped in **PR #TBD**. Built as specified. The orchestration surface gained its second
+Shipped in **PR #77**. Built as specified. The orchestration surface gained its second
 action and the **dual of rerun**: a `⏹ stop run` control on the Chat lanes panel stops an
 in-flight run. `workflowRun.abort()` marks every not-yet-settled lane `failed` (detail `⏹
 aborted`), flips the run done+failed, and returns the running lanes' session ids;

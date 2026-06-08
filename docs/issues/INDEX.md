@@ -57,4 +57,4 @@ issues are added or closed.
 | [0040](0040-per-lane-cost-run-reconciliation.md) | Per-lane cost⋈run reconciliation — Ledger vs runs by lane on the Telemetry page (item V16) | closed | medium | 0038 | CONTRACTS §3/§4, PR #74 |
 | [0041](0041-reconciliation-csv-export.md) | Reconciliation CSV export — WriteReconcileCSV + GET /telemetry/reconcile.csv (item V17) | closed | low | 0038 | CONTRACTS §3/§4, PR #75 |
 | [0043](0043-rerun-workflow-from-runs-page.md) | Rerun a recorded run from the Runs page — re-execute its workflow's current definition (item V18) | closed | medium | 0042 | ADR-0023, PR #76 |
-| [0044](0044-abort-in-flight-run.md) | Abort an in-flight run from the Chat lanes panel — the dual of rerun (item V19) | closed | medium | 0042 | ADR-0024 |
+| [0044](0044-abort-in-flight-run.md) | Abort an in-flight run from the Chat lanes panel — the dual of rerun (item V19) | closed | medium | 0042 | ADR-0024, PR #77 |

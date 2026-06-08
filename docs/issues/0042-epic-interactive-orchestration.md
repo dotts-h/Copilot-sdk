@@ -7,7 +7,7 @@ group:
 github:
 links:
   adr: [0023, 0024]
-  prs: [76]
+  prs: [76, 77]
   issues: [0043, 0044]
   regression:
 ---
@@ -55,7 +55,7 @@ negative-value. The v8 epic is a **product/interactivity** epic instead.
       workflow still existing (`CanRerun`) and refused while the server is busy. **First
       child** — the epic is born in its PR.
 - [x] **V19 — abort an in-flight run from the Chat lanes panel** (M; the dual of rerun) →
-      [0044](0044-abort-in-flight-run.md) (**shipped**, PR #TBD; ADR-0024). A `⏹ stop run`
+      [0044](0044-abort-in-flight-run.md) (**shipped**, PR #77; ADR-0024). A `⏹ stop run`
       control on the lanes panel stops a running workflow: each still-running lane's backing
       session is aborted over the existing `copilot.Client.Abort` seam, the unsettled lanes
       settle **failed** (detail `⏹ aborted`) and the run records as a **failed** outcome —
@@ -67,7 +67,7 @@ negative-value. The v8 epic is a **product/interactivity** epic instead.
 
 ## Status
 
-**Open — first two children shipped (V18 rerun PR #76; V19 abort PR #TBD).** V18 (rerun,
+**Open — first two children shipped (V18 rerun PR #76; V19 abort PR #77).** V18 (rerun,
 0043) opened the "interactive orchestration" theme — the first action on a surface that was
 read-only through all of v4–v7. V19 (abort, 0044, ADR-0024) added its **dual**, completing
 the basic interactive control set (**start → rerun → stop**). The interactive surface still
