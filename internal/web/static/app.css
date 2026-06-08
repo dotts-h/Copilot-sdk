@@ -65,21 +65,57 @@ html, body {
   background: var(--bg); color: var(--fg);
   font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
-body { display: flex; flex-direction: column; }
+/* The shell is a left sidebar + main panel on wide viewports (row), reflowing to
+   a stacked top bar + main on narrow ones (see the media query below). — ADR-0026 */
+body { display: flex; flex-direction: row; }
 
-.topbar {
-  display: flex; align-items: center; gap: 1rem;
-  padding: .55rem 1rem;
-  border-bottom: 1px solid var(--panel); background: var(--panel);
-  flex-wrap: wrap; /* narrow widths: wrap the cost meter below rather than overflow */
-}
+.topbar { display: flex; background: var(--panel); }
 .topbar .brand { color: var(--accent); font-weight: 600; letter-spacing: .02em; }
-.nav { display: flex; gap: .25rem; flex: 1 1 auto; flex-wrap: wrap; }
+
+/* Grouped left sidebar (V22, ADR-0026): the single <header> banner laid out as a
+   fixed-width left column. Tokens only — no raw literals. */
+.sidebar {
+  flex: 0 0 13rem;
+  flex-direction: column; align-items: stretch;
+  gap: .55rem; padding: .7rem .55rem;
+  height: 100%; overflow-y: auto;
+  border-right: 1px solid var(--panel);
+}
+.sidebar .brand { padding: .1rem .5rem; font-size: 1.02rem; }
+.nav { display: flex; flex-direction: column; gap: .35rem; flex: 1 1 auto; }
+.nav-group { display: flex; flex-direction: column; gap: .05rem; }
+/* Config + Help defer to the bottom of the column (progressive disclosure): the
+   first pinned group's margin-top:auto eats the slack above it. */
+.nav-group.pinned-start { margin-top: auto; }
+.nav-group-label {
+  color: var(--dim); font-size: .68rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .06em;
+  padding: .15rem .5rem; margin-top: .3rem;
+}
 .nav a {
-  color: var(--dim); text-decoration: none; cursor: pointer;
-  padding: .25rem .6rem; border-radius: 6px; font-size: .9rem;
+  color: var(--dim); text-decoration: none; cursor: pointer; display: block;
+  padding: .25rem .55rem; border-radius: 6px; font-size: .9rem;
 }
 .nav a:hover { color: var(--fg); background: var(--hover); }
+.sidebar-foot { display: flex; flex-direction: column; align-items: flex-start;
+  gap: .4rem; padding: .2rem .3rem 0; }
+
+/* Narrow viewport: reflow the sidebar to a compact wrapping top bar — group
+   labels hide, the links stay in the DOM and reachable (CSS-only, no JS router). */
+@media (max-width: 720px) {
+  body { flex-direction: column; }
+  .sidebar {
+    flex: 0 0 auto; flex-direction: row; flex-wrap: wrap; align-items: center;
+    gap: .25rem .6rem; height: auto; overflow: visible;
+    border-right: none; border-bottom: 1px solid var(--panel);
+  }
+  .sidebar .nav { flex-direction: row; flex-wrap: wrap; flex: 1 1 100%; gap: .1rem .15rem; }
+  .nav-group { flex-direction: row; flex-wrap: wrap; align-items: center; gap: .1rem; }
+  .nav-group.pinned-start { margin-top: 0; }
+  .nav-group-label { display: none; }
+  .sidebar-foot { flex-direction: row; align-items: center; gap: .6rem;
+    padding: 0; margin-left: auto; }
+}
 
 /* Light/dark theme toggle (ADR-0025): a ghost glyph button in the topbar, outside
    <nav> so it never joins the `header nav a` set. --dim clears AA on the panel; the
@@ -100,7 +136,7 @@ body { display: flex; flex-direction: column; }
 .meter.wide { width: 100%; height: 12px; margin: .5rem 0 1rem; }
 .meter-fill { display: block; height: 100%; background: var(--accent); }
 
-main { flex: 1 1 auto; overflow: hidden; display: flex; }
+main { flex: 1 1 auto; min-width: 0; overflow: hidden; display: flex; }
 
 /* ---- chat ---- */
 .chat { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; width: 100%; }
@@ -459,6 +495,25 @@ table.shortcuts th { padding-right: 1.25rem; }
 .overlay-close { margin-top: 1rem; background: none; border: 1px solid var(--subtle);
   color: var(--fg); border-radius: 6px; padding: .3rem .9rem; cursor: pointer; }
 .overlay-close:hover, .overlay-close:focus-visible { border-color: var(--accent); }
+
+/* ⌘K command palette (V22, ADR-0026): reuses the .overlay/.overlay-card shell,
+   top-aligned, with a filter input over a client-filtered page list. Tokens only. */
+.cmdk { align-items: flex-start; }
+.cmdk-card { max-width: 30rem; margin-top: 11vh; padding: 1rem; }
+.cmdk-input { width: 100%; box-sizing: border-box; background: var(--bg); color: var(--fg);
+  border: 1px solid var(--subtle); border-radius: 8px; padding: .55rem .7rem; font: inherit; }
+.cmdk-input:focus { outline: none; border-color: var(--accent2); }
+.cmdk-list { list-style: none; margin: .6rem 0 0; padding: 0;
+  max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; gap: .1rem; }
+.cmdk-item { display: flex; align-items: baseline; gap: .5rem; width: 100%;
+  background: none; border: none; text-align: left; cursor: pointer; font: inherit;
+  color: var(--fg); padding: .4rem .6rem; border-radius: 6px; }
+.cmdk-item[hidden] { display: none; } /* outranks .cmdk-item's display:flex */
+.cmdk-item:hover { background: var(--hover); }
+.cmdk-item-label { color: var(--fg); }
+.cmdk-item-group { color: var(--dim); font-size: .76rem; margin-left: auto;
+  text-transform: uppercase; letter-spacing: .04em; }
+.cmdk-card .overlay-close { margin-top: .8rem; }
 
 /* Burn-rate forecast line (Telemetry page, A3). */
 .forecast { margin: .6rem 0 0; font-size: .9rem; color: var(--fg); }

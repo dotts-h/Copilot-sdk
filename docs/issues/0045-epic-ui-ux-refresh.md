@@ -6,9 +6,9 @@ severity: medium
 group:
 github:
 links:
-  adr: [0025]
+  adr: [0025, 0026]
   prs: [44]
-  issues: [0046]
+  issues: [0046, 0047]
   regression:
 ---
 

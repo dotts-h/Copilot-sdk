@@ -29,3 +29,4 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0023 | [Rerun a recorded run re-executes the current workflow definition](0023-rerun-a-recorded-run-re-executes-the-current-workflow-definition.md) | accepted |
 | 0024 | [Abort an in-flight run — settle it as failed and abort its lane sessions](0024-abort-an-in-flight-run-settles-it-as-failed-and-aborts-its-lane-sessions.md) | accepted |
 | 0025 | [Design-token foundation and light/dark theming via `light-dark()` + `color-scheme`](0025-design-token-foundation-and-light-dark-theming.md) | accepted |
+| 0026 | [Grouped left-sidebar navigation and a ⌘K command palette](0026-grouped-sidebar-navigation-and-command-palette.md) | accepted |
