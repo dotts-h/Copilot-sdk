@@ -1,13 +1,13 @@
 ---
 id: 0043
 title: "Rerun a recorded run from the Runs page — re-execute its workflow's current definition (roadmap v8, item V18)"
-status: open
+status: closed
 severity: medium
 group: 0042
 github:
 links:
   adr: [0023]
-  prs:
+  prs: [76]
   issues: [0042]
   regression:
 ---
@@ -87,7 +87,36 @@ takes **ADR-0023** for the rerun semantics and the shared trigger seam. Source:
 
 ## Resolution (shipped)
 
-_(to be filled on merge — PR number recorded here + on the epic + INDEX, same branch.)_
+Shipped in **PR #76**. Built as specified. The orchestration history surface gained its
+first action: a `↻ rerun` control on each recorded run re-executes that run's workflow's
+**current** definition (looked up by `WorkflowID`) under the **same** `WorkflowID`, so the
+new run rolls up under the same per-workflow totals / aggregates / reconciliation — a
+re-execution, not a historical replay. The run-launch body of `handleWorkflowRun` was
+extracted into one shared `launchWorkflow(id) bool` trigger used by both the Workflows-page
+"Run" and the new `handleRunRerun` (`POST /runs/rerun/{workflow}`), so there remains exactly
+one orchestration path (one `!s.busy` guard, one `forgeMu → s.mu` lock order, one
+`copilot.Client` lifecycle — no new runtime seam). `runRow(r, window)` surfaces
+`WorkflowID`, a `CanRerun` gate (`s.forge != nil && s.forge.Workflow(id) != nil`, under the
+`forgeMu` the render holds), and the active window; the `runRecord` template renders the
+button only when `CanRerun`, with a **disjoint `rerun` marker class** (≠ `button.run` /
+`a.export`). A click that races a delete returns `false` and re-renders the Runs page
+unchanged at the request's window; a rerun is refused while busy.
+
+Tests (failing-first): `internal/web` `TestRunRerunHandlerStartsRecordedWorkflow` (opens a
+session, sends the first lane's prompt, lands on chat, `s.run.id == "ship"`),
+`TestRunRerunUnknownWorkflowNoLaunch` (fail-safe: no run, no state change, Runs re-rendered),
+`TestRunsPartialShowsRerunForLiveWorkflowHidesForOrphan` (shown for a live workflow carrying
+the window, hidden for an orphan). e2e: a structural
+`button.rerun[hx-post^="/runs/rerun/build-and-harden"]` assertion, verified against the
+Go-rendered demo HTML and kept disjoint from `button.run` / `a.export`. The existing
+telemetry + web + bootstrap + e2e tests stayed green unchanged. Gates green (`make lint &&
+make test`; web 89.2%, telemetry 96.0%).
+
+Docs: NEXT_FEATURES "roadmap v8" section, CONTRACTS §3 (the new route), CONTEXT (the
+**rerun** term), ADR-0023 (the rerun semantics + shared trigger seam). No REGRESSIONS entry
+— no bug shipped. Self-reviewed with `/code-review` (high effort): it flagged a new
+unconditional `s.forge` deref on the `CanRerun` line, fixed with an `s.forge != nil` guard.
+On merge, epic 0042 records the PR and **stays open** for the next interactive child.
 
 ## Notes
 - **ADR-0023:** the first **action** child of the project since the run-store itself —

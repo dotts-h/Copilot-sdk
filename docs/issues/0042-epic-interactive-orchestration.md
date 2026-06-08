@@ -7,7 +7,7 @@ group:
 github:
 links:
   adr: [0023]
-  prs:
+  prs: [76]
   issues: [0043]
   regression:
 ---
@@ -45,21 +45,21 @@ negative-value. The v8 epic is a **product/interactivity** epic instead.
 
 ## Tasks
 
-- [ ] **V18 — rerun a recorded run from the Runs page** (M; the first action on the
-      orchestration surface) → [0043](0043-rerun-workflow-from-runs-page.md) (ADR-0023).
-      A `↻ rerun` control on each recorded run re-executes that run's workflow — looked up
-      by `WorkflowID` and run as its **current** definition (a re-execution, not a
-      historical replay) — through the same `launchWorkflow` trigger as the Workflows-page
-      run, so the new run rolls up under the **same** per-workflow totals / aggregates /
-      reconciliation (coherent with V13/V15). The control is gated on the workflow still
-      existing (`CanRerun`) and refused while the server is busy. **First child** — the
-      epic is born in its PR.
+- [x] **V18 — rerun a recorded run from the Runs page** (M; the first action on the
+      orchestration surface) → [0043](0043-rerun-workflow-from-runs-page.md) (**shipped**,
+      PR #76; ADR-0023). A `↻ rerun` control on each recorded run re-executes that run's
+      workflow — looked up by `WorkflowID` and run as its **current** definition (a
+      re-execution, not a historical replay) — through the same `launchWorkflow` trigger as
+      the Workflows-page run, so the new run rolls up under the **same** per-workflow totals
+      / aggregates / reconciliation (coherent with V13/V15). The control is gated on the
+      workflow still existing (`CanRerun`) and refused while the server is busy. **First
+      child** — the epic is born in its PR.
 
 ## Status
 
-**Open — first child in flight.** V18 (rerun, 0043) opens the epic and the "interactive
-orchestration" theme: the first action on a surface that was read-only through all of
-v4–v7. Per the repo convention an epic is born in its first child's PR. After V18 merges,
+**Open — first child shipped (V18, PR #76).** V18 (rerun, 0043) opened the epic and the
+"interactive orchestration" theme: the first action on a surface that was read-only through
+all of v4–v7. Per the repo convention the epic is born in its first child's PR. After V18,
 re-rank the epic from a fresh value×fit pass — candidate later children include: an
 **abort/cancel** control on an in-flight run from the Runs/Chat surface; **rerun a single
 failed lane**; or a **cost-spike/anomaly** reader (the deferred Candidate B from the v8

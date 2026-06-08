@@ -56,4 +56,4 @@ issues are added or closed.
 | [0039](0039-cost-run-reconciliation.md) | Cost⋈run reconciliation — Ledger vs runs on the Telemetry page (item V15) | closed | medium | 0038 | CONTRACTS §3/§4, PR #66 |
 | [0040](0040-per-lane-cost-run-reconciliation.md) | Per-lane cost⋈run reconciliation — Ledger vs runs by lane on the Telemetry page (item V16) | closed | medium | 0038 | CONTRACTS §3/§4, PR #74 |
 | [0041](0041-reconciliation-csv-export.md) | Reconciliation CSV export — WriteReconcileCSV + GET /telemetry/reconcile.csv (item V17) | closed | low | 0038 | CONTRACTS §3/§4, PR #75 |
-| [0043](0043-rerun-workflow-from-runs-page.md) | Rerun a recorded run from the Runs page — re-execute its workflow's current definition (item V18) | open | medium | 0042 | ADR-0023 |
+| [0043](0043-rerun-workflow-from-runs-page.md) | Rerun a recorded run from the Runs page — re-execute its workflow's current definition (item V18) | closed | medium | 0042 | ADR-0023, PR #76 |
