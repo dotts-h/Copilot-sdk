@@ -152,6 +152,22 @@
   filter input over a server-rendered `{slug,label,group}` list, filtered client-side and navigating
   the match via the existing keymap `navClick` seam (no new route). ⌘K is a **fixed** modifier chord,
   outside the single-key configurable keymap (ADR-0014). — ADR-0026
+- **KPI card** — one "big number" tile in the Telemetry dashboard's top row: a current-window value
+  (total spend, turns, avg cost/turn, or burn rate) with a **period-over-period delta** badge (▲/▼/→ a
+  signed %) and a **sparkline**. The delta color is per-metric: a rise in spend/avg/burn is `--warn`
+  (higher-is-worse), a rise in turns is `--good` — never a blanket green ▲. A metric with no prior
+  baseline reads "new". `telemetry.Dashboard`/`ChangePct` compute it; `web.dashboardView` renders it.
+  — ADR-0027
+- **sparkline** — a small, axis-free inline-SVG trend line (a normalized polyline over a metric's
+  zero-filled daily series) inside a KPI card, server-rendered from a pure Go builder (`web.sparklineSVG`).
+  — ADR-0027
+- **trend band** — the Telemetry dashboard's cumulative-spend chart (`web.trendBandSVG`): a filled
+  **actuals** area (solid) plus a **dashed burn-rate forecast** continuing at the window's daily rate
+  over the days left this month. Inline SVG, zero JS. — ADR-0027
+- **bullet graph** — the spend-vs-budget chart (Few's bullet; `web.bulletSVG`): a budget **track**, a
+  month-to-date **measure bar**, and a **target marker** at the projected month-end spend at the
+  current pace (flipped to `--bad` when over budget). Renders only when a monthly budget is set.
+  — ADR-0027
 
 ## Process vocabulary
 

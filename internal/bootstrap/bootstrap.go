@@ -154,6 +154,11 @@ func seedSpend(store *telemetry.SpendStore) {
 	now := time.Now()
 	at := func(daysAgo int) time.Time { return now.AddDate(0, 0, -daysAgo) }
 	for _, r := range []telemetry.SpendRecord{
+		// Two turns in the PRIOR 14-day window (16–18 days ago) so the dashboard's
+		// period-over-period KPI deltas compute against a real baseline rather than
+		// reading "new" (V23, ADR-0027). Also extends the 30/90-day trend.
+		{At: at(18), SessionID: "demo-sess-2", Model: "claude-sonnet-4-6", InputTokens: 700, OutputTokens: 160, USD: 0.008, AgentID: "sdet"},
+		{At: at(16), SessionID: "demo-sess-2", Model: "gpt-5", InputTokens: 600, OutputTokens: 140, USD: 0.010, AgentID: "builder"},
 		{At: at(4), SessionID: "demo-sess-2", Model: "gpt-5", InputTokens: 900, OutputTokens: 220, USD: 0.012, AgentID: "builder"},
 		{At: at(3), SessionID: "demo-sess-2", Model: "claude-sonnet-4-6", InputTokens: 1500, OutputTokens: 400, USD: 0.030, AgentID: "sdet"},
 		{At: at(2), SessionID: "demo-sess-1", Model: "gpt-5", InputTokens: 1200, CachedTokens: 200, OutputTokens: 340, USD: 0.018, AgentID: "builder"},

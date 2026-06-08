@@ -51,6 +51,10 @@ for (const theme of THEMES) {
     // the destructive abort / reject / decline controls, not the empty shell.
     await expect(page.locator(".turn.tool").last()).toBeVisible({ timeout: 15_000 });
     await expect(page.locator("#perms .perm-review").last()).toBeVisible({ timeout: 15_000 });
+    // Wait for the schema-driven elicitation form too, so its secondary text
+    // (.elicit-desc / .elicit-source) is scanned in both themes — it dimmed via
+    // `opacity` and fell to ~4.13:1 on the light theme until tokenized (REGRESSIONS #20).
+    await expect(page.locator("#elicits .elicit-desc").last()).toBeVisible({ timeout: 15_000 });
     const results = await scan(page);
     expect(
       results.violations,
