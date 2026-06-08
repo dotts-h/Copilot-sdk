@@ -29,8 +29,42 @@ const (
 	HookAsk   = "ask"
 )
 
+// Agent modes a hook can be scoped to (mode binding, ADR-0031). They mirror the
+// per-turn agent modes the web layer threads to Send: autopilot runs tools
+// unattended, interactive gates more, plan is read-and-propose. A hook with an
+// empty Modes set applies in EVERY mode; the built-in mandatory ruleset leaves
+// Modes empty so the G2 floor can never be weakened by mode binding. The empty
+// active mode ("" — no explicit mode) is the session default and matches only
+// hooks with an empty Modes set.
+const (
+	ModeAutopilot   = "autopilot"
+	ModeInteractive = "interactive"
+	ModePlan        = "plan"
+)
+
 var validHookEvents = map[string]bool{HookPreToolUse: true, HookPostToolUse: true}
 var validHookActions = map[string]bool{HookAllow: true, HookDeny: true, HookAsk: true}
+var validHookModes = map[string]bool{ModeAutopilot: true, ModeInteractive: true, ModePlan: true}
+
+// EffectiveAutoApprove resolves whether a session running in the given agent
+// mode blanket-approves the non-mandatory remainder (an ordinary ask or a
+// no-match default-ask). It is the mode-binding baseline (ADR-0031): autopilot
+// forces auto-approve ON (strict defaults on, unattended) and interactive forces
+// it OFF (fully interactive — more gates), regardless of the session's static
+// AutoApproveTools config; any other mode (plan, shell, or no explicit mode)
+// defers to configDefault. The mandatory dangerous subset is enforced by the
+// bridge BEFORE this baseline applies, so a true here can never bypass a
+// mandatory deny/ask. Pure, so the bridge stays a thin caller. — ADR-0030, ADR-0031.
+func EffectiveAutoApprove(mode string, configDefault bool) bool {
+	switch mode {
+	case ModeAutopilot:
+		return true
+	case ModeInteractive:
+		return false
+	default:
+		return configDefault
+	}
+}
 
 // validHookKinds is the set of tool kinds a hook may match on — the SDK
 // permission kinds my-orchestra governs. G2 may widen this; keep it tight here.
@@ -69,6 +103,11 @@ type Hook struct {
 	Action  string    `json:"action"` // allow | deny | ask
 	Reason  string    `json:"reason,omitempty"`
 	Enabled bool      `json:"enabled"`
+	// Modes scopes the hook to a set of agent modes (mode binding, ADR-0031):
+	// the hook participates only when the session's active mode is in this set.
+	// An empty set means the hook applies in EVERY mode — the built-in mandatory
+	// ruleset leaves it empty so mode binding can never weaken the G2 floor.
+	Modes []string `json:"modes,omitempty"`
 	// Mandatory marks a hook whose decision is **unbypassable by config**: a
 	// mandatory deny rejects and a mandatory ask gates EVEN when the session runs
 	// with AutoApproveTools. The built-in dangerous-action ruleset (DangerousHooks)
@@ -122,7 +161,27 @@ func (h Hook) Validate() error {
 	if hasDanglingVarRef(h.Match.Pattern) || hasDanglingVarRef(h.Reason) {
 		return fmt.Errorf("hook %q: dangling ${VAR} reference", h.ID)
 	}
+	for _, m := range h.Modes {
+		if !validHookModes[m] {
+			return fmt.Errorf("hook %q: invalid mode %q", h.ID, m)
+		}
+	}
 	return nil
+}
+
+// appliesInMode reports whether the hook participates when the session's active
+// mode is mode. An empty Modes set applies in every mode (mode binding,
+// ADR-0031); otherwise the active mode must be listed.
+func (h Hook) appliesInMode(mode string) bool {
+	if len(h.Modes) == 0 {
+		return true
+	}
+	for _, m := range h.Modes {
+		if m == mode {
+			return true
+		}
+	}
+	return false
 }
 
 // matches reports whether the hook applies to a tool call of the given kind,
@@ -178,6 +237,18 @@ func isOutsideWorkspace(target, workspace string) bool {
 	return rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
+// PatternIsGlob reports whether a hook Pattern uses the glob wildcards '*'/'?'
+// (an unanchored wildcard search) rather than plain substring semantics. The UI
+// preflight surfaces which form a typed pattern takes before it is saved.
+// — ADR-0031.
+func PatternIsGlob(pattern string) bool { return strings.ContainsAny(pattern, "*?") }
+
+// MatchPattern reports whether a hook Pattern matches command under the same
+// glob/substring rules the evaluator applies — the single matcher, exported so
+// the UI preflight can show a rule firing against a sample command before it is
+// saved. — ADR-0031.
+func MatchPattern(pattern, command string) bool { return patternMatch(pattern, command) }
+
 // patternMatch applies the documented Pattern semantics: a glob over the whole
 // command when the pattern carries '*'/'?', otherwise a substring match.
 func patternMatch(pattern, command string) bool {
@@ -220,8 +291,14 @@ func globMatch(pattern, s string) bool {
 // AutoApproveTools, while a non-mandatory ask falls to the blanket approval.
 // — ADR-0030.
 type Decision struct {
-	Action    string
-	Reason    string
+	Action string
+	Reason string
+	// HookID is the id of the winning hook (empty for the no-match default ask).
+	// The bridge uses it to explain a decision in the timeline ("auto-approved by
+	// hook X") and to distinguish a built-in (builtin-* id) from a user hook so the
+	// safe-read default's auto-approve stays silent while a user allow is surfaced.
+	// — ADR-0031.
+	HookID    string
 	Mandatory bool
 }
 
@@ -238,15 +315,18 @@ type Decision struct {
 // surfaced, the action itself is order-independent. Decision.Mandatory reports
 // whether a mandatory hook drove the winning action — the bridge enforces a
 // mandatory deny/ask even under AutoApproveTools (ADR-0030). The workspace root
-// powers the OutsideWorkspace fence (empty = fence inert). The function is pure —
+// powers the OutsideWorkspace fence (empty = fence inert). mode is the session's
+// active agent mode (mode binding, ADR-0031): a hook participates only when its
+// Modes set is empty or lists mode, so the mandatory ruleset (empty Modes) holds
+// in EVERY mode while a user hook can be scoped to one. The function is pure —
 // built-in safe-read defaults, the built-in dangerous ruleset, and user hooks all
-// evaluate through this one path. — ADR-0029, ADR-0030.
-func Evaluate(hooks []Hook, event, toolKind, command, workspace string) Decision {
+// evaluate through this one path. — ADR-0029, ADR-0030, ADR-0031.
+func Evaluate(hooks []Hook, event, toolKind, command, workspace, mode string) Decision {
 	var deny, ask, allow *Hook
 	var mandatoryDeny, mandatoryAsk *Hook
 	for i := range hooks {
 		h := &hooks[i]
-		if !h.Enabled || h.Event != event || !h.Match.matches(toolKind, command, workspace) {
+		if !h.Enabled || h.Event != event || !h.appliesInMode(mode) || !h.Match.matches(toolKind, command, workspace) {
 			continue
 		}
 		switch h.Action {
@@ -276,15 +356,15 @@ func Evaluate(hooks []Hook, event, toolKind, command, workspace string) Decision
 		if mandatoryDeny != nil {
 			win = mandatoryDeny
 		}
-		return Decision{Action: HookDeny, Reason: win.Reason, Mandatory: mandatoryDeny != nil}
+		return Decision{Action: HookDeny, Reason: win.Reason, HookID: win.ID, Mandatory: mandatoryDeny != nil}
 	case ask != nil:
 		win := ask
 		if mandatoryAsk != nil {
 			win = mandatoryAsk
 		}
-		return Decision{Action: HookAsk, Reason: win.Reason, Mandatory: mandatoryAsk != nil}
+		return Decision{Action: HookAsk, Reason: win.Reason, HookID: win.ID, Mandatory: mandatoryAsk != nil}
 	case allow != nil:
-		return Decision{Action: HookAllow, Reason: allow.Reason}
+		return Decision{Action: HookAllow, Reason: allow.Reason, HookID: allow.ID}
 	default:
 		return Decision{Action: HookAsk}
 	}
@@ -300,10 +380,26 @@ func (f *Forge) Hook(id string) *Hook {
 	return nil
 }
 
+// reservedHookID rejects a user hook that claims the builtin- id prefix reserved
+// for the shipped built-in policy (DefaultHooks/DangerousHooks). The built-ins
+// own the prefix and never flow through Add/UpdateHook, so reserving it here (not
+// in Validate, which the built-ins must pass) keeps the UI's built-in vs user
+// distinction — read-only rows and the timeline "auto-approved by X" suppression —
+// from being spoofed by a user hook. — ADR-0031.
+func reservedHookID(id string) error {
+	if strings.HasPrefix(id, "builtin-") {
+		return fmt.Errorf("hook %q: the \"builtin-\" id prefix is reserved for built-in hooks", id)
+	}
+	return nil
+}
+
 // AddHook validates and appends a hook, rejecting duplicate IDs.
 func (f *Forge) AddHook(h Hook) error {
 	return f.mutate(func() error {
 		if err := h.Validate(); err != nil {
+			return err
+		}
+		if err := reservedHookID(h.ID); err != nil {
 			return err
 		}
 		if f.Hook(h.ID) != nil {
@@ -322,6 +418,9 @@ func (f *Forge) UpdateHook(id string, h Hook) error {
 		cur := f.Hook(id)
 		if cur == nil {
 			return fmt.Errorf("unknown hook %q", id)
+		}
+		if err := reservedHookID(h.ID); err != nil {
+			return err
 		}
 		*cur = h
 		return nil

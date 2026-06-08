@@ -6,9 +6,9 @@ severity: high
 group:
 github:
 links:
-  adr: [0029, 0030]
+  adr: [0029, 0030, 0031]
   prs: [84, 83, 85]
-  issues: [0053, 0054]
+  issues: [0053, 0054, 0055]
   regression: []
 ---
 
@@ -72,20 +72,24 @@ or **ask** (the existing HITL gate). This generalizes `AutoApproveTools` from a 
       ADR-0029): the entity + persistence + compile + built-in allow/deny/ask. **External command-ref
       execution** (PostToolUse running a user command, `${VAR}` + preflight, untrusted output) is
       deferred to a later child.
-- [ ] **G4 · Hook/policy editor UI + mode binding** (M). Full **CRUD in the app** — add / edit /
+- [x] **G4 · Hook/policy editor UI + mode binding** (M; ADR). Full **CRUD in the app** — add / edit /
       enable-disable / remove hooks from a Hooks page, exactly like the skills/MCP/workflow forms (list +
       form + preflight). Bind a hook set to **agent modes** (auto mode → strict defaults on; ask mode →
-      fully interactive); surface *why* a call was auto-approved/denied in the timeline. — *after G2*
+      fully interactive); surface *why* a call was auto-approved/denied in the timeline. — **shipped in V27**
+      ([0055](0055-hooks-ui-mode-binding-timeline-why.md), ADR-0031): the `/hooks…` page (built-ins
+      read-only + user CRUD + preflight), `Hook.Modes` + `EffectiveAutoApprove` mode binding, and the
+      `EvToolDecision` timeline "why" annotation.
 
 ## Acceptance (epic)
 
 - [ ] Read-only tools are auto-approved by default; writes/exec are gated; the default build is safe.
 - [ ] A documented set of destructive patterns is hard-denied or force a mandatory gate **even in auto
       mode**, enforced in the bridge (not bypassable by config alone), and **table-tested**.
-- [ ] Hooks are a **first-class forge entity** persisted in `forge.json`, with full **add/edit/
-      enable-disable/remove CRUD in the app**; Pre/PostToolUse hooks fire from the bridge, return
-      allow/deny/ask, and treat hook command output as untrusted.
-- [ ] Hooks/policy are bound to agent modes; every auto-approve/deny decision is explainable in the UI.
+- [x] Hooks are a **first-class forge entity** persisted in `forge.json`, with full **add/edit/
+      enable-disable/remove CRUD in the app** (the Hooks page, G4); Pre/PostToolUse hooks fire from
+      the bridge, return allow/deny/ask. *(Treating hook command output as untrusted is the last
+      child — external command-ref execution.)*
+- [x] Hooks/policy are bound to agent modes; every auto-approve/deny decision is explainable in the UI.
 - [ ] Each child: failing test first, ADR where it sets policy semantics, `make lint && make test`
       (floor 65%) + `make e2e` green, born in its PR, SemVer minor.
 

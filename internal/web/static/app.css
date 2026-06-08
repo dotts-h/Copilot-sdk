@@ -648,6 +648,36 @@ ul.rows { list-style: none; margin: 0; padding: 0; }
   border: 1px solid var(--subtle); color: var(--dim); }
 .badge.warn { border-color: var(--warn); color: var(--warn); }
 
+/* Hooks page (ADR-0031): the action tag, the read-only built-in group, and the
+   preflight verdict. Colours name a role via the existing semantic tokens. */
+.hook-group { color: var(--dim); font-size: .72rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .04em; margin: 1rem 0 .35rem; }
+.hook-action { font-size: .7rem; font-weight: 600; padding: 0 .4rem; border-radius: 4px;
+  border: 1px solid var(--subtle); color: var(--dim); margin-right: .5rem; min-width: 3em;
+  text-align: center; }
+.hook-action.act-deny { border-color: var(--bad); color: var(--bad); }
+.hook-action.act-allow { border-color: var(--good); color: var(--good); }
+.hook-action.act-ask { border-color: var(--warn); color: var(--warn); }
+.row.builtin { opacity: .9; }
+.modes-field { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+.modes-field legend { color: var(--dim); }
+.mode-opt { display: inline-flex; align-items: center; gap: .3rem; color: var(--fg); }
+.hook-preflight .preflight-row { display: flex; gap: .5rem; }
+.hook-preflight .preflight-row input { flex: 1 1 auto; }
+.preflight-verdict.match { color: var(--good); }
+.preflight-verdict.nomatch { color: var(--dim); }
+
+/* Governance "why" annotation (ADR-0031): a compact, muted timeline line. Not a
+   control — a deny is bad-toned, an auto-approve good-toned, both low-emphasis. */
+.turn.decision { background: none; color: var(--dim); font-size: .82rem;
+  padding: .15rem .85rem; border-left: 3px solid var(--subtle); }
+.turn.decision.decision-deny { border-left-color: var(--bad); }
+.turn.decision.decision-allow { border-left-color: var(--good); }
+.turn.decision .decision-hook { color: var(--fg); font-weight: 600; }
+.turn.decision .decision-detail { color: var(--fg); }
+.perm .perm-reason, .perm-review .perm-reason { color: var(--warn); font-size: .85rem;
+  flex-basis: 100%; }
+
 button.abort { background: none; border: 1px solid var(--bad); color: var(--bad); border-radius: 6px;
   padding: .1rem .5rem; cursor: pointer; font: inherit; font-size: .85rem; margin-left: .5rem; }
 button.abort:hover { background: var(--bad); color: var(--on-bright); }

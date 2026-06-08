@@ -113,7 +113,7 @@ func TestDangerousRuleset(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := Evaluate(builtinPolicy(), HookPreToolUse, tc.kind, tc.command, "")
+			got := Evaluate(builtinPolicy(), HookPreToolUse, tc.kind, tc.command, "", "")
 			if got.Action != tc.wantAction {
 				t.Fatalf("Evaluate(%q) action = %q, want %q (reason %q)", tc.command, got.Action, tc.wantAction, got.Reason)
 			}
@@ -183,7 +183,7 @@ func TestWorkspaceFence(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := Evaluate(policy, HookPreToolUse, "write", tc.path, tc.workspace)
+			got := Evaluate(policy, HookPreToolUse, "write", tc.path, tc.workspace, "")
 			if got.Action != tc.wantAction {
 				t.Fatalf("write %q action = %q, want %q", tc.path, got.Action, tc.wantAction)
 			}
@@ -202,25 +202,25 @@ func TestMandatoryPrecedenceVsUserHooks(t *testing.T) {
 	with := func(extra ...Hook) []Hook { return append(builtinPolicy(), extra...) }
 
 	t.Run("user allow cannot bypass a mandatory deny", func(t *testing.T) {
-		got := Evaluate(with(allowShell), HookPreToolUse, "shell", "rm -rf /", "")
+		got := Evaluate(with(allowShell), HookPreToolUse, "shell", "rm -rf /", "", "")
 		if got.Action != HookDeny || !got.Mandatory {
 			t.Fatalf("got %+v, want mandatory deny (user allow must not weaken it)", got)
 		}
 	})
 	t.Run("user allow cannot bypass a mandatory ask", func(t *testing.T) {
-		got := Evaluate(with(allowShell), HookPreToolUse, "shell", "sudo apt update", "")
+		got := Evaluate(with(allowShell), HookPreToolUse, "shell", "sudo apt update", "", "")
 		if got.Action != HookAsk || !got.Mandatory {
 			t.Fatalf("got %+v, want mandatory ask (user allow must not weaken it)", got)
 		}
 	})
 	t.Run("user allow cannot bypass the mandatory workspace fence", func(t *testing.T) {
-		got := Evaluate(with(allowWrite), HookPreToolUse, "write", "/etc/passwd", "/home/u/project")
+		got := Evaluate(with(allowWrite), HookPreToolUse, "write", "/etc/passwd", "/home/u/project", "")
 		if got.Action != HookAsk || !got.Mandatory {
 			t.Fatalf("got %+v, want mandatory ask for an out-of-workspace write", got)
 		}
 	})
 	t.Run("a user deny is more restrictive and wins over a mandatory ask", func(t *testing.T) {
-		got := Evaluate(with(denySudo), HookPreToolUse, "shell", "sudo apt update", "")
+		got := Evaluate(with(denySudo), HookPreToolUse, "shell", "sudo apt update", "", "")
 		if got.Action != HookDeny || got.Mandatory {
 			t.Fatalf("got %+v, want a non-mandatory user deny (deny > ask)", got)
 		}

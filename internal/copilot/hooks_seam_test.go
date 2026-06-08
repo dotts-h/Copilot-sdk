@@ -44,10 +44,59 @@ func TestPermissionHandlerAllowAutoApprovesWithoutGate(t *testing.T) {
 	if c.perms.pending() != 0 {
 		t.Fatalf("pending perms = %d, want 0", c.perms.pending())
 	}
+	// A USER allow hook surfaces a timeline annotation ("auto-approved by X") via
+	// an EvToolDecision — explainable, but not a gate (ADR-0031).
 	select {
 	case e := <-c.events:
-		t.Fatalf("unexpected event emitted on allow: %+v", e)
+		if e.Type != EvToolDecision || e.Decision == nil {
+			t.Fatalf("event = %+v, want EvToolDecision", e)
+		}
+		if e.Decision.Kind != HookAllow || e.Decision.HookID != "a" {
+			t.Fatalf("decision = %+v, want allow by hook a", e.Decision)
+		}
 	default:
+		t.Fatal("a user allow should emit an EvToolDecision annotation")
+	}
+}
+
+// A built-in safe-read auto-approve stays SILENT (no annotation) so the expected
+// baseline doesn't flood the timeline — only a user allow is surfaced. — ADR-0031.
+func TestBuiltinAllowEmitsNoDecision(t *testing.T) {
+	c := newPolicyTestClient(ctxforge.DefaultHooks())
+	dec, err := c.permissionHandler()(sdk.PermissionRequestRead{}, sdk.PermissionInvocation{SessionID: "s1"})
+	if err != nil {
+		t.Fatalf("handler err = %v", err)
+	}
+	if _, ok := dec.(*rpc.PermissionDecisionApproveOnce); !ok {
+		t.Fatalf("decision = %T, want ApproveOnce", dec)
+	}
+	select {
+	case e := <-c.events:
+		t.Fatalf("a built-in safe-read allow must stay silent, got %+v", e)
+	default:
+	}
+}
+
+// A hard-deny emits an EvToolDecision so the block is explainable in the timeline
+// (the tool never runs, so there is no tool card otherwise). — ADR-0031.
+func TestDenyEmitsDecisionAnnotation(t *testing.T) {
+	c := newPolicyTestClient([]ctxforge.Hook{
+		{ID: "d", Event: ctxforge.HookPreToolUse, Match: ctxforge.HookMatch{ToolKind: "shell", Pattern: "rm -rf *"}, Action: ctxforge.HookDeny, Reason: "destructive command blocked", Enabled: true},
+	})
+	_, err := c.permissionHandler()(sdk.PermissionRequestShell{FullCommandText: "rm -rf /tmp/x"}, sdk.PermissionInvocation{SessionID: "s1"})
+	if err != nil {
+		t.Fatalf("handler err = %v", err)
+	}
+	select {
+	case e := <-c.events:
+		if e.Type != EvToolDecision || e.Decision == nil || e.Decision.Kind != HookDeny {
+			t.Fatalf("event = %+v, want EvToolDecision deny", e)
+		}
+		if e.Decision.Reason != "destructive command blocked" {
+			t.Fatalf("decision reason = %q, want the hook reason", e.Decision.Reason)
+		}
+	default:
+		t.Fatal("a deny should emit an EvToolDecision annotation")
 	}
 }
 
@@ -184,6 +233,51 @@ func TestWorkspaceFenceAtSeam(t *testing.T) {
 	if inside.perms.pending() != 0 {
 		t.Fatalf("pending perms = %d, want 0 (benign in-workspace write must not gate)", inside.perms.pending())
 	}
+}
+
+// In autopilot mode the non-mandatory remainder is auto-approved even when the
+// session's AutoApproveTools config is off — the mode-bound baseline (ADR-0031).
+// A benign write that would otherwise gate runs without a prompt.
+func TestAutopilotModeAutoApprovesNonMandatory(t *testing.T) {
+	c := newPolicyTestClientFull(sessionPolicy{hooks: builtinPolicyHooks(), autoApprove: false, mode: ctxforge.ModeAutopilot})
+	dec, err := c.permissionHandler()(sdk.PermissionRequestWrite{FileName: "main.go"}, sdk.PermissionInvocation{SessionID: "s1"})
+	if err != nil {
+		t.Fatalf("handler err = %v", err)
+	}
+	if _, ok := dec.(*rpc.PermissionDecisionApproveOnce); !ok {
+		t.Fatalf("decision = %T, want ApproveOnce (autopilot auto-approves the non-mandatory remainder)", dec)
+	}
+	if c.perms.pending() != 0 {
+		t.Fatalf("pending perms = %d, want 0 (autopilot must not gate a benign write)", c.perms.pending())
+	}
+}
+
+// In interactive mode the non-mandatory remainder gates even when the session's
+// AutoApproveTools config is on — interactive forces "more gates" (ADR-0031).
+func TestInteractiveModeGatesDespiteConfigAutoApprove(t *testing.T) {
+	c := newPolicyTestClientFull(sessionPolicy{hooks: builtinPolicyHooks(), autoApprove: true, mode: ctxforge.ModeInteractive})
+	expectGate(t, c, sdk.PermissionRequestWrite{FileName: "main.go"})
+}
+
+// The gate carries the mandatory hook's reason so the human sees WHY (ADR-0031).
+func TestGateCarriesHookReason(t *testing.T) {
+	c := newPolicyTestClientFull(sessionPolicy{hooks: builtinPolicyHooks(), autoApprove: true})
+	done := make(chan struct{}, 1)
+	go func() {
+		_, _ = c.permissionHandler()(sdk.PermissionRequestShell{FullCommandText: "sudo apt-get update"}, sdk.PermissionInvocation{SessionID: "s1"})
+		done <- struct{}{}
+	}()
+	var ev Event
+	select {
+	case ev = <-c.events:
+	case <-time.After(time.Second):
+		t.Fatal("no gate emitted")
+	}
+	if ev.Permission == nil || ev.Permission.Reason == "" {
+		t.Fatalf("gate perm = %+v, want a non-empty Reason from the sudo hook", ev.Permission)
+	}
+	_ = c.Respond(ev.Permission.ID, true)
+	<-done
 }
 
 func TestPermissionHandlerAskFallsThroughToGate(t *testing.T) {

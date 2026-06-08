@@ -39,6 +39,7 @@ const (
 	EvSubagentEnd     // a sub-agent finished (Subagent.Success reports outcome)
 	EvElicitation     // an MCP server is requesting structured input (a schema-driven form)
 	EvUserMessage     // a past user prompt, emitted only when rehydrating history (never live)
+	EvToolDecision    // a governance hook auto-approved or denied a tool call (timeline "why", ADR-0031)
 )
 
 // SessionMeta is the normalized metadata for a persisted session, used to render
@@ -61,6 +62,11 @@ type PermissionRequest struct {
 	FileName  string // path being written (write requests only)
 	Intention string // human-readable description of the change (write requests only)
 	Diff      string // unified diff of the proposed change (write requests only)
+	// Reason is the message of the governance hook that gated this call (a
+	// mandatory ask, e.g. "confirm: sudo escalates privileges"), surfaced on the
+	// gate so the human sees WHY they're being asked. Empty for a plain gate with
+	// no matching hook (the default ask). — ADR-0031.
+	Reason string
 }
 
 // InputRequest describes an ask_user prompt awaiting an answer: a question, an
@@ -165,7 +171,22 @@ type Event struct {
 	Plan       *PlanRequest       // set for EvPlanReview
 	Elicit     *ElicitRequest     // set for EvElicitation
 	Subagent   *SubagentInfo      // set for EvSubagentStart / EvSubagentEnd
+	Decision   *ToolDecision      // set for EvToolDecision
 	Err        error
+}
+
+// ToolDecision is the normalized "why" of a governance decision the permission
+// bridge made WITHOUT pausing for the human gate — surfaced in the timeline so an
+// auto-approve or a hard-deny is explainable (ADR-0031). Kind is the resolved
+// action (allow|deny), HookID names the winning hook ("auto-approved by X"),
+// Reason is its message, and Detail summarises the call (kind + command). A
+// gated (ask) decision is NOT a ToolDecision — it already surfaces as the
+// EvPermission form, which now carries the same Reason.
+type ToolDecision struct {
+	Kind   string // "allow" | "deny" (ctxforge.HookAllow / HookDeny)
+	HookID string
+	Reason string
+	Detail string // one-line summary of the governed call (tool kind + command)
 }
 
 // ContextInfo is normalized context-window accounting from the SDK's

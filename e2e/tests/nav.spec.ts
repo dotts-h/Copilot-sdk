@@ -12,7 +12,7 @@ const GROUPS = ["Primary", "Build", "Observe", "Config", "Help"] as const;
 // The pages under each group, in render order (Config + Help pinned last).
 const MEMBERS: Record<string, string[]> = {
   Primary: ["Chat", "Sessions"],
-  Build: ["Agents", "Workflows", "Skills", "Instructions", "Snippets"],
+  Build: ["Agents", "Workflows", "Skills", "Instructions", "Snippets", "Hooks"],
   Observe: ["Runs", "Telemetry"],
   Config: ["Models", "MCP", "Settings"],
   Help: ["Help"],

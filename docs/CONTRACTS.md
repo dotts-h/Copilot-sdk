@@ -53,9 +53,16 @@ write) still gates **even with auto-approve set** — `Decision.Mandatory` drive
 policy is **enforced in the bridge, unbypassable by config**. This generalizes the flat
 `AutoApproveTools` into a per-tool ruleset; the override now sits **above the non-mandatory policy and
 below every deny**. The seam imports `ctxforge` (the pure domain package) for the single shared `Hook`
-type + evaluator — no SDK type crosses into `ctxforge`. — see
+type + evaluator — no SDK type crosses into `ctxforge`. The handler additionally records the
+turn's **active agent mode** on the `sessionPolicy` (updated at `Send`) and threads it into
+`Evaluate` (**mode binding**): a mode-scoped user hook participates only in its modes, while the
+mandatory ruleset (unscoped) holds in every mode; `ctxforge.EffectiveAutoApprove(mode, config)`
+resolves the non-mandatory auto-approve baseline (autopilot on / interactive off / else config).
+Every non-gated decision is surfaced for the timeline "why": a `deny` and a **user** allow emit an
+`EvToolDecision`, and a gated **ask** carries the hook `Reason` on its `EvPermission`. — see
 [ADR-0029](adr/0029-hooks-forge-entity-bridge-enforced-allow-deny-ask-safe-read-defaults.md),
-[ADR-0030](adr/0030-dangerous-action-deny-and-mandatory-hitl-unbypassable-by-config.md)
+[ADR-0030](adr/0030-dangerous-action-deny-and-mandatory-hitl-unbypassable-by-config.md),
+[ADR-0031](adr/0031-hooks-management-ui-mode-binding-and-timeline-why.md)
 `MCPServers` carries the forge's **enabled** servers (compiled in, translated via
 `web.MCPServerSpecs`); each `copilot.MCPServer` registers under its unique `Key()`
 (its `ID`, or `Name` for legacy callers) so a non-unique `Name` can't collide in the
@@ -75,11 +82,15 @@ fragments. **Stability: stable** — the wire vocabulary between runtime and UI.
 `EvMessage`, `EvMessageDelta`, `EvReasoning`, `EvReasoningDelta`, `EvToolStart`,
 `EvToolProgress`, `EvToolEnd`, `EvUsage`, `EvContextWindow`, `EvPermission`, `EvUserInput`,
 `EvUserMessage`, `EvPlanChanged`, `EvPlanReview`, `EvElicitation`, `EvCompactionStart`,
-`EvCompactionEnd`, `EvSubagentStart`, `EvSubagentEnd`, `EvError`, `EvIdle`, `EvUnknown`.
+`EvCompactionEnd`, `EvSubagentStart`, `EvSubagentEnd`, `EvToolDecision`, `EvError`, `EvIdle`,
+`EvUnknown`. `EvToolDecision` (ADR-0031) is the **timeline "why"** annotation: a governance
+decision the bridge made *without* a gate (a `deny` or a user `allow`), reduced into a compact,
+muted `convo.RoleDecision` turn — not a control.
 
 **`Event` shape** (`copilot.go`): `Type, SessionID, Text, Tool, ToolCall*, Usage, Context,
-Permission*, Input*, Plan*, Elicit*, Subagent*, Err`. Pointer fields are set only for the
-matching event type (e.g. `Permission` for `EvPermission`). `SessionID` is empty for
+Permission*, Input*, Plan*, Elicit*, Subagent*, Decision*, Err`. Pointer fields are set only for
+the matching event type (e.g. `Permission` for `EvPermission`, `Decision` for `EvToolDecision`).
+`PermissionRequest` gained a `Reason` (the gating hook's message, shown on the gate). `SessionID` is empty for
 a bare `MockClient.Emit` (the chat demo); a single-session consumer may ignore it.
 **Exception:** the workflow-lane demo (`web.streamDemoLane`) tags every emitted
 event with its lane's backing session id so a **parallel** run's concurrent lanes
@@ -126,6 +137,7 @@ for the streaming/turn routes (`/events`, `/send`, the `/perm|ask|plan|elicit/{i
 | MCP servers | `GET /mcp/new` · `GET /mcp/{id}/edit` · `POST /mcp` · `POST /mcp/{id}` · `POST /mcp/{id}/toggle` · `POST /mcp/{id}/delete` |
 | Workflows | `GET /workflows/new` · `GET /workflows/{id}/edit` · `POST /workflows` · `POST /workflows/{id}` · `POST /workflows/{id}/run` · `POST /workflows/{id}/delete` |
 | Snippets | `GET /snippets/new` · `GET /snippets/{id}/edit` · `POST /snippets` · `POST /snippets/{id}` · `POST /snippets/{id}/delete` |
+| Hooks | `GET /hooks/new` · `GET /hooks/{id}/edit` · `POST /hooks` · `POST /hooks/preflight` · `POST /hooks/{id}` · `POST /hooks/{id}/toggle` · `POST /hooks/{id}/delete` |
 | Sessions | `POST /sessions/new` · `POST /sessions/{id}/resume` · `POST /sessions/{id}/delete` |
 | Settings | `POST /settings` · `POST /models/{id}/select` · `POST /effort/{value}/select` |
 
@@ -134,6 +146,12 @@ phase-2–4 additions. — see [ADR-0002](adr/0002-restore-sdk-session-resume-fo
 
 The `/mcp…` group (item 2.2) closes MCP-server CRUD, the last forge entity without
 a UI; it mirrors the skills/agents routes. — see [ADR-0010](adr/0010-mcp-server-management-page-curated-defaults-disabled-with-preflight.md)
+
+The `/hooks…` group (G4) is governance-hook CRUD (mirroring MCP): the page lists the
+**read-only** built-in policy (`DefaultHooks` + the mandatory `DangerousHooks`) plus full user
+add/edit/toggle/delete, with a **mode-binding** checkbox set and a pattern **preflight**
+(`POST /hooks/preflight` calls `ctxforge.MatchPattern`/`PatternIsGlob` against a sample command,
+mutating nothing). — see [ADR-0031](adr/0031-hooks-management-ui-mode-binding-and-timeline-why.md)
 
 The `/workflows…` group (item 2.1) is workflow CRUD (mirroring agents) plus
 `POST /workflows/{id}/run`, which **starts a multi-agent run**: it compiles the
@@ -413,29 +431,36 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   the composer `/trigger`. — see [ADR-0015](adr/0015-prompt-snippet-library-forge-backed-composer-insertion.md)
 - **`ctxforge.Hook`** (`hook.go`): `{id, event (pre-tool-use|post-tool-use), match
   {toolKind?, pattern?, outsideWorkspace?}, action (allow|deny|ask), reason?, enabled,
-  mandatory?}` — a first-class forge **governance rule**. Persisted under the additive `hooks`
-  key on `forge.json` (omitempty, so older files read clean) and CRUD-managed via the shared
-  `mutate` rollback discipline (`AddHook`/`UpdateHook`/`ToggleHook`/`RemoveHook`, like
-  MCP/snippet) — the management **UI** is a later child (G4). `Validate` enforces a slug id, a
+  mandatory?, modes?}` — a first-class forge **governance rule**. Persisted under the additive
+  `hooks` key on `forge.json` (omitempty, so older files read clean) and CRUD-managed via the
+  shared `mutate` rollback discipline (`AddHook`/`UpdateHook`/`ToggleHook`/`RemoveHook`, like
+  MCP/snippet) — the management **UI** is the Hooks page (G4, §3). `Validate` enforces a slug id, a
   known `event` and `action`, a non-empty `match` (a valid `toolKind` ∈ {read, write, shell, mcp}
-  when set; `outsideWorkspace` also satisfies the non-empty requirement), and **no dangling
-  `${VAR}`** reference (the well-formed `${NAME}` shape of ADR-0020) in `pattern`/`reason`.
-  `mandatory` marks a hook whose decision is **unbypassable by config** (the dangerous-action
-  ruleset); `outsideWorkspace` is the path-aware **workspace fence** dimension (G2). The pure
-  **`Evaluate(hooks, event, toolKind, command, workspace) Decision{Action, Reason, Mandatory}`**
-  resolves the policy: a hook participates when `Enabled`, its `Event` matches, and its `Match`
-  applies (an empty `toolKind` matches any kind; a `pattern` with `*`/`?` is a glob over the
-  **whole** command, else a substring; `outsideWorkspace` requires the command — a write's target
-  path — to resolve outside `workspace` via `filepath.Rel`, empty `workspace` = inert). Precedence
-  is **deny > ask > allow** and the no-match default is **ask** (fall through to the gate) —
-  order-independent, deterministic. `Decision.Mandatory` reports whether a mandatory hook drove
-  the winning action; the bridge enforces a mandatory deny/ask **even under `AutoApproveTools`**
-  (§1), while a user `deny` (more restrictive) still wins over a mandatory `ask`. `DefaultHooks()`
-  is the built-in safe-read set and `DangerousHooks()` is the built-in mandatory dangerous ruleset;
-  `Forge.Compile` prepends both to the enabled user hooks into `SessionSpec.Hooks` (§1).
+  when set; `outsideWorkspace` also satisfies the non-empty requirement), **no dangling `${VAR}`**
+  reference (the well-formed `${NAME}` shape of ADR-0020) in `pattern`/`reason`, and a known
+  `mode` ∈ {autopilot, interactive, plan} in each `modes` entry. `mandatory` marks a hook whose
+  decision is **unbypassable by config** (the dangerous-action ruleset); `outsideWorkspace` is the
+  path-aware **workspace fence** dimension (G2); `modes` is the **mode-binding** scope (G4, empty =
+  every mode). The pure
+  **`Evaluate(hooks, event, toolKind, command, workspace, mode) Decision{Action, Reason, HookID, Mandatory}`**
+  resolves the policy: a hook participates when `Enabled`, its `Event` matches, its `Modes` is
+  empty or lists `mode`, and its `Match` applies (an empty `toolKind` matches any kind; a `pattern`
+  with `*`/`?` is a glob over the **whole** command, else a substring; `outsideWorkspace` requires
+  the command — a write's target path — to resolve outside `workspace` via `filepath.Rel`, empty
+  `workspace` = inert). Precedence is **deny > ask > allow** and the no-match default is **ask**
+  (fall through to the gate) — order-independent, deterministic. `Decision.Mandatory` reports
+  whether a mandatory hook drove the winning action; `Decision.HookID` names the winning hook (for
+  the timeline "why"). The bridge enforces a mandatory deny/ask **even under `AutoApproveTools`**
+  (§1), while a user `deny` (more restrictive) still wins over a mandatory `ask`. The pure
+  **`EffectiveAutoApprove(mode, configDefault)`** resolves the mode-bound auto-approve baseline
+  (autopilot on / interactive off / else config; mode binding, G4), and the exported
+  **`MatchPattern`/`PatternIsGlob`** back the UI preflight. `DefaultHooks()` is the built-in
+  safe-read set and `DangerousHooks()` is the built-in mandatory dangerous ruleset; `Forge.Compile`
+  prepends both to the enabled user hooks into `SessionSpec.Hooks` (§1).
   **Determinism:** `Compile`'s hook order is part of its stable output. — see
   [ADR-0029](adr/0029-hooks-forge-entity-bridge-enforced-allow-deny-ask-safe-read-defaults.md),
-  [ADR-0030](adr/0030-dangerous-action-deny-and-mandatory-hitl-unbypassable-by-config.md)
+  [ADR-0030](adr/0030-dangerous-action-deny-and-mandatory-hitl-unbypassable-by-config.md),
+  [ADR-0031](adr/0031-hooks-management-ui-mode-binding-and-timeline-why.md)
 - **`config.Config`** / **`config.TelemetryConfig`** (`config.go`): user settings + pricing
   overrides (`DefaultPriceBook`). `TelemetryConfig.WarnFraction` (soft-warn threshold,
   `[0,1]`) and `TelemetryConfig.HardCapCredits` (absolute credit ceiling, `>= 0`,
