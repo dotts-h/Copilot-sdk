@@ -80,6 +80,17 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		}
 		return s.timelineFragments()
 
+	case copilot.EvToolDecision:
+		// A governance hook auto-approved or denied a call without a gate; record
+		// the "why" inline so the decision is explainable (ADR-0031).
+		if e.Decision != nil {
+			s.state.AddDecision(convo.DecisionView{
+				Kind: e.Decision.Kind, HookID: e.Decision.HookID,
+				Reason: e.Decision.Reason, Detail: e.Decision.Detail,
+			})
+		}
+		return s.timelineFragments()
+
 	case copilot.EvToolEnd:
 		if e.ToolCall != nil {
 			s.state.ToolEnd(e.ToolCall.ID, e.ToolCall.Result, e.ToolCall.Success)

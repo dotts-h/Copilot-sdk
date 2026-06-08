@@ -56,6 +56,22 @@
   out-of-workspace write). It does **not** change `deny > ask > allow` (a user `deny`, being
   more restrictive, still wins over a mandatory `ask`); it only forecloses the auto-approve
   escape hatch, enforced on the auto path in the bridge. — ADR-0030
+- **mode binding** — scoping the governance policy to the **active agent mode**
+  (`autopilot`/`interactive`/`plan`). Two parts (ADR-0031): a per-hook `Hook.Modes` set (empty =
+  every mode) threaded into `Evaluate` as the `mode` argument, so a user hook can fire only in one
+  mode while the **mandatory** ruleset (empty `Modes`) holds in *every* mode; and the
+  `EffectiveAutoApprove(mode, configDefault)` **baseline** the bridge applies to the non-mandatory
+  remainder — `autopilot` → on (strict defaults on, unattended), `interactive` → off (more gates),
+  else the session's `AutoApproveTools` config. The mode is a runtime fact recorded on the
+  per-session policy and updated at `Send`, like the workspace root. — ADR-0031
+- **timeline "why"** — the inline annotation that explains a governance decision the bridge made
+  **without a gate**: a normalized `copilot.EvToolDecision` event (`ToolDecision{Kind, HookID,
+  Reason, Detail}`) reduced into a compact `convo.RoleDecision` turn — "denied: *reason*" (a
+  hard-deny has no tool card otherwise) or "auto-approved by *hook*" (a user allow). It is an
+  **annotation, not a gate** (the call already proceeded or was blocked). Emitted only where there
+  is no other surface and real value (a deny, a user allow); the safe-read/autopilot baseline
+  approvals stay silent. A gated **ask** is not a `ToolDecision` — it surfaces as the existing
+  `EvPermission` form, now carrying the hook `Reason`. — ADR-0031
 - **workspace fence** — the path-aware match dimension (`HookMatch.OutsideWorkspace`) the glob
   matcher can't express: a built-in mandatory hook that gates a **write whose target resolves
   OUTSIDE the session workspace root**. The root is a runtime fact threaded at the seam

@@ -43,8 +43,30 @@ func renderTurn(t convo.Turn) string {
 		return frag("turnSystem", t.Text)
 	case convo.RoleTool:
 		return renderToolCard(t.Tool)
+	case convo.RoleDecision:
+		return renderDecisionNote(t.Decision)
 	}
 	return ""
+}
+
+// renderDecisionNote renders a governance "why" annotation (ADR-0031): a compact,
+// muted timeline line explaining that a hook auto-approved ("auto-approved by X")
+// or denied ("denied: reason") a tool call without pausing for a gate. It is an
+// annotation, not a control — the call already proceeded or was blocked.
+func renderDecisionNote(d *convo.DecisionView) string {
+	if d == nil {
+		return ""
+	}
+	glyph, label := "✓", "auto-approved"
+	if d.Kind == "deny" {
+		glyph, label = "⛔", "denied"
+	}
+	return frag("decisionNote", map[string]any{
+		"Kind": d.Kind, "Glyph": glyph, "Label": label,
+		"HookID": d.HookID, "HasHook": d.HookID != "",
+		"Detail": d.Detail, "HasDetail": d.Detail != "",
+		"Reason": d.Reason, "HasReason": d.Reason != "",
+	})
 }
 
 // maxToolResultLines bounds how many lines of a tool's result the timeline card
@@ -112,10 +134,14 @@ func renderPermForm(req copilot.PermissionRequest) string {
 		return frag("permReview", map[string]any{
 			"ID": req.ID, "FileName": req.FileName, "Intention": req.Intention,
 			"Adds": view.Adds, "Dels": view.Dels,
-			"Lines": diffLineViews(view.Lines),
+			"Lines":  diffLineViews(view.Lines),
+			"Reason": req.Reason, "HasReason": req.Reason != "",
 		})
 	}
-	return frag("permForm", map[string]any{"ID": req.ID, "Detail": req.Detail})
+	return frag("permForm", map[string]any{
+		"ID": req.ID, "Detail": req.Detail,
+		"Reason": req.Reason, "HasReason": req.Reason != "",
+	})
 }
 
 // diffLineViews prepares parsed diff lines for the permReview template, bounding

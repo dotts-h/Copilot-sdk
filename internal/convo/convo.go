@@ -17,6 +17,7 @@ const (
 	RoleReasoning
 	RoleSystem
 	RoleTool
+	RoleDecision // a governance hook auto-approved or denied a tool call (timeline "why")
 )
 
 // ToolView is the displayable state of a single tool execution in the timeline.
@@ -31,12 +32,26 @@ type ToolView struct {
 	Failed   bool // completed unsuccessfully
 }
 
+// DecisionView is a governance "why" annotation in the timeline (ADR-0031): a
+// hook auto-approved or denied a tool call without pausing for the human gate, so
+// the decision is recorded inline rather than silently. Kind is "allow" (an
+// auto-approve, "auto-approved by HookID") or "deny" (a hard block, "denied:
+// Reason"). Detail summarises the governed call.
+type DecisionView struct {
+	Kind   string // "allow" | "deny"
+	HookID string
+	Reason string
+	Detail string
+}
+
 // Turn is a single entry in the conversation transcript. For RoleTool turns the
-// Tool field carries the live execution state and Text is unused.
+// Tool field carries the live execution state; for RoleDecision turns Decision
+// carries the governance annotation; Text is unused for both.
 type Turn struct {
-	Role Role
-	Text string
-	Tool *ToolView
+	Role     Role
+	Text     string
+	Tool     *ToolView
+	Decision *DecisionView
 }
 
 // State is the testable conversation model. It owns the transcript and two
@@ -119,6 +134,15 @@ func (c *State) ToolStart(id, name, args string) {
 	if id != "" {
 		c.toolIdx[id] = len(c.turns) - 1
 	}
+}
+
+// AddDecision records a governance "why" annotation as a timeline entry
+// (ADR-0031). Pending assistant text/reasoning is committed first so the
+// annotation lands in chronological order, like a tool start.
+func (c *State) AddDecision(d DecisionView) {
+	c.commitReasoning()
+	c.commitMessage("")
+	c.turns = append(c.turns, Turn{Role: RoleDecision, Decision: &d})
 }
 
 // ToolProgress updates a running tool's latest progress message.

@@ -121,6 +121,11 @@ type sessionPolicy struct {
 	hooks       []ctxforge.Hook
 	autoApprove bool
 	workspace   string
+	// mode is the session's active agent mode, updated per turn at Send (mode
+	// binding, ADR-0031). The bridge threads it into Evaluate (so a mode-scoped
+	// hook participates) and resolves the auto-approve baseline from it
+	// (autopilot → on, interactive → off, else the autoApprove config).
+	mode string
 }
 
 // applyHandlers wires the permission/input/plan/elicit callbacks shared by
@@ -366,6 +371,13 @@ func (c *SDKClient) RespondElicit(id, action string, content map[string]any) err
 func (c *SDKClient) Send(ctx context.Context, sessionID, prompt string, attachments []string, agentMode string) error {
 	c.mu.Lock()
 	session := c.sessions[sessionID]
+	// Record the turn's active mode on the session policy so the permission bridge
+	// (invoked synchronously during this Send) evaluates mode-scoped hooks and
+	// resolves the auto-approve baseline for the right mode. — ADR-0031.
+	if pol, ok := c.policies[sessionID]; ok {
+		pol.mode = agentMode
+		c.policies[sessionID] = pol
+	}
 	c.mu.Unlock()
 	if session == nil {
 		return fmt.Errorf("unknown session %q", sessionID)
