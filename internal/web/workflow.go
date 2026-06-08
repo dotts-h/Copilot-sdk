@@ -360,9 +360,43 @@ func (r *workflowRun) allSettled() bool {
 // the first lane(s); the lanes stream into #lanes over SSE. A run is mutually
 // exclusive with a normal turn (both gated by s.busy).
 func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if !s.launchWorkflow(r.PathValue("id")) {
+		// A compile error or a busy server made no state change — stay on the
+		// Workflows page (the run-trigger's source).
+		s.writePartial(w, s.workflowsPartial())
+		return
+	}
+	// Land the user on the Chat page, where the lanes panel streams each step;
+	// subsequent lane updates arrive over SSE (the body-level #lanes listener).
+	s.writePartial(w, s.chatPartial())
+}
 
+// handleRunRerun re-executes a recorded run's workflow from the Runs page — the first
+// action on the orchestration history surface (ADR-0023). It looks the workflow up by the
+// run's WorkflowID and launches its CURRENT definition via the same launchWorkflow trigger
+// as the Workflows-page run, so the new run rolls up under the same per-workflow totals
+// (a rerun is a re-execution, not a historical replay). On success the user lands on the
+// Chat page where the lanes stream; when no run starts (the workflow was deleted since, or
+// the server is busy) the Runs page is re-rendered unchanged at the request's window.
+func (s *Server) handleRunRerun(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if !s.launchWorkflow(r.PathValue("workflow")) {
+		s.writePartial(w, s.runsPartial(clampWindow(r.URL.Query().Get("window"))))
+		return
+	}
+	s.writePartial(w, s.chatPartial())
+}
+
+// launchWorkflow compiles a workflow by id and, if no run or turn is in flight, installs a
+// fresh run and starts its lanes — the shared run-trigger behind both the Workflows-page
+// "Run" (handleWorkflowRun) and the Runs-page "Rerun" (handleRunRerun) entry points
+// (ADR-0023). It returns true when a run was launched; false — with NO state change — when
+// the workflow can't be compiled (renamed/deleted since) or the server is busy, so each
+// caller re-renders its own page. The workflow is looked up by id and run as its CURRENT
+// definition, so a rerun re-executes the live workflow (not a historical replay) under the
+// same WorkflowID. Holds forgeMu then s.mu (never inverted), like the original trigger.
+func (s *Server) launchWorkflow(id string) bool {
 	s.hub.forgeMu.Lock()
 	wf, steps, err := s.forge.CompileWorkflow(id)
 	var specs []copilot.SessionSpec
@@ -375,16 +409,14 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 	s.hub.forgeMu.Unlock()
 	if err != nil {
 		s.logger.Printf("compile workflow %q: %v", id, err)
-		s.writePartial(w, s.workflowsPartial())
-		return
+		return false
 	}
 
 	s.mu.Lock()
 	if s.busy {
 		s.mu.Unlock()
-		// A turn or another run is in flight — surface a note and stay put.
-		s.writePartial(w, s.workflowsPartial())
-		return
+		// A turn or another run is in flight — make no change and let the caller stay put.
+		return false
 	}
 	run := newWorkflowRun(wf, steps, specs)
 	run.runID = newID()
@@ -397,9 +429,7 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	go s.launchLanes(run, launch)
-	// Land the user on the Chat page, where the lanes panel streams each step;
-	// subsequent lane updates arrive over SSE (the body-level #lanes listener).
-	s.writePartial(w, s.chatPartial())
+	return true
 }
 
 // workflowLaneSpec translates a forge-compiled step spec into the seam's

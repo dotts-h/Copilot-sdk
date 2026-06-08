@@ -406,6 +406,15 @@ test.describe("multi-agent workflows", () => {
     expect(runsRes.headers()["content-type"]).toContain("text/csv");
     expect(await runsRes.text()).toContain("run,workflow,name");
 
+    // Each recorded run whose workflow still exists offers a Rerun control (V18,
+    // ADR-0023) — a DISJOINT `.rerun` button (≠ the Workflows-page button.run / the
+    // a.export links) that re-executes the workflow's current definition. The seeded
+    // build-and-harden run is rerunnable (its workflow exists); the orphan review-and-fix
+    // run shows none (covered by the Go unit test). Structure only.
+    await expect(
+      page.locator('#main button.rerun[hx-post^="/runs/rerun/build-and-harden"]').first(),
+    ).toBeVisible();
+
     // The time-window selector (V12) mirrors the Telemetry trend's: three windows
     // (14/30/90), exactly one active, defaulting to 14d. Switching re-fetches the Runs
     // page sliced to the chosen window (the seeded demo runs are recent, so they stay

@@ -341,6 +341,42 @@ func TestRunsPartialEmpty(t *testing.T) {
 	}
 }
 
+func TestRunsPartialShowsRerunForLiveWorkflowHidesForOrphan(t *testing.T) {
+	// The Runs page offers a "Rerun" control on each recorded run whose workflow still
+	// exists (ADR-0023). An orphan run — one whose workflow was renamed/deleted since —
+	// has nothing to re-execute, so it shows no control. The hub's forge has workflow
+	// "ship"; "gone" is an orphan.
+	hub, _ := newWorkflowHub()
+	s := hub.newSession("t")
+	rs := withRunStore(s)
+	now := time.Now()
+	if err := rs.Append(telemetry.RunRecord{
+		ID: "live", WorkflowID: "ship", Name: "Ship", Mode: "sequential",
+		StartedAt: now.Add(-2 * time.Hour), Outcome: "finished",
+		Lanes: []telemetry.RunLane{{Index: 0, AgentID: "builder", Status: "done", Credits: 1}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := rs.Append(telemetry.RunRecord{
+		ID: "orphan", WorkflowID: "gone", Name: "Gone", Mode: "sequential",
+		StartedAt: now.Add(-1 * time.Hour), Outcome: "finished",
+		Lanes: []telemetry.RunLane{{Index: 0, AgentID: "builder", Status: "done", Credits: 1}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	html := s.runsPartial(90)
+	if !strings.Contains(html, `class="rerun"`) {
+		t.Errorf("a run whose workflow exists should show a rerun control:\n%s", html)
+	}
+	if !strings.Contains(html, "/runs/rerun/ship?window=90") {
+		t.Errorf("the rerun control should POST to the workflow id carrying the window:\n%s", html)
+	}
+	if strings.Contains(html, "/runs/rerun/gone") {
+		t.Errorf("an orphan run (workflow deleted/renamed) must show no rerun control:\n%s", html)
+	}
+}
+
 func TestRunsExportReturnsCSV(t *testing.T) {
 	// The Runs page's export mirrors the spend ledger export: a CSV attachment over the
 	// persisted run history, so orchestration runs can be analysed outside the app.

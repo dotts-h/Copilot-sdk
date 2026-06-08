@@ -50,6 +50,11 @@
   failure).
 - **mode** — `sequential` (each lane's output feeds the next) or `parallel` (concurrent
   lanes, disambiguated by SessionID).
+- **rerun** — re-executing a recorded run's workflow from the Runs page: its **current**
+  definition (looked up by `WorkflowID`), run as a fresh run under the **same** `WorkflowID`
+  so its spend rolls up with the original's — a **re-execution, not a historical replay**
+  (`web.handleRunRerun` via the shared `launchWorkflow` trigger). The first **action** on
+  the orchestration history surface. — ADR-0023
 
 ## Cost — the meter and the ledger (`internal/telemetry`)
 

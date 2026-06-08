@@ -99,6 +99,7 @@ for the streaming/turn routes (`/events`, `/send`, the `/perm|ask|plan|elicit/{i
 | Turn answers | `POST /perm/{id}` · `POST /ask/{id}` · `POST /plan/{id}` · `POST /elicit/{id}` · `POST /budget/{action}` |
 | Navigation | `GET /page/{name}` · `GET /commands` · `GET /static/…` |
 | Telemetry | `GET /telemetry/export.csv` · `GET /runs/export.csv` |
+| Runs | `POST /runs/rerun/{workflow}` |
 | Skills | `GET /skills/new` · `GET /skills/{id}/edit` · `POST /skills` · `POST /skills/{id}` · `POST /skills/{id}/toggle` · `POST /skills/{id}/delete` |
 | Instructions | `POST /instructions/import` · `GET /instructions/new` · `GET /instructions/{id}/edit` · `POST /instructions` · `POST /instructions/{id}` · `POST /instructions/{id}/toggle` · `POST /instructions/{id}/delete` |
 | Agents | `GET /agents/new` · `GET /agents/{id}/edit` · `POST /agents` · `POST /agents/{id}` · `POST /agents/{id}/select` · `POST /agents/{id}/delete` |
@@ -126,6 +127,18 @@ not just output + cost; a parallel run drives concurrent lanes offline (distinct
 mock session ids + `SessionID`-tagged demo events). — see
 [ADR-0013](adr/0013-multi-agent-workflow-run-handoff-surface.md),
 [ADR-0017](adr/0017-per-lane-tool-and-permission-surface-for-parallel-workflow-lanes.md)
+
+`POST /runs/rerun/{workflow}` (item V18) is the **first action on the orchestration
+history surface**: a recorded run's `↻ rerun` control re-executes its workflow's
+**current** definition (looked up by `WorkflowID`) under the **same** `WorkflowID`, so the
+new run rolls up under the same per-workflow totals / aggregates / reconciliation — a
+re-execution, **not** a historical replay. It reuses the **same** run-trigger as
+`POST /workflows/{id}/run`: both call one shared `launchWorkflow(id)` (extracted from
+`handleWorkflowRun`), so there is exactly one orchestration path (one `!s.busy` guard, one
+`forgeMu → s.mu` lock order, one `copilot.Client` lifecycle — **no new seam to the
+runtime**). The control is gated on the workflow still existing (`CanRerun` — an orphan run
+shows none) and refused while the server is busy; on success the user lands on the chat
+page where the lanes stream. — see [ADR-0023](adr/0023-rerun-a-recorded-run-re-executes-the-current-workflow-definition.md)
 
 The **Workflows page** (`GET /page/workflows`) lists each workflow (name + step
 summary) with a run control — and, when history exists, **badges** each row (V4): the
