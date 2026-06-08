@@ -60,4 +60,4 @@ issues are added or closed.
 | [0043](0043-rerun-workflow-from-runs-page.md) | Rerun a recorded run from the Runs page — re-execute its workflow's current definition (item V18) | closed | medium | 0042 | ADR-0023, PR #76 |
 | [0044](0044-abort-in-flight-run.md) | Abort an in-flight run from the Chat lanes panel — the dual of rerun (item V19) | closed | medium | 0042 | ADR-0024, PR #77 |
 | [0046](0046-design-token-foundation-light-dark-theme.md) | Design-token foundation + light/dark theme — the UI/UX refresh foundation (item V21) | closed | medium | 0045 | ADR-0025, PR #44 |
-| [0047](0047-grouped-sidebar-command-palette.md) | Navigation → grouped left sidebar + ⌘K command palette (item V22) | open | medium | 0045 | ADR-0026 |
+| [0047](0047-grouped-sidebar-command-palette.md) | Navigation → grouped left sidebar + ⌘K command palette (item V22) | closed | medium | 0045 | ADR-0026, PR #79 |

@@ -1,15 +1,15 @@
 ---
 id: 0047
 title: "Navigation → grouped left sidebar + ⌘K command palette (roadmap v9, item V22)"
-status: open
+status: closed
 severity: medium
 group: 0045
-github:
+github: 78
 links:
   adr: [0026]
-  prs: []
+  prs: [79]
   issues: [0045]
-  regression:
+  regression: [19]
 ---
 
 ## Summary
@@ -77,6 +77,34 @@ server route, no schema change**.
 - **e2e `a11y.spec.ts` (extended):** the both-theme axe scan now covers the opened palette (the
   always-visible sidebar is already covered by every page scan); `ux.spec.ts` (no horizontal scroll at
   desktop+mobile, nav usable on a narrow viewport) and `theme.spec.ts` stay green.
+
+## Resolution (shipped)
+
+Shipped in **PR #79** (ADR-0026), the second child of epic 0045 — no separate docs-only PR
+(ADR-0004): the ADR, the CONTEXT terms, REGRESSIONS #19, and this issue record fold into the
+feature branch.
+
+- **`internal/web/pages.go`:** `pageNames` gained a `group` field (one source), ordered by group;
+  `pinnedGroups` marks Config + Help for the bottom.
+- **`internal/web/server.go`:** `navGroups()` folds `pageNames` into `[]navGroup{Label, Items,
+  PinnedStart}`; `handleIndex` renders it and the palette into the shell.
+- **`internal/web/palette.go`:** `commandPalette()` renders the body-level aria-modal dialog with a
+  filter input over a server-rendered `{slug,label,group}` list (no new route); items carry the slug
+  in `data-slug`, read by a delegated click handler and the Enter path.
+- **`internal/web/templates/index.html`:** the `<header>` banner is the sidebar (still containing
+  `<nav class="nav">`); a small vanilla-JS palette (`toggleCmdk`/`cmdkFilter`/`cmdkNav`) reuses the
+  keymap `navClick`; ⌘K is a fixed chord handled before the configurable single-key keymap; a shared
+  `setOverlay()` helper backs both the help overlay and the palette.
+- **`internal/web/static/app.css`:** the single committed file gained the `.sidebar`/`.nav-group`
+  layout (Config pinned with `margin-top:auto`) and the `.cmdk*` overlay; a narrow media query
+  reflows the column to a compact wrapping top bar (CSS-only).
+- **Tests:** `nav.spec.ts` + `palette.spec.ts` (groups in order, Help last, ⌘K open/filter/Enter/Esc,
+  item click, an open palette suppresses other shortcuts — REGRESSIONS #19); `a11y.spec.ts` scans the
+  open palette in both themes; `nav_test.go` covers the grouped shell + palette render. `ux.spec`
+  (no overflow, mobile-usable nav) and `theme.spec` stay green.
+- **Gates:** `make lint && make test` green (web 89.8%); `make e2e` (Playwright/Chromium) — the V22
+  surfaces pass, including the both-theme a11y scan over the sidebar + palette. **No build step, no
+  framework, no server route, no schema change** — CONTRACTS and CODEMAP unchanged.
 
 ## Notes
 - **ADR-0026:** the navigation-IA child. Decisions: a `group` field on `pageNames` (one source) over a
