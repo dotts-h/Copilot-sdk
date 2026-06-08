@@ -1,19 +1,59 @@
 /* Handcrafted stylesheet mirroring the TUI Palette (internal/tui/styles.go):
-   terracotta accent, copilot blue, slate chrome. No build chain. */
+   terracotta accent, copilot blue, slate chrome. No build chain.
+
+   Semantic design tokens (ADR-0025). Each color carries BOTH its light and dark
+   value via light-dark(), resolved by color-scheme; the toggle flips
+   <html data-theme> (→ color-scheme) so every token re-resolves at once. Every
+   semantic color flips bright (dark theme) / deep (light theme) so it clears WCAG
+   AA as text on the page background in BOTH themes; --on-bright is the single
+   companion text color for ANY solid accent/good/warn/bad fill (one on-color
+   contrasts on every fill because all five flip lightness the same direction).
+   New UI uses tokens, never a literal hex / rgba(255,255,255,…). */
 :root {
-  --accent:  #d98c5f; /* warm terracotta (Claude-ish) */
-  --accent2: #6ea8fe; /* copilot blue */
-  --fg:      #e6e6e6;
-  --dim:     #9aa0a6;
-  --subtle:  #5f6368;
-  --bg:      #1b1d1e;
-  --panel:   #26282a;
-  --good:    #7ee787;
-  --warn:    #e3b341;
-  --bad:     #f85149;
+  color-scheme: light dark;
+  --accent:  light-dark(#a8551f, #d98c5f); /* warm terracotta (Claude-ish) */
+  --accent2: light-dark(#0b5fc7, #6ea8fe); /* copilot blue */
+  --fg:      light-dark(#1f2125, #e6e6e6);
+  --dim:     light-dark(#5b6066, #9aa0a6);
+  --subtle:  light-dark(#cdc8c0, #5f6368);
+  --bg:      light-dark(#faf9f7, #1b1d1e);
+  --panel:   light-dark(#ffffff, #26282a);
+  --good:    light-dark(#0f7330, #7ee787);
+  --warn:    light-dark(#8a5a00, #e3b341);
+  --bad:     light-dark(#c5302a, #ff7b72); /* AA as text/border on bg in both themes */
+  --on-bright: light-dark(#ffffff, #1b1d1e); /* text on a solid accent/good/warn/bad fill */
+
+  /* theme-aware neutral overlays — flip direction so raised/sunken/hover read
+     correctly on either canvas (a light "hover" must darken, not lighten). */
+  --hover:    light-dark(rgba(0,0,0,.05),  rgba(255,255,255,.05));
+  --raised:   light-dark(rgba(0,0,0,.025), rgba(255,255,255,.02));
+  --raised-2: light-dark(rgba(0,0,0,.045), rgba(255,255,255,.03));
+  --code-bg:  light-dark(rgba(0,0,0,.06),  rgba(255,255,255,.07));
+  --sunken:   light-dark(rgba(0,0,0,.06),  rgba(0,0,0,.25));
+  --focus:    var(--accent2);
 }
+/* The toggle forces a scheme; with no data-theme, color-scheme:light dark above
+   follows the OS preference. */
+html[data-theme="light"] { color-scheme: light; }
+html[data-theme="dark"]  { color-scheme: dark; }
 
 * { box-sizing: border-box; }
+
+/* Visible keyboard focus on every interactive element that doesn't define its own
+   (WCAG 2.4.7 / focus-appearance): a 2px ring, offset so it clears both the element
+   and the adjacent background. — ADR-0025 */
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Respect the OS "reduce motion" setting — neutralize non-essential animation /
+   transition (the spinners, hovers). An a11y requirement, not a nicety. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 /* Visually-hidden but exposed to assistive tech (e.g. the diff lane's per-line
    "added"/"removed" label, since the +/- marker is aria-hidden). */
@@ -39,7 +79,15 @@ body { display: flex; flex-direction: column; }
   color: var(--dim); text-decoration: none; cursor: pointer;
   padding: .25rem .6rem; border-radius: 6px; font-size: .9rem;
 }
-.nav a:hover { color: var(--fg); background: rgba(255,255,255,.05); }
+.nav a:hover { color: var(--fg); background: var(--hover); }
+
+/* Light/dark theme toggle (ADR-0025): a ghost glyph button in the topbar, outside
+   <nav> so it never joins the `header nav a` set. --dim clears AA on the panel; the
+   global :focus-visible ring covers keyboard focus. */
+.theme-toggle { flex: 0 0 auto; background: none; border: none; cursor: pointer;
+  color: var(--dim); font-size: 1.05rem; line-height: 1; padding: .2rem .4rem;
+  border-radius: 6px; }
+.theme-toggle:hover { color: var(--fg); background: var(--hover); }
 
 /* cost meter in the header */
 .cost { display: flex; align-items: center; gap: .5rem; color: var(--dim); font-size: .82rem; }
@@ -83,21 +131,21 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
   border-left: 3px solid var(--subtle); }
 .body.md hr { border: none; border-top: 1px solid var(--subtle); margin: .75rem 0; }
 .body.md a { color: var(--accent2); }
-.body.md code { background: rgba(255,255,255,.07); padding: .05rem .3rem;
+.body.md code { background: var(--code-bg); padding: .05rem .3rem;
   border-radius: 4px; font-size: .9em; }
 .body.md pre { background: var(--bg); border: 1px solid var(--panel); border-radius: 6px;
   padding: .6rem .75rem; overflow-x: auto; margin: 0 0 .5rem; }
 .body.md pre code { background: none; padding: 0; }
 
 /* reasoning ("thinking") — dim, collapsible */
-.turn.reasoning { background: rgba(255,255,255,.03); border-left: 3px solid var(--subtle);
+.turn.reasoning { background: var(--raised-2); border-left: 3px solid var(--subtle);
   color: var(--dim); font-size: .92rem; }
 .turn.reasoning summary { cursor: pointer; color: var(--dim); }
 .turn.reasoning.live::before { content: "✻ thinking"; display: block; color: var(--dim);
   font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; margin-bottom: .25rem; }
 
 /* tool cards */
-.turn.tool { background: rgba(255,255,255,.03); border-left: 3px solid var(--warn); }
+.turn.tool { background: var(--raised-2); border-left: 3px solid var(--warn); }
 .turn.tool.done { border-left-color: var(--good); }
 .turn.tool.failed { border-left-color: var(--bad); }
 .tool-head .glyph { color: var(--warn); }
@@ -117,9 +165,9 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
   background: rgba(227,179,65,.10); border-left: 3px solid var(--warn); }
 .perm .perm-q { flex: 1 1 auto; }
 .perm button { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit; }
-.perm .ok { background: var(--good); color: #1b1d1e; }
-.perm .no { background: var(--bad); color: #fff; }
-.perm .raise { background: var(--warn); color: #1b1d1e; }
+.perm .ok { background: var(--good); color: var(--on-bright); }
+.perm .no { background: var(--bad); color: var(--on-bright); }
+.perm .raise { background: var(--warn); color: var(--on-bright); }
 
 /* diff review lane (item 3.1): a file-write permission rendered as a collapsible
    inline unified diff with approve/reject attached. The add/remove tint is paired
@@ -171,11 +219,11 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
 .ask .ask-q { flex: 1 1 100%; }
 .ask .ask-choices { display: flex; flex-wrap: wrap; gap: .4rem; }
 .ask .ask-choice { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer;
-  font: inherit; background: var(--accent2, #6ea8fe); color: #1b1d1e; }
+  font: inherit; background: var(--accent2, #6ea8fe); color: var(--on-bright); }
 .ask .ask-freeform { display: flex; gap: .4rem; flex: 1 1 auto; }
 .ask .ask-freeform input { flex: 1 1 auto; min-width: 8rem; border-radius: 6px;
   border: 1px solid var(--panel); padding: .3rem .5rem; font: inherit; background: var(--bg, #1b1d1e); color: inherit; }
-.ask .ask-send { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--good); color: #1b1d1e; }
+.ask .ask-send { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--good); color: var(--on-bright); }
 
 /* plan mode (exit-plan-mode review) */
 .plans { max-width: 56rem; width: 100%; margin: 0 auto; padding: 0 1rem; }
@@ -184,15 +232,15 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
   background: rgba(217,140,95,.10); border-left: 3px solid var(--accent, #d98c5f); }
 .plan .plan-summary { font-size: 1.02em; }
 .plan .plan-detail pre { margin: .3rem 0 0; padding: .5rem; border-radius: 6px;
-  background: rgba(0,0,0,.25); overflow-x: auto; white-space: pre-wrap; }
+  background: var(--sunken); overflow-x: auto; white-space: pre-wrap; }
 .plan .plan-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
 .plan .plan-action { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer;
   font: inherit; background: var(--panel); color: inherit; }
-.plan .plan-action.recommended { background: var(--good); color: #1b1d1e; }
+.plan .plan-action.recommended { background: var(--good); color: var(--on-bright); }
 .plan .plan-feedback { display: flex; gap: .4rem; }
 .plan .plan-feedback input { flex: 1 1 auto; min-width: 8rem; border-radius: 6px;
   border: 1px solid var(--panel); padding: .3rem .5rem; font: inherit; background: var(--bg, #1b1d1e); color: inherit; }
-.plan .plan-reject { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--bad); color: #fff; }
+.plan .plan-reject { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--bad); color: var(--on-bright); }
 
 /* elicitation (schema-driven MCP form dialog) */
 .elicits { max-width: 56rem; width: 100%; margin: 0 auto; padding: 0 1rem; }
@@ -210,8 +258,8 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
   background: var(--bg, #1b1d1e); color: inherit; max-width: 24rem; }
 .elicit-field input[type=checkbox] { align-self: flex-start; }
 .elicit .elicit-actions { display: flex; gap: .4rem; }
-.elicit .elicit-ok { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--good); color: #1b1d1e; }
-.elicit .elicit-no { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--bad); color: #fff; }
+.elicit .elicit-ok { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--good); color: var(--on-bright); }
+.elicit .elicit-no { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--bad); color: var(--on-bright); }
 
 /* sub-agent background-activity strip */
 .subagents { display: flex; flex-wrap: wrap; gap: .4rem; max-width: 56rem; margin: 0 auto .35rem;
@@ -228,7 +276,7 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
 .lanes { max-width: 56rem; margin: 0 auto; }
 .lanes:empty { margin: 0; }
 .workflow-run { border: 1px solid var(--panel); border-radius: 8px; padding: .5rem .75rem;
-  margin: .25rem 0 .6rem; background: rgba(255,255,255,.02); }
+  margin: .25rem 0 .6rem; background: var(--raised); }
 .run-head { display: flex; align-items: center; gap: .5rem; margin-bottom: .4rem; }
 .run-title { color: var(--accent); font-weight: 600; }
 .run-mode { font-size: .78rem; color: var(--dim); border: 1px solid var(--subtle);
@@ -241,9 +289,9 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
 .run-head .stop-run { font-size: .8rem; color: var(--bad); font-weight: 600;
   background: none; border: 1px solid var(--bad); border-radius: 6px;
   padding: .05rem .5rem; cursor: pointer; }
-.run-head .stop-run:hover { background: var(--bad); color: #1b1d1e; }
+.run-head .stop-run:hover { background: var(--bad); color: var(--on-bright); }
 .lane { border-left: 3px solid var(--subtle); padding: .3rem .6rem; margin: .3rem 0;
-  background: rgba(255,255,255,.02); border-radius: 0 6px 6px 0; }
+  background: var(--raised); border-radius: 0 6px 6px 0; }
 .lane-running { border-left-color: var(--accent2); }
 .lane-done { border-left-color: var(--good); }
 .lane-failed { border-left-color: var(--bad); }
@@ -272,7 +320,7 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
 .run-history { list-style: none; padding: 0; margin: .6rem 0 0; display: flex;
   flex-direction: column; gap: .5rem; }
 .run-record { border: 1px solid var(--panel); border-radius: 8px; padding: .5rem .75rem;
-  background: rgba(255,255,255,.02); }
+  background: var(--raised); }
 .run-rec-head { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
   margin-bottom: .35rem; }
 .run-glyph { color: var(--dim); }
@@ -373,7 +421,7 @@ main { flex: 1 1 auto; overflow: hidden; display: flex; }
   border-radius: 6px; color: var(--fg); padding: .55rem .7rem; font: inherit; line-height: 1.4;
   resize: none; overflow-y: auto; max-height: 12rem; }
 #composer textarea:focus { outline: none; border-color: var(--accent2); }
-#composer button { background: var(--accent); color: #1b1d1e; border: none; border-radius: 6px;
+#composer button { background: var(--accent); color: var(--on-bright); border: none; border-radius: 6px;
   padding: .55rem 1.1rem; font: inherit; font-weight: 600; cursor: pointer; }
 #composer button:hover { filter: brightness(1.08); }
 
@@ -453,7 +501,7 @@ ul.rows { list-style: none; margin: 0; padding: 0; }
 
 button.abort { background: none; border: 1px solid var(--bad); color: var(--bad); border-radius: 6px;
   padding: .1rem .5rem; cursor: pointer; font: inherit; font-size: .85rem; margin-left: .5rem; }
-button.abort:hover { background: var(--bad); color: #1b1d1e; }
+button.abort:hover { background: var(--bad); color: var(--on-bright); }
 .status-text { color: var(--dim); }
 
 button.add { background: none; border: 1px dashed var(--subtle); color: var(--dim); border-radius: 6px;
@@ -478,7 +526,7 @@ button.add:hover { border-color: var(--accent); color: var(--accent); }
   padding: .35rem .45rem; font: inherit; width: 100%; box-sizing: border-box; }
 .form-actions { display: flex; gap: .6rem; margin-top: .4rem; }
 .form-actions button { border: none; border-radius: 6px; padding: .4rem 1rem; cursor: pointer; font: inherit; }
-.form-actions button[type=submit] { background: var(--accent); color: #1b1d1e; }
+.form-actions button[type=submit] { background: var(--accent); color: var(--on-bright); }
 .form-actions .cancel { background: var(--panel); color: var(--dim); }
 p.error { color: var(--bad); margin: 0 0 .6rem; }
 p.ok { color: var(--good); margin: 0 0 .6rem; }
@@ -493,7 +541,7 @@ p.ok { color: var(--good); margin: 0 0 .6rem; }
 .session-cost { font-size: .8rem; }
 .session-actions { margin-left: auto; display: flex; gap: .4rem; }
 .session-actions button { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit;
-  background: var(--accent); color: #1b1d1e; }
+  background: var(--accent); color: var(--on-bright); }
 .session-actions button.cancel { background: var(--bg); color: var(--dim); }
 
 /* slash-command autocomplete menu */

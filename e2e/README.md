@@ -50,7 +50,7 @@ before the first test, and tears it down after. Set `MO_PORT` to relocate it.
 ## Findings surfaced by this suite
 
 Writing these tests turned up real defects the server-side Go tests could not
-see. Two were fixed; one is tracked as a documented baseline.
+see. All three were fixed.
 
 1. **Fixed — composer wiped input on every keystroke.** The composer form's
    `hx-on::after-request` (meant to reset after the send POST) also caught the
@@ -66,14 +66,16 @@ see. Two were fixed; one is tracked as a documented baseline.
    off-screen. Fix: `flex-wrap: wrap` on `.topbar`/`.nav`. Locked by
    `ux.spec.ts › no horizontal scroll …`.
 
-3. **Baseline — destructive-control contrast.** The abort / reject / decline
-   controls render on the brand red (`--bad #f85149`) at ~3.5–4.2:1, just under
-   WCAG AA's 4.5:1. Fixing it means retuning the hand-crafted palette (a design
-   call), so it is tracked as an explicit allowlist in `a11y.spec.ts`
-   (`KNOWN_CONTRAST_SELECTORS`). A contrast failure on any *other* element still
-   fails the suite, and `[baseline] destructive controls still have the known
-   contrast shortfall` fails the moment the palette is fixed — prompting removal
-   of the allowlist.
+3. **Fixed — destructive-control contrast (ADR-0025).** The abort / reject /
+   decline controls rendered on the brand red (`--bad #f85149`) at ~3.5–4.2:1,
+   just under WCAG AA's 4.5:1, and were carried as a documented allowlist
+   (`KNOWN_CONTRAST_SELECTORS`). The UI/UX refresh (epic 0045) retuned the palette
+   into a semantic light/dark token system: every semantic color now flips bright
+   (dark theme) / deep (light theme) so it clears AA as text on the page
+   background, and solid fills take one companion `--on-bright` text token — so the
+   destructive controls clear AA in **both** themes. The allowlist and its baseline
+   guard test are removed; `a11y.spec.ts` now scans every page in **both** themes
+   with **no** exceptions.
 
 Also note: navigating away from the chat page while a turn streams logs benign
 `htmx-ext-sse` errors (it swaps into chat-only targets like `#status`/`#ctx`
