@@ -78,7 +78,7 @@ negative-value. The v7 epic is a **product/convergence** epic instead.
       child.**
 - [x] **V17 — reconciliation CSV export reader + `GET /telemetry/reconcile.csv`** (S; pure
       writer + export route) → [0041](0041-reconciliation-csv-export.md)
-      (**shipped**, PR #__; no ADR — a pure writer over the existing readers, pre-blessed by
+      (**shipped**, PR #75; no ADR — a pure writer over the existing readers, pre-blessed by
       the ADR-0009 CSV-export precedent, no cross-package seam).
       `telemetry.WriteReconcileCSV(w io.Writer, spend []SpendRecord, runs []RunRecord) error`
       serializes the cross-store reconciliation to CSV — the export sibling of
@@ -104,7 +104,7 @@ page (ids → labels under `forgeMu`, a non-trivial delta ambered). Second child
 cost⋈run reconciliation, 0040, PR #74)** joined the same two stores one grain finer (per
 `(workflow, lane)`), rendered as a "Ledger vs runs by lane" table, so a divergence the
 per-workflow row only totals is locatable at the exact step. Third and final child **V17
-(reconciliation CSV export, 0041, PR #__)** added `telemetry.WriteReconcileCSV` + `GET
+(reconciliation CSV export, 0041, PR #75)** added `telemetry.WriteReconcileCSV` + `GET
 /telemetry/reconcile.csv` — the export sibling of `WriteCSV`/`WriteRunsCSV` — so the divergence
 **leaves the tool** for outside analysis. From a fresh value×fit pass the convergence is **done**:
 orchestrated spend is reconcilable at the **workflow** grain (V15) and the **lane** grain (V16)

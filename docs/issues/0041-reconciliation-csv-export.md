@@ -7,7 +7,7 @@ group: 0038
 github:
 links:
   adr:
-  prs: []
+  prs: [75]
   issues: [0038]
   regression:
 ---
@@ -74,7 +74,7 @@ exhausted at the workflow + lane grain, now both on-page and exportable. Source:
 
 ## Resolution (shipped)
 
-Shipped in **PR #__**. Built as specified. `telemetry.WriteReconcileCSV(w io.Writer, spend
+Shipped in **PR #75**. Built as specified. `telemetry.WriteReconcileCSV(w io.Writer, spend
 []SpendRecord, runs []RunRecord) error` serializes the cross-store reconciliation to CSV — the
 export sibling of `WriteCSV` (spend) and `WriteRunsCSV` (runs). One file carries **both grains**:
 the per-workflow rows (`WorkflowReconcile`, V15) first, then the per-`(workflow, lane)` rows
