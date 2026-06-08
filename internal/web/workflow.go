@@ -497,10 +497,12 @@ func (s *Server) launchWorkflow(id string) bool {
 // s.config).
 func (s *Server) workflowLaneSpec(cs ctxforge.SessionSpec) copilot.SessionSpec {
 	var defModel, defEffort string
+	var autoApprove bool
 	if s.config != nil {
 		defModel, defEffort = s.config.DefaultModel, s.config.ReasoningEffort
+		autoApprove = s.config.AutoApproveTools
 	}
-	return SeamSpec(cs, defModel, defEffort, s.lookupEnv, s.hub.baseSpec.Workspace)
+	return SeamSpec(cs, defModel, defEffort, s.lookupEnv, s.hub.baseSpec.Workspace, autoApprove)
 }
 
 // launchLanes starts each given lane's sub-run concurrently.

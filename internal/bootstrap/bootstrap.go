@@ -89,7 +89,7 @@ func Build(configDir string, demo bool) (srv *web.Hub, close func(), err error) 
 	if werr != nil {
 		workspace = ""
 	}
-	spec := web.SeamSpec(cspec, cfg.DefaultModel, cfg.ReasoningEffort, os.Getenv, workspace)
+	spec := web.SeamSpec(cspec, cfg.DefaultModel, cfg.ReasoningEffort, os.Getenv, workspace, cfg.AutoApproveTools)
 
 	var client copilot.Client
 	var closeFn func()
