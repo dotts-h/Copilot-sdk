@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { gotoApp, navTo } from "./helpers";
 
 // Telemetry KPI dashboard (V23, ADR-0027): a row of big-number cards each with a

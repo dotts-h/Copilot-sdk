@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { sel, pages, gotoApp, navTo, send } from "./helpers";
 
 // End-to-end behaviour of the htmx + SSE web UI, driven against the scripted
@@ -109,9 +109,13 @@ test.describe("streaming a turn", () => {
     // The scripted sub-agent starts and finishes before the answer streams, so
     // by the time the assistant turn lands the activity strip must be empty —
     // the indicator is transient and never leaks once the work is done.
-    await expect(page.locator(sel.agentTurn).last()).toContainText("You said: explore", {
-      timeout: 15_000,
-    });
+    // Target the committed turn (`:not(#cur)`), not `.last()` which also matches
+    // the transient `#cur` streaming buffer: once the turn commits, the reply
+    // moves out of #cur and #cur resets empty, so `.last()` races the commit (the
+    // `:not(#cur)` idiom the other streaming specs above already use).
+    await expect(
+      page.locator(`${sel.agentTurn}:not(#cur)`).filter({ hasText: "You said: explore" }),
+    ).toBeVisible({ timeout: 15_000 });
     await expect(page.locator(`${sel.subagents} .subagent-chip`)).toHaveCount(0);
   });
 });

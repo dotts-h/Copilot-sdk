@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { sel, gotoApp } from "./helpers";
 
 // ⌘/Ctrl-K command palette (V22, ADR-0026): a body-level aria-modal dialog with

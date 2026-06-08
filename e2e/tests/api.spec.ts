@@ -1,5 +1,5 @@
-import { test, expect, request } from "@playwright/test";
-import { BASE_URL } from "../playwright.config";
+import { request } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 // HTTP-level API contract, exercised through Playwright's request context (no
 // browser). Complements the in-process Go api_test.go by asserting the same
@@ -83,11 +83,11 @@ test.describe("bridge routes tolerate unknown ids", () => {
 });
 
 test.describe("SSE transport", () => {
-  test("GET /events streams text/event-stream and greets with 'ready'", async () => {
+  test("GET /events streams text/event-stream and greets with 'ready'", async ({ appURL }) => {
     // A raw fetch with a hard timeout: the stream never closes, so we read just
     // enough of the first chunk to see the greeting, then abort.
     const ctrl = new AbortController();
-    const res = await fetch(`${BASE_URL}/events`, { signal: ctrl.signal });
+    const res = await fetch(`${appURL}/events`, { signal: ctrl.signal });
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("text/event-stream");
     expect(res.headers.get("cache-control")).toContain("no-cache");
@@ -103,8 +103,8 @@ test.describe("SSE transport", () => {
 
 // A standalone request context proves the contract holds without any cookie jar
 // shared from the browser fixtures.
-test("cold request context can drive the API", async () => {
-  const ctx = await request.newContext({ baseURL: BASE_URL });
+test("cold request context can drive the API", async ({ appURL }) => {
+  const ctx = await request.newContext({ baseURL: appURL });
   const res = await ctx.get("/page/telemetry");
   expect(res.status()).toBe(200);
   expect(await res.text()).toContain("Telemetry");

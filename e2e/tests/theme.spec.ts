@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { gotoApp } from "./helpers";
 
 // Light/dark theme toggle (ADR-0025). The choice is client-only: a topbar button

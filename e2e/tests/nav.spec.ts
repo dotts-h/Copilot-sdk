@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { sel, gotoApp } from "./helpers";
 
 // Grouped left-sidebar navigation (V22, ADR-0026). The flat 13-item top bar
