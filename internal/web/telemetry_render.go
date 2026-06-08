@@ -363,3 +363,24 @@ func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request) {
 		s.logger.Printf("export spend csv: %v", err)
 	}
 }
+
+// handleReconcileExport streams the cross-store reconciliation as a CSV download (V17) —
+// the convergence's export sibling of handleSpendExport/handleRunsExport — so the ledger-
+// vs-runs divergence the Telemetry page surfaces can be analysed outside the app. One file
+// carries both grains (per-workflow then per-(workflow, lane)); empty (header only) when no
+// run store is wired or there is nothing to reconcile.
+func (s *Server) handleReconcileExport(w http.ResponseWriter, r *http.Request) {
+	var spend []telemetry.SpendRecord
+	if s.spend != nil {
+		spend = s.spend.Records()
+	}
+	var runs []telemetry.RunRecord
+	if s.runs != nil {
+		runs = s.runs.Records()
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="my-orchestra-reconcile.csv"`)
+	if err := telemetry.WriteReconcileCSV(w, spend, runs); err != nil {
+		s.logger.Printf("export reconcile csv: %v", err)
+	}
+}

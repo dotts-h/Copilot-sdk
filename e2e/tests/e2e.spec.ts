@@ -565,6 +565,20 @@ test.describe("persisted spend history + trends", () => {
     await expect(main).toContainText("Ledger vs runs by lane");
     await expect(page.locator("#main table.lane-recon")).toBeVisible();
     await expect(page.locator("#main tr.lane-recon-row").first()).toBeVisible();
+    // The reconciliation export (V17): the ledger-vs-runs divergence leaves the tool as a
+    // CSV the way spend and runs already do. A DISJOINT marker class (reconcile-export) so
+    // this link can't collide with the spend export's a.export selector below. One file
+    // carries both grains — assert the documented header only (figures drift; same gotcha).
+    const reconLink = page.locator(
+      '#main a.reconcile-export[href="/telemetry/reconcile.csv"]',
+    );
+    await expect(reconLink).toBeVisible();
+    const reconRes = await page.request.get("/telemetry/reconcile.csv");
+    expect(reconRes.status()).toBe(200);
+    expect(reconRes.headers()["content-type"]).toContain("text/csv");
+    expect(await reconRes.text()).toContain(
+      "grain,workflow,lane,ledgerCredits,runCredits,delta",
+    );
     // The bucketed burn trajectory (F3): beside each agent/workflow share bar the
     // page projects that bucket's recent pace. Assert the trajectory STRUCTURE, never
     // figures — the demo ledger is shared + append-only across the suite (the same

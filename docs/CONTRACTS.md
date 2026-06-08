@@ -213,6 +213,21 @@ no ADR (pre-blessed by the ADR-0009 export precedent). — see
 [ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md),
 [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md)
 
+`GET /telemetry/reconcile.csv` (item V17) is the **convergence** export sibling of the
+spend and runs exports: it streams the cross-store reconciliation as a CSV attachment
+(`telemetry.WriteReconcileCSV` → header `grain,workflow,lane,ledgerCredits,runCredits,delta`), so
+the ledger-vs-runs **divergence** the Telemetry page surfaces can **leave the tool** for
+outside analysis. **One file carries both grains:** the per-workflow rows
+(`WorkflowReconcile`, V15) first, then the per-`(workflow, lane)` rows (`LaneReconcile`, V16),
+each labelled by a leading **`grain` column** (`"workflow"` | `"lane"`) so a consumer filters
+totals from breakdown on `grain` and never double-counts (the `lane` cell is blank on a workflow
+row, the lane index on a lane row). Rows are the readers' own output, so ordering is
+deterministic (biggest |delta| first within each grain); empty (header only) when no run store
+is wired or there is nothing to reconcile. A **pure-writer + route** composition over the
+existing reconciliation readers — no schema change, no new store, no ADR (pre-blessed by the
+ADR-0009 export precedent). — see
+[ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md)
+
 The **Telemetry page** (`GET /page/telemetry`) reads the persisted ledger account-wide
 (month-to-date budget rows, the spend-over-time trend, per-model / per-agent / per-workflow
 shares — ADR-0009/0016/0018) plus the account-wide burn-rate **Forecast** line (ADR-0019). The
@@ -243,7 +258,10 @@ reconciliation needs two sides). Below it the page renders a **"Ledger vs runs b
 (V16) from `telemetry.LaneReconcile` (§4) — the **same** cross-store join one grain finer, per
 `(workflow, lane)` — naming each row `"<workflow> · step <n>"` (n = lane index + 1, like the Runs
 page's "Cost by lane") under `forgeMu` and ambering a non-trivial delta, so a divergence the
-per-workflow row only totals is locatable at the exact step. A pure-reader composition over the
+per-workflow row only totals is locatable at the exact step. Beside the "Ledger vs runs"
+heading an **"Export CSV"** link (a **disjoint `reconcile-export`** marker class, kept distinct
+from the spend export's `a.export` selector) downloads `GET /telemetry/reconcile.csv` (V17, above),
+rendered only when there is a reconciliation to show. A pure-reader composition over the
 two existing stores (no schema change, no new store, no ADR). — see
 [ADR-0019](adr/0019-budget-burn-rate-forecast-trailing-window-average.md),
 [ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md),
@@ -552,6 +570,19 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   at the exact step. — see
   [ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md),
   [ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md),
+  [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md)
+  **CSV export (pure writer — V17):** `telemetry.WriteReconcileCSV(w io.Writer, spend
+  []SpendRecord, runs []RunRecord) error` is the **export sibling** of `WriteCSV` (spend) and
+  `WriteRunsCSV` (runs) — it serializes the cross-store reconciliation so the divergence can
+  **leave the tool**. **One file carries both grains** with the fixed header
+  `grain,workflow,lane,ledgerCredits,runCredits,delta`: the per-workflow rows (`WorkflowReconcile`)
+  first, then the per-`(workflow, lane)` rows (`LaneReconcile`), each labelled by a leading
+  **`grain` column** (`"workflow"` | `"lane"`) so a consumer filters totals from breakdown and
+  never double-counts — credits via `csvFloat` (the sibling writers' precision-rounded format).
+  Rows are the readers' own deterministic output (biggest |delta| first within each grain);
+  empty/chat-only input → header only. Streamed by `GET /telemetry/reconcile.csv` (§3); **pure**
+  (the `io.Writer` the caller owns is the only IO), no schema change, **no ADR** (pre-blessed by
+  the ADR-0009 export precedent). — see
   [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md)
 
 ## 5. Invariants (promises that aren't a signature)

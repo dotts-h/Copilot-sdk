@@ -6,7 +6,7 @@
 > this first; jump straight to `file:symbol`. The source is the source of
 > truth — if this looks stale, re-run `make codemap`.
 
-_Last generated: 2026-06-07 (UTC)._
+_Last generated: 2026-06-08 (UTC)._
 
 ## cmd/my-orchestra
 
@@ -344,11 +344,12 @@ _Last generated: 2026-06-07 (UTC)._
 - L177: `func normalizeModel(m string) string`
 - L185: `func (r ModelRate) String() string`
 
-### reconcile.go (197 LOC)
-- L29: `type WorkflowRecon struct`
-- L49: `func WorkflowReconcile(spend []SpendRecord, runs []RunRecord) []WorkflowRecon`
-- L111: `type LaneRecon struct`
-- L133: `func LaneReconcile(spend []SpendRecord, runs []RunRecord) []LaneRecon`
+### reconcile.go (235 LOC)
+- L32: `type WorkflowRecon struct`
+- L52: `func WorkflowReconcile(spend []SpendRecord, runs []RunRecord) []WorkflowRecon`
+- L114: `type LaneRecon struct`
+- L138: `func LaneReconcile(spend []SpendRecord, runs []RunRecord) []LaneRecon`
+- L216: `func WriteReconcileCSV(w io.Writer, spend []SpendRecord, runs []RunRecord) error`
 
 ### runs.go (333 LOC)
 - L25: `type RunLane struct`
@@ -495,7 +496,7 @@ _Last generated: 2026-06-07 (UTC)._
 - L63: `func keymapLiveApply(keymap []config.ResolvedKey) string`
 - L71: `func (s *Server) helpPartial() string`
 
-### hub.go (295 LOC)
+### hub.go (296 LOC)
 - L28: `type Hub struct`
 - L62: `type Options struct`
 - L84: `func New(opts Options) *Hub`
@@ -505,8 +506,8 @@ _Last generated: 2026-06-07 (UTC)._
 - L182: `func (h *Hub) route(copilotID string) *Server`
 - L198: `func (h *Hub) pump()`
 - L208: `func (h *Hub) Handler() http.Handler`
-- L288: `func (s *Server) Handler() http.Handler { return s.hub.Handler() }`
-- L291: `func newID() string`
+- L289: `func (s *Server) Handler() http.Handler { return s.hub.Handler() }`
+- L292: `func newID() string`
 
 ### instructions_import.go (65 LOC)
 - L31: `func importInstructionFiles(dir string) []ctxforge.Instruction`
@@ -698,7 +699,7 @@ _Last generated: 2026-06-07 (UTC)._
 - L21: `func (s *Server) serveEvents(w http.ResponseWriter, r *http.Request)`
 - L62: `func writeSSE(w io.Writer, event, data string)`
 
-### telemetry_render.go (365 LOC)
+### telemetry_render.go (386 LOC)
 - L12: `func (s *Server) telemetryPartial(window int) string`
 - L72: `func (s *Server) spendTrend(window int) (days, shares []map[string]any, hasHistory bool)`
 - L129: `func (s *Server) spendShares(now time.Time) (agents, workflows []map[string]any)`
@@ -716,6 +717,7 @@ _Last generated: 2026-06-07 (UTC)._
 - L335: `func forecastSoon(exhaust, now time.Time) bool`
 - L345: `func plural(n int, one, many string) string`
 - L355: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
+- L372: `func (s *Server) handleReconcileExport(w http.ResponseWriter, r *http.Request)`
 
 ### tmpl.go (55 LOC)
 - L44: `func trusted(s string) template.HTML { return template.HTML(s) } //nolint:gosec // composed from escaped fragments`

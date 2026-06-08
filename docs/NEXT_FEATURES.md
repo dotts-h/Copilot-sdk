@@ -500,6 +500,29 @@ reader takes two record slices and returns ids; the web layer resolves labels un
 > materially) → then **close epic 0038** (the reconciliation surface exhausted at the workflow +
 > lane grain). TECH_DEBT #8 stays deferred to its (unmet) volume trigger.
 
+> **v7 update (after V17) — roadmap v7 CLOSED, epic 0038 CLOSED:** **V17 shipped** (issue 0041) —
+> `telemetry.WriteReconcileCSV(w io.Writer, spend []SpendRecord, runs []RunRecord) error` serializes
+> the cross-store reconciliation to CSV — the **export sibling** of `WriteCSV` (spend) and
+> `WriteRunsCSV` (runs) — so the ledger-vs-runs **divergence leaves the tool** the way spend and runs
+> already do. One file carries **both grains**: the per-workflow rows (`WorkflowReconcile`, V15) first,
+> then the per-`(workflow, lane)` rows (`LaneReconcile`, V16), each labelled by a leading `grain` column
+> (`workflow` | `lane`) so a consumer never double-counts a total against its breakdown — header
+> `grain,workflow,lane,ledgerCredits,runCredits,delta`, the readers' own deterministic order
+> (biggest |delta| first within each grain), header-only on empty/chat-only input. Streamed by a new
+> `GET /telemetry/reconcile.csv` route (mirroring `handleSpendExport`/`handleRunsExport`), surfaced as
+> a "Export CSV" link beside the "Ledger vs runs" heading (a DISJOINT `reconcile-export` marker class so
+> it can't collide with the spend export's `a.export` selector — the V16 strict-mode lesson). A pure
+> writer (the `io.Writer` the caller owns is the only IO; no schema change, no cross-package seam, **no
+> ADR** — pre-blessed by the ADR-0009 export precedent). **The forecast-annotation alternative was
+> weighed and dropped** as an altitude mismatch — the burn-rate forecast answers *"when does the budget
+> run out"*, not *"do the two stores agree"*; bolting a reconciliation note onto it would mix two
+> concerns. **Epic 0038 CLOSES** — the reconciliation surface is **exhausted** from a fresh value×fit
+> pass: orchestrated spend is now reconcilable at the **workflow** grain (V15) and the **lane** grain
+> (V16) on-page, and **exportable** (V17) for outside-the-tool analysis; the per-session grain is
+> unsupported (`RunRecord` carries no session id). **Roadmap v7 is done.** TECH_DEBT #8 stays deferred
+> to its (still-unmet) volume trigger. **→ Next: roadmap v8** — scope a fresh epic from a value×fit pass
+> against the two differentiators (cost-awareness ⋈ orchestration).
+
 ---
 
 ## Appendix — roadmap v2 (shipped, epic 0013, for context)
