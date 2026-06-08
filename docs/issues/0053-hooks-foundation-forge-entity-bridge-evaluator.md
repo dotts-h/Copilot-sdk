@@ -1,13 +1,13 @@
 ---
 id: 0053
 title: "Hooks foundation — the Hook forge entity + bridge evaluator + safe-read defaults (roadmap v10, V25 = G0 + G3-mechanism + G1)"
-status: open
+status: closed
 severity: high
 group: 0052
 github:
 links:
   adr: [0029]
-  prs: []
+  prs: [84]
   issues: [0052]
 ---
 
@@ -79,3 +79,12 @@ forge-only; a pre-V25 `forge.json` loads unchanged.
   the MCP/workflow pages, mode binding, and timeline "why" surfacing.
 - **External command-ref hook execution** — PostToolUse running a user command with `${VAR}` +
   preflight, treating output as untrusted.
+
+## Resolution (shipped)
+
+Shipped in **PR #84** (V25). The `ctxforge.Hook` entity + persistence + `Validate`, the pure
+`Evaluate` (deny > ask > allow, ask default, glob/substring matcher), `Forge.Compile` folding the
+built-in `DefaultHooks()` + enabled user hooks into `SessionSpec.Hooks`, and bridge enforcement in
+`permissionHandler` (allow → approve, deny → reject with reason, ask → the HITL gate) all landed,
+with the safe-read defaults making the out-of-the-box build safe — ADR-0029. G2 (the dangerous
+ruleset) followed in #83; the management UI (G4) is the next child.
