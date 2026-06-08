@@ -79,11 +79,12 @@ section ("v8 update (after V19)").
 - **`internal/web` `TestLanesPanelShowsStopForRunningRunHidesWhenDone`:** the lanes panel
   shows a `stop-run` control (posting to `/run/abort`) while running, and **none** when the
   run is done.
-- **e2e (`e2e.spec.ts`):** a structural assertion that a mid-flight parallel run shows a
-  `button.stop-run[hx-post="/run/abort"]` (DISJOINT from `.abort` / `button.run` /
-  `button.rerun` / `a.export`), placed at the earliest mid-flight point (before the existing
-  reliably-passing `.lane-perms` / `.lane-tools` assertions) and verified against the
-  Go-rendered HTML.
+- **e2e (`e2e.spec.ts`):** the `stop-run` marker class is verified **DISJOINT** from
+  `.abort` / `button.run` / `button.rerun` / `a.export` (no strict-mode collision). A
+  mid-flight `button.stop-run` *visibility* assertion was **tried and dropped**: the parallel
+  **demo** run settles quickly (it does not block on the surfaced permission), so the
+  `Running`-only control is not reliably observable mid-flight — the deterministic Go render
+  test below is the spec for the button's render logic instead.
 
 ## Resolution (shipped)
 
@@ -109,11 +110,13 @@ idempotent: a `run.recorded` flag set on the first terminal pass, with a determi
 regression test (`TestRunAbortThenLateLaneErrorRecordsOnce`).
 
 Tests (failing-first): `TestRunAbortStopsInFlightRun`, `TestRunAbortThenLateLaneErrorRecordsOnce`,
-`TestRunAbortNoRunIsNoop`, `TestLanesPanelShowsStopForRunningRunHidesWhenDone`; e2e: a
-structural `button.stop-run[hx-post="/run/abort"]` mid-flight assertion, verified against
-the Go-rendered HTML and kept disjoint from `.abort` / `button.run` / `button.rerun` /
-`a.export`. The existing telemetry + web + bootstrap + e2e tests stayed green unchanged.
-Gates green (`make lint && make test` with `-race`; web 89.6%, telemetry 96.0%).
+`TestRunAbortNoRunIsNoop`, `TestLanesPanelShowsStopForRunningRunHidesWhenDone` (the
+render-logic spec — shows the control while running, hides it when done). The `stop-run`
+class is kept disjoint from `.abort` / `button.run` / `button.rerun` / `a.export`; a
+mid-flight e2e *visibility* assertion was tried and dropped (the parallel demo run settles
+too quickly to observe the `Running`-only control reliably — CI flagged it on first run).
+The existing telemetry + web + bootstrap + e2e tests stayed green unchanged. Gates green
+(`make lint && make test` with `-race`; web 89.6%, telemetry 96.0%).
 
 Docs: NEXT_FEATURES "roadmap v8" section ("v8 update (after V19)"), CONTRACTS §3 (the new
 route) + §1 (the `Abort` seam note), CONTEXT (the **abort** term), ADR-0024 (the abort
