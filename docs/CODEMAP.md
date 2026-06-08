@@ -496,7 +496,7 @@ _Last generated: 2026-06-08 (UTC)._
 - L63: `func keymapLiveApply(keymap []config.ResolvedKey) string`
 - L71: `func (s *Server) helpPartial() string`
 
-### hub.go (297 LOC)
+### hub.go (298 LOC)
 - L28: `type Hub struct`
 - L62: `type Options struct`
 - L84: `func New(opts Options) *Hub`
@@ -506,8 +506,8 @@ _Last generated: 2026-06-08 (UTC)._
 - L182: `func (h *Hub) route(copilotID string) *Server`
 - L198: `func (h *Hub) pump()`
 - L208: `func (h *Hub) Handler() http.Handler`
-- L290: `func (s *Server) Handler() http.Handler { return s.hub.Handler() }`
-- L293: `func newID() string`
+- L291: `func (s *Server) Handler() http.Handler { return s.hub.Handler() }`
+- L294: `func newID() string`
 
 ### instructions_import.go (65 LOC)
 - L31: `func importInstructionFiles(dir string) []ctxforge.Instruction`
@@ -723,7 +723,7 @@ _Last generated: 2026-06-08 (UTC)._
 - L44: `func trusted(s string) template.HTML { return template.HTML(s) } //nolint:gosec // composed from escaped fragments`
 - L49: `func frag(name string, data any) string`
 
-### workflow.go (1053 LOC)
+### workflow.go (1121 LOC)
 - L29: `type laneStatus int`
 - L42: `func settled(st laneStatus) bool`
 - L48: `type lane struct`
@@ -733,50 +733,53 @@ _Last generated: 2026-06-08 (UTC)._
 - L100: `func (l *lane) toolByID(id string) *convo.ToolView`
 - L112: `func (l *lane) dropPerm(id string) bool`
 - L126: `type workflowRun struct`
-- L144: `func newWorkflowRun(wf ctxforge.Workflow, steps []ctxforge.CompiledStep, specs []copilot.SessionSpec) *workflowRun`
-- L159: `func (r *workflowRun) start() []int`
-- L178: `func (r *workflowRun) evalWhen(l *lane) (satisfied, ready bool)`
-- L199: `func skipDetail(w *ctxforge.StepCondition) string`
-- L218: `func (r *workflowRun) evalPending() []int`
-- L249: `func (r *workflowRun) handoffPrompt(idx int) string`
-- L269: `func (r *workflowRun) laneFor(sessionID string) *lane`
-- L290: `func (l *lane) appendText(s string) { l.text += s }`
-- L294: `func (r *workflowRun) finishLane(l *lane, detail string) []int`
-- L306: `func (r *workflowRun) failLane(l *lane, msg string) []int`
-- L322: `func (r *workflowRun) advance(l *lane) []int`
-- L347: `func (r *workflowRun) allSettled() bool`
-- L362: `func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request)`
-- L382: `func (s *Server) handleRunRerun(w http.ResponseWriter, r *http.Request)`
-- L399: `func (s *Server) launchWorkflow(id string) bool`
-- L438: `func (s *Server) workflowLaneSpec(cs ctxforge.SessionSpec) copilot.SessionSpec`
-- L447: `func (s *Server) launchLanes(run *workflowRun, idxs []int)`
-- L455: `func (s *Server) startLane(run *workflowRun, idx int)`
-- L485: `func (s *Server) laneError(run *workflowRun, l *lane, err error)`
-- L499: `func (s *Server) handleRunEvent(run *workflowRun, e copilot.Event) []fragment`
-- L599: `func (s *Server) runFrags(run *workflowRun, done bool) []fragment`
-- L624: `func (s *Server) recordRun(run *workflowRun)`
-- L637: `func runRecord(run *workflowRun) telemetry.RunRecord`
-- L657: `func laneStatusName(st laneStatus) string`
-- L673: `func (l *lane) costDetail() string`
-- L681: `func (s *Server) lanesFrag() fragment`
-- L688: `func renderLanes(run *workflowRun) string`
-- L712: `func laneToolsHTML(tools []*convo.ToolView) template.HTML`
-- L723: `func lanePermsHTML(perms []copilot.PermissionRequest) template.HTML`
-- L734: `func laneGlyph(st laneStatus) (glyph, state string)`
-- L741: `func glyphFor(status string) (glyph, state string)`
-- L764: `func streamDemoLane(m *copilot.MockClient, sid, prompt string)`
-- L806: `func firstLine(s string) string`
-- L817: `func (s *Server) workflowsPartial() string`
-- L873: `func renderWorkflowForm(w ctxforge.Workflow, isNew bool, errMsg string) string`
-- L894: `func stepsToText(steps []ctxforge.WorkflowStep) string`
-- L914: `func stepsFromText(raw string) []ctxforge.WorkflowStep`
-- L943: `func splitStepLine(line string) (head, prompt string)`
-- L962: `func formatStepCondition(c *ctxforge.StepCondition) string`
-- L980: `func parseStepCondition(spec string) *ctxforge.StepCondition`
-- L1000: `func workflowFromForm(r *http.Request, id string) ctxforge.Workflow`
-- L1010: `func (s *Server) handleWorkflowNew(w http.ResponseWriter, r *http.Request)`
-- L1014: `func (s *Server) handleWorkflowEdit(w http.ResponseWriter, r *http.Request)`
-- L1029: `func (s *Server) handleWorkflowCreate(w http.ResponseWriter, r *http.Request)`
-- L1038: `func (s *Server) handleWorkflowUpdate(w http.ResponseWriter, r *http.Request)`
-- L1048: `func (s *Server) handleWorkflowDelete(w http.ResponseWriter, r *http.Request)`
+- L145: `func newWorkflowRun(wf ctxforge.Workflow, steps []ctxforge.CompiledStep, specs []copilot.SessionSpec) *workflowRun`
+- L160: `func (r *workflowRun) start() []int`
+- L179: `func (r *workflowRun) evalWhen(l *lane) (satisfied, ready bool)`
+- L200: `func skipDetail(w *ctxforge.StepCondition) string`
+- L219: `func (r *workflowRun) evalPending() []int`
+- L250: `func (r *workflowRun) handoffPrompt(idx int) string`
+- L270: `func (r *workflowRun) laneFor(sessionID string) *lane`
+- L291: `func (l *lane) appendText(s string) { l.text += s }`
+- L295: `func (r *workflowRun) finishLane(l *lane, detail string) []int`
+- L307: `func (r *workflowRun) failLane(l *lane, msg string) []int`
+- L323: `func (r *workflowRun) abort() []string`
+- L344: `func (r *workflowRun) advance(l *lane) []int`
+- L369: `func (r *workflowRun) allSettled() bool`
+- L384: `func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request)`
+- L404: `func (s *Server) handleRunRerun(w http.ResponseWriter, r *http.Request)`
+- L419: `func (s *Server) handleRunAbort(w http.ResponseWriter, r *http.Request)`
+- L432: `func (s *Server) abortRun(ctx context.Context)`
+- L459: `func (s *Server) launchWorkflow(id string) bool`
+- L498: `func (s *Server) workflowLaneSpec(cs ctxforge.SessionSpec) copilot.SessionSpec`
+- L507: `func (s *Server) launchLanes(run *workflowRun, idxs []int)`
+- L515: `func (s *Server) startLane(run *workflowRun, idx int)`
+- L545: `func (s *Server) laneError(run *workflowRun, l *lane, err error)`
+- L559: `func (s *Server) handleRunEvent(run *workflowRun, e copilot.Event) []fragment`
+- L659: `func (s *Server) runFrags(run *workflowRun, done bool) []fragment`
+- L692: `func (s *Server) recordRun(run *workflowRun)`
+- L705: `func runRecord(run *workflowRun) telemetry.RunRecord`
+- L725: `func laneStatusName(st laneStatus) string`
+- L741: `func (l *lane) costDetail() string`
+- L749: `func (s *Server) lanesFrag() fragment`
+- L756: `func renderLanes(run *workflowRun) string`
+- L780: `func laneToolsHTML(tools []*convo.ToolView) template.HTML`
+- L791: `func lanePermsHTML(perms []copilot.PermissionRequest) template.HTML`
+- L802: `func laneGlyph(st laneStatus) (glyph, state string)`
+- L809: `func glyphFor(status string) (glyph, state string)`
+- L832: `func streamDemoLane(m *copilot.MockClient, sid, prompt string)`
+- L874: `func firstLine(s string) string`
+- L885: `func (s *Server) workflowsPartial() string`
+- L941: `func renderWorkflowForm(w ctxforge.Workflow, isNew bool, errMsg string) string`
+- L962: `func stepsToText(steps []ctxforge.WorkflowStep) string`
+- L982: `func stepsFromText(raw string) []ctxforge.WorkflowStep`
+- L1011: `func splitStepLine(line string) (head, prompt string)`
+- L1030: `func formatStepCondition(c *ctxforge.StepCondition) string`
+- L1048: `func parseStepCondition(spec string) *ctxforge.StepCondition`
+- L1068: `func workflowFromForm(r *http.Request, id string) ctxforge.Workflow`
+- L1078: `func (s *Server) handleWorkflowNew(w http.ResponseWriter, r *http.Request)`
+- L1082: `func (s *Server) handleWorkflowEdit(w http.ResponseWriter, r *http.Request)`
+- L1097: `func (s *Server) handleWorkflowCreate(w http.ResponseWriter, r *http.Request)`
+- L1106: `func (s *Server) handleWorkflowUpdate(w http.ResponseWriter, r *http.Request)`
+- L1116: `func (s *Server) handleWorkflowDelete(w http.ResponseWriter, r *http.Request)`
 

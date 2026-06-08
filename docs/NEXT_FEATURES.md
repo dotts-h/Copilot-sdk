@@ -611,6 +611,46 @@ spawns live orchestration via the `copilot.Client` seam), so it takes an ADR.
 3. **B (anomaly reader)** if the interactive surface is exhausted — a pure reader, no ADR.
 4. **TECH_DEBT #8** only when its volume trigger actually fires.
 
+### v8 update (after V19) — second child shipped
+
+> Appended after V19. **V18/0043 (rerun from the Runs page, PR #76, ADR-0023) shipped +
+> merged** — the first action on the orchestration surface. Epic 0042 stayed **open**; a
+> fresh value×fit pass for the **second** child re-read the code against the two
+> differentiators (cost-awareness ⋈ orchestration).
+
+**The pass.** The interactive theme V18 opened is **not** exhausted: rerun is *start
+again*; the obvious gaps were **stop** (V19) and **finer-grain re-execution** (V20). Of the
+candidates, **V19 (abort an in-flight run)** ranked highest on value × fit — it is the
+**dual of rerun** and **completes the basic interactive control set** (start → rerun →
+stop), and it **reuses an existing seam**: `copilot.Client.Abort` is already on the seam
+(driven by the chat-turn `handleAbort`) and recorded by `MockClient`, so the only new work
+is aborting a *multi-lane run* cleanly. **V20 (per-lane rerun)** is higher-grain but harder
+(a historical `RunRecord` doesn't carry a lane's predecessor handoff input) and reads as
+**L** with a likely ADR — correctly **teed behind V19**. **B (cost-anomaly reader)** stays
+a strong low-risk alternate but the interactive surface still has the obvious *stop* gap, so
+it stays deferred.
+
+**Chosen second child: V19 — abort an in-flight run** (issue **0044**, epic **0042**,
+**ADR-0024**). A `⏹ stop run` control on the Chat lanes panel stops the running workflow:
+each still-running lane's backing session is aborted over `Abort`, the unsettled lanes
+settle **failed** (detail `⏹ aborted`) and the run records as a **failed** outcome — *a
+stopped run is a failed run*, **no new lane status / schema change**, so it rolls up under
+the same aggregates / reconciliation as any failed run. It took **ADR-0024** (an *action*
+child, like V18) for three decisions: reuse `failed` (vs. a new terminal status), reuse the
+`Abort` seam per-lane (vs. a bespoke cancel path), and **make the single completion path
+`runFrags` idempotent** (`run.recorded`) — because `laneError` is called from a lane
+goroutine that **bypasses** the reducer's `!s.run.done` guard, so a lane that errors *after*
+the abort already settled the run would otherwise **double-record** it. New route `POST
+/run/abort`; the `stop-run` class is **disjoint** from `.abort` / `button.run` /
+`button.rerun` / `a.export`.
+
+**Re-ranked remainder (after V19).** 1) **V20 — per-lane rerun** (L, likely an ADR for the
+partial-rerun semantics + lane lineage) — the next interactive child if epic 0042 stays
+open. 2) **B — cost-anomaly reader** (M, pure reader, no ADR) — the pivot if the interactive
+surface is judged exhausted. 3) **TECH_DEBT #8** only when its volume trigger fires. The
+basic control set (start → rerun → stop) is now complete; whether the interactive surface is
+"exhausted" or has one more high-value child (V20) is the **next session's** fresh-pass call.
+
 ---
 
 ## Appendix — roadmap v2 (shipped, epic 0013, for context)

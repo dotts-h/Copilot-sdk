@@ -334,6 +334,12 @@ test.describe("multi-agent workflows", () => {
     await expect(page.locator(`${sel.lanes} .lane`)).toHaveCount(2);
     // The header reports the parallel mode.
     await expect(page.locator(`${sel.lanes} .run-mode`)).toContainText("parallel");
+    // While the run is in flight it offers a Stop control (V19, ADR-0024) — the dual of
+    // rerun — a DISJOINT `.stop-run` button (≠ the chat `.abort` / the Workflows-page
+    // button.run) that POSTs to /run/abort to settle the run.
+    await expect(
+      page.locator(`${sel.lanes} button.stop-run[hx-post="/run/abort"]`),
+    ).toBeVisible();
     // Each lane surfaces its own tool timeline and an inline permission form
     // (structure, not figures — the shared demo session).
     await expect(page.locator(`${sel.lanes} .lane-tools .turn.tool`).first()).toBeVisible({
