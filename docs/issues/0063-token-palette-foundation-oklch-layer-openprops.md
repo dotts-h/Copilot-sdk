@@ -1,13 +1,13 @@
 ---
 id: 0063
 title: "Token & palette foundation — re-derive the palette in OKLCH, @layer structure, Open Props primitives (roadmap v11, W1)"
-status: open
+status: closed
 severity: medium
 group: 0062
 depends_on: []
 github:
 links:
-  adr: []          # reserves ADR-0036 (palette re-derivation + @layer + Open Props; keep-or-drop terracotta identity)
+  adr: [0036]
   prs: []
   issues: [0062]
   regression: [20]
@@ -50,3 +50,29 @@ top. Everything later (surfaces, motion) builds on these tokens.
 Highest-risk slice (could regress AA) → lands first, behind the gate. See [epic 0062](0062-epic-playful-polished-ui-motion-overhaul.md)
 and NEXT_FEATURES "Roadmap v11". Sources: Evil Martians (OKLCH), LogRocket (accessible OKLCH ramps),
 Linear redesign (generative LCH theme), open-props.style, MDN (`@layer`/`color-mix`/`light-dark`).
+
+## Close-out (2026-06-09)
+
+Shipped on the W1 branch with ADR-0036. What landed:
+
+- **ADR-0036** settled the three decisions: terracotta/copilot-blue identity **kept** (re-derived,
+  chroma ≈ +25–40% inside fixed per-role L bands); **Open Props adopted** as a vendored two-file
+  subset (v1.7.23 `easings` + `animations`, MIT, byte-for-byte, imported into the tokens layer —
+  includes the `linear()` springs W3 consumes); `@layer tokens, base, components, utilities` as the
+  ordering contract with a no-un-layered-rules invariant.
+- **Failing test first:** `internal/web/css_tokens_test.go` — the structure guard (layer order,
+  un-layered-rule ban, vendored imports, the components-never-touch-`--p-*` tiering rule, ≥ 1
+  `@property` registration) plus a **WCAG contrast guard** that converts every `oklch()` primitive
+  to sRGB (Ottosson matrices, out-of-gamut = fail) and asserts AA (≥ 4.5:1) for 13
+  text-role/surface pairs in both themes. Red on the old flat file, green on the rewrite.
+- **`app.css` restructured** into the four layers: a 19-step OKLCH primitive ramp
+  (`--p-gray-*`, terracotta/blue/green/gold/red), the unchanged ADR-0025 semantic names re-pointed
+  at primitives via `light-dark()`, and `color-mix(in oklch)` state tints (`--*-soft` soft fills,
+  `--btn-bg-hover/press`, chip tokens) replacing every scattered `rgba(…)` tint literal and the
+  `filter: brightness()` hover hack. `@property --mix-soft` registers the animatable tint strength
+  (the W3 seam). Duration scale (`--dur-1..3`) + Open Props easing aliases staged for W3.
+- Gates: `make lint && make test` green (web 90.3%), `make e2e` 142 passed — the axe both-theme
+  scan stayed green over the recolor (lowest guarded pair: accent-on-bg light, 5.39:1).
+- Learning: the "playful" chroma targets (terracotta C 0.14, gold C 0.11 at light-text L) sit
+  **outside the sRGB gamut** — the guard's gamut check caught both; shipped C 0.125/0.103. P3-gamut
+  variants behind `@media (color-gamut: p3)` remain W2 material.

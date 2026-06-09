@@ -1,43 +1,130 @@
-/* Handcrafted stylesheet mirroring the TUI Palette (internal/tui/styles.go):
-   terracotta accent, copilot blue, slate chrome. No build chain.
+/* Handcrafted stylesheet — terracotta accent, copilot blue, slate chrome,
+   re-derived in OKLCH (ADR-0036). No build chain: this is the single
+   hand-written file; the two open-props.*.min.css imports are vendored
+   verbatim from Open Props v1.7.23 (MIT).
 
-   Semantic design tokens (ADR-0025). Each color carries BOTH its light and dark
-   value via light-dark(), resolved by color-scheme; the toggle flips
-   <html data-theme> (→ color-scheme) so every token re-resolves at once. Every
-   semantic color flips bright (dark theme) / deep (light theme) so it clears WCAG
-   AA as text on the page background in BOTH themes; --on-bright is the single
-   companion text color for ANY solid accent/good/warn/bad fill (one on-color
-   contrasts on every fill because all five flip lightness the same direction).
-   New UI uses tokens, never a literal hex / rgba(255,255,255,…). */
+   Cascade contract (ADR-0036, enforced by css_tokens_test.go):
+   @layer tokens, base, components, utilities — every rule lives in a layer
+   (an un-layered rule would outrank all four), components consume semantic /
+   component tokens only (never a --p-* primitive), and the tokens layer keeps
+   the constrained grammar the contrast guard parses:
+     primitives  --p-<name>: oklch(<L>% <C> <H>)
+     semantics   --<role>: light-dark(var(--p-light), var(--p-dark))
+   In OKLCH, contrast tracks lightness (L) independent of chroma, so each role
+   holds a fixed L band (documented in ADR-0036) and the guard proves WCAG AA
+   for every text-role/surface pair in both themes — playful chroma can rise
+   without an a11y re-audit. New UI uses tokens, never a literal hex/rgba. */
+@layer tokens, base, components, utilities;
+@import url("open-props.easings.min.css") layer(tokens);
+@import url("open-props.animations.min.css") layer(tokens);
+
+/* Registered (typed) tokens sit at the top level: registration is
+   cascade-independent, and typing makes the value animatable — the soft-fill
+   strength can transition/keyframe once W3 (issue 0065) consumes it. */
+@property --mix-soft {
+  syntax: "<percentage>";
+  inherits: true;
+  initial-value: 10%;
+}
+
+@layer tokens {
 :root {
   color-scheme: light dark;
-  --accent:  light-dark(#a8551f, #d98c5f); /* warm terracotta (Claude-ish) */
-  --accent2: light-dark(#0b5fc7, #6ea8fe); /* copilot blue */
-  --fg:      light-dark(#1f2125, #e6e6e6);
-  --dim:     light-dark(#5b6066, #9aa0a6);
-  --subtle:  light-dark(#cdc8c0, #5f6368);
-  --bg:      light-dark(#faf9f7, #1b1d1e);
-  --panel:   light-dark(#ffffff, #26282a);
-  --good:    light-dark(#0f7330, #7ee787);
-  --warn:    light-dark(#8a5a00, #e3b341);
-  --bad:     light-dark(#c5302a, #ff7b72); /* AA as text/border on bg in both themes */
-  --on-bright: light-dark(#ffffff, #1b1d1e); /* text on a solid accent/good/warn/bad fill */
 
-  /* theme-aware neutral overlays — flip direction so raised/sunken/hover read
-     correctly on either canvas (a light "hover" must darken, not lighten). */
+  /* ---- primitives: OKLCH ramps (the only tier holding raw color) ----
+     Step number tracks darkness (0 lightest), Open Props-style. Light-theme
+     accents sit at L ≤ .53 (AA as text on the paper surfaces), dark-theme
+     accents at L ≥ .73 (AA as text on the charcoal surfaces). */
+  --p-gray-0:  oklch(100% 0 0);        /* white: light panel, on-bright text  */
+  --p-gray-1:  oklch(99.2% 0.004 80);  /* warm paper: light bg                */
+  --p-gray-2:  oklch(93% 0.005 80);    /* warm white: dark-theme body text    */
+  --p-gray-3:  oklch(84.5% 0.014 80);  /* warm border: light subtle           */
+  --p-gray-5:  oklch(72.5% 0.012 250); /* graphite: dark-theme dim text       */
+  --p-gray-7:  oklch(47.5% 0.012 255); /* slate: light dim text / dark subtle */
+  --p-gray-9:  oklch(26.5% 0.007 250); /* charcoal raised: dark panel         */
+  --p-gray-10: oklch(25% 0.01 260);    /* ink: light-theme body text          */
+  --p-gray-11: oklch(23.5% 0.006 250); /* charcoal: dark bg, on-bright text   */
+
+  --p-terracotta-5: oklch(74% 0.12 55);   /* warm terracotta (Claude-ish) */
+  --p-terracotta-8: oklch(53% 0.125 55);
+  --p-blue-5:       oklch(73.5% 0.13 260); /* copilot blue */
+  --p-blue-8:       oklch(48% 0.17 258);
+  --p-green-3:      oklch(84% 0.17 150);
+  --p-green-8:      oklch(49% 0.13 150);
+  --p-gold-4:       oklch(81% 0.13 85);
+  --p-gold-8:       oklch(49.5% 0.103 75);
+  --p-red-5:        oklch(73.5% 0.15 22);
+  --p-red-8:        oklch(52% 0.19 28);
+
+  /* ---- semantic tier (ADR-0025 names, unchanged) ----
+     Each color carries BOTH theme values via light-dark(), resolved by
+     color-scheme; the toggle flips <html data-theme> so every token
+     re-resolves at once. Every semantic color flips deep (light theme) /
+     bright (dark theme) so it clears WCAG AA as text on the page background
+     in BOTH themes; --on-bright is the single companion text color for ANY
+     solid accent/good/warn/bad fill (one on-color contrasts on every fill
+     because all five flip lightness the same direction). */
+  --accent:  light-dark(var(--p-terracotta-8), var(--p-terracotta-5));
+  --accent2: light-dark(var(--p-blue-8), var(--p-blue-5));
+  --fg:      light-dark(var(--p-gray-10), var(--p-gray-2));
+  --dim:     light-dark(var(--p-gray-7), var(--p-gray-5));
+  --subtle:  light-dark(var(--p-gray-3), var(--p-gray-7));
+  --bg:      light-dark(var(--p-gray-1), var(--p-gray-11));
+  --panel:   light-dark(var(--p-gray-0), var(--p-gray-9));
+  --good:    light-dark(var(--p-green-8), var(--p-green-3));
+  --warn:    light-dark(var(--p-gold-8), var(--p-gold-4));
+  --bad:     light-dark(var(--p-red-8), var(--p-red-5));
+  --on-bright: light-dark(var(--p-gray-0), var(--p-gray-11));
+
+  /* theme-aware neutral overlays — alpha composites over an arbitrary canvas,
+     so they stay rgba (not part of the oklch contrast guard); they flip
+     direction so raised/sunken/hover read correctly on either canvas (a light
+     "hover" must darken, not lighten). */
   --hover:    light-dark(rgba(0,0,0,.05),  rgba(255,255,255,.05));
   --raised:   light-dark(rgba(0,0,0,.025), rgba(255,255,255,.02));
   --raised-2: light-dark(rgba(0,0,0,.045), rgba(255,255,255,.03));
   --code-bg:  light-dark(rgba(0,0,0,.06),  rgba(255,255,255,.07));
   --sunken:   light-dark(rgba(0,0,0,.06),  rgba(0,0,0,.25));
   --focus:    var(--accent2);
+  --scrim:    oklch(0% 0 0 / .6);
 
-  /* Motion & elevation tokens (V24, ADR-0028). One speed/ease so every hover,
-     focus, and page cross-fade share a motion language; theme-aware shadows
-     (deeper on the dark canvas) for a consistent resting elevation on cards.
-     All motion is collapsed to ~0 under prefers-reduced-motion below. */
-  --speed:     .14s;
-  --ease:      cubic-bezier(.2, .6, .2, 1);
+  /* ---- component/state tokens (color-mix in oklch — ADR-0036) ----
+     The soft fills replace the old scattered rgba(…) tint literals: one
+     derivation per tone, mixed in OKLCH so the tint keeps its hue instead of
+     going muddy. --mix-soft is the registered strength (animatable, W3). */
+  --accent-soft:  color-mix(in oklch, var(--accent) var(--mix-soft), transparent);
+  --accent2-soft: color-mix(in oklch, var(--accent2) var(--mix-soft), transparent);
+  --good-soft:    color-mix(in oklch, var(--good) var(--mix-soft), transparent);
+  --warn-soft:    color-mix(in oklch, var(--warn) var(--mix-soft), transparent);
+  --bad-soft:     color-mix(in oklch, var(--bad) var(--mix-soft), transparent);
+  --warn-soft-strong: color-mix(in oklch, var(--warn) 14%, transparent);
+
+  /* solid primary button + its hover/press tints, derived from the one accent.
+     Hover lightens by 6% white — enough to read, small enough that --on-bright
+     stays AA on the hovered fill; press darkens (contrast only improves). */
+  --btn-bg:       var(--accent);
+  --btn-fg:       var(--on-bright);
+  --btn-bg-hover: color-mix(in oklch, var(--btn-bg) 94%, white);
+  --btn-bg-press: color-mix(in oklch, var(--btn-bg) 92%, black);
+
+  /* sub-agent activity chip (blue family) */
+  --chip-bg:     color-mix(in oklch, var(--accent2) 14%, transparent);
+  --chip-border: color-mix(in oklch, var(--accent2) 35%, transparent);
+
+  /* ---- motion tokens (V24/ADR-0028; duration scale + Open Props seam) ----
+     One speed/ease so every hover, focus, and page cross-fade share a motion
+     language; --dur-2/--dur-3 and the Open Props springs are the W3 (issue
+     0065) raw material. All motion collapses under prefers-reduced-motion. */
+  --dur-1: .14s;            /* micro: hovers, focus, cross-fades  */
+  --dur-2: .3s;             /* transforms (W3)                    */
+  --dur-3: .7s;             /* springs/bounces (W3)               */
+  --speed: var(--dur-1);
+  --ease:  cubic-bezier(.2, .6, .2, 1);
+  --ease-out-soft: var(--ease-3);       /* Open Props */
+  --ease-spring:   var(--ease-spring-2); /* Open Props linear() spring (W3) */
+
+  /* theme-aware shadows (deeper on the dark canvas) for a consistent resting
+     elevation on cards; the elevation system proper is W2 (issue 0064). */
   --shadow:    0 1px 2px light-dark(rgba(0,0,0,.06), rgba(0,0,0,.32));
   --shadow-lg: 0 6px 22px light-dark(rgba(0,0,0,.12), rgba(0,0,0,.5));
 }
@@ -45,7 +132,9 @@
    follows the OS preference. */
 html[data-theme="light"] { color-scheme: light; }
 html[data-theme="dark"]  { color-scheme: dark; }
+}
 
+@layer base {
 * { box-sizing: border-box; }
 
 /* Visible keyboard focus on every interactive element that doesn't define its own
@@ -54,7 +143,9 @@ html[data-theme="dark"]  { color-scheme: dark; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /* Respect the OS "reduce motion" setting — neutralize non-essential animation /
-   transition (the spinners, hovers). An a11y requirement, not a nicety. */
+   transition (the spinners, hovers). An a11y requirement, not a nicety. The
+   !important declarations also win across layers (importance reverses layer
+   order), so no component rule can out-rank this guard. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .01ms !important;
@@ -85,6 +176,25 @@ main#main { view-transition-name: main; }
   animation-timing-function: var(--ease);
 }
 
+html, body {
+  margin: 0; height: 100%;
+  background: var(--bg); color: var(--fg);
+  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+/* The shell is a left sidebar + main panel on wide viewports (row), reflowing to
+   a stacked top bar + main on narrow ones (see the media query below). — ADR-0026 */
+body { display: flex; flex-direction: row; }
+
+main { flex: 1 1 auto; min-width: 0; overflow: hidden; display: flex; }
+
+/* ---- keyboard shortcuts (item 3.3) ---- */
+kbd { display: inline-block; min-width: 1.5em; text-align: center;
+  padding: .05rem .4rem; border: 1px solid var(--subtle); border-radius: 5px;
+  background: var(--bg); color: var(--fg);
+  font: .82rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+}
+
+@layer components {
 /* ---- component polish pass (V24, ADR-0028) ----
    Interactive controls ease their hover/focus states instead of snapping, so
    the element-level motion matches the page-level cross-fade. Only the
@@ -106,26 +216,12 @@ button.add, button.abort, .run-head .stop-run, .run-rec-head .rerun,
 /* A tactile press on the solid primary buttons — a 1px sink confirms the click. */
 #composer button:active,
 .form-actions button[type=submit]:active,
-.session-actions button:active { transform: translateY(1px); }
+.session-actions button:active { transform: translateY(1px); background: var(--btn-bg-press); }
 
 /* Resting elevation on the card surfaces (KPI cards, run records, the live run
    panel, session rows) so they read as raised against the page, consistent with
    the overlay's existing shadow. Shadow only — no contrast impact. */
 .kpi-card, .run-record, .workflow-run, .session-row { box-shadow: var(--shadow); }
-
-/* Visually-hidden but exposed to assistive tech (e.g. the diff lane's per-line
-   "added"/"removed" label, since the +/- marker is aria-hidden). */
-.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-
-html, body {
-  margin: 0; height: 100%;
-  background: var(--bg); color: var(--fg);
-  font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
-/* The shell is a left sidebar + main panel on wide viewports (row), reflowing to
-   a stacked top bar + main on narrow ones (see the media query below). — ADR-0026 */
-body { display: flex; flex-direction: row; }
 
 .topbar { display: flex; background: var(--panel); }
 .topbar .brand { color: var(--accent); font-weight: 600; letter-spacing: .02em; }
@@ -194,8 +290,6 @@ body { display: flex; flex-direction: row; }
 .meter.wide { width: 100%; height: 12px; margin: .5rem 0 1rem; }
 .meter-fill { display: block; height: 100%; background: var(--accent); }
 
-main { flex: 1 1 auto; min-width: 0; overflow: hidden; display: flex; }
-
 /* ---- chat ---- */
 .chat { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; width: 100%; }
 .timeline {
@@ -204,8 +298,8 @@ main { flex: 1 1 auto; min-width: 0; overflow: hidden; display: flex; }
 }
 .turn { margin: 0 0 1rem; padding: .6rem .85rem; border-radius: 8px;
   white-space: pre-wrap; word-wrap: break-word; }
-.turn.user { background: rgba(110,168,254,.10); border-left: 3px solid var(--accent2); }
-.turn.assistant { background: rgba(217,140,95,.07); border-left: 3px solid var(--accent); }
+.turn.user { background: var(--accent2-soft); border-left: 3px solid var(--accent2); }
+.turn.assistant { background: var(--accent-soft); border-left: 3px solid var(--accent); }
 .turn.assistant:empty { padding: 0; margin: 0; border: none; }
 .turn .role { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em;
   color: var(--dim); margin-bottom: .25rem; }
@@ -256,7 +350,7 @@ main { flex: 1 1 auto; min-width: 0; overflow: hidden; display: flex; }
 .perms { max-width: 56rem; width: 100%; margin: 0 auto; padding: 0 1rem; }
 .perm { display: flex; align-items: center; gap: .6rem; margin: .4rem 0;
   padding: .5rem .75rem; border-radius: 8px;
-  background: rgba(227,179,65,.10); border-left: 3px solid var(--warn); }
+  background: var(--warn-soft); border-left: 3px solid var(--warn); }
 .perm .perm-q { flex: 1 1 auto; }
 .perm button { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit; }
 .perm .ok { background: var(--good); color: var(--on-bright); }
@@ -293,37 +387,37 @@ main { flex: 1 1 auto; min-width: 0; overflow: hidden; display: flex; }
    AA-safe tokens over the tints: --good/--accent2/--dim all clear 4.5:1, and the
    diff text inherits --fg (~12:1). The removed marker stays --fg rather than
    --bad red, which dips to ~4.5:1 on the red tint. */
-.diff-line.diff-add { background: rgba(126,231,135,.12); }
+.diff-line.diff-add { background: var(--good-soft); }
 .diff-line.diff-add .diff-marker { color: var(--good); }
-.diff-line.diff-del { background: rgba(248,81,73,.12); }
-.diff-line.diff-hunk { background: rgba(110,168,254,.10); color: var(--accent2); }
+.diff-line.diff-del { background: var(--bad-soft); }
+.diff-line.diff-hunk { background: var(--accent2-soft); color: var(--accent2); }
 .diff-line.diff-meta { color: var(--dim); }
 .perm-review .review-actions { display: flex; gap: .5rem; margin-top: .35rem; }
 
 /* hard-cap budget gate: an over-budget turn paused for confirmation */
 .budget-gate-wrap:empty { display: none; }
 .budget-gate-wrap { max-width: 56rem; width: 100%; margin: 0 auto; padding: 0 1rem; }
-.perm.budget { background: rgba(227,179,65,.14); }
+.perm.budget { background: var(--warn-soft-strong); }
 
 /* ask_user (elicitation) */
 .asks { max-width: 56rem; width: 100%; margin: 0 auto; padding: 0 1rem; }
 .ask { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: .4rem 0;
   padding: .5rem .75rem; border-radius: 8px;
-  background: rgba(110,168,254,.10); border-left: 3px solid var(--accent2, #6ea8fe); }
+  background: var(--accent2-soft); border-left: 3px solid var(--accent2); }
 .ask .ask-q { flex: 1 1 100%; }
 .ask .ask-choices { display: flex; flex-wrap: wrap; gap: .4rem; }
 .ask .ask-choice { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer;
-  font: inherit; background: var(--accent2, #6ea8fe); color: var(--on-bright); }
+  font: inherit; background: var(--accent2); color: var(--on-bright); }
 .ask .ask-freeform { display: flex; gap: .4rem; flex: 1 1 auto; }
 .ask .ask-freeform input { flex: 1 1 auto; min-width: 8rem; border-radius: 6px;
-  border: 1px solid var(--panel); padding: .3rem .5rem; font: inherit; background: var(--bg, #1b1d1e); color: inherit; }
+  border: 1px solid var(--panel); padding: .3rem .5rem; font: inherit; background: var(--bg); color: inherit; }
 .ask .ask-send { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--good); color: var(--on-bright); }
 
 /* plan mode (exit-plan-mode review) */
 .plans { max-width: 56rem; width: 100%; margin: 0 auto; padding: 0 1rem; }
 .plan { display: flex; flex-direction: column; gap: .5rem; margin: .4rem 0;
   padding: .6rem .75rem; border-radius: 8px;
-  background: rgba(217,140,95,.10); border-left: 3px solid var(--accent, #d98c5f); }
+  background: var(--accent-soft); border-left: 3px solid var(--accent); }
 .plan .plan-summary { font-size: 1.02em; }
 .plan .plan-detail pre { margin: .3rem 0 0; padding: .5rem; border-radius: 6px;
   background: var(--sunken); overflow-x: auto; white-space: pre-wrap; }
@@ -333,14 +427,14 @@ main { flex: 1 1 auto; min-width: 0; overflow: hidden; display: flex; }
 .plan .plan-action.recommended { background: var(--good); color: var(--on-bright); }
 .plan .plan-feedback { display: flex; gap: .4rem; }
 .plan .plan-feedback input { flex: 1 1 auto; min-width: 8rem; border-radius: 6px;
-  border: 1px solid var(--panel); padding: .3rem .5rem; font: inherit; background: var(--bg, #1b1d1e); color: inherit; }
+  border: 1px solid var(--panel); padding: .3rem .5rem; font: inherit; background: var(--bg); color: inherit; }
 .plan .plan-reject { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--bad); color: var(--on-bright); }
 
 /* elicitation (schema-driven MCP form dialog) */
 .elicits { max-width: 56rem; width: 100%; margin: 0 auto; padding: 0 1rem; }
 .elicit { display: flex; flex-direction: column; gap: .5rem; margin: .4rem 0;
   padding: .6rem .75rem; border-radius: 8px;
-  background: rgba(110,168,254,.10); border-left: 3px solid var(--accent2, #6ea8fe); }
+  background: var(--accent2-soft); border-left: 3px solid var(--accent2); }
 .elicit .elicit-msg { font-size: 1.02em; }
 /* Dim the secondary form text with the AA-tuned --dim token rather than `opacity`
    on inherited --fg: opacity composites the text toward the bluish form fill and
@@ -354,7 +448,7 @@ main { flex: 1 1 auto; min-width: 0; overflow: hidden; display: flex; }
 .elicit-field .elicit-desc { font-size: .78em; color: var(--dim); }
 .elicit-field input[type=text], .elicit-field input[type=number], .elicit-field select {
   border-radius: 6px; border: 1px solid var(--panel); padding: .3rem .5rem; font: inherit;
-  background: var(--bg, #1b1d1e); color: inherit; max-width: 24rem; }
+  background: var(--bg); color: inherit; max-width: 24rem; }
 .elicit-field input[type=checkbox] { align-self: flex-start; }
 .elicit .elicit-actions { display: flex; gap: .4rem; }
 .elicit .elicit-ok { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--good); color: var(--on-bright); }
@@ -366,7 +460,7 @@ main { flex: 1 1 auto; min-width: 0; overflow: hidden; display: flex; }
 .subagents:empty { margin: 0; }
 .subagent-chip { display: inline-flex; align-items: center; gap: .35rem; font-size: .85em;
   padding: .15rem .6rem; border-radius: 999px;
-  background: rgba(110,168,254,.14); border: 1px solid rgba(110,168,254,.35); }
+  background: var(--chip-bg); border: 1px solid var(--chip-border); }
 .subagent-chip .spin { display: inline-block; animation: spin 1.1s linear infinite; }
 .subagent-chip .subagent-model { opacity: .7; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -529,15 +623,14 @@ main { flex: 1 1 auto; min-width: 0; overflow: hidden; display: flex; }
   border-radius: 6px; color: var(--fg); padding: .55rem .7rem; font: inherit; line-height: 1.4;
   resize: none; overflow-y: auto; max-height: 12rem; }
 #composer textarea:focus { outline: none; border-color: var(--accent2); }
-#composer button { background: var(--accent); color: var(--on-bright); border: none; border-radius: 6px;
+#composer button { background: var(--btn-bg); color: var(--btn-fg); border: none; border-radius: 6px;
   padding: .55rem 1.1rem; font: inherit; font-weight: 600; cursor: pointer; }
-#composer button:hover { filter: brightness(1.08); }
+#composer button:hover { background: var(--btn-bg-hover); }
 
 /* ---- secondary pages ---- */
 .page { flex: 1 1 auto; overflow-y: auto; padding: 1.25rem; max-width: 56rem; width: 100%; margin: 0 auto; }
 .page h2 { color: var(--accent); margin: 0 0 1rem; font-size: 1.15rem; }
 .page h3 { color: var(--fg); margin: 1.5rem 0 .5rem; font-size: 1rem; }
-.dim { color: var(--dim); }
 table.kv, table.grid { border-collapse: collapse; width: 100%; }
 table.kv th { text-align: left; color: var(--dim); font-weight: 400; padding: .2rem 1rem .2rem 0; white-space: nowrap; }
 table.kv td { padding: .2rem 0; }
@@ -545,11 +638,6 @@ table.grid th, table.grid td { text-align: right; padding: .25rem .6rem; border-
 table.grid th:first-child, table.grid td:first-child { text-align: left; }
 table.grid th { color: var(--dim); font-weight: 400; }
 
-/* ---- keyboard shortcuts (item 3.3) ---- */
-kbd { display: inline-block; min-width: 1.5em; text-align: center;
-  padding: .05rem .4rem; border: 1px solid var(--subtle); border-radius: 5px;
-  background: var(--bg); color: var(--fg);
-  font: .82rem ui-monospace, SFMono-Regular, Menlo, monospace; }
 table.shortcuts th { padding-right: 1.25rem; }
 .settings-subhead { color: var(--accent); margin: 1.5rem 0 .25rem; font-size: 1rem; }
 
@@ -557,7 +645,7 @@ table.shortcuts th { padding-right: 1.25rem; }
    the close button toggles [hidden]. */
 .overlay { position: fixed; inset: 0; z-index: 50; display: flex;
   align-items: center; justify-content: center; padding: 1rem;
-  background: rgba(0, 0, 0, .6); }
+  background: var(--scrim); }
 .overlay[hidden] { display: none; }
 .overlay-card { background: var(--panel); border: 1px solid var(--subtle);
   border-radius: 10px; padding: 1.25rem 1.5rem; max-width: 34rem; width: 100%;
@@ -726,7 +814,8 @@ button.add:hover { border-color: var(--accent); color: var(--accent); }
   padding: .35rem .45rem; font: inherit; width: 100%; box-sizing: border-box; }
 .form-actions { display: flex; gap: .6rem; margin-top: .4rem; }
 .form-actions button { border: none; border-radius: 6px; padding: .4rem 1rem; cursor: pointer; font: inherit; }
-.form-actions button[type=submit] { background: var(--accent); color: var(--on-bright); }
+.form-actions button[type=submit] { background: var(--btn-bg); color: var(--btn-fg); }
+.form-actions button[type=submit]:hover { background: var(--btn-bg-hover); }
 .form-actions .cancel { background: var(--panel); color: var(--dim); }
 p.error { color: var(--bad); margin: 0 0 .6rem; }
 p.ok { color: var(--good); margin: 0 0 .6rem; }
@@ -741,7 +830,8 @@ p.ok { color: var(--good); margin: 0 0 .6rem; }
 .session-cost { font-size: .8rem; }
 .session-actions { margin-left: auto; display: flex; gap: .4rem; }
 .session-actions button { border: none; border-radius: 6px; padding: .3rem .8rem; cursor: pointer; font: inherit;
-  background: var(--accent); color: var(--on-bright); }
+  background: var(--btn-bg); color: var(--btn-fg); }
+.session-actions button:hover { background: var(--btn-bg-hover); }
 .session-actions button.cancel { background: var(--bg); color: var(--dim); }
 
 /* slash-command autocomplete menu */
@@ -752,10 +842,19 @@ p.ok { color: var(--good); margin: 0 0 .6rem; }
 .cmd-item { display: flex; align-items: baseline; gap: .5rem; width: 100%;
   background: none; border: none; text-align: left; cursor: pointer; font: inherit;
   color: var(--fg); padding: .35rem .7rem; }
-.cmd-item:hover { background: rgba(217,140,95,.12); }
+.cmd-item:hover { background: var(--accent-soft); }
 .cmd-name { color: var(--accent); font-weight: 600; }
 .cmd-args { color: var(--accent2); font-size: .85rem; }
 .cmd-desc { color: var(--dim); font-size: .82rem; margin-left: auto; }
 .cmd-tag { font-size: .68rem; text-transform: uppercase; letter-spacing: .04em;
   color: var(--accent2); border: 1px solid var(--subtle); border-radius: 4px;
   padding: 0 .3rem; }
+}
+
+@layer utilities {
+/* Visually-hidden but exposed to assistive tech (e.g. the diff lane's per-line
+   "added"/"removed" label, since the +/- marker is aria-hidden). */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.dim { color: var(--dim); }
+}
