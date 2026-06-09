@@ -43,3 +43,19 @@ test that currently does not exist** asserting the table is populated from histo
 P1 (0059) later **extends this same table** with cache-write/reasoning columns — hence 0059
 `depends_on` this issue (they share the breakdown seam; serialize, don't parallelize them). See
 [epic 0050](0050-epic-billing-fidelity.md).
+
+## Status (in progress)
+Branch `feat/billing-per-model-breakdown`. Implemented:
+- `telemetry.ModelBreakdowns` — a new pure reader (`internal/telemetry/breakdown.go`) aggregating
+  per-model token counts (in/cached/out) + USD/credits + turns over `SpendStore.Records()`, sorted
+  by spend desc (ties by model name). Unit-tested in `breakdown_test.go`. The `Meter`/`SpendRecord`
+  types are untouched (lane 0057 owns those) — it reads the records as they already are.
+- `internal/web/telemetry_render.go` — the per-model table now reads the ledger via
+  `ModelBreakdowns(s.spend.Records())` instead of the empty live meter; the live token row is
+  relabelled "Tokens (this session)" and the table header "Per-model breakdown (all-time, from
+  history)".
+- **The missing integration test** (`TestTelemetryPerModelTableIsPopulatedFromLedger`, spend_test.go):
+  seeds ONLY the ledger (the live meter stays empty — the demo-seeding gap), renders the page, and
+  asserts the table is populated with the summed token counts (not 0/0/0) and labelled "all-time".
+No schema change, no ADR (pure reader + test). The demo ledger (`bootstrap.seedSpend`) already carries
+token-bearing records, so the demo's table is now populated too.
