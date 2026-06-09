@@ -72,6 +72,20 @@
   is no other surface and real value (a deny, a user allow); the safe-read/autopilot baseline
   approvals stay silent. A gated **ask** is not a `ToolDecision` — it surfaces as the existing
   `EvPermission` form, now carrying the hook `Reason`. — ADR-0031
+- **hook command (PostToolUse executor)** — a local command a **post-tool-use** hook runs *after* a
+  matching tool completes (`Hook.Command`/`CommandArgs`; G5, ADR-0032). The seam selects matching
+  command hooks (`ctxforge.PostToolUseCommands`) off the tool-completion flow and runs each — the
+  program exec'd **directly** (no shell, no chaining), `${VAR}` resolved at execution via the same env
+  seam as MCP (ADR-0020; an unset ref → empty, never the literal), a **5s timeout**, ~2KB of bounded
+  output, the **workspace** as cwd. It is valid **only** on a post-tool-use hook (a PreToolUse hook
+  with a command is rejected). The command's output is **untrusted, display-only telemetry** — bounded,
+  **escaped**, never fed back to the agent and **never a gate** (a non-zero exit is annotated, not a
+  control). It surfaces as the **hook-run note**. — ADR-0032
+- **hook-run note** — the inline timeline annotation for a hook command's execution: a normalized
+  `copilot.EvHookRun` event (`HookRun{HookID, Command, Output, ExitCode, TimedOut, Failed}`) reduced
+  into a compact `convo.RoleHookRun` turn naming the hook, its resolved command, an exit/timeout
+  status, and a bounded, **escaped** snippet of the (untrusted) output. Like the timeline "why", it is
+  an **annotation, not a gate**, and is live (not persisted across resume). — ADR-0032
 - **workspace fence** — the path-aware match dimension (`HookMatch.OutsideWorkspace`) the glob
   matcher can't express: a built-in mandatory hook that gates a **write whose target resolves
   OUTSIDE the session workspace root**. The root is a runtime fact threaded at the seam

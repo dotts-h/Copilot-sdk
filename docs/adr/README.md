@@ -33,3 +33,6 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0027 | [Telemetry KPI dashboard: pure readers + pure Go SVG builders, server-rendered inline charts](0027-telemetry-kpi-dashboard-server-rendered-inline-svg.md) | accepted |
 | 0028 | [Motion & polish: htmx per-navigation View Transitions (NOT global), plus a token-driven component pass](0028-motion-and-polish-htmx-per-navigation-view-transitions.md) | accepted |
 | 0029 | [Hooks: a forge-backed Pre/PostToolUse entity, bridge-enforced allow/deny/ask, deny-wins, safe-read defaults](0029-hooks-forge-entity-bridge-enforced-allow-deny-ask-safe-read-defaults.md) | accepted |
+| 0030 | [Dangerous-action deny + mandatory HITL, unbypassable by config](0030-dangerous-action-deny-and-mandatory-hitl-unbypassable-by-config.md) | accepted |
+| 0031 | [Hooks management UI + mode binding + the timeline "why" annotation](0031-hooks-management-ui-mode-binding-and-timeline-why.md) | accepted |
+| 0032 | [PostToolUse hook command execution: a bounded local command with untrusted, display-only output](0032-posttooluse-hook-command-execution-untrusted-output.md) | accepted |

@@ -40,6 +40,7 @@ const (
 	EvElicitation     // an MCP server is requesting structured input (a schema-driven form)
 	EvUserMessage     // a past user prompt, emitted only when rehydrating history (never live)
 	EvToolDecision    // a governance hook auto-approved or denied a tool call (timeline "why", ADR-0031)
+	EvHookRun         // a PostToolUse hook ran an external command; carries its untrusted output (ADR-0032)
 )
 
 // SessionMeta is the normalized metadata for a persisted session, used to render
@@ -172,7 +173,26 @@ type Event struct {
 	Elicit     *ElicitRequest     // set for EvElicitation
 	Subagent   *SubagentInfo      // set for EvSubagentStart / EvSubagentEnd
 	Decision   *ToolDecision      // set for EvToolDecision
+	HookRun    *HookRun           // set for EvHookRun
 	Err        error
+}
+
+// HookRun is the normalized result of a PostToolUse hook executing its external
+// command after a matching tool completed (G5, ADR-0032). It is display-only
+// TELEMETRY: Output is the command's combined stdout/stderr, captured UNTRUSTED
+// and bounded — it is never fed back to the agent and can never flip a permission
+// decision. HookID names the hook, Command is the resolved command line (with
+// ${VAR}s already substituted, secrets omitted), ExitCode is the process exit
+// status (-1 when it never started or was killed), TimedOut reports the command
+// exceeded the executor's deadline, and Failed is true on a non-zero exit, a
+// timeout, or a start error. The reducer renders Output ESCAPED (ADR-0001).
+type HookRun struct {
+	HookID   string
+	Command  string
+	Output   string
+	ExitCode int
+	TimedOut bool
+	Failed   bool
 }
 
 // ToolDecision is the normalized "why" of a governance decision the permission

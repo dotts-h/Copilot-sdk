@@ -142,3 +142,26 @@ func TestPendingReflectsBuffer(t *testing.T) {
 		t.Fatalf("pending message wrong: %v %q", r, txt)
 	}
 }
+
+// AddHookRun must NOT commit the in-flight message buffer: an EvHookRun arrives
+// asynchronously and may land mid-stream, so committing would split one assistant
+// reply into two bubbles. The streamed text stays pending (whole). — ADR-0032.
+func TestAddHookRunKeepsStreamedMessageWhole(t *testing.T) {
+	var c State
+	c.AppendDelta("partial answer") // an assistant message is mid-stream
+	c.AddHookRun(HookRunView{HookID: "fmt", Command: "gofmt -l x.go", Output: "x.go"})
+	// The message buffer is untouched (not committed into a turn).
+	if r, txt := c.Pending(); r != RoleAgent || txt != "partial answer" {
+		t.Fatalf("streamed message was disturbed: %v %q", r, txt)
+	}
+	// The hook note is the only committed turn, and it is a RoleHookRun.
+	committed := c.Committed()
+	if len(committed) != 1 || committed[0].Role != RoleHookRun || committed[0].HookRun == nil {
+		t.Fatalf("expected one committed hook-run turn, got %+v", committed)
+	}
+	// When the message finishes it commits as ONE turn (no split).
+	c.Finish("")
+	if got := c.Committed(); len(got) != 2 || got[1].Role != RoleAgent || got[1].Text != "partial answer" {
+		t.Fatalf("streamed message should commit whole after the note: %+v", got)
+	}
+}

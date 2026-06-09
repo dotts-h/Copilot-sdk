@@ -18,6 +18,7 @@ const (
 	RoleSystem
 	RoleTool
 	RoleDecision // a governance hook auto-approved or denied a tool call (timeline "why")
+	RoleHookRun  // a PostToolUse hook ran an external command; carries its untrusted output (ADR-0032)
 )
 
 // ToolView is the displayable state of a single tool execution in the timeline.
@@ -44,14 +45,31 @@ type DecisionView struct {
 	Detail string
 }
 
+// HookRunView is a PostToolUse hook-execution annotation in the timeline (G5,
+// ADR-0032): a hook ran an external command after a tool completed. It is
+// display-only telemetry — Output is the command's UNTRUSTED, bounded combined
+// stdout/stderr, rendered ESCAPED (ADR-0001), never fed back to the agent and
+// never a gate. HookID names the hook, Command is the resolved command line,
+// ExitCode is the process exit status, and TimedOut/Failed flag a problem run.
+type HookRunView struct {
+	HookID   string
+	Command  string
+	Output   string
+	ExitCode int
+	TimedOut bool
+	Failed   bool
+}
+
 // Turn is a single entry in the conversation transcript. For RoleTool turns the
 // Tool field carries the live execution state; for RoleDecision turns Decision
-// carries the governance annotation; Text is unused for both.
+// carries the governance annotation; for RoleHookRun turns HookRun carries the
+// PostToolUse command result; Text is unused for those.
 type Turn struct {
 	Role     Role
 	Text     string
 	Tool     *ToolView
 	Decision *DecisionView
+	HookRun  *HookRunView
 }
 
 // State is the testable conversation model. It owns the transcript and two
@@ -143,6 +161,18 @@ func (c *State) AddDecision(d DecisionView) {
 	c.commitReasoning()
 	c.commitMessage("")
 	c.turns = append(c.turns, Turn{Role: RoleDecision, Decision: &d})
+}
+
+// AddHookRun records a PostToolUse hook-execution annotation as a timeline entry
+// (G5, ADR-0032). Unlike a decision note it does NOT commit the in-flight message
+// buffer: the EvHookRun is emitted ASYNCHRONOUSLY (the executor runs off the
+// event-handler goroutine), so it can land while the next assistant message is
+// mid-stream — committing here would split that one reply into two bubbles around
+// the note. Appending the note above the still-pending buffer keeps the streamed
+// message whole (it commits later as one turn); the note relates to the just-
+// completed tool, so sitting above the in-flight text is the right order anyway.
+func (c *State) AddHookRun(h HookRunView) {
+	c.turns = append(c.turns, Turn{Role: RoleHookRun, HookRun: &h})
 }
 
 // ToolProgress updates a running tool's latest progress message.

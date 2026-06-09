@@ -51,6 +51,29 @@ test.describe("Hooks management", () => {
     await expect(result).toContainText("matches");
   });
 
+  test("adds a PostToolUse command hook and previews its command preflight", async ({ page }) => {
+    await gotoApp(page);
+    await navTo(page, "Hooks");
+    await page.locator(`#main button.add`).click();
+    await expect(page.locator(`#main form[hx-post="/hooks"]`)).toBeVisible();
+    const id = `e2e-cmd-${Date.now()}`;
+    await page.fill(`#main input[name="id"]`, id);
+    await page.selectOption(`#main select[name="event"]`, "post-tool-use");
+    await page.selectOption(`#main select[name="toolKind"]`, "write");
+    await page.fill(`#main input[name="reason"]`, "format after write");
+    await page.fill(`#main input[name="command"]`, "gofmt");
+    await page.fill(`#main input[name="commandArgs"]`, "-w, ${MISSING_E2E_VAR}");
+    // The command preflight shows the resolved command + flags the unset ${VAR};
+    // it must NOT execute anything.
+    await page.locator(`#main button.command-preflight-test`).click();
+    const result = page.locator("#hook-command-preflight-result");
+    await expect(result).toContainText("gofmt");
+    await expect(result).toContainText("MISSING_E2E_VAR");
+    // Save: the post-tool-use command hook round-trips onto the list.
+    await page.locator(`#main button[type=submit]`).click();
+    await expect(page.locator(`${sel.rows}`, { hasText: "format after write" })).toBeVisible();
+  });
+
   test("a malformed hook re-renders the form with an error", async ({ page }) => {
     await gotoApp(page);
     await navTo(page, "Hooks");

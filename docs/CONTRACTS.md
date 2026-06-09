@@ -63,6 +63,15 @@ Every non-gated decision is surfaced for the timeline "why": a `deny` and a **us
 [ADR-0029](adr/0029-hooks-forge-entity-bridge-enforced-allow-deny-ask-safe-read-defaults.md),
 [ADR-0030](adr/0030-dangerous-action-deny-and-mandatory-hitl-unbypassable-by-config.md),
 [ADR-0031](adr/0031-hooks-management-ui-mode-binding-and-timeline-why.md)
+On the **PostToolUse** path the seam runs the **executor** (ADR-0032): when a tool call completes,
+`ctxforge.PostToolUseCommands` selects the enabled PostToolUse hooks that carry a `Command` and match
+the completed call, and the `SDKClient` runs each — `${VAR}` resolved via the `lookupEnv` seam
+(default `os.Getenv`, an unset ref → empty, never the literal), the program exec'd **directly**
+(`runCmd`, no shell) with the **workspace** as cwd, a 5s timeout, and ~2KB of combined output
+captured. The command's stdout/stderr is **UNTRUSTED**: it is emitted only as an `EvHookRun`
+annotation, never fed back to the agent and never consulted on the permission path — a post-tool
+command can **never** flip a decision. — see
+[ADR-0032](adr/0032-posttooluse-hook-command-execution-untrusted-output.md)
 `MCPServers` carries the forge's **enabled** servers (compiled in, translated via
 `web.MCPServerSpecs`); each `copilot.MCPServer` registers under its unique `Key()`
 (its `ID`, or `Name` for legacy callers) so a non-unique `Name` can't collide in the
@@ -82,14 +91,20 @@ fragments. **Stability: stable** — the wire vocabulary between runtime and UI.
 `EvMessage`, `EvMessageDelta`, `EvReasoning`, `EvReasoningDelta`, `EvToolStart`,
 `EvToolProgress`, `EvToolEnd`, `EvUsage`, `EvContextWindow`, `EvPermission`, `EvUserInput`,
 `EvUserMessage`, `EvPlanChanged`, `EvPlanReview`, `EvElicitation`, `EvCompactionStart`,
-`EvCompactionEnd`, `EvSubagentStart`, `EvSubagentEnd`, `EvToolDecision`, `EvError`, `EvIdle`,
-`EvUnknown`. `EvToolDecision` (ADR-0031) is the **timeline "why"** annotation: a governance
+`EvCompactionEnd`, `EvSubagentStart`, `EvSubagentEnd`, `EvToolDecision`, `EvHookRun`, `EvError`,
+`EvIdle`, `EvUnknown`. `EvToolDecision` (ADR-0031) is the **timeline "why"** annotation: a governance
 decision the bridge made *without* a gate (a `deny` or a user `allow`), reduced into a compact,
-muted `convo.RoleDecision` turn — not a control.
+muted `convo.RoleDecision` turn — not a control. `EvHookRun` (ADR-0032) is the **PostToolUse
+command** annotation: a hook ran an external command after a matching tool completed, reduced into a
+compact `convo.RoleHookRun` turn carrying the hook id + a bounded, **escaped**, UNTRUSTED output
+snippet — display-only telemetry, never fed back to the agent and never a gate.
 
 **`Event` shape** (`copilot.go`): `Type, SessionID, Text, Tool, ToolCall*, Usage, Context,
-Permission*, Input*, Plan*, Elicit*, Subagent*, Decision*, Err`. Pointer fields are set only for
-the matching event type (e.g. `Permission` for `EvPermission`, `Decision` for `EvToolDecision`).
+Permission*, Input*, Plan*, Elicit*, Subagent*, Decision*, HookRun*, Err`. Pointer fields are set only for
+the matching event type (e.g. `Permission` for `EvPermission`, `Decision` for `EvToolDecision`,
+`HookRun` for `EvHookRun`). **`HookRun`** (`copilot.go`): `HookID, Command, Output, ExitCode,
+TimedOut, Failed` — the resolved command line + its bounded untrusted output; `Output` is rendered
+through `html/template` auto-escaping (ADR-0001), never `trusted()` raw.
 `PermissionRequest` gained a `Reason` (the gating hook's message, shown on the gate). `SessionID` is empty for
 a bare `MockClient.Emit` (the chat demo); a single-session consumer may ignore it.
 **Exception:** the workflow-lane demo (`web.streamDemoLane`) tags every emitted
@@ -137,7 +152,7 @@ for the streaming/turn routes (`/events`, `/send`, the `/perm|ask|plan|elicit/{i
 | MCP servers | `GET /mcp/new` · `GET /mcp/{id}/edit` · `POST /mcp` · `POST /mcp/{id}` · `POST /mcp/{id}/toggle` · `POST /mcp/{id}/delete` |
 | Workflows | `GET /workflows/new` · `GET /workflows/{id}/edit` · `POST /workflows` · `POST /workflows/{id}` · `POST /workflows/{id}/run` · `POST /workflows/{id}/delete` |
 | Snippets | `GET /snippets/new` · `GET /snippets/{id}/edit` · `POST /snippets` · `POST /snippets/{id}` · `POST /snippets/{id}/delete` |
-| Hooks | `GET /hooks/new` · `GET /hooks/{id}/edit` · `POST /hooks` · `POST /hooks/preflight` · `POST /hooks/{id}` · `POST /hooks/{id}/toggle` · `POST /hooks/{id}/delete` |
+| Hooks | `GET /hooks/new` · `GET /hooks/{id}/edit` · `POST /hooks` · `POST /hooks/preflight` · `POST /hooks/command-preflight` · `POST /hooks/{id}` · `POST /hooks/{id}/toggle` · `POST /hooks/{id}/delete` |
 | Sessions | `POST /sessions/new` · `POST /sessions/{id}/resume` · `POST /sessions/{id}/delete` |
 | Settings | `POST /settings` · `POST /models/{id}/select` · `POST /effort/{value}/select` |
 
@@ -151,7 +166,11 @@ The `/hooks…` group (G4) is governance-hook CRUD (mirroring MCP): the page lis
 **read-only** built-in policy (`DefaultHooks` + the mandatory `DangerousHooks`) plus full user
 add/edit/toggle/delete, with a **mode-binding** checkbox set and a pattern **preflight**
 (`POST /hooks/preflight` calls `ctxforge.MatchPattern`/`PatternIsGlob` against a sample command,
-mutating nothing). — see [ADR-0031](adr/0031-hooks-management-ui-mode-binding-and-timeline-why.md)
+mutating nothing). `POST /hooks/command-preflight` (G5) is its sibling for the **PostToolUse
+command** field: it reports the resolved command line and which `${VAR}` references resolve empty
+(behind the `s.lookupEnv` seam, ADR-0020), **never executing** the command. — see
+[ADR-0031](adr/0031-hooks-management-ui-mode-binding-and-timeline-why.md),
+[ADR-0032](adr/0032-posttooluse-hook-command-execution-untrusted-output.md)
 
 The `/workflows…` group (item 2.1) is workflow CRUD (mirroring agents) plus
 `POST /workflows/{id}/run`, which **starts a multi-agent run**: it compiles the
@@ -431,17 +450,24 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   the composer `/trigger`. — see [ADR-0015](adr/0015-prompt-snippet-library-forge-backed-composer-insertion.md)
 - **`ctxforge.Hook`** (`hook.go`): `{id, event (pre-tool-use|post-tool-use), match
   {toolKind?, pattern?, outsideWorkspace?}, action (allow|deny|ask), reason?, enabled,
-  mandatory?, modes?}` — a first-class forge **governance rule**. Persisted under the additive
+  mandatory?, modes?, command?, commandArgs?}` — a first-class forge **governance rule**. Persisted under the additive
   `hooks` key on `forge.json` (omitempty, so older files read clean) and CRUD-managed via the
   shared `mutate` rollback discipline (`AddHook`/`UpdateHook`/`ToggleHook`/`RemoveHook`, like
   MCP/snippet) — the management **UI** is the Hooks page (G4, §3). `Validate` enforces a slug id, a
   known `event` and `action`, a non-empty `match` (a valid `toolKind` ∈ {read, write, shell, mcp}
   when set; `outsideWorkspace` also satisfies the non-empty requirement), **no dangling `${VAR}`**
-  reference (the well-formed `${NAME}` shape of ADR-0020) in `pattern`/`reason`, and a known
+  reference (the well-formed `${NAME}` shape of ADR-0020) in `pattern`/`reason`/`command`/`commandArgs`, and a known
   `mode` ∈ {autopilot, interactive, plan} in each `modes` entry. `mandatory` marks a hook whose
   decision is **unbypassable by config** (the dangerous-action ruleset); `outsideWorkspace` is the
   path-aware **workspace fence** dimension (G2); `modes` is the **mode-binding** scope (G4, empty =
-  every mode). The pure
+  every mode). `command`/`commandArgs` (G5, ADR-0032) is the **PostToolUse executor command** — a
+  single local program (+ args) run after a matching tool completes, `${VAR}`-bearing and resolved
+  at execution by the seam; `Validate` permits a command **only on a post-tool-use hook** (a
+  PreToolUse hook carrying one is rejected — untrusted output must never be a pre-gate control
+  surface) and requires a non-empty `command` when `commandArgs` is set. `PostToolUseCommands(hooks,
+  toolKind, command, workspace, mode)` is the pure selector of the matching command hooks (the
+  post-path companion to `Evaluate`; it makes no allow/deny/ask decision). `HasCommand()` reports
+  whether a hook carries one. The pure
   **`Evaluate(hooks, event, toolKind, command, workspace, mode) Decision{Action, Reason, HookID, Mandatory}`**
   resolves the policy: a hook participates when `Enabled`, its `Event` matches, its `Modes` is
   empty or lists `mode`, and its `Match` applies (an empty `toolKind` matches any kind; a `pattern`
@@ -460,7 +486,8 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   **Determinism:** `Compile`'s hook order is part of its stable output. — see
   [ADR-0029](adr/0029-hooks-forge-entity-bridge-enforced-allow-deny-ask-safe-read-defaults.md),
   [ADR-0030](adr/0030-dangerous-action-deny-and-mandatory-hitl-unbypassable-by-config.md),
-  [ADR-0031](adr/0031-hooks-management-ui-mode-binding-and-timeline-why.md)
+  [ADR-0031](adr/0031-hooks-management-ui-mode-binding-and-timeline-why.md),
+  [ADR-0032](adr/0032-posttooluse-hook-command-execution-untrusted-output.md)
 - **`config.Config`** / **`config.TelemetryConfig`** (`config.go`): user settings + pricing
   overrides (`DefaultPriceBook`). `TelemetryConfig.WarnFraction` (soft-warn threshold,
   `[0,1]`) and `TelemetryConfig.HardCapCredits` (absolute credit ceiling, `>= 0`,

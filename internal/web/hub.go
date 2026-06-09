@@ -275,6 +275,7 @@ func (h *Hub) Handler() http.Handler {
 	route("GET /hooks/{id}/edit", (*Server).handleHookEdit)
 	route("POST /hooks", (*Server).handleHookCreate)
 	route("POST /hooks/preflight", (*Server).handleHookPreflight)
+	route("POST /hooks/command-preflight", (*Server).handleHookCommandPreflight)
 	route("POST /hooks/{id}", (*Server).handleHookUpdate)
 	route("POST /hooks/{id}/toggle", (*Server).handleHookToggle)
 	route("POST /hooks/{id}/delete", (*Server).handleHookDelete)

@@ -19,6 +19,11 @@
      call without a gate. It is an inline note, not a control. */}}
 {{define "decisionNote"}}<div class="turn decision decision-{{.Kind}}"><span class="glyph" aria-hidden="true">{{.Glyph}}</span> <span class="decision-label">{{.Label}}</span>{{if .HasHook}} by <b class="decision-hook">{{.HookID}}</b>{{end}}{{if .HasDetail}} <span class="decision-detail">{{richtext .Detail}}</span>{{end}}{{if .HasReason}} <span class="decision-reason">— {{richtext .Reason}}</span>{{end}}</div>{{end}}
 
+{{/* PostToolUse hook-run annotation (ADR-0032): a hook ran an external command.
+     Command and Output are auto-escaped by html/template (ADR-0001) — the output
+     is UNTRUSTED telemetry, shown verbatim-as-text, never live markup or a gate. */}}
+{{define "hookRunNote"}}<div class="turn hookrun{{if .Failed}} hookrun-failed{{end}}"><span class="glyph" aria-hidden="true">{{.Glyph}}</span> <span class="hookrun-label">hook</span> <b class="hookrun-id">{{.HookID}}</b> ran <code class="hookrun-cmd">{{.Command}}</code> <span class="hookrun-status">({{.Status}})</span>{{if .HasOutput}}<pre class="hookrun-output">{{.Output}}</pre>{{end}}</div>{{end}}
+
 {{/* Diff review lane (item 3.1): a file-write permission rendered as a collapsible
      inline unified diff with the approve/reject attached. Posts to the same
      /perm/{id} flow as the compact form — a richer affordance, not a new gate. */}}
@@ -97,6 +102,12 @@
 {{define "hookPreflight"}}<fieldset class="field hook-preflight"><legend>Preflight</legend><p class="dim">Test the command pattern above against a sample command — the same matcher the policy uses.</p><div class="preflight-row"><input type="text" name="sample" value="{{.Sample}}" placeholder="sample command, e.g. rm -rf /tmp/x" autocomplete="off" spellcheck="false"><button type="button" class="preflight-test" hx-post="/hooks/preflight" hx-include="closest form" hx-target="#hook-preflight-result" hx-swap="innerHTML">Test</button></div><div id="hook-preflight-result"></div></fieldset>{{end}}
 
 {{define "hookPreflightResult"}}{{if .Empty}}<p class="dim">enter a command pattern to preflight it.</p>{{else}}<p class="preflight-kind">Pattern is a <b>{{.Kind}}</b>{{if eq .Kind "glob"}} (<code>*</code> any run, <code>?</code> one char){{else}} (matches anywhere in the command){{end}}.</p>{{if .HasSample}}<p class="preflight-verdict {{if .Matched}}match{{else}}nomatch{{end}}">{{if .Matched}}✓ matches{{else}}✗ no match{{end}} <code>{{.Sample}}</code></p>{{end}}{{end}}{{end}}
+
+{{/* PostToolUse command preflight (ADR-0032): show the resolved command line and
+     flag any ${VAR} that resolves empty. It NEVER executes the command. */}}
+{{define "hookCommandPreflight"}}<fieldset class="field hook-preflight"><legend>Command preflight</legend><p class="dim">Check the resolved command and which <code>${VAR}</code>s are set — the command is for <b>post-tool-use</b> hooks and is never run here.</p><button type="button" class="command-preflight-test" hx-post="/hooks/command-preflight" hx-include="closest form" hx-target="#hook-command-preflight-result" hx-swap="innerHTML">Check command</button><div id="hook-command-preflight-result"></div></fieldset>{{end}}
+
+{{define "hookCommandPreflightResult"}}{{if .Empty}}<p class="dim">enter a command to preflight it.</p>{{else}}<p class="preflight-kind">Resolves to <code>{{.Command}}</code>.</p>{{if .HasMissing}}<p class="preflight-verdict nomatch">⚠ unset at run: <code>{{.Missing}}</code> (will run empty)</p>{{else}}<p class="preflight-verdict match">✓ all referenced variables are set</p>{{end}}{{end}}{{end}}
 
 {{define "snippetsPage"}}<section class="page" tabindex="0"><h2>Snippets</h2><p class="dim">Saved, reusable prompts. In the chat composer type <code>/</code> and pick a snippet to insert its text (ready to edit before you send), or submit its <code>/trigger</code> to send it as-is. Unlike skills, snippets are one-shot prompts — they're never added to the system message.</p>{{template "addButton" .Add}}{{if not .Rows}}<p class="dim">no snippets yet</p>{{end}}<ul class="rows">{{range .Rows}}{{template "snippetRow" .}}{{end}}</ul></section>{{end}}
 

@@ -8,8 +8,54 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
 	sdk "github.com/github/copilot-sdk/go"
 )
+
+// toolMeta is the per-tool-call context captured at execution start so a
+// PostToolUse command hook can be matched when the call completes (ADR-0032). The
+// SDK's completion event carries no kind/argument detail, so they are remembered
+// here keyed by ToolCallID. kind is a best-effort permission kind derived from the
+// tool name (see toolKindFromName); target is the tool name plus its one-line
+// argument summary, the string a PostToolUse Pattern matches against (so a hook
+// can target a tool by name or by a path/command substring).
+type toolMeta struct {
+	kind   string
+	target string
+}
+
+// postToolMeta derives the PostToolUse match context for a starting tool call.
+func postToolMeta(d *sdk.ToolExecutionStartData, argsSummary string) toolMeta {
+	return toolMeta{
+		kind:   toolKindFromName(d.ToolName, d.MCPServerName != nil),
+		target: strings.TrimSpace(d.ToolName + " " + argsSummary),
+	}
+}
+
+// toolKindFromName maps a completed tool's name onto a hook ToolKind so a
+// PostToolUse hook scoped to read/write/shell/mcp matches (ADR-0032). Unlike the
+// PRE-tool path — which gets an authoritative `req.Kind()` from the SDK — the
+// completion event reports only a tool NAME, so this is a best-effort map over the
+// known built-in Copilot tools (an MCP tool is always "mcp"; an unrecognized name
+// yields "" so the hook falls back to Pattern matching on the target). A post-tool
+// command can never gate, so an occasional mis-classification only runs or skips a
+// side-effect command — it is never a control-surface decision.
+func toolKindFromName(name string, isMCP bool) string {
+	if isMCP {
+		return "mcp"
+	}
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "bash", "shell", "run", "exec", "terminal", "command":
+		return "shell"
+	case "edit", "create", "write", "write_file", "str_replace", "str_replace_editor",
+		"apply_patch", "patch", "insert", "multiedit", "notebook_edit":
+		return "write"
+	case "view", "read", "read_file", "open", "cat", "grep", "search", "glob",
+		"ls", "list", "find", "web_fetch", "fetch", "web_search":
+		return "read"
+	}
+	return ""
+}
 
 // This file is the pure SDK→normalized-Event translation layer: the makeHandler
 // event switch, the history-event mapping, and the side-effect-free helpers that
@@ -54,10 +100,12 @@ func (c *SDKClient) makeHandler(sid string) func(sdk.SessionEvent) {
 		case *sdk.AssistantUsageData:
 			emit(Event{Type: EvUsage, Usage: normalizeUsage(d)})
 		case *sdk.ToolExecutionStartData:
+			argsSummary := summarizeArgs(d.Arguments)
 			c.mu.Lock()
 			c.toolNames[d.ToolCallID] = d.ToolName
+			c.toolMeta[d.ToolCallID] = postToolMeta(d, argsSummary)
 			c.mu.Unlock()
-			tc := &ToolCall{ID: d.ToolCallID, Name: d.ToolName, Args: summarizeArgs(d.Arguments)}
+			tc := &ToolCall{ID: d.ToolCallID, Name: d.ToolName, Args: argsSummary}
 			if d.MCPServerName != nil {
 				tc.MCPServer = *d.MCPServerName
 			}
@@ -70,10 +118,19 @@ func (c *SDKClient) makeHandler(sid string) func(sdk.SessionEvent) {
 			c.mu.Lock()
 			name := c.toolNames[d.ToolCallID]
 			delete(c.toolNames, d.ToolCallID)
+			meta := c.toolMeta[d.ToolCallID]
+			delete(c.toolMeta, d.ToolCallID)
+			pol := c.policies[sid]
 			c.mu.Unlock()
 			emit(Event{Type: EvToolEnd, Tool: name, ToolCall: &ToolCall{
 				ID: d.ToolCallID, Name: name, Success: d.Success, Result: toolResultText(d),
 			}})
+			// Fire any matching PostToolUse command hooks (G5, ADR-0032). They run
+			// off this event-handler goroutine so a command's latency never blocks
+			// event delivery; each emits an EvHookRun annotation when it finishes.
+			if cmds := ctxforge.PostToolUseCommands(pol.hooks, meta.kind, meta.target, pol.workspace, pol.mode); len(cmds) > 0 {
+				go c.firePostToolHooks(sid, cmds, pol.workspace)
+			}
 		case *sdk.SessionUsageInfoData:
 			emit(Event{Type: EvContextWindow, Context: ContextInfo{
 				CurrentTokens: d.CurrentTokens, TokenLimit: d.TokenLimit,

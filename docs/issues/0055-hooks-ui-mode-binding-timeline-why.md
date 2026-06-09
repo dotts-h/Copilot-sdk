@@ -1,13 +1,13 @@
 ---
 id: 0055
 title: "Hooks management UI + mode binding + timeline why — in-app CRUD over governance hooks (roadmap v10, V27 = G4)"
-status: open
+status: closed
 severity: high
 group: 0052
 github:
 links:
   adr: [0031]
-  prs: []
+  prs: [86]
   issues: [0052]
 ---
 
@@ -69,4 +69,13 @@ additive and backward-readable (a pre-V27 `forge.json` loads unchanged — empty
 
 - **External command-ref hook execution** — a PostToolUse hook running a user **command** with
   `${VAR}` substitution + a preflight, treating the command's output as **untrusted** (sanitize).
-  The hook entity already validates the `${VAR}` shape; this child adds the executor.
+  The hook entity already validates the `${VAR}` shape; this child adds the executor. — **shipped in
+  V28** ([0056](0056-posttooluse-hook-command-execution.md), ADR-0032).
+
+## Resolution (shipped)
+
+Shipped in **PR #86** (V27 = G4): the Hooks page (`/hooks…`, built-ins read-only + user CRUD +
+pattern preflight), `Hook.Modes` + `EffectiveAutoApprove` **mode binding**, and the `EvToolDecision`
+**timeline "why"** annotation (`convo.RoleDecision`). ADR-0031 records the mode-binding data model and
+the timeline-why mechanism (and why it is an annotation, not a gate). The record commit was carried
+over and folded into the V28 branch (PR #87) per ADR-0004 (no docs-only PR).

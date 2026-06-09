@@ -91,6 +91,18 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		}
 		return s.timelineFragments()
 
+	case copilot.EvHookRun:
+		// A PostToolUse hook ran an external command; record its bounded, untrusted
+		// output inline as display-only telemetry (ADR-0032). It is not a gate.
+		if e.HookRun != nil {
+			s.state.AddHookRun(convo.HookRunView{
+				HookID: e.HookRun.HookID, Command: e.HookRun.Command,
+				Output: e.HookRun.Output, ExitCode: e.HookRun.ExitCode,
+				TimedOut: e.HookRun.TimedOut, Failed: e.HookRun.Failed,
+			})
+		}
+		return s.timelineFragments()
+
 	case copilot.EvToolEnd:
 		if e.ToolCall != nil {
 			s.state.ToolEnd(e.ToolCall.ID, e.ToolCall.Result, e.ToolCall.Success)
