@@ -16,6 +16,12 @@ the single source of truth, then hand off to the build. It does **not** build th
 
 ## Workflow (copy this checklist into your reply and tick it off)
 
+> **Script paths resolve against this skill's base directory** (printed when the skill loads —
+> `.claude/skills/get-next/`), NOT the repo root or your cwd: run
+> `.claude/skills/get-next/scripts/next-issue.sh`. A `No such file` (127) from the repo root means
+> you're in the wrong directory, not that the scripts are missing — do **not** fall back to
+> hand-rolling the ritual (it skips `start-fresh.sh`'s codified base assertions). — RETROS 0003.
+
 - [ ] **1. Pick the next item.** Run `scripts/next-issue.sh`. It reads `docs/issues/`, reconciles
       epic-vs-child status, follows `depends_on` edges (it will **not** recommend a blocked item),
       and prints a ranked recommendation:
@@ -60,7 +66,10 @@ safe — only items with no edge between them belong in the same batch.
 The recommender flags, it doesn't decide. **Ask the user** (don't guess) when:
 
 - **Multiple open epics** (e.g. two roadmap pillars in flight) — which pillar this session advances
-  is a product call. Surface the candidates + their "why now" and let them choose.
+  is a product call. Surface the candidates + their "why now" and let them choose. **Harness
+  metadata never breaks this tie**: an auto-generated session branch name or session title is
+  plumbing, not product intent — inferring the pillar from it set up the wrong item once
+  (RETROS 0003). Ask.
 - **[3] STALE** — an epic is `open` but every child is `closed`. Either it's done (close it via
   `tracking-issues`) or it has un-filed follow-ups. Don't silently close or invent work.
 - **[4] nothing open** — the roadmap is exhausted. Don't fabricate an item: a **NEXT_FEATURES
