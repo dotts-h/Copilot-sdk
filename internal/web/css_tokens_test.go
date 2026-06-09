@@ -40,19 +40,39 @@ func appCSS(t *testing.T) string {
 	return string(b)
 }
 
-var cssComment = regexp.MustCompile(`(?s)/\*.*?\*/`)
+var (
+	cssComment = regexp.MustCompile(`(?s)/\*.*?\*/`)
+	wsRun      = regexp.MustCompile(`\s+`)
+	layerName  = regexp.MustCompile(`^@layer\s+([\w-]+)\s*\{`)
+	propertyRe = regexp.MustCompile(`@property\s+--[\w-]+\s*\{[^}]*syntax:`)
+	// primitiveDecl is the loose form of every --p-* declaration; primitiveRe
+	// is the strict guarded grammar. Anything matching the former but not the
+	// latter fails the guard instead of silently escaping it.
+	primitiveDecl = regexp.MustCompile(`--p-([\w-]+)\s*:`)
+)
 
 func stripComments(css string) string { return cssComment.ReplaceAllString(css, "") }
 
 // topLevelStatements splits the comment-stripped stylesheet into top-level
 // constructs: `...;` statements and `...{...}` blocks (brace-balanced).
+// Quoted strings are opaque, so a brace/semicolon inside e.g. a url("…")
+// or content value can't mis-split a statement.
 func topLevelStatements(css string) []string {
 	var out []string
 	var buf strings.Builder
 	depth := 0
+	var quote rune // 0 when outside a string
 	for _, r := range css {
 		buf.WriteRune(r)
+		if quote != 0 {
+			if r == quote {
+				quote = 0
+			}
+			continue
+		}
 		switch r {
+		case '"', '\'':
+			quote = r
 		case '{':
 			depth++
 		case '}':
@@ -95,14 +115,15 @@ func layerBlock(css, name string) string {
 // ---- 1. structure: the @layer contract (ADR-0036) ----
 
 func TestAppCSSLayerContract(t *testing.T) {
-	css := stripComments(appCSS(t))
+	raw := appCSS(t)
+	css := stripComments(raw)
 	stmts := topLevelStatements(css)
 	if len(stmts) == 0 {
 		t.Fatal("app.css parsed to zero top-level statements")
 	}
 
 	const order = "@layer tokens, base, components, utilities;"
-	if got := regexp.MustCompile(`\s+`).ReplaceAllString(stmts[0], " "); got != order {
+	if got := wsRun.ReplaceAllString(stmts[0], " "); got != order {
 		t.Errorf("first statement must be the layer order contract\n got: %s\nwant: %s", got, order)
 	}
 
@@ -124,12 +145,15 @@ func TestAppCSSLayerContract(t *testing.T) {
 	}
 
 	// Exactly the four contracted layer names — a fifth layer (or a typo'd
-	// name) silently lands outside the documented cascade.
-	allowed := map[string]bool{"tokens": true, "base": true, "components": true, "utilities": true}
-	layerName := regexp.MustCompile(`^@layer\s+([\w-]+)\s*\{`)
+	// name) silently lands outside the documented cascade. Derived from the
+	// order statement so the contract has one authoritative spelling.
+	allowed := map[string]bool{}
+	for _, name := range strings.Split(strings.TrimSuffix(strings.TrimPrefix(order, "@layer "), ";"), ", ") {
+		allowed[name] = true
+	}
 	for _, st := range stmts[1:] {
 		if m := layerName.FindStringSubmatch(st); m != nil && !allowed[m[1]] {
-			t.Errorf("undeclared layer %q (contract: tokens, base, components, utilities)", m[1])
+			t.Errorf("undeclared layer %q (contract: %s)", m[1], order)
 		}
 	}
 
@@ -143,13 +167,13 @@ func TestAppCSSLayerContract(t *testing.T) {
 
 	// Components consume semantic/component tokens only — never primitives.
 	for _, layer := range []string{"base", "components", "utilities"} {
-		if i := strings.Index(layerBlock(appCSS(t), layer), "var(--p-"); i >= 0 {
+		if strings.Contains(layerBlock(raw, layer), "var(--p-") {
 			t.Errorf("layer %q references a --p-* primitive directly; only the tokens layer may (three-tier contract)", layer)
 		}
 	}
 
 	// At least one registered animatable token (the @property seam W3 consumes).
-	if !regexp.MustCompile(`@property\s+--[\w-]+\s*\{[^}]*syntax:`).MatchString(css) {
+	if !propertyRe.MatchString(css) {
 		t.Error(`no @property registration found (the charter ships at least one animatable token)`)
 	}
 }
@@ -250,6 +274,14 @@ func tokenColors(t *testing.T) map[string][2]srgb {
 	if len(prims) == 0 {
 		t.Fatal("no --p-* oklch() primitives found in the tokens layer")
 	}
+	// Completeness: every --p-* declaration must match the guarded grammar.
+	// A primitive written with an alpha channel, relative-color syntax, or any
+	// other shape would otherwise silently escape the gamut + contrast checks.
+	for _, m := range primitiveDecl.FindAllStringSubmatch(tokens, -1) {
+		if _, ok := prims[m[1]]; !ok {
+			t.Errorf("primitive --p-%s does not match the guarded grammar `--p-<name>: oklch(<L>%% <C> <H>)` — it would escape the contrast guard", m[1])
+		}
+	}
 
 	sem := map[string][2]srgb{}
 	for _, m := range semanticRe.FindAllStringSubmatch(tokens, -1) {
@@ -275,14 +307,23 @@ func TestTokenContrastAA(t *testing.T) {
 		}
 	}
 
-	// text-role on surface: AA (≥ 4.5:1) in both themes.
-	pairs := []struct{ text, surface string }{
-		{"fg", "bg"}, {"fg", "panel"},
-		{"dim", "bg"}, {"dim", "panel"},
-		{"accent", "bg"}, {"accent2", "bg"},
-		{"good", "bg"}, {"warn", "bg"}, {"bad", "bg"},
-		// --on-bright is the single companion text color on ANY solid fill.
-		{"on-bright", "accent"}, {"on-bright", "good"}, {"on-bright", "warn"}, {"on-bright", "bad"},
+	// The pair set is rule-shaped, not hand-listed: every text role × every
+	// surface role, plus --on-bright on every solid fill — so a new text role
+	// or surface (W2's luminance ladder) extends the guard by editing one
+	// slice, and combinations the UI already uses (accent headings on --panel
+	// cards, status colors on the panel) can't be forgotten.
+	textRoles := []string{"fg", "dim", "accent", "accent2", "good", "warn", "bad"}
+	surfaces := []string{"bg", "panel"}
+	fills := []string{"accent", "good", "warn", "bad"} // --on-bright is the single companion on ANY solid fill
+	type pair struct{ text, surface string }
+	var pairs []pair
+	for _, txt := range textRoles {
+		for _, s := range surfaces {
+			pairs = append(pairs, pair{txt, s})
+		}
+	}
+	for _, f := range fills {
+		pairs = append(pairs, pair{"on-bright", f})
 	}
 	const aa = 4.5
 	for _, p := range pairs {
