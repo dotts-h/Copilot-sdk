@@ -102,10 +102,11 @@ the highest-risk slice (could regress AA) — it lands first, behind the axe gat
 
 ## Children
 
-- [ ] **W1 · Token & palette foundation** — [0063](0063-token-palette-foundation-oklch-layer-openprops.md)
+- [x] **W1 · Token & palette foundation** — [0063](0063-token-palette-foundation-oklch-layer-openprops.md)
       (M; ADR-0036). `depends_on: []`. Re-derive the palette in OKLCH (AA-safe lightness bands),
       introduce `@layer`, vendor Open Props (or a curated easings/animations subset), add
       `color-mix()` state tints + `@property` animatable tokens. The foundation every later child builds on.
+      **Shipped** (ADR-0036; see the issue's close-out).
 - [ ] **W2 · Elevation, surface & component restyle** — [0064](0064-elevation-surface-component-restyle.md)
       (L; ADR if a new dark/light elevation model is decided). `depends_on: [0063]`. Surface luminance
       ladder (dark) + hue-tinted layered shadows (light), radius scale, glass/radial-glow atmosphere,
@@ -123,7 +124,8 @@ Dependency graph:
 0063 (W1) ─┬─► 0064 (W2) ─┐
            └─► 0065 (W3) ─┴─► 0066 (W4)
 ```
-Unblocked now: **0063**.
+Unblocked now: **0064, 0065** (W1 shipped; the two are parallelizable — disjoint seams:
+elevation/surface restyle vs. the motion system).
 
 ## Acceptance (epic)
 

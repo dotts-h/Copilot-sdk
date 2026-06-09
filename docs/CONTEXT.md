@@ -201,7 +201,14 @@
   …) that names a **role**, not a raw color; the single home for a color value (new UI uses the
   token, never a literal hex / `rgba(255,255,255,…)`). `--on-bright` is the text color for **any**
   solid accent/good/warn/bad fill; `--hover`/`--raised`/`--sunken` are theme-aware neutral
-  elevations. — ADR-0025
+  elevations. Tokens are **three-tier**: primitive OKLCH ramps (`--p-*`, the only tier holding raw
+  color) → semantic roles → component/state tokens (`color-mix()` tints); components never
+  reference a primitive. — ADR-0025, ADR-0036
+- **layer contract** — `app.css`'s cascade order, `@layer tokens, base, components, utilities`:
+  every rule lives in one of the four layers (an un-layered rule would outrank them all), the
+  vendored Open Props subset imports into `tokens`, and `css_tokens_test.go` enforces the
+  structure plus WCAG AA contrast for every text-role/surface pair in both themes, computed from
+  the OKLCH primitives. — ADR-0036
 - **theme** — the **light** or **dark** color scheme. Tokens carry both values in one declaration
   via the CSS `light-dark()` function, resolved by `color-scheme`; the toggle flips
   `<html data-theme>` (→ `color-scheme`), persisted **client-side** in `localStorage`, with the

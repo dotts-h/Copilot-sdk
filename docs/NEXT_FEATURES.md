@@ -926,6 +926,16 @@ Epics 0001 (cost), 0005 (orchestration), 0007 (polish) — all **closed**.
 - **Risk/trade-offs (no build chain needed):** scroll-driven animations have no Firefox →
   progressive-enhancement only; P3-gamut accents wrap in `@media (color-gamut: p3)` + sRGB fallback.
 
+> **v11 update (after W1):** **W1 shipped** (issue 0063, ADR-0036) — the four-layer `@layer`
+> contract, the OKLCH primitive ramp behind the unchanged semantic names (terracotta identity
+> kept, chroma raised inside AA-proved L bands), `color-mix(in oklch)` state tints replacing the
+> rgba tint literals, Open Props v1.7.23 easings+animations vendored into the tokens layer, and
+> the `css_tokens_test.go` structure/contrast guard (it caught two playful-chroma targets sitting
+> outside the sRGB gamut — shipped at C 0.125/0.103; P3 variants stay W2 material). **Remaining,
+> re-ranked:** **W2 (0064)** and **W3 (0065)** are both unblocked and parallelizable (disjoint
+> seams: surface/elevation restyle vs. the motion system — W3 writes ADR-0037 first); then
+> **W4 (0066)** closes the epic on the two hero surfaces.
+
 ### Sources (cited research)
 - Raycast design vocabulary: github.com/VoltAgent/awesome-design-md (design-md/raycast/DESIGN.md);
   styles.refero.design (Raycast style teardown — *auto-extracted, indicative*); raycast.com/blog,
