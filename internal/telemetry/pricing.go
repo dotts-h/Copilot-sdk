@@ -33,9 +33,31 @@ type ModelRate struct {
 	CachedInputPerMTok float64
 	// OutputPerMTok is USD per 1,000,000 generated output tokens.
 	OutputPerMTok float64
+	// CacheWritePerMTok is USD per 1,000,000 prompt-cache *write* tokens — a
+	// category distinct from fresh input and cached (read) input, additive to the
+	// bill (Anthropic ≈ 1.25× input). Zero means "derive 1.25× input" at price-book
+	// construction (see NewPriceBook); an explicit non-zero value pins it. Reasoning
+	// ("thinking") tokens are a subset of output and already priced at OutputPerMTok,
+	// so there is no reasoning rate — charging one would double-count. — ADR-0034.
+	CacheWritePerMTok float64
 	// PremiumMultiplier is the legacy premium-request weight, kept for display
 	// parity with GitHub's older meter. It does not affect credit math.
 	PremiumMultiplier float64
+}
+
+// DefaultCacheWriteMultiplier is the confirmed cache-write (cache-creation) rate
+// as a multiple of the model's base input rate (Anthropic ≈ 1.25× input). It is
+// the default whenever a rate carries no explicit CacheWritePerMTok. — ADR-0034.
+const DefaultCacheWriteMultiplier = 1.25
+
+// withDerivedCacheWrite fills a rate's cache-write price from the 1.25× input
+// default when it was left unset (zero), so every rate in a book prices cache-write
+// rather than treating it as free. An explicit (non-zero) value is preserved.
+func withDerivedCacheWrite(r ModelRate) ModelRate {
+	if r.CacheWritePerMTok == 0 {
+		r.CacheWritePerMTok = DefaultCacheWriteMultiplier * r.InputPerMTok
+	}
+	return r
 }
 
 // PriceBook maps model identifiers to their rates. The zero value is not
@@ -58,9 +80,9 @@ type PriceBook struct {
 // (with its rate values) whenever a queried model is not present, so the engine
 // degrades gracefully instead of charging zero for unknown models.
 func NewPriceBook(fallback ModelRate, rates ...ModelRate) *PriceBook {
-	pb := &PriceBook{rates: make(map[string]ModelRate, len(rates)), fallback: fallback}
+	pb := &PriceBook{rates: make(map[string]ModelRate, len(rates)), fallback: withDerivedCacheWrite(fallback)}
 	for _, r := range rates {
-		pb.rates[normalizeModel(r.Model)] = r
+		pb.rates[normalizeModel(r.Model)] = withDerivedCacheWrite(r)
 	}
 	return pb
 }
@@ -150,23 +172,39 @@ func (pb *PriceBook) Replace(src *PriceBook) {
 }
 
 // BuildPriceBook returns a fresh price book seeded from DefaultPriceBook and then
-// layered with the given per-model overrides (model → [input, cached, output] USD
-// per million tokens). It always starts from the defaults, so the result reflects
-// exactly the supplied overrides: a model absent from overrides prices at its
-// default, and an override removed between two builds reverts to the default
-// (rebuild-not-incremental — the reason a live reprice rebuilds rather than calling
-// Set on the existing book, which would never reset a removed/lowered override). It
-// is pure (same overrides → same book) and dependency-free. Mirrors the startup
-// price-book build in internal/bootstrap.
-func BuildPriceBook(overrides map[string][3]float64) *PriceBook {
+// layered with the given per-model overrides (model → [input, cached, output] and
+// an OPTIONAL 4th element, the cache-write rate — all USD per million tokens). A
+// 3-element override derives cache-write at the 1.25× default off the *overridden*
+// input, so a legacy (pre-0059) override still prices cache-write coherently; a
+// 4-element override pins it explicitly (ADR-0034). It always starts from the
+// defaults, so the result reflects exactly the supplied overrides: a model absent
+// from overrides prices at its default, and an override removed between two builds
+// reverts to the default (rebuild-not-incremental — the reason a live reprice
+// rebuilds rather than calling Set on the existing book, which would never reset a
+// removed/lowered override). An override with fewer than 3 elements is ignored
+// (validation rejects it upstream — see config.Validate). It is pure (same
+// overrides → same book) and dependency-free. Mirrors the startup price-book build
+// in internal/bootstrap.
+func BuildPriceBook(overrides map[string][]float64) *PriceBook {
 	pb := DefaultPriceBook()
 	for model, r := range overrides {
-		// Start from the model's default rate so an override of the three prices
-		// preserves the rest (e.g. the display-only PremiumMultiplier) rather than
-		// resetting it to zero; an unknown model inherits the fallback's fields.
+		if len(r) < 3 {
+			continue
+		}
+		// Start from the model's default rate so an override of the prices preserves
+		// the rest (e.g. the display-only PremiumMultiplier) rather than resetting it
+		// to zero; an unknown model inherits the fallback's fields.
 		rate, _ := pb.Rate(model)
 		rate.Model = model
 		rate.InputPerMTok, rate.CachedInputPerMTok, rate.OutputPerMTok = r[0], r[1], r[2]
+		if len(r) >= 4 {
+			rate.CacheWritePerMTok = r[3]
+		} else {
+			// Re-derive from the new input rate (clearing any inherited default so
+			// withDerivedCacheWrite recomputes 1.25× the overridden input).
+			rate.CacheWritePerMTok = 0
+			rate = withDerivedCacheWrite(rate)
+		}
 		pb.Set(rate)
 	}
 	return pb

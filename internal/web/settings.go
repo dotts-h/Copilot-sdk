@@ -122,7 +122,7 @@ func priceOverrideFields(c *config.Config) []string {
 
 	fields := []string{
 		`<h3 class="settings-subhead">Per-model price overrides</h3>`,
-		`<p class="dim">USD per million tokens (input · cached · output). Blank uses the built-in default shown as the placeholder; clear all three to remove an override. Saving reprices the live meter immediately.</p>`,
+		`<p class="dim">USD per million tokens (input · cached · output · cache-write). Blank uses the built-in default shown as the placeholder; the cache-write default is 1.25× input (ADR-0034). Clear all four to remove an override. Saving reprices the live meter immediately.</p>`,
 	}
 	for i, m := range models {
 		rate, _ := def.Rate(m)
@@ -133,20 +133,26 @@ func priceOverrideFields(c *config.Config) []string {
 }
 
 // priceRowField renders one model's override row. Field names are index-keyed
-// (price.<i>.model/in/cached/out) with the model id carried in a hidden field, so
+// (price.<i>.model/in/cached/out/cw) with the model id carried in a hidden field, so
 // model ids containing dots (e.g. "claude-opus-4.7") can't be confused with the
-// field-name delimiter on parse.
-func priceRowField(i int, model string, ov [3]float64, has bool, def telemetry.ModelRate) string {
+// field-name delimiter on parse. The cache-write cell (ADR-0034) is pre-filled only
+// when the override pins it (a 4-element row); a 3-element legacy override leaves it
+// blank, so it shows the 1.25×-input default placeholder.
+func priceRowField(i int, model string, ov []float64, has bool, def telemetry.ModelRate) string {
 	fmtRate := func(v float64) string { return strconv.FormatFloat(v, 'g', -1, 64) }
-	in, cached, out := "", "", ""
-	if has {
+	in, cached, out, cw := "", "", "", ""
+	if has && len(ov) >= 3 {
 		in, cached, out = fmtRate(ov[0]), fmtRate(ov[1]), fmtRate(ov[2])
+		if len(ov) >= 4 {
+			cw = fmtRate(ov[3])
+		}
 	}
 	return frag("priceRow", map[string]any{
 		"Key":   fmt.Sprintf("price.%d", i),
 		"Model": model,
-		"In":    in, "Cached": cached, "Out": out,
-		"InDef": fmtRate(def.InputPerMTok), "CachedDef": fmtRate(def.CachedInputPerMTok), "OutDef": fmtRate(def.OutputPerMTok),
+		"In":    in, "Cached": cached, "Out": out, "CW": cw,
+		"InDef": fmtRate(def.InputPerMTok), "CachedDef": fmtRate(def.CachedInputPerMTok),
+		"OutDef": fmtRate(def.OutputPerMTok), "CWDef": fmtRate(def.CacheWritePerMTok),
 	})
 }
 
@@ -159,9 +165,9 @@ func priceRowField(i int, model string, ov [3]float64, has bool, def telemetry.M
 // silently zero the other two. An explicitly typed number — including 0 — is kept
 // verbatim, so a negative value reaches config.Validate (which rejects it, rolling
 // the whole save back via editConfig). Returns nil when no row carries an override.
-func parsePriceOverrides(r *http.Request) map[string][3]float64 {
+func parsePriceOverrides(r *http.Request) map[string][]float64 {
 	def := telemetry.DefaultPriceBook()
-	overrides := map[string][3]float64{}
+	overrides := map[string][]float64{}
 	for i := 0; ; i++ {
 		key := fmt.Sprintf("price.%d", i)
 		model := strings.TrimSpace(r.FormValue(key + ".model"))
@@ -171,15 +177,23 @@ func parsePriceOverrides(r *http.Request) map[string][3]float64 {
 		inRaw := strings.TrimSpace(r.FormValue(key + ".in"))
 		cachedRaw := strings.TrimSpace(r.FormValue(key + ".cached"))
 		outRaw := strings.TrimSpace(r.FormValue(key + ".out"))
-		if inRaw == "" && cachedRaw == "" && outRaw == "" {
+		cwRaw := strings.TrimSpace(r.FormValue(key + ".cw"))
+		if inRaw == "" && cachedRaw == "" && outRaw == "" && cwRaw == "" {
 			continue // wholly blank row → no override (model keeps its default)
 		}
 		rate, _ := def.Rate(model)
-		overrides[model] = [3]float64{
+		ov := []float64{
 			rateOrDefault(inRaw, rate.InputPerMTok),
 			rateOrDefault(cachedRaw, rate.CachedInputPerMTok),
 			rateOrDefault(outRaw, rate.OutputPerMTok),
 		}
+		// Pin cache-write only when the cell is filled (a 4-element override); a
+		// blank cache-write keeps the 3-element legacy shape, so the rate derives at
+		// the 1.25× default off the (possibly overridden) input — ADR-0034.
+		if cwRaw != "" {
+			ov = append(ov, rateOrDefault(cwRaw, rate.CacheWritePerMTok))
+		}
+		overrides[model] = ov
 	}
 	if len(overrides) == 0 {
 		return nil

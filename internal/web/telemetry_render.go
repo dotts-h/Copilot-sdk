@@ -47,6 +47,7 @@ func (s *Server) telemetryPartial(window int) string {
 		for _, r := range telemetry.ModelBreakdowns(s.spend.Records()) {
 			models = append(models, map[string]any{
 				"Model": r.Model, "In": r.InputTokens, "Cached": r.CachedTokens, "Out": r.OutputTokens,
+				"CacheWrite": r.CacheWriteTokens, "Reasoning": r.ReasoningTokens,
 				"Credits": fmt.Sprintf("%.2f", r.Credits()), "USD": telemetry.FormatUSD(r.USD()),
 			})
 		}

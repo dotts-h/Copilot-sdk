@@ -37,3 +37,4 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0031 | [Hooks management UI + mode binding + the timeline "why" annotation](0031-hooks-management-ui-mode-binding-and-timeline-why.md) | accepted |
 | 0032 | [PostToolUse hook command execution: a bounded local command with untrusted, display-only output](0032-posttooluse-hook-command-execution-untrusted-output.md) | accepted |
 | 0033 | [ReportedAIU is the source of truth for actual spend; the price book is the estimate/fallback](0033-reportedaiu-is-source-of-truth-for-actual-spend-price-book-is-the-estimate.md) | accepted |
+| 0034 | [Price cache-write tokens (additive, 1.25× input); reasoning is a subset of output, not a second charge](0034-price-cache-write-additive-reasoning-is-output-subset.md) | accepted |

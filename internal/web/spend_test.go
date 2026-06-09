@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -423,6 +425,84 @@ func TestTelemetryPerModelTableIsPopulatedFromLedger(t *testing.T) {
 	// The empty-table placeholder must be gone now that history populates the rows.
 	if strings.Contains(html, "no usage yet — send a prompt on the Chat page") {
 		t.Fatalf("per-model table still shows the empty-meter placeholder despite seeded ledger:\n%s", html)
+	}
+}
+
+func TestUsagePricesAndPersistsCacheWriteAndReasoning(t *testing.T) {
+	// ADR-0034: cache-write is a priced, additive category; reasoning is a subset of
+	// output (already priced) tracked for display. recordUsage must price cache-write
+	// into USD and persist both counts so the all-time breakdown can surface them.
+	s, store := newSpendServer(t)
+	s.handleEvent(copilot.Event{Type: copilot.EvUsage, Usage: copilot.UsageData{
+		Model: "gpt-5", InputTokens: 1_000_000, OutputTokens: 1_000_000,
+		CacheWriteTokens: 1_000_000, ReasoningTokens: 400_000,
+	}})
+	rec := store.Records()[0]
+	if rec.CacheWriteTokens != 1_000_000 || rec.ReasoningTokens != 400_000 {
+		t.Fatalf("record must persist cache-write + reasoning counts: %+v", rec)
+	}
+	// USD includes the cache-write charge: gpt-5 in $1.25 + out $10 + cache-write
+	// $1.5625 (1.25× input) = $12.8125. Reasoning adds nothing (subset of output).
+	if got := rec.USD; got < 12.81 || got > 12.82 {
+		t.Fatalf("recorded USD should include cache-write (≈$12.8125), got %v", got)
+	}
+}
+
+func TestTelemetryPerModelTableShowsCacheWriteAndReasoning(t *testing.T) {
+	// The all-time per-model breakdown (from the ledger) gains cache-write + reasoning
+	// columns (ADR-0034), summed from history.
+	s, store := newSpendServer(t)
+	for _, r := range []telemetry.SpendRecord{
+		{At: day("2026-06-04T10:00:00Z"), Model: "gpt-5", InputTokens: 1000, OutputTokens: 300, CacheWriteTokens: 500, ReasoningTokens: 120, USD: 0.50},
+		{At: day("2026-06-05T10:00:00Z"), Model: "gpt-5", InputTokens: 500, OutputTokens: 150, CacheWriteTokens: 200, ReasoningTokens: 80, USD: 0.25},
+	} {
+		if err := store.Append(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	html := s.telemetryPartial(defaultSpendWindow)
+	for _, want := range []string{
+		"cache-write", // the new column header
+		"reasoning",   // the new column header
+		">700<",       // cache-write summed across the two turns (500+200)
+		">200<",       // reasoning summed (120+80)
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("per-model breakdown missing %q\n%s", want, html)
+		}
+	}
+}
+
+func TestSettingsSaveCacheWriteOverrideRepricesLive(t *testing.T) {
+	// A 4-element override pins the cache-write rate (ADR-0034); it round-trips and
+	// reprices the live meter — Price uses the pinned rate, not the 1.25× default.
+	s, dir := newSettingsServer(t)
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	resp, err := http.PostForm(srv.URL+"/settings", url.Values{
+		"defaultModel":   {"gpt-5"},
+		"price.0.model":  {"gpt-5"},
+		"price.0.in":     {"2"},
+		"price.0.cached": {"0.2"},
+		"price.0.out":    {"20"},
+		"price.0.cw":     {"5"}, // explicit cache-write, NOT 1.25×2=2.5
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if got := s.config.Telemetry.PriceOverrides["gpt-5"]; !slices.Equal(got, []float64{2, 0.2, 20, 5}) {
+		t.Errorf("4-element cache-write override not persisted: %v", got)
+	}
+	reloaded, _ := config.Load(dir)
+	if got := reloaded.Telemetry.PriceOverrides["gpt-5"]; !slices.Equal(got, []float64{2, 0.2, 20, 5}) {
+		t.Errorf("override not persisted to disk: %v", got)
+	}
+	// The live meter prices cache-write at the pinned $5/Mt, on both shared meters.
+	if got := telemetry.Price(s.meter.PriceBook(), telemetry.Usage{Model: "gpt-5", CacheWriteTokens: 1_000_000}).CacheWriteUSD; got != 5 {
+		t.Errorf("account meter cache-write not repriced: got $%v/Mt, want $5", got)
 	}
 }
 

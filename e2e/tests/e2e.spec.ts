@@ -706,11 +706,12 @@ test.describe("settings price overrides (G1)", () => {
     await gotoApp(page);
     await navTo(page, "Settings");
     // The section and its structure: a subhead and one row per model, each with
-    // three numeric fields (input / cached / output per-MTok).
+    // four numeric fields (input / cached / output / cache-write per-MTok; the
+    // cache-write column is ADR-0034).
     await expect(page.locator("#main")).toContainText("Per-model price overrides");
     const row = page.locator("#main .price-row", { hasText: "claude-opus-4.7" });
     await expect(row).toBeVisible();
-    await expect(row.locator("input[type=number]")).toHaveCount(3);
+    await expect(row.locator("input[type=number]")).toHaveCount(4);
     await expect(row.locator('input[type=hidden][value="claude-opus-4.7"]')).toHaveCount(1);
 
     // Drive a save — never assert exact figures (the demo config is shared).

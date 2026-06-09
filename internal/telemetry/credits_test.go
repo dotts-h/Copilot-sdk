@@ -90,7 +90,7 @@ func TestPriceBookSetAndOverride(t *testing.T) {
 }
 
 func TestBuildPriceBookAppliesOverridesOverDefaults(t *testing.T) {
-	pb := BuildPriceBook(map[string][3]float64{
+	pb := BuildPriceBook(map[string][]float64{
 		"gpt-5": {99, 9, 88},
 	})
 	// The overridden model prices at the new rate.
@@ -106,7 +106,7 @@ func TestBuildPriceBookAppliesOverridesOverDefaults(t *testing.T) {
 func TestBuildPriceBookPreservesNonPriceFields(t *testing.T) {
 	// Overriding the three prices must not reset the model's other rate fields
 	// (e.g. the display-only PremiumMultiplier) to zero.
-	pb := BuildPriceBook(map[string][3]float64{"claude-opus-4.7": {20, 2, 100}})
+	pb := BuildPriceBook(map[string][]float64{"claude-opus-4.7": {20, 2, 100}})
 	r, ok := pb.Rate("claude-opus-4.7")
 	if !ok {
 		t.Fatal("overridden model should still be a known rate")
@@ -120,7 +120,7 @@ func TestBuildPriceBookPreservesNonPriceFields(t *testing.T) {
 func TestBuildPriceBookRemovedOverrideRevertsToDefault(t *testing.T) {
 	// Rebuild-not-incremental: a model overridden in one build but absent from the
 	// next reverts to its default, because each build starts from DefaultPriceBook.
-	withOverride := BuildPriceBook(map[string][3]float64{"gpt-5": {99, 9, 88}})
+	withOverride := BuildPriceBook(map[string][]float64{"gpt-5": {99, 9, 88}})
 	approx(t, Price(withOverride, Usage{Model: "gpt-5", InputTokens: 1_000_000}).InputUSD, 99)
 
 	withoutOverride := BuildPriceBook(nil)
@@ -135,7 +135,7 @@ func TestPriceBookReplaceRepricesSharedMeters(t *testing.T) {
 	account := NewMeter(live)
 	session := NewMeter(live) // shares the same book, as the hub does
 
-	live.Replace(BuildPriceBook(map[string][3]float64{"gpt-5": {99, 9, 88}}))
+	live.Replace(BuildPriceBook(map[string][]float64{"gpt-5": {99, 9, 88}}))
 
 	approx(t, account.EstimateTurn("gpt-5", 1_000_000).InputUSD, 99)
 	approx(t, session.EstimateTurn("gpt-5", 1_000_000).InputUSD, 99)

@@ -55,8 +55,13 @@ type TelemetryConfig struct {
 	HardCapCredits float64 `json:"hardCapCredits,omitempty"`
 	// OTLPEndpoint, if set, is forwarded to the SDK's OpenTelemetry exporter.
 	OTLPEndpoint string `json:"otlpEndpoint,omitempty"`
-	// PriceOverrides maps model -> [inputPerMTok, cachedPerMTok, outputPerMTok].
-	PriceOverrides map[string][3]float64 `json:"priceOverrides,omitempty"`
+	// PriceOverrides maps model -> [inputPerMTok, cachedPerMTok, outputPerMTok] and
+	// an OPTIONAL 4th element, cacheWritePerMTok (ADR-0034). A 3-element override is
+	// the pre-0059 shape and still loads (cache-write derives at the 1.25× default);
+	// a 4-element override pins the cache-write rate. A variable-length slice (not a
+	// fixed array) so both the legacy 3- and the new 4-element JSON forms read back
+	// natively — the backward-readable migration.
+	PriceOverrides map[string][]float64 `json:"priceOverrides,omitempty"`
 }
 
 const configFile = "config.json"
@@ -157,11 +162,16 @@ func (c *Config) Validate() error {
 	if c.Telemetry.HardCapCredits < 0 {
 		return fmt.Errorf("hardCapCredits must be >= 0")
 	}
-	// Price overrides are USD-per-million-token rates; a negative rate would price
-	// turns as a credit, which the meter must never do. Each [3]float64 entry
-	// (input/cached/output) must be >= 0. Absent overrides are valid (older configs
-	// without priceOverrides stay backward-compatible).
+	// Price overrides are USD-per-million-token rates: input/cached/output, plus an
+	// optional 4th cache-write rate (ADR-0034). A row must carry 3 or 4 elements (a
+	// shorter row can't price a turn; a longer one is malformed), and a negative
+	// rate would price a turn as a credit, which the meter must never do. Absent
+	// overrides are valid (older configs without priceOverrides stay backward-
+	// compatible); a 3-element legacy row stays valid and derives cache-write.
 	for model, r := range c.Telemetry.PriceOverrides {
+		if len(r) != 3 && len(r) != 4 {
+			return fmt.Errorf("priceOverrides[%q] must have 3 or 4 rates (input, cached, output[, cacheWrite]), got %d", model, len(r))
+		}
 		for _, rate := range r {
 			if rate < 0 {
 				return fmt.Errorf("priceOverrides[%q] rates must be >= 0", model)

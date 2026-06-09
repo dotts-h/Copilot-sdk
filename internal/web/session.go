@@ -311,16 +311,18 @@ func (s *Server) recordUsage(u copilot.UsageData, tag spendTag) telemetry.Cost {
 	s.sessionMeter.RecordReportedAIU(aiu)
 	if s.spend != nil {
 		rec := telemetry.SpendRecord{
-			SessionID:    s.sessionID,
-			Model:        u.Model,
-			InputTokens:  u.InputTokens,
-			CachedTokens: u.CachedTokens,
-			OutputTokens: u.OutputTokens,
-			USD:          cost.USD(),
-			AIU:          aiu,
-			AgentID:      tag.agentID,
-			WorkflowID:   tag.workflowID,
-			LaneIndex:    tag.laneIndex,
+			SessionID:        s.sessionID,
+			Model:            u.Model,
+			InputTokens:      u.InputTokens,
+			CachedTokens:     u.CachedTokens,
+			OutputTokens:     u.OutputTokens,
+			CacheWriteTokens: u.CacheWriteTokens,
+			ReasoningTokens:  u.ReasoningTokens,
+			USD:              cost.USD(),
+			AIU:              aiu,
+			AgentID:          tag.agentID,
+			WorkflowID:       tag.workflowID,
+			LaneIndex:        tag.laneIndex,
 		}
 		if err := s.spend.Append(rec); err != nil {
 			s.logger.Printf("persist spend: %v", err)

@@ -32,7 +32,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	c.DefaultModel = "claude-opus-4.7"
 	c.Telemetry.MonthlyCreditAllowance = 7000
 	c.Telemetry.HardCapCredits = 250
-	c.Telemetry.PriceOverrides = map[string][3]float64{"gpt-5": {1, 2, 3}}
+	c.Telemetry.PriceOverrides = map[string][]float64{"gpt-5": {1, 2, 3}}
 	if err := c.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if loaded.Telemetry.HardCapCredits != 250 {
 		t.Fatalf("hard cap lost on round trip: %v", loaded.Telemetry)
 	}
-	if got := loaded.Telemetry.PriceOverrides["gpt-5"]; got != [3]float64{1, 2, 3} {
+	if got := loaded.Telemetry.PriceOverrides["gpt-5"]; len(got) != 3 || got[0] != 1 || got[1] != 2 || got[2] != 3 {
 		t.Fatalf("price overrides lost: %v", got)
 	}
 }
@@ -66,8 +66,11 @@ func TestValidateRejectsBadValues(t *testing.T) {
 		func(c *Config) { c.Telemetry.MonthlyCreditAllowance = -1 },
 		func(c *Config) { c.Telemetry.WarnFraction = 2 },
 		func(c *Config) { c.Telemetry.HardCapCredits = -1 },
-		func(c *Config) { c.Telemetry.PriceOverrides = map[string][3]float64{"gpt-5": {-1, 0, 0}} },
-		func(c *Config) { c.Telemetry.PriceOverrides = map[string][3]float64{"gpt-5": {1, 2, -3}} },
+		func(c *Config) { c.Telemetry.PriceOverrides = map[string][]float64{"gpt-5": {-1, 0, 0}} },
+		func(c *Config) { c.Telemetry.PriceOverrides = map[string][]float64{"gpt-5": {1, 2, -3}} },
+		func(c *Config) { c.Telemetry.PriceOverrides = map[string][]float64{"gpt-5": {1, 2}} },          // too short (ADR-0034)
+		func(c *Config) { c.Telemetry.PriceOverrides = map[string][]float64{"gpt-5": {1, 2, 3, 4, 5}} }, // too long
+		func(c *Config) { c.Telemetry.PriceOverrides = map[string][]float64{"gpt-5": {1, 2, 3, -4}} },   // negative cache-write
 	}
 	for i, mut := range cases {
 		c := Default(dir)
@@ -83,12 +86,26 @@ func TestValidateAcceptsPriceOverrides(t *testing.T) {
 
 	// A non-negative per-model rate table is valid.
 	c := Default(dir)
-	c.Telemetry.PriceOverrides = map[string][3]float64{
-		"gpt-5":           {1.25, 0.125, 10},
-		"claude-opus-4.7": {0, 0, 0}, // zero rates are non-negative → valid
+	c.Telemetry.PriceOverrides = map[string][]float64{
+		"gpt-5":             {1.25, 0.125, 10},  // legacy 3-element row stays valid
+		"claude-opus-4.7":   {0, 0, 0},          // zero rates are non-negative → valid
+		"claude-sonnet-4.6": {3, 0.3, 15, 3.75}, // 4-element row with explicit cache-write (ADR-0034)
 	}
 	if err := c.Validate(); err != nil {
 		t.Fatalf("non-negative price overrides should validate: %v", err)
+	}
+
+	// A legacy 3-element override JSON loads (backward-readable migration, ADR-0034).
+	if err := os.WriteFile(filepath.Join(dir, "config.json"),
+		[]byte(`{"defaultModel":"gpt-5","telemetry":{"priceOverrides":{"gpt-5":[1.25,0.125,10]}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	legacy, err := Load(dir)
+	if err != nil {
+		t.Fatalf("legacy 3-element priceOverrides must load: %v", err)
+	}
+	if got := legacy.Telemetry.PriceOverrides["gpt-5"]; len(got) != 3 {
+		t.Fatalf("legacy override should read back 3 elements, got %v", got)
 	}
 
 	// Absent overrides (older config without priceOverrides) stay valid.

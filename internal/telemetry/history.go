@@ -28,7 +28,15 @@ type SpendRecord struct {
 	InputTokens  int64     `json:"in"`
 	CachedTokens int64     `json:"cached"`
 	OutputTokens int64     `json:"out"`
-	// USD is the estimate-priced dollar cost of this turn (the Meter's number).
+	// CacheWriteTokens is prompt-cache write tokens, priced into USD (ADR-0034);
+	// ReasoningTokens is the display-only subset of OutputTokens. Both are additive,
+	// schema-v3 fields: older records read back 0 and older readers ignore them, so
+	// the ledger stays backward-readable (like the v2 attribution tags). They let
+	// the all-time per-model breakdown surface cache-write/reasoning from history.
+	CacheWriteTokens int64 `json:"cw,omitempty"`
+	ReasoningTokens  int64 `json:"reasoning,omitempty"`
+	// USD is the estimate-priced dollar cost of this turn (the Meter's number),
+	// inclusive of the cache-write charge (ADR-0034).
 	USD float64 `json:"usd"`
 	// AIU is GitHub's authoritative cost in AI units, when the runtime reported
 	// it (zero for the offline mock / unreported turns).
@@ -73,10 +81,11 @@ const (
 	// SpendSchemaVersion is the on-disk schema version. Bumps must keep the
 	// "records" array readable by older code (additive fields only) or ship a
 	// migration — see CONTRACTS.md §4 and docs/REGRESSIONS.md. v2 added the
-	// additive agent/workflow/lane attribution tags (ADR-0018): older v1 readers
-	// ignore the new keys and tolerate the higher version; v1 records read back
-	// with empty tags.
-	SpendSchemaVersion = 2
+	// additive agent/workflow/lane attribution tags (ADR-0018); v3 added the
+	// additive cache-write/reasoning token counts (ADR-0034). Each is additive:
+	// older readers ignore the new keys and tolerate the higher version, and older
+	// records read back with the new fields zero.
+	SpendSchemaVersion = 3
 )
 
 // SpendStore is the persisted spend ledger: a thin typed wrapper over the shared
@@ -316,7 +325,7 @@ func WriteCSV(w io.Writer, records []SpendRecord) error {
 	// New attribution columns (agent/workflow/lane) are appended at the end so the
 	// pre-v2 column positions are unchanged — a backward-compatible header bump
 	// (CONTRACTS §3). — ADR-0018.
-	if err := cw.Write([]string{"at", "session", "model", "input", "cached", "output", "usd", "credits", "aiu", "agent", "workflow", "lane"}); err != nil {
+	if err := cw.Write([]string{"at", "session", "model", "input", "cached", "output", "usd", "credits", "aiu", "agent", "workflow", "lane", "cacheWrite", "reasoning"}); err != nil {
 		return err
 	}
 	for _, r := range records {
@@ -333,6 +342,8 @@ func WriteCSV(w io.Writer, records []SpendRecord) error {
 			r.AgentID,
 			r.WorkflowID,
 			strconv.Itoa(r.LaneIndex),
+			strconv.FormatInt(r.CacheWriteTokens, 10),
+			strconv.FormatInt(r.ReasoningTokens, 10),
 		}
 		if err := cw.Write(row); err != nil {
 			return err

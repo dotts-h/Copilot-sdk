@@ -13,10 +13,11 @@ type Usage struct {
 	InputTokens  int64
 	CachedTokens int64 // prompt-cache reads
 	OutputTokens int64
-	// CacheWriteTokens and ReasoningTokens are tracked for display only. GitHub's
-	// authoritative AIU already accounts for them, and the estimate prices reads
-	// (CachedTokens) and output (which includes reasoning); surfacing the raw
-	// counts powers the statusline without affecting the credit math.
+	// CacheWriteTokens is prompt-cache *write* tokens — a separately-billed,
+	// additive category (≈1.25× input) that Price now charges as CacheWriteUSD
+	// (ADR-0034). ReasoningTokens is a subset of OutputTokens (SDK: "output tokens
+	// used for reasoning"), already priced at the output rate, so it is tracked for
+	// display only — pricing it again would double-count.
 	CacheWriteTokens int64
 	ReasoningTokens  int64
 	// At is when the usage was recorded; zero means "now" at insertion time.
@@ -34,12 +35,16 @@ type Cost struct {
 	InputUSD  float64
 	CachedUSD float64
 	OutputUSD float64
+	// CacheWriteUSD is the cost of prompt-cache *write* tokens (ADR-0034): a
+	// separately-billed, additive category (≈1.25× input), distinct from CachedUSD
+	// (read). Reasoning has no field — it is a subset of output, already in OutputUSD.
+	CacheWriteUSD float64
 	// Matched reports whether the model had an exact price-book entry.
 	Matched bool
 }
 
 // USD is the total dollar cost.
-func (c Cost) USD() float64 { return c.InputUSD + c.CachedUSD + c.OutputUSD }
+func (c Cost) USD() float64 { return c.InputUSD + c.CachedUSD + c.OutputUSD + c.CacheWriteUSD }
 
 // Credits is the cost expressed in GitHub AI Credits (1 credit = $0.01).
 func (c Cost) Credits() float64 { return c.USD() / USDPerCredit }
@@ -49,11 +54,14 @@ func (c Cost) Credits() float64 { return c.USD() / USDPerCredit }
 func Price(pb *PriceBook, u Usage) Cost {
 	rate, matched := pb.Rate(u.Model)
 	c := Cost{
-		Model:     u.Model,
-		InputUSD:  float64(u.InputTokens) * rate.InputPerMTok / 1_000_000,
-		CachedUSD: float64(u.CachedTokens) * rate.CachedInputPerMTok / 1_000_000,
-		OutputUSD: float64(u.OutputTokens) * rate.OutputPerMTok / 1_000_000,
-		Matched:   matched,
+		Model:         u.Model,
+		InputUSD:      float64(u.InputTokens) * rate.InputPerMTok / 1_000_000,
+		CachedUSD:     float64(u.CachedTokens) * rate.CachedInputPerMTok / 1_000_000,
+		OutputUSD:     float64(u.OutputTokens) * rate.OutputPerMTok / 1_000_000,
+		CacheWriteUSD: float64(u.CacheWriteTokens) * rate.CacheWritePerMTok / 1_000_000,
+		Matched:       matched,
+		// ReasoningTokens is intentionally NOT priced here: it is a subset of
+		// OutputTokens (already charged at OutputPerMTok) — ADR-0034.
 	}
 	return c
 }
@@ -123,18 +131,21 @@ func (m *Meter) ActualCredits() float64 {
 
 // ModelTotals aggregates usage and cost for one model.
 type ModelTotals struct {
-	Model        string
-	InputTokens  int64
-	CachedTokens int64
-	OutputTokens int64
-	InputUSD     float64
-	CachedUSD    float64
-	OutputUSD    float64
-	Turns        int64
+	Model            string
+	InputTokens      int64
+	CachedTokens     int64
+	OutputTokens     int64
+	CacheWriteTokens int64 // priced (ADR-0034)
+	ReasoningTokens  int64 // display-only subset of OutputTokens (ADR-0034)
+	InputUSD         float64
+	CachedUSD        float64
+	OutputUSD        float64
+	CacheWriteUSD    float64
+	Turns            int64
 }
 
 // USD totals the dollar cost for the model.
-func (m ModelTotals) USD() float64 { return m.InputUSD + m.CachedUSD + m.OutputUSD }
+func (m ModelTotals) USD() float64 { return m.InputUSD + m.CachedUSD + m.OutputUSD + m.CacheWriteUSD }
 
 // Credits totals the credit cost for the model.
 func (m ModelTotals) Credits() float64 { return m.USD() / USDPerCredit }
@@ -173,23 +184,29 @@ func (m *Meter) Record(u Usage) Cost {
 	mt.InputTokens += u.InputTokens
 	mt.CachedTokens += u.CachedTokens
 	mt.OutputTokens += u.OutputTokens
+	mt.CacheWriteTokens += u.CacheWriteTokens
+	mt.ReasoningTokens += u.ReasoningTokens
 	mt.InputUSD += cost.InputUSD
 	mt.CachedUSD += cost.CachedUSD
 	mt.OutputUSD += cost.OutputUSD
+	mt.CacheWriteUSD += cost.CacheWriteUSD
 	mt.Turns++
 
 	m.totalCost.InputUSD += cost.InputUSD
 	m.totalCost.CachedUSD += cost.CachedUSD
 	m.totalCost.OutputUSD += cost.OutputUSD
+	m.totalCost.CacheWriteUSD += cost.CacheWriteUSD
 
 	m.cacheWriteTokens += u.CacheWriteTokens
 	m.reasoningTokens += u.ReasoningTokens
 	return cost
 }
 
-// ExtraTokens returns the display-only running counts that fall outside the
-// priced input/cached/output categories: prompt-cache writes and reasoning
-// ("thinking") tokens.
+// ExtraTokens returns the running counts the statusline shows beside the
+// input/cached/output split: prompt-cache writes and reasoning ("thinking")
+// tokens. Cache-write is now also priced (CacheWriteUSD; ADR-0034) — the count is
+// still surfaced here for the ⚡read/write display; reasoning is display-only (a
+// subset of output, already priced at the output rate).
 func (m *Meter) ExtraTokens() (cacheWrite, reasoning int64) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

@@ -492,14 +492,18 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   overrides (`DefaultPriceBook`). `TelemetryConfig.WarnFraction` (soft-warn threshold,
   `[0,1]`) and `TelemetryConfig.HardCapCredits` (absolute credit ceiling, `>= 0`,
   `0` = off) back the budget guardrails. — see [ADR-0008](adr/0008-budget-guardrails-soft-warn-and-hard-cap-gate.md)
-  `TelemetryConfig.PriceOverrides` (`priceOverrides`, omitempty) maps a model id to its
-  `[input, cached, output]` USD-per-million-token rate triple; it is applied over
-  `DefaultPriceBook` at startup (`internal/bootstrap`) and live on a Settings save (G1).
-  `Validate` enforces each rate **`>= 0`** (a negative rate is rejected; absent overrides
-  stay valid, so older configs load unchanged). The **live-reprice seam** is pure and
-  dependency-free in `internal/telemetry`: `telemetry.BuildPriceBook(overrides
-  map[string][3]float64) *PriceBook` builds a fresh book from defaults + overrides
-  (rebuild-not-incremental — a removed override reverts to its default), and
+  `TelemetryConfig.PriceOverrides` (`priceOverrides`, omitempty) maps a model id to a
+  `[]float64` of USD-per-million-token rates: `[input, cached, output]` and an **optional
+  4th** `cacheWrite` element (ADR-0034). It is applied over `DefaultPriceBook` at startup
+  (`internal/bootstrap`) and live on a Settings save (G1). `Validate` enforces a length of
+  **3 or 4** and each rate **`>= 0`** (a negative or wrong-length row is rejected; absent
+  overrides stay valid). **Backward-readable migration:** the value was a fixed
+  `[3]float64` pre-0059; a variable-length slice reads both the legacy 3- and the new
+  4-element JSON natively — a 3-element row derives cache-write at the 1.25×-input default.
+  The **live-reprice seam** is pure and dependency-free in `internal/telemetry`:
+  `telemetry.BuildPriceBook(overrides map[string][]float64) *PriceBook` builds a fresh book
+  from defaults + overrides (rebuild-not-incremental — a removed override reverts to its
+  default; a 3-element row derives cache-write off the overridden input), and
   `(*PriceBook).Replace(src *PriceBook)` atomically swaps a shared book's contents in
   place under its own RWMutex, so every meter holding that book by reference reprices at
   once. — see [ADR-0008](adr/0008-budget-guardrails-soft-warn-and-hard-cap-gate.md)
@@ -534,19 +538,25 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   — the generic store writes byte-identically to the pre-H1 stores. A refactor-only paydown
   that preserves this and the run envelope (issue 0033, TECH_DEBT #14; no new ADR — see
   ADR-0009 / ADR-0022). On-disk shape is a versioned envelope
-  `{"version":2,"records":[…]}`; each record is
-  `{at, session?, model, in, cached, out, usd, aiu?, agent?, workflow?, lane?}` (JSON
-  tags are the contract). Written **atomically** (temp-file + rename); missing file =
+  `{"version":3,"records":[…]}`; each record is
+  `{at, session?, model, in, cached, out, cw?, reasoning?, usd, aiu?, agent?, workflow?, lane?}`
+  (JSON tags are the contract). Written **atomically** (temp-file + rename); missing file =
   empty, present-but-invalid = error. **Migration note:** `version` gates the schema and
   the `records` array is the stable surface — bumps must add fields only (older readers
   ignore unknown keys; newer readers tolerate a higher `version`) or ship a converting
   migration. **v2** added the additive `agent`/`workflow`/`lane` attribution tags
-  (`omitempty`): a v1 file loads unchanged (empty tags) and a v1 reader ignores the new
-  keys and tolerates `version:2`. `agent` is the active persona id (empty = built-in
-  chat); `workflow`+`lane` are set only when a workflow run owned the turn. The pure
+  (`omitempty`); **v3** added the additive `cw` (cache-write, priced) + `reasoning`
+  (display-only subset of output) token counts (`omitempty`, ADR-0034). Each is additive: an
+  older file loads unchanged (the new fields read back `0`) and an older reader ignores the
+  new keys and tolerates the higher `version`. `agent` is the active persona id (empty =
+  built-in chat); `workflow`+`lane` are set only when a workflow run owned the turn. The pure
   `AgentShares` / `WorkflowShares` aggregations (cousins of `ModelShares`) roll spend up
-  by tag. — see [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md),
-  [ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md)
+  by tag; `ModelBreakdowns` rolls per-model token counts (incl. cache-write/reasoning) up
+  for the all-time table. The export CSV appends `cacheWrite`,`reasoning` columns at the end
+  (legacy column positions unchanged). — see
+  [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md),
+  [ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md),
+  [ADR-0034](adr/0034-price-cache-write-additive-reasoning-is-output-subset.md)
   **Per-session roll-up (G2):** `telemetry.SessionShares(records) []SessionShare` is
   another pure cousin of the `*Shares` readers — it rolls spend up **per copilot session
   id** to `SessionShare{SessionID, Credits, Turns}` (turn count + total credits), sorted
