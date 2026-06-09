@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# next-issue.sh — read docs/issues/INDEX.md and recommend the next thing to build.
+# next-issue.sh — read docs/issues/ and recommend the next thing to build.
 #
 # Precedence (see references/picking-the-next-item.md):
-#   1) an OPEN leaf issue whose parent epic is OPEN        -> build it
-#   2) an OPEN epic with NO child issues yet (children '—')-> break it down, file child #1
-#   3) an OPEN epic whose children are ALL closed          -> STALE: close the epic (or it has
-#                                                             un-filed follow-ups) — needs a human call
-#   4) nothing open                                         -> run a NEXT_FEATURES research pass
+#   1) an OPEN leaf issue, parent epic OPEN, all depends_on CLOSED -> BUILD it
+#      (an open child with an OPEN blocker is BLOCKED — listed, not recommended)
+#   2) an OPEN epic with NO child issues yet                       -> break it down, file child #1
+#   3) an OPEN epic whose children are ALL closed                  -> STALE: close it (human call)
+#   4) nothing open                                                -> run a NEXT_FEATURES research pass
 #
-# Reconciles epic status against child status and flags drift. Prints a ranked
-# recommendation to stdout; does not mutate anything.
+# Reads depends_on edges from each issue file to (a) skip blocked items and
+# (b) surface the set buildable *now* — which, with disjoint seams, is exactly
+# what can run in parallel. Reconciles epic-vs-child status and flags drift.
+# Prints a ranked recommendation to stdout; does not mutate anything.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 exec python3 - "$@" <<'PY'
@@ -64,33 +66,96 @@ for c in rows("severity"):
 
 def is_open(s): return s not in ("closed", "done", "shipped", "resolved")
 
+# --- depends_on edges, read from each issue file's frontmatter --------------
+def load_depends(iid):
+    """Return the list of issue ids `iid` is blocked by (depends_on)."""
+    matches = list(pathlib.Path("docs/issues").glob(f"{iid}-*.md"))
+    if not matches: return []
+    txt = matches[0].read_text().splitlines()
+    # frontmatter = lines between the first two '---'
+    fm, seen = [], 0
+    for ln in txt:
+        if ln.strip() == "---":
+            seen += 1
+            if seen == 2: break
+            continue
+        if seen == 1: fm.append(ln)
+    deps = []
+    for i, ln in enumerate(fm):
+        m = re.match(r"\s*depends_on:\s*(.*)$", ln)
+        if not m: continue
+        inline = m.group(1).strip()
+        if inline and inline not in ("[]", "~", "null"):
+            deps += re.findall(r"\d+", inline)            # depends_on: [0001, 0002]
+        else:                                              # block list form
+            for ln2 in fm[i+1:]:
+                b = re.match(r"\s*-\s*(\d+)", ln2)
+                if b: deps.append(b.group(1))
+                elif ln2.strip() and not ln2.startswith((" ", "\t")): break
+        break
+    return [f"{int(d):04d}" for d in deps]
+
+depends = {i: load_depends(i) for i in issues}
+def open_blockers(iid):
+    return [d for d in depends.get(iid, []) if d in issues and is_open(issues[d]["status"])]
+
 all_epics = {**epics, **inline_epics}
 open_epics = {e:v for e,v in all_epics.items() if is_open(v["status"])}
-recs, flags = [], []
+sev_rank = {"critical":0,"high":1,"medium":2,"low":3}
+recs, flags, blocked, buildable = [], [], [], []
 
 for eid, ev in sorted(open_epics.items()):
     # children = those listed on the epic ∪ issues whose group back-references it
     kids = sorted(set([k for k in ev["children"] if k in issues] +
                       [i for i, iv in issues.items() if iv["group"] == eid]), key=int)
-    ev = {**ev, "children": kids}
     open_kids = [k for k in kids if is_open(issues[k]["status"])]
-    if not ev["children"]:
-        recs.append((1, eid, f"[2] OPEN epic {eid} has NO child issues yet — break it down and FILE child #1.\n      epic: {ev['title']}\n      -> use the tracking-issues skill: scripts/new-issue.sh \"<first slice>\" --group {eid}"))
+    if not kids:
+        recs.append((1, eid, f"[2] OPEN epic {eid} has NO child issues yet — break it down and FILE child #1.\n      epic: {ev['title']}\n      -> tracking-issues: scripts/new-issue.sh \"<first slice>\" --group {eid} [--depends <id>]"))
     elif open_kids:
-        sev_rank = {"critical":0,"high":1,"medium":2,"low":3}
-        nxt = sorted(open_kids, key=lambda k: (sev_rank.get(issues[k]["severity"],9), int(k)))[0]
-        recs.append((0, nxt, f"[1] BUILD issue {nxt} (epic {eid}, sev {issues[nxt]['severity']}).\n      {issues[nxt]['title']}\n      -> read docs/issues/{nxt}-*.md, then branch + TDD."))
+        for k in sorted(open_kids, key=lambda k: (sev_rank.get(issues[k]["severity"],9), int(k))):
+            blk = open_blockers(k)
+            if blk:
+                blocked.append((k, eid, blk))
+            else:
+                buildable.append((k, eid))
     else:
         flags.append(f"[3] STALE: epic {eid} is OPEN but every child is closed — close the epic, or it has un-filed follow-ups. Human call.\n      epic: {ev['title']}")
 
-print("# Next-item recommendation (from docs/issues/INDEX.md)\n")
+# Cycle / dangling-edge sanity (best-effort; dedup the symmetric cycle pair).
+seen_cycles = set()
+for i in issues:
+    for d in depends.get(i, []):
+        if d not in issues:
+            flags.append(f"[!] issue {i} depends_on {d}, which is not in the index — dangling edge.")
+        elif i in depends.get(d, []):
+            pair = tuple(sorted((i, d)))
+            if pair not in seen_cycles:
+                seen_cycles.add(pair)
+                flags.append(f"[!] dependency CYCLE between {pair[0]} and {pair[1]} — break it before building either.")
+
+buildable.sort(key=lambda t: (sev_rank.get(issues[t[0]]["severity"],9), int(t[0])))
+for k, eid in buildable:
+    recs.append((0, k, f"[1] BUILD issue {k} (epic {eid}, sev {issues[k]['severity']}, unblocked).\n      {issues[k]['title']}\n      -> read docs/issues/{k}-*.md, then branch + TDD."))
+
+print("# Next-item recommendation (from docs/issues/)\n")
 if recs:
     for _, _, msg in sorted(recs, key=lambda r: (r[0], int(r[1]))):
         print("  " + msg + "\n")
 else:
     print("  [4] No open epics with actionable work. Run a NEXT_FEATURES research pass to seed roadmap vN+1.\n")
+
+if buildable:
+    ids = ", ".join(k for k, _ in buildable)
+    print("## Parallelizable now (unblocked)\n")
+    print(f"  These have no open blocker: {ids}.")
+    print("  Any subset touching DISJOINT seams can run as parallel lanes (check each issue's")
+    print("  'Touches' line). Reserve ids/ADRs up front — see get-next references/parallel-lanes.md.\n")
+if blocked:
+    print("## Blocked (don't start — finish the blocker first)\n")
+    for k, eid, blk in sorted(blocked, key=lambda t: int(t[0])):
+        print(f"  issue {k} (epic {eid}) is BLOCKED by open: {', '.join(blk)} — {issues[k]['title']}\n")
 if flags:
     print("## Flags (reconcile before picking)\n")
     for f in flags: print("  " + f + "\n")
-print("Tip: also read docs/NEXT_FEATURES.md '#Recommended sequencing' — it ranks items the INDEX can't.")
+print("Tip: also read docs/NEXT_FEATURES.md '#Recommended sequencing' — depends_on encodes hard order; sequencing adds value ranking.")
 PY

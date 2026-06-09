@@ -26,9 +26,14 @@ mirrored to GitHub so the team gets the familiar UI, labels, and notifications.
    - **Isolated** (a self-contained fix) → leave `group:` empty; it stands alone.
    - **Connected** → set `group: <epic-id>` and back-link the epic file; link related issues to each
      other, and link the ADR/learning/tech-debt item that gives the issue its *why*.
+   - **Blocked by** → record hard ordering as `depends_on: [ids]` (`new-issue.sh --depends id,id`).
+     This is the directional dependency graph (distinct from non-blocking `links.issues`): the
+     `get-next` picker won't offer a blocked item and uses it to compute what's parallelizable.
+     Reserve it for *real* blockers; never form a cycle.
 3. **Mirror to GitHub:** `scripts/sync-github.sh` creates/updates the issue via `gh`, applies the
-   group as a label, embeds the body + screenshot links, and writes the issue number back into the
-   local file's frontmatter. See [references/gh-sync.md](references/gh-sync.md).
+   group as a label, prepends a **relationships header** (`Part of` epic #, `Blocked by` #…) so the
+   issue never reads isolated, best-effort links the native **sub-issue + blocked-by** relationships
+   (GA 2026), and writes the issue number back. See [references/gh-sync.md](references/gh-sync.md).
 4. **Close the loop:** when fixed, link the PR, set `status: closed`, and if it must never regress,
    hand the repro to `authoring-tests`; record it in `logging-learnings`.
 

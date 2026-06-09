@@ -31,14 +31,25 @@ tie-breaker. This file is the *why* behind the script so its output is interpret
    next roadmap version and promote BUILD-FIRST picks into `docs/issues/`). Filing work you invented
    without that pass is how the roadmap drifts from the code.
 
-## Tie-breakers (when several items are eligible)
+## Dependencies are machine-read (`depends_on`)
 
-- **Sequencing first.** If `NEXT_FEATURES` names an order (P0→P1→P2, "BUILD FIRST" tags), follow it.
+Hard ordering lives in each issue's `depends_on: [ids]` frontmatter (blocked-by edges), not in prose.
+The picker **will not recommend an item with an open blocker** — it lists it under "Blocked" with the
+blocker id — and it surfaces the **"Parallelizable now"** set (open items with no open blocker). It
+also flags dependency **cycles** and **dangling edges** (a `depends_on` id not in the index). File
+these edges with `tracking-issues` (`new-issue.sh --depends id,id`); reserve `depends_on` for *real*
+blockers (a seam this builds on, a decision it needs) and keep non-blocking "see also" links in
+`links.issues`.
+
+## Tie-breakers (when several unblocked items are eligible)
+
+- **`depends_on` first** — it's a hard constraint, already applied (blocked items aren't offered).
+- **Then sequencing.** If `NEXT_FEATURES` names a value order (P0→P1→P2, "BUILD FIRST" tags), follow it.
 - **Then severity** (`critical > high > medium > low`), then **oldest id**.
-- **Then dependency**: an item whose seam another open item builds on goes first (read the "Touches"
-  line in the `NEXT_FEATURES` entry).
 - **One pillar per session** when two epics are both live — which pillar to advance is a product
   call; surface both and ask rather than interleaving unrelated work onto one branch.
+- **Disjoint-seam unblocked items** are candidates for parallel lanes — see
+  [parallel-lanes.md](parallel-lanes.md).
 
 ## After the pick
 

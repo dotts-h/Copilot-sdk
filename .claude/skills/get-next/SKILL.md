@@ -16,14 +16,17 @@ the single source of truth, then hand off to the build. It does **not** build th
 
 ## Workflow (copy this checklist into your reply and tick it off)
 
-- [ ] **1. Pick the next item.** Run `scripts/next-issue.sh`. It reads `docs/issues/INDEX.md`,
-      reconciles epic status against child status, and prints a ranked recommendation:
-  - **[1] BUILD `<id>`** — an open child of an open epic → this is your item.
+- [ ] **1. Pick the next item.** Run `scripts/next-issue.sh`. It reads `docs/issues/`, reconciles
+      epic-vs-child status, follows `depends_on` edges (it will **not** recommend a blocked item),
+      and prints a ranked recommendation:
+  - **[1] BUILD `<id>`** — an open, **unblocked** child of an open epic → this is your item.
   - **[2] BREAK DOWN epic `<id>`** — an open epic with no children yet → file child #1 with
-        `tracking-issues` (`new-issue.sh "<first slice>" --group <id>`), then build it.
+        `tracking-issues` (`new-issue.sh "<first slice>" --group <id> [--depends <id>]`), then build it.
+  - **Blocked** items are listed with their open blocker (finish that first); **Parallelizable now**
+        lists the unblocked set (see "Batching in parallel" below).
   - **[3] STALE flag** / **[4] nothing open** → see "When the pick is ambiguous" below.
-  Cross-read `docs/NEXT_FEATURES.md` **"Recommended sequencing"** — it ranks items the INDEX can't
-  (e.g. a P0 "consistency spine" before its dependents). The script is a recommender; sequencing wins.
+  Cross-read `docs/NEXT_FEATURES.md` **"Recommended sequencing"** — `depends_on` encodes the *hard*
+  order; sequencing adds the *value* ranking the index can't.
 - [ ] **2. Read the item's charter.** Open `docs/issues/<id>-*.md`: the *what*, the seam/files it
       touches, the "why now", and any linked ADR. If it needs a decision, that ADR is written
       **first** (ADR-0004) — note it now.
@@ -39,6 +42,18 @@ the single source of truth, then hand off to the build. It does **not** build th
 - [ ] **5. Set up the build.** Confirm the Go toolchain is on PATH
       (`export PATH=$PATH:/home/ori913/go-install/go/bin`), run `make lint && make test` once to
       confirm a green base, then hand off to `practicing-tdd`: write the failing test first.
+
+## Batching in parallel
+
+When the **Parallelizable now** set has two or more unblocked items, you can run them as concurrent
+lanes — but parallelism is bounded by **shared-state contention**, not CI. Two items are lane-safe
+only if they're unblocked **and** touch **disjoint seams** (compare their "Touches" lines). Before
+fanning out, reserve the shared monotonic counters so lanes don't collide:
+`scripts/reserve-ids.sh --issues N --adrs M --for "laneA,laneB" --stub`, commit the stubs on the
+base, then spawn one worktree+branch+PR per lane (the `Agent` tool's `isolation: "worktree"` +
+`run_in_background`). Full procedure, mitigations, and when *not* to parallelize:
+[references/parallel-lanes.md](references/parallel-lanes.md). The dependency graph is what makes this
+safe — only items with no edge between them belong in the same batch.
 
 ## When the pick is ambiguous
 
@@ -65,6 +80,9 @@ The recommender flags, it doesn't decide. **Ask the user** (don't guess) when:
 - Source of truth: `docs/issues/INDEX.md` (epics + children) and `docs/NEXT_FEATURES.md` (roadmap +
   sequencing). The INDEX has had **two epic representations** (epics table vs. an `Epic:`-titled row
   in the issues table) — `next-issue.sh` handles both and back-references children by `group`.
+- Hard ordering is the issue frontmatter `depends_on: [ids]` (blocked-by edges), filed by
+  `tracking-issues` (`new-issue.sh --depends`) and mirrored to GitHub sub-issues/blocked-by by its
+  `sync-github.sh`. The picker reads these to skip blocked items and compute the parallelizable set.
 - The repo has a **tag named `main`** colliding with the branch, and the sandbox can serve a
   **stale `origin/main`** on first fetch — both have silently mis-based work before (RETROS 0002).
   `start-fresh.sh` always resolves `refs/remotes/origin/main` and asserts SHA/foundation for that reason.
