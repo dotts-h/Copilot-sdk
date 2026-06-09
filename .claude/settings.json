@@ -4,5 +4,14 @@
       "source": { "source": "github", "repo": "dotts-h/claude-skills" }
     }
   },
-  "enabledPlugins": ["orchestra-skills@orchestra"]
+  "enabledPlugins": ["orchestra-skills@orchestra"],
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.sh" }
+        ]
+      }
+    ]
+  }
 }
