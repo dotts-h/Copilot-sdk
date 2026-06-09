@@ -9,3 +9,4 @@ change CONVENTIONS, tooling, or the docs system so the gains compound.
 | # | Title | Date |
 |---|-------|------|
 | [0001](0001-quality-and-architecture-hardening.md) | Quality & architecture hardening (v1 feature run → roadmap-v2 research → hardening PRs) | 2026-06-06 |
+| [0002](0002-v28-postooluse-governance-close.md) | V28 PostToolUse command execution & closing epic 0052 (base-verification + MCP-verbosity + wait-pattern learnings) | 2026-06-09 |
