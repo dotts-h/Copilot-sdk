@@ -9,6 +9,19 @@ Module: `github.com/dotts-h/copilot-sdk` · app *my-orchestra*.
 ## Workflow
 
 - Branch from `main`; never commit directly to `main`.
+- **Verify the base before branching.** This repo has a **tag named `main`** colliding with the
+  `main` *branch*, and the sandbox git server can serve a **stale `origin/main`** on the first
+  fetch. Both have silently put work on the wrong base (a `git switch -c` resolved the *tag*; a
+  pre-foundation `origin/main` made already-merged files "vanish"). Before writing code:
+  `git fetch origin && git switch main && git pull --ff-only`, then **assert the foundation is
+  present** — confirm `git rev-parse origin/main` is the expected SHA and, when building on prior
+  work, `git cat-file -e origin/main:<a-file-that-must-exist>`. A stale remote must fail loud, not
+  silent. — see [RETROS 0002](RETROS/0002-v28-postooluse-governance-close.md)
+- **Waiting on CI/remote without a foreground `sleep`** (which the harness blocks): use a
+  background until-loop timer (`until [ $((SECONDS-start)) -ge N ]; do sleep 10; done`) to wake,
+  then re-check status via the compact MCP calls (`pull_request_read get_status`/`get_check_runs`,
+  not `list_workflow_runs` — its per-row repeated `repository` objects are mostly noise). — see
+  [RETROS 0002](RETROS/0002-v28-postooluse-governance-close.md)
 - Write a failing test first, then the smallest code to pass it. Keep changes small.
 - Before pushing, run the gates locally: `make lint && make test`.
 - **Self-review the diff before pushing:** run `/code-review` (always) and, for UI
