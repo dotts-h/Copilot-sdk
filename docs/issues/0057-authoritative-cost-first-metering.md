@@ -1,31 +1,32 @@
 ---
 id: 0057
 title: "Authoritative-cost-first metering — ReportedAIU is actual spend, price book is the estimate (roadmap v10, P0)"
-status: open
+status: closed
 severity: high
 group: 0050
 depends_on: []
 github:
 links:
-  adr: [33]        # ADR-0033 (the framing decision, written first per ADR-0004)
-  prs: []
+  adr: [0033]
+  prs: [95]
   issues: [0050]
-  regression: [3]
+  regression: [3, 21]
 assets: []
 ---
 
-> **Status (2026-06-09, in progress on `feat/billing-authoritative-cost-first`).**
-> Shipped the authoritative-cost-first framing: `telemetry.ActualCredits`/`HasReported`
-> (the table-tested estimate-vs-reported selection), `Meter.ActualCredits`/`HasReported`,
-> `SpendRecord.EstimateCredits`/`ActualCredits`/`HasReported`, and the pure
-> `MonthToDateActual` aggregate; the reported AIU is now folded into the per-session
-> meter too. The statusline cost cell and the topbar cost footer
-> (`renderActualCostFooter`) surface the actual figure tagged reported / est / mixed,
-> with the estimate shown beside the reported figure when they diverge. The price book
-> stays the deterministic estimate (pre-flight + forecast + offline fallback). Decision
-> recorded in [ADR-0033](../adr/0033-reportedaiu-is-source-of-truth-for-actual-spend-price-book-is-the-estimate.md).
-> Out of scope (sibling lanes): the per-model breakdown table (0058) and the
-> estimate-vs-reported drift row (0060). `make lint && make test` green; coverage 88.4%.
+> **Shipped 2026-06-09 — PR #95, part of epic 0050.** The authoritative-cost-first framing
+> landed: `telemetry.ActualCredits`/`HasReported` (the table-tested estimate-vs-reported
+> selection), `Meter.ActualCredits`/`HasReported`, `SpendRecord.EstimateCredits`/`ActualCredits`/
+> `HasReported`, and the pure `MonthToDateActual` aggregate; the reported AIU is folded into the
+> per-session meter too. The statusline cost cell and the topbar cost footer
+> (`renderActualCostFooter`) surface the actual figure tagged reported / est / mixed, with the
+> estimate shown beside the reported figure when they diverge. The price book stays the
+> deterministic estimate (pre-flight + forecast + offline fallback). Decision recorded in
+> [ADR-0033](../adr/0033-reportedaiu-is-source-of-truth-for-actual-spend-price-book-is-the-estimate.md).
+> Out of scope (sibling lanes): the per-model breakdown table (0058) and the estimate-vs-reported
+> drift row (0060). `make lint && make test` green under `-race`; `make e2e` green (142 passed) —
+> the browser a11y scan caught a WCAG-AA contrast miss on the new source badge, fixed in-branch
+> (REGRESSIONS #21).
 
 ## Summary
 Re-frame the meter around a **three-tier source hierarchy**: the SDK's `ReportedAIU` is the truth for
