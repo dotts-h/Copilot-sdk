@@ -64,7 +64,7 @@ jobs:
           echo "Total coverage: ${total}%"
           awk -v t="$total" 'BEGIN { if (t+0 < 65) { print "::error::coverage " t "% is below the 65% floor"; exit 1 } }'
       - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: |
@@ -107,7 +107,7 @@ jobs:
           [ "${{ matrix.goos }}" = "windows" ] && out="$out.exe"
           go build -ldflags "-s -w -X main.version=ci-${{ github.sha }}" -o "dist/$out" ./cmd/my-orchestra
       - name: Upload binaries
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: my-orchestra-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/*
