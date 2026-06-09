@@ -22,6 +22,17 @@ Module: `github.com/dotts-h/copilot-sdk` · app *my-orchestra*.
   then re-check status via the compact MCP calls (`pull_request_read get_status`/`get_check_runs`,
   not `list_workflow_runs` — its per-row repeated `repository` objects are mostly noise). — see
   [RETROS 0002](RETROS/0002-v28-postooluse-governance-close.md)
+  - **Cap the wait, and trust the logs over a lagging status.** The `get_check_runs` *status*
+    can report `in_progress` for many minutes **after** a job has actually finished (a stale
+    GitHub status API), which has burned ~10 min waiting on an e2e job that completed in ~2.
+    So bound the wait: a single workflow job (e2e) has a **~6-minute** wall ceiling (observed
+    max ~5 + buffer); a whole PR's CI a **~10-minute** ceiling. Past the ceiling, do **not**
+    keep re-polling the status — call `get_job_logs` on the job and read the truth: report
+    uploaded + clean post-job cleanup with no failing step ⇒ it passed and the status is just
+    lagging, proceed; genuinely mid-run or failed ⇒ act on that. Run **one** timer at a time and
+    stop arming new ones once a ceiling is hit (stacked timers drain later as stale-notification
+    noise). If a real failure or a true stall persists past the ceiling, escalate to the human
+    with the diagnosis rather than waiting silently.
 - Write a failing test first, then the smallest code to pass it. Keep changes small.
 - Before pushing, run the gates locally: `make lint && make test`.
 - **Self-review the diff before pushing:** run `/code-review` (always) and, for UI

@@ -1,7 +1,7 @@
 ---
 id: 0042
 title: "Epic: interactive orchestration — the Runs surface goes from read-only to actionable (roadmap v8)"
-status: open
+status: closed
 severity: medium
 group:
 github:
@@ -11,6 +11,15 @@ links:
   issues: [0043, 0044]
   regression:
 ---
+
+> **Closed 2026-06-09 — exhausted.** Both children shipped: V18 rerun-from-Runs
+> ([0043](0043-rerun-workflow-from-runs-page.md), PR #76, ADR-0023) and V19 abort-in-flight
+> ([0044](0044-abort-in-flight-run.md), PR #77, ADR-0024). The teed-up V20 (rerun a single
+> failed lane) and the deferred Candidate B (cost-spike/anomaly reader) were **not** filed as
+> children here: the next value×fit pass became **roadmap v10**, where the anomaly reader is
+> folded into epic [0050](0050-epic-billing-fidelity.md) P3 (estimate-vs-reported drift) and the
+> interactive-orchestration thread is considered complete for v8. Closing rather than carrying an
+> open epic with no open child.
 
 ## Charter
 

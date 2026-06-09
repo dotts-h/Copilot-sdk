@@ -1,7 +1,7 @@
 ---
 id: 0045
 title: "Epic: UI/UX refresh — design-token foundation, theming, navigation IA, and a real telemetry dashboard (roadmap v9)"
-status: open
+status: closed
 severity: medium
 group:
 github:
@@ -11,6 +11,14 @@ links:
   issues: [0046, 0047, 0048, 0049]
   regression: [20]
 ---
+
+> **Closed 2026-06-09 — all children shipped.** V21 token/theming foundation
+> ([0046](0046-design-token-foundation-light-dark-theme.md), ADR-0025), V22 sidebar + ⌘K palette
+> ([0047](0047-grouped-sidebar-command-palette.md), ADR-0026), V23 telemetry dashboard
+> ([0048](0048-telemetry-kpi-dashboard.md), ADR-0027), and V24 motion & polish
+> ([0049](0049-motion-and-polish.md), ADR-0028) all landed, every hard constraint held (no build
+> chain, single committed CSS file, htmx + server templates, minimal JS). The "next value×fit
+> pass" the epic deferred to became **roadmap v10** (epics 0050–0052), so this closes as exhausted.
 
 ## Charter
 
