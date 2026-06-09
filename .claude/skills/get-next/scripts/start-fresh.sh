@@ -36,16 +36,8 @@ fi
 remote_main="$(git rev-parse refs/remotes/origin/main)" || fail "no refs/remotes/origin/main — is the remote reachable?"
 echo "==> origin/main is $remote_main"
 
-# Fast-forward the local main branch to the remote (best-effort; the branch we
-# cut is taken from the remote ref regardless, so a missing local main is fine).
-if git show-ref -q --verify refs/heads/main; then
-  git switch main --quiet 2>/dev/null || true
-  if ! git merge --ff-only "$remote_main" --quiet 2>/dev/null; then
-    note "local main is not a fast-forward of origin/main (diverged or behind a rebase) — cutting from origin/main directly."
-  fi
-fi
-
-# Assertions — a stale remote must fail loud.
+# Assertions FIRST, against the remote ref — so a wrong/stale base fails loud
+# *before* we touch any branch (never strand the caller on main on failure).
 if [ -n "$expect_sha" ]; then
   case "$remote_main" in
     "$expect_sha"*) note "SHA assertion ok ($expect_sha)";;
@@ -60,6 +52,18 @@ if [ -n "$require" ]; then
       && note "foundation present: $p" \
       || fail "expected foundation file missing on origin/main: $p (wrong base — branch was likely cut before it merged)"
   done
+fi
+
+# Best-effort fast-forward of the local main branch (assertions already passed).
+# The branch we cut is taken from the remote ref regardless, so a missing or
+# non-ff local main is non-fatal — and we return to the original HEAD before
+# creating the new branch, so a switch here can't strand the caller.
+start_ref="$(git symbolic-ref -q --short HEAD || git rev-parse HEAD)"
+if git show-ref -q --verify refs/heads/main; then
+  git switch main --quiet 2>/dev/null || true
+  git merge --ff-only "$remote_main" --quiet 2>/dev/null \
+    || note "local main is not a fast-forward of origin/main (diverged or behind a rebase) — cutting from origin/main directly."
+  git switch "$start_ref" --quiet 2>/dev/null || true
 fi
 
 echo "==> create branch '$branch' from origin/main"
