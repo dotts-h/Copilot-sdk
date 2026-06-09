@@ -75,3 +75,8 @@ issues are added or closed.
 | [0059](0059-price-cache-write-and-reasoning-tokens.md) | Price cache-write + reasoning tokens — promote out of display-only ExtraTokens into priced Usage (P1) | closed | high | 0050 | depends_on: 0057 0058, ADR-0034, PR #98 |
 | [0060](0060-estimate-vs-reported-reconciliation-drift.md) | Estimate-vs-reported reconciliation + drift on the Telemetry page (P3) | open | medium | 0050 | depends_on: 0057 |
 | [0061](0061-live-price-book-refresh.md) | Live price-book refresh — opt-in, cached, fail-open fetch of per-model multipliers (P4) | open | low | 0050 | depends_on: 0059, ADR-0035 (reserved) |
+| [0062](0062-epic-playful-polished-ui-motion-overhaul.md) | Epic: Playful-polished visual + motion overhaul — re-derived OKLCH palette, depth, spring motion system (roadmap v11) | open | medium | — | 0063, 0064, 0065, 0066, NEXT_FEATURES v11 |
+| [0063](0063-token-palette-foundation-oklch-layer-openprops.md) | Token & palette foundation — re-derive palette in OKLCH, @layer, Open Props (W1) | open | medium | 0062 | depends_on: —, ADR-0036 (reserved) |
+| [0064](0064-elevation-surface-component-restyle.md) | Elevation, surface & component restyle — luminance ladder + hue-tinted shadows, radius/space/type scales (W2) | open | medium | 0062 | depends_on: 0063, REGRESSIONS #20 |
+| [0065](0065-motion-microinteraction-system.md) | Motion & micro-interaction system — linear() springs, motion tokens, CSS-only interaction catalogue (W3) | open | medium | 0062 | depends_on: 0063, ADR-0037 (reserved) |
+| [0066](0066-hero-surface-polish-chat-telemetry.md) | Hero-surface polish — apply the full system to Chat + Telemetry (W4) | open | low | 0062 | depends_on: 0064 0065 |

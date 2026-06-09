@@ -892,3 +892,59 @@ Epic 0013 ("deepen the differentiators") — **closed**.
 | 3.4 | Prompt/snippet library | 0015 | 0012 |
 
 Epics 0001 (cost), 0005 (orchestration), 0007 (polish) — all **closed**.
+
+---
+
+## Roadmap v11 — Playful-polished visual + motion overhaul (design-research pass 2026-06-09)
+
+> The **second presentation epic** (after v9/epic 0045), run from the **deferred** Open-Props +
+> motion paydown that ADR-0028 named. v9 modernized the UI's *structure* (tokens, sidebar+palette,
+> dashboard, a restrained motion pass) but the result reads structural, not designed. A five-leg,
+> cited design-research pass (below) confirms modern vanilla CSS now covers a full **playful-polished**
+> overhaul (Raycast discipline × Arc delight) — re-derived color, real depth, and a spring motion
+> system — inside the hard constraints (one CSS file, htmx + server templates, no build chain, no
+> framework, minimal vanilla JS). Filed as **epic 0062**; children **0063–0066**; reserves **ADR-0036**
+> (palette/token + `@layer` + Open Props; keep-or-drop the terracotta/blue identity) and **ADR-0037**
+> (motion system — `linear()` springs + view-transition policy).
+
+### Direction (see epic 0062 charter for the full synthesis)
+- **Aesthetic:** Raycast's token discipline (constrained radius/space scales, saturated accents used
+  sparingly, tight type) × Arc's delight (bold gradients, depth, springy motion). Depth = surface
+  **luminance ladder** in dark + **hue-tinted layered shadows** in light + optional radial-glow.
+- **Palette/tokens:** re-derive in **OKLCH** (contrast tracks lightness, chroma-independent → raise
+  saturation for "playful" without breaking AA by holding per-role `L` bands); three-tier tokens;
+  `light-dark()`, `color-mix(in oklch)`, `@property`, **`@layer tokens,base,components,utilities`**;
+  **Open Props** vendored offline (no CDN) for primitives/easings, semantic layer on top.
+- **Motion:** **`linear()` spring easings** (gated `@supports` + cubic-bezier fallback) + motion/
+  duration tokens; CSS-only catalogue (hover/press/focus, skeleton shimmer, list enter/exit + toast +
+  palette via `@starting-style`/`allow-discrete`/`popover`, optional scroll-driven reveals gated for
+  no-Firefox); **per-nav (never global) view-transitions** — global wrapping aborts transitions and
+  drops htmx OOB / SSE swaps (the ADR-0028 dead-end, re-confirmed); reduced-motion guard extended.
+- **Sequencing:** W1 tokens/palette (0063) → W2 surface/elevation (0064) → W3 motion (0065) → W4 hero
+  polish Chat+Telemetry (0066). Each born in its PR, axe both-theme scan green per slice. Palette
+  re-derivation lands first behind the gate (highest AA risk, fully reversible).
+- **Risk/trade-offs (no build chain needed):** scroll-driven animations have no Firefox →
+  progressive-enhancement only; P3-gamut accents wrap in `@media (color-gamut: p3)` + sRGB fallback.
+
+### Sources (cited research)
+- Raycast design vocabulary: github.com/VoltAgent/awesome-design-md (design-md/raycast/DESIGN.md);
+  styles.refero.design (Raycast style teardown — *auto-extracted, indicative*); raycast.com/blog,
+  developers.raycast.com, manual.raycast.com/themes.
+- Arc + spring motion: blakecrosley.com/guides/design/arc; blog.logrocket.com (Arc UX analysis);
+  joshwcomeau.com/animation/linear-timing-function; developer.chrome.com/docs/css-ui/css-linear-easing-function;
+  carmenansio.com/articles/spring-physics-css; web.dev/articles/choosing-the-right-easing;
+  linear-easing-generator.netlify.app (Archibald/Argyle generator).
+- Dev-tool token systems: linear.app/now/how-we-redesigned-the-linear-ui; vercel.com/geist +
+  seedflip.co/blog/vercel-design-system; joshwcomeau.com/css/designing-shadows;
+  penpot.app + muz.li (token hierarchy, dark-mode elevation).
+- Vanilla-CSS motion toolkit: web.dev/blog/same-document-view-transitions-are-now-baseline-newly-available;
+  developer.chrome.com/blog/view-transitions-misconceptions + .../entry-exit-animations + .../scroll-driven-animations;
+  htmx.org/essays/view-transitions; web.dev/blog/at-property-baseline; caniuse.com (support).
+- Color/tokens: evilmartians.com/chronicles/oklch-in-css-why-quit-rgb-hsl; blog.logrocket.com/oklch-css-…;
+  open-props.style + css-tricks.com/open-props-and-custom-properties-as-a-system; MDN (`@layer`,
+  `color-mix`, `light-dark`); oklch.com; huetone.ardov.me (APCA/AA validation).
+
+> **Confidence:** platform facts (browser-support baselines, View-Transitions "one per document",
+> global-VT breaking OOB/SSE) are from primary sources (MDN/web.dev/Chrome/caniuse) **and**
+> independently corroborated by this repo's own ADR-0028 / REGRESSIONS — high. Raycast exact
+> hex/timings come from community/auto-extracted teardowns — treat as *indicative reference*, not gospel.
