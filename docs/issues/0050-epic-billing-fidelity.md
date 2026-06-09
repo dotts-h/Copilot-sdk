@@ -7,7 +7,7 @@ group:
 github:
 links:
   adr: [0033]
-  prs: [95, 96]
+  prs: [95, 96, 98]
   issues: []
   regression: [3, 21]
 ---
@@ -57,10 +57,11 @@ table with the new priced columns (hence P1 `depends_on` P2-core — shared seam
       [0058](0058-per-model-breakdown-from-ledger.md) (M; no ADR). `depends_on: []`. Computes the table
       from the persisted ledger and adds the integration test that currently doesn't exist. **Buildable
       now** — a first parallel lane. **Shipped — PR #96.**
-- [ ] **P1 · Price cache-write + reasoning tokens** —
+- [x] **P1 · Price cache-write + reasoning tokens** —
       [0059](0059-price-cache-write-and-reasoning-tokens.md) (L; ADR-0034). `depends_on: [0057, 0058]`.
-      Promotes cache-write (1.25× input) + reasoning (output rate) out of display-only `ExtraTokens`
-      into priced `Usage`; extends the per-model breakdown columns.
+      Prices cache-write (1.25× input) out of display-only `ExtraTokens` into priced `Usage`; reasoning
+      is a subset of output (already priced) — surfaced, not double-charged; extends the per-model
+      breakdown columns. **Shipped — PR #98.**
 - [ ] **P3 · Estimate-vs-reported reconciliation + drift** —
       [0060](0060-estimate-vs-reported-reconciliation-drift.md) (M; no ADR). `depends_on: [0057]`.
       Telemetry row joining computed credits to `ReportedAIU`, ambered past an epsilon. Parallel lane
@@ -80,8 +81,9 @@ Unblocked now (parallel lanes if seams are disjoint): **0057, 0058**.
 ## Acceptance (epic)
 
 - [x] `ReportedAIU` is the actual-spend source of truth; the price book is explicitly the estimate. (0057, PR #95)
-- [ ] Cache-write and reasoning tokens are **priced** (not display-only), with the confirmed defaults,
-      overridable, and table-tested; the price book stays deterministic and migrates cleanly.
+- [x] Cache-write tokens are **priced** (not display-only) at the 1.25× default, overridable and
+      table-tested; reasoning is recognised as an already-priced subset of output, not double-charged
+      (0059, PR #98, ADR-0034). The price book stays deterministic and migrates cleanly.
 - [x] The per-model breakdown is populated from history and guarded by an integration test. (0058, PR #96)
 - [ ] Estimate-vs-reported drift is visible on the Telemetry page.
 - [ ] Any live fetch is opt-in, cached, and fail-open — the binary still runs fully offline.
