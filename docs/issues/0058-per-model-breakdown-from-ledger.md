@@ -1,14 +1,14 @@
 ---
 id: 0058
 title: "Per-model breakdown from the ledger + the missing integration test (roadmap v10, P2-core)"
-status: open
+status: closed
 severity: high
 group: 0050
 depends_on: []
 github:
 links:
   adr: []
-  prs: []
+  prs: [96]
   issues: [0050]
   regression: [3]
 assets: []
@@ -44,8 +44,10 @@ P1 (0059) later **extends this same table** with cache-write/reasoning columns �
 `depends_on` this issue (they share the breakdown seam; serialize, don't parallelize them). See
 [epic 0050](0050-epic-billing-fidelity.md).
 
-## Status (in progress)
-Branch `feat/billing-per-model-breakdown`. Implemented:
+## Resolution (shipped)
+**Shipped 2026-06-09 — PR #96, part of epic 0050.** Branch `feat/billing-per-model-breakdown`
+(rebased on the post-0057 main; `make codemap` re-run, `make lint && make test` green under `-race`,
+`make e2e` green — 140 passed). Implemented:
 - `telemetry.ModelBreakdowns` — a new pure reader (`internal/telemetry/breakdown.go`) aggregating
   per-model token counts (in/cached/out) + USD/credits + turns over `SpendStore.Records()`, sorted
   by spend desc (ties by model name). Unit-tested in `breakdown_test.go`. The `Meter`/`SpendRecord`
