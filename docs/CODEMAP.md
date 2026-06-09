@@ -320,6 +320,12 @@ _Last generated: 2026-06-09 (UTC)._
 
 ## internal/telemetry
 
+### breakdown.go (67 LOC)
+- L22: `type ModelBreakdown struct`
+- L32: `func (b ModelBreakdown) USD() float64 { return b.USDTotal }`
+- L35: `func (b ModelBreakdown) Credits() float64 { return b.USDTotal / USDPerCredit }`
+- L42: `func ModelBreakdowns(records []SpendRecord) []ModelBreakdown`
+
 ### bucketforecast.go (89 LOC)
 - L28: `type BucketProjection struct`
 - L39: `func DailyTotalsBy(records []SpendRecord, keyOf func(SpendRecord) string, includeEmpty bool) map[string][]DayTotal`
@@ -823,25 +829,25 @@ _Last generated: 2026-06-09 (UTC)._
 - L158: `func trendBandSVG(actual, forecast []float64, label string) string`
 - L211: `func bulletSVG(value, target, scaleMax float64, overTarget bool, label string) string`
 
-### telemetry_render.go (387 LOC)
+### telemetry_render.go (395 LOC)
 - L12: `func (s *Server) telemetryPartial(window int) string`
-- L73: `func (s *Server) spendTrend(window int) (days, shares []map[string]any, hasHistory bool)`
-- L130: `func (s *Server) spendShares(now time.Time) (agents, workflows []map[string]any)`
-- L160: `func agentKey(r telemetry.SpendRecord) string { return r.AgentID }`
-- L162: `func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }`
-- L180: `func (s *Server) workflowReconcile() []map[string]any`
-- L201: `func (s *Server) reconcileRow(r telemetry.WorkflowRecon) map[string]any`
-- L218: `func (s *Server) laneReconcile() []map[string]any`
-- L240: `func (s *Server) laneReconcileRow(r telemetry.LaneRecon) map[string]any`
-- L254: `func bucketTrajectories(bs []telemetry.BucketProjection, now time.Time) map[string]string`
-- L270: `func bucketTrajectoryText(p telemetry.Projection, now time.Time) string`
-- L289: `func daysLeftInMonth(now time.Time) int`
-- L300: `func shareRow(label string, credits, fraction float64) map[string]any`
-- L312: `func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any`
-- L336: `func forecastSoon(exhaust, now time.Time) bool`
-- L346: `func plural(n int, one, many string) string`
-- L356: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
-- L373: `func (s *Server) handleReconcileExport(w http.ResponseWriter, r *http.Request)`
+- L81: `func (s *Server) spendTrend(window int) (days, shares []map[string]any, hasHistory bool)`
+- L138: `func (s *Server) spendShares(now time.Time) (agents, workflows []map[string]any)`
+- L168: `func agentKey(r telemetry.SpendRecord) string { return r.AgentID }`
+- L170: `func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }`
+- L188: `func (s *Server) workflowReconcile() []map[string]any`
+- L209: `func (s *Server) reconcileRow(r telemetry.WorkflowRecon) map[string]any`
+- L226: `func (s *Server) laneReconcile() []map[string]any`
+- L248: `func (s *Server) laneReconcileRow(r telemetry.LaneRecon) map[string]any`
+- L262: `func bucketTrajectories(bs []telemetry.BucketProjection, now time.Time) map[string]string`
+- L278: `func bucketTrajectoryText(p telemetry.Projection, now time.Time) string`
+- L297: `func daysLeftInMonth(now time.Time) int`
+- L308: `func shareRow(label string, credits, fraction float64) map[string]any`
+- L320: `func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any`
+- L344: `func forecastSoon(exhaust, now time.Time) bool`
+- L354: `func plural(n int, one, many string) string`
+- L364: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
+- L381: `func (s *Server) handleReconcileExport(w http.ResponseWriter, r *http.Request)`
 
 ### tmpl.go (55 LOC)
 - L44: `func trusted(s string) template.HTML { return template.HTML(s) } //nolint:gosec // composed from escaped fragments`

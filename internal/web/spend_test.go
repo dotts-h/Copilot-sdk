@@ -382,6 +382,50 @@ func TestTelemetryPageShowsTrendFromLedger(t *testing.T) {
 	}
 }
 
+func TestTelemetryPerModelTableIsPopulatedFromLedger(t *testing.T) {
+	// THE missing-coverage test (issue 0058). The per-model token table read the
+	// live in-process meter, which is empty until turns replay through it — so it
+	// showed 0/0/0 next to real spend (the demo seeds the LEDGER but never replays
+	// the meter; epic 0050 finding 2). The ledger already carries the token counts,
+	// so this seeds ONLY the ledger (the meter stays untouched and empty) and asserts
+	// the rendered table is populated from history, not 0/0/0.
+	s, store := newSpendServer(t)
+	for _, r := range []telemetry.SpendRecord{
+		{At: day("2026-06-04T10:00:00Z"), Model: "gpt-5", InputTokens: 1000, CachedTokens: 200, OutputTokens: 300, USD: 0.50},
+		{At: day("2026-06-05T10:00:00Z"), Model: "gpt-5", InputTokens: 500, CachedTokens: 100, OutputTokens: 150, USD: 0.25},
+		{At: day("2026-06-05T11:00:00Z"), Model: "claude-sonnet-4-6", InputTokens: 800, CachedTokens: 0, OutputTokens: 400, USD: 0.10},
+	} {
+		if err := store.Append(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Guard: the live meter is empty (the bug's root cause) — nothing was replayed.
+	if in, cached, out := s.meter.TotalTokens(); in != 0 || cached != 0 || out != 0 {
+		t.Fatalf("precondition: live meter must be empty, got in=%d cached=%d out=%d", in, cached, out)
+	}
+
+	html := s.telemetryPartial(defaultSpendWindow)
+
+	// The "all-time" per-model breakdown (from the ledger) names each model and its
+	// summed token counts — the figures that read 0 before this fix.
+	for _, want := range []string{
+		"all-time",          // the ledger source is labelled (vs the live "this session")
+		"gpt-5",             // the model row
+		"claude-sonnet-4-6", // the second model row
+		">1500<",            // gpt-5 input tokens summed across its two turns (1000+500)
+		">300<",             // gpt-5 cached (200+100)
+		">450<",             // gpt-5 output (300+150)
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("per-model breakdown should be populated from the ledger, missing %q\n%s", want, html)
+		}
+	}
+	// The empty-table placeholder must be gone now that history populates the rows.
+	if strings.Contains(html, "no usage yet — send a prompt on the Chat page") {
+		t.Fatalf("per-model table still shows the empty-meter placeholder despite seeded ledger:\n%s", html)
+	}
+}
+
 func TestTelemetryTrendWindowsAndScalesToVisibleMax(t *testing.T) {
 	s, store := newSpendServer(t)
 	// 20 days of history: the all-time biggest spender is day 0 (off-screen,

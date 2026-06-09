@@ -30,18 +30,26 @@ func (s *Server) telemetryPartial(window int) string {
 	if aiu := s.meter.ReportedAIU(); aiu > 0 {
 		rows = append(rows, [2]string{"GitHub-reported cost", fmt.Sprintf("%.4f AIU", aiu)})
 	}
-	rows = append(rows, [2]string{"Tokens", fmt.Sprintf("input %d · cached %d · output %d", in, cached, out)})
+	rows = append(rows, [2]string{"Tokens (this session)", fmt.Sprintf("input %d · cached %d · output %d", in, cached, out)})
 
 	pct := frac * 100
 	if pct > 100 {
 		pct = 100
 	}
+	// The per-model token table reads the PERSISTED LEDGER (all-time, restart-
+	// surviving), not the live in-process meter — which is empty until turns replay
+	// through it, so the table read 0/0/0 next to real spend (epic 0050 finding 2 /
+	// issue 0058). The ledger's SpendRecords already carry the per-turn token
+	// counts; ModelBreakdowns aggregates them. The live meter remains the "this
+	// session" source for the Tokens row above.
 	models := make([]map[string]any, 0)
-	for _, r := range s.meter.ByModel() {
-		models = append(models, map[string]any{
-			"Model": r.Model, "In": r.InputTokens, "Cached": r.CachedTokens, "Out": r.OutputTokens,
-			"Credits": fmt.Sprintf("%.2f", r.Credits()), "USD": telemetry.FormatUSD(r.USD()),
-		})
+	if s.spend != nil {
+		for _, r := range telemetry.ModelBreakdowns(s.spend.Records()) {
+			models = append(models, map[string]any{
+				"Model": r.Model, "In": r.InputTokens, "Cached": r.CachedTokens, "Out": r.OutputTokens,
+				"Credits": fmt.Sprintf("%.2f", r.Credits()), "USD": telemetry.FormatUSD(r.USD()),
+			})
+		}
 	}
 	days, shares, hasHistory := s.spendTrend(window)
 	now := time.Now()

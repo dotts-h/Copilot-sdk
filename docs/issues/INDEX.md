@@ -71,7 +71,7 @@ issues are added or closed.
 | [0055](0055-hooks-ui-mode-binding-timeline-why.md) | Hooks management UI + mode binding + timeline why — in-app CRUD over governance hooks (V27, G4) | closed | high | 0052 | ADR-0031, PR #86 |
 | [0056](0056-posttooluse-hook-command-execution.md) | PostToolUse hook command execution — bounded local command, untrusted display-only output (V28, G5) | closed | high | 0052 | ADR-0032, PR #87 |
 | [0057](0057-authoritative-cost-first-metering.md) | Authoritative-cost-first metering — ReportedAIU is actual spend, price book is the estimate (P0) | closed | high | 0050 | depends_on: —, ADR-0033, REGRESSIONS #21, PR #95 |
-| [0058](0058-per-model-breakdown-from-ledger.md) | Per-model breakdown from the ledger + the missing integration test (P2-core) | open | high | 0050 | depends_on: —, REGRESSIONS #3 |
+| [0058](0058-per-model-breakdown-from-ledger.md) | Per-model breakdown from the ledger + the missing integration test (P2-core) | closed | high | 0050 | depends_on: —, REGRESSIONS #3, PR #96 |
 | [0059](0059-price-cache-write-and-reasoning-tokens.md) | Price cache-write + reasoning tokens — promote out of display-only ExtraTokens into priced Usage (P1) | open | high | 0050 | depends_on: 0057 0058, ADR-0034 (reserved) |
 | [0060](0060-estimate-vs-reported-reconciliation-drift.md) | Estimate-vs-reported reconciliation + drift on the Telemetry page (P3) | open | medium | 0050 | depends_on: 0057 |
 | [0061](0061-live-price-book-refresh.md) | Live price-book refresh — opt-in, cached, fail-open fetch of per-model multipliers (P4) | open | low | 0050 | depends_on: 0059, ADR-0035 (reserved) |
