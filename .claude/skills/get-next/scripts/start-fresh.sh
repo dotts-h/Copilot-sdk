@@ -58,8 +58,20 @@ fi
 # The branch we cut is taken from the remote ref regardless, so a missing or
 # non-ff local main is non-fatal — and we return to the original HEAD before
 # creating the new branch, so a switch here can't strand the caller.
-start_ref="$(git symbolic-ref -q --short HEAD || git rev-parse HEAD)"
-if git show-ref -q --verify refs/heads/main; then
+#
+# SKIP inside a LINKED WORKTREE (Agent isolation:worktree): there `main` is checked
+# out in the primary worktree, so `git switch main` fails — and with the error
+# swallowed the subsequent ff-merge would run against whatever branch is current,
+# parking the merge on the linked checkout instead of advancing main. The branch we
+# cut comes from origin/main regardless, so the local-main ff is purely cosmetic and
+# safe to skip. A linked worktree is the only state where git-dir != git-common-dir
+# (they're equal only in the primary worktree).
+git_dir="$(git rev-parse --git-dir)"
+common_dir="$(git rev-parse --git-common-dir)"
+if [ "$git_dir" != "$common_dir" ]; then
+  note "linked worktree detected (Agent isolation:worktree) — skipping the local-main fast-forward; the new branch is cut from origin/main directly."
+elif git show-ref -q --verify refs/heads/main; then
+  start_ref="$(git symbolic-ref -q --short HEAD || git rev-parse HEAD)"
   git switch main --quiet 2>/dev/null || true
   git merge --ff-only "$remote_main" --quiet 2>/dev/null \
     || note "local main is not a fast-forward of origin/main (diverged or behind a rebase) — cutting from origin/main directly."
