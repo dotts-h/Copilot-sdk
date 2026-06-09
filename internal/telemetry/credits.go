@@ -107,6 +107,20 @@ func (m *Meter) ReportedAIU() float64 {
 	return m.reportedAIU
 }
 
+// HasReported reports whether the runtime has reported any authoritative cost on this
+// meter — i.e. whether ActualCredits reads the reported figure rather than the
+// price-book estimate. — ADR-0033.
+func (m *Meter) HasReported() bool { return HasReported(m.ReportedAIU()) }
+
+// ActualCredits returns this meter's actual spend on the authoritative-cost-first
+// basis (ADR-0033): the reported AIU (1 AIU = 1 credit) once the runtime has reported,
+// else the price-book estimate from Totals. The estimate stays the pre-flight/forecast
+// figure and the offline fallback — never the truth for actual spend when a reported
+// figure is in hand.
+func (m *Meter) ActualCredits() float64 {
+	return ActualCredits(m.Totals().Credits(), m.ReportedAIU())
+}
+
 // ModelTotals aggregates usage and cost for one model.
 type ModelTotals struct {
 	Model        string
