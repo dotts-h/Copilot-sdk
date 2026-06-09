@@ -382,7 +382,7 @@ func TestWriteCSVAppendsAttributionColumns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CSV is not parseable: %v", err)
 	}
-	want := []string{"at", "session", "model", "input", "cached", "output", "usd", "credits", "aiu", "agent", "workflow", "lane"}
+	want := []string{"at", "session", "model", "input", "cached", "output", "usd", "credits", "aiu", "agent", "workflow", "lane", "cacheWrite", "reasoning"}
 	if len(rows[0]) != len(want) {
 		t.Fatalf("header width = %d, want %d: %+v", len(rows[0]), len(want), rows[0])
 	}

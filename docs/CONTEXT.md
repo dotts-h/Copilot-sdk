@@ -136,6 +136,12 @@
 - **price book** — the model→token-rate table (`telemetry.PriceBook`). Built from
   `DefaultPriceBook()` + `config` overrides via `BuildPriceBook`; live-repriced by
   `Replace`. — ADR-0008 (G1)
+- **cache-write** — prompt-cache *write* (cache-creation) tokens, a billed category
+  **distinct** from fresh input and cached (read) input and **additive** to the bill. The
+  estimate prices them at `CacheWritePerMTok` (default **1.25× input**, overridable). — ADR-0034
+- **reasoning** (thinking) tokens — a **subset of output** tokens (the model's
+  chain-of-thought), so they are **already** priced at the output rate; surfaced as a
+  display-only count, never charged a second time. — ADR-0034
 - **turn** — one assistant exchange; the unit a `SpendRecord` meters.
 - **ledger** (spend ledger) — the **persisted, append-only** spend history
   (`telemetry.SpendStore`, `spend.json`): one `SpendRecord` per metered turn, tagged with

@@ -1,18 +1,32 @@
 ---
 id: 0059
 title: "Price cache-write + reasoning tokens — promote out of display-only ExtraTokens into priced Usage (roadmap v10, P1)"
-status: open
+status: closed
 severity: high
 group: 0050
 depends_on: [0057, 0058]
 github:
 links:
-  adr: []          # reserves ADR-0034 (money math + price-book migration)
-  prs: []
+  adr: [0034]
+  prs: [98]
   issues: [0050]
   regression: [3]
 assets: []
 ---
+
+> **Shipped 2026-06-09 — PR #98, part of epic 0050.** Cache-write tokens are now a
+> first-class priced category (`ModelRate.CacheWritePerMTok`, default 1.25× input;
+> `Cost.CacheWriteUSD` folded into `USD()`); reasoning tokens are recognised as a
+> **subset of `OutputTokens`** (SDK: "output tokens used for reasoning") — already
+> priced at the output rate, so they stay a display-only count and are **never charged
+> twice** (`TestPriceDoesNotDoubleCountReasoning`). `SpendRecord` gained additive
+> `cw`/`reasoning` fields (schema v3, backward-readable); `config.PriceOverrides`
+> migrated `[3]float64`→`[]float64` (length 3 or 4) so a legacy override loads unchanged
+> and a 4-element override pins cache-write. The Settings price editor and the all-time
+> per-model table surface the cache-write column. Decision recorded in
+> [ADR-0034](../adr/0034-price-cache-write-additive-reasoning-is-output-subset.md). The
+> reasoning-as-subset call was confirmed with the maintainer first. `make lint && make
+> test` green under `-race`; `make e2e` green.
 
 ## Summary
 Two billed token types are unpriced and sit in display-only `ExtraTokens` (REGRESSIONS #3): a

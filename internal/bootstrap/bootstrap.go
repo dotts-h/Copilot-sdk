@@ -168,10 +168,11 @@ func seedSpend(store *telemetry.SpendStore) {
 		{At: at(16), SessionID: "demo-sess-2", Model: "gpt-5", InputTokens: 600, OutputTokens: 140, USD: 0.010, AgentID: "builder"},
 		{At: at(4), SessionID: "demo-sess-2", Model: "gpt-5", InputTokens: 900, OutputTokens: 220, USD: 0.012, AgentID: "builder"},
 		{At: at(3), SessionID: "demo-sess-2", Model: "claude-sonnet-4-6", InputTokens: 1500, OutputTokens: 400, USD: 0.030, AgentID: "sdet"},
-		{At: at(2), SessionID: "demo-sess-1", Model: "gpt-5", InputTokens: 1200, CachedTokens: 200, OutputTokens: 340, USD: 0.018, AgentID: "builder"},
+		{At: at(2), SessionID: "demo-sess-1", Model: "gpt-5", InputTokens: 1200, CachedTokens: 200, OutputTokens: 340, CacheWriteTokens: 400, ReasoningTokens: 90, USD: 0.018, AgentID: "builder"},
 		// Two turns a workflow run owned: the Build & harden lanes (sequential),
-		// attributed to the run and the lane within it.
-		{At: at(1), SessionID: "demo-sess-1", Model: "gpt-5", InputTokens: 2200, CachedTokens: 600, OutputTokens: 520, USD: 0.026, AgentID: "builder", WorkflowID: "build-and-harden", LaneIndex: 0},
+		// attributed to the run and the lane within it. Cache-write + reasoning counts
+		// populate the per-model breakdown's new columns (ADR-0034).
+		{At: at(1), SessionID: "demo-sess-1", Model: "gpt-5", InputTokens: 2200, CachedTokens: 600, OutputTokens: 520, CacheWriteTokens: 700, ReasoningTokens: 160, USD: 0.026, AgentID: "builder", WorkflowID: "build-and-harden", LaneIndex: 0},
 		{At: at(0), SessionID: "demo-sess-1", Model: "claude-sonnet-4-6", InputTokens: 1400, OutputTokens: 360, USD: 0.022, AgentID: "sdet", WorkflowID: "build-and-harden", LaneIndex: 1},
 		{At: at(0), SessionID: "demo-sess-1", Model: "claude-haiku-4-5", InputTokens: 800, OutputTokens: 150, USD: 0.004, AgentID: "builder"},
 	} {

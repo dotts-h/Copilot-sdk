@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -106,19 +107,20 @@ func TestSettingsSavePersistsAndApplies(t *testing.T) {
 func TestSettingsFormRendersPriceOverrideRows(t *testing.T) {
 	s, _ := newSettingsServer(t)
 	// Seed an override so the row pre-fills from config.
-	s.config.Telemetry.PriceOverrides = map[string][3]float64{"gpt-5": {99, 9, 88}}
+	s.config.Telemetry.PriceOverrides = map[string][]float64{"gpt-5": {99, 9, 88}}
 	srv := httptest.NewServer(s.Handler())
 	defer srv.Close()
 
 	body := get(t, srv, "/page/settings")
 	for _, sub := range []string{
 		"Per-model price overrides",
-		`name="price.`,              // index-keyed rows exist
-		`.model"`,                   // each row carries its hidden model id
-		`.in"`, `.cached"`, `.out"`, // three numeric fields per model
-		"gpt-5",              // a default model is listed
-		`value="99"`,         // the seeded override pre-fills the input field
-		`placeholder="1.25"`, // the built-in default shows as a placeholder
+		`name="price.`,                      // index-keyed rows exist
+		`.model"`,                           // each row carries its hidden model id
+		`.in"`, `.cached"`, `.out"`, `.cw"`, // four numeric fields per model (incl. cache-write, ADR-0034)
+		"gpt-5",                // a default model is listed
+		`value="99"`,           // the seeded override pre-fills the input field
+		`placeholder="1.25"`,   // the built-in default shows as a placeholder
+		`placeholder="1.5625"`, // cache-write default placeholder = 1.25× input (1.25×1.25)
 	} {
 		if !strings.Contains(body, sub) {
 			t.Errorf("price-override section missing %q\n%s", sub, body)
@@ -150,14 +152,14 @@ func TestSettingsSaveRoundTripsPriceOverrideAndRepricesLive(t *testing.T) {
 	}
 
 	// Persisted into config (in memory and on disk).
-	if got := s.config.Telemetry.PriceOverrides["gpt-5"]; got != [3]float64{99, 9, 88} {
+	if got := s.config.Telemetry.PriceOverrides["gpt-5"]; !slices.Equal(got, []float64{99, 9, 88}) {
 		t.Errorf("override not applied in memory: %v", got)
 	}
 	reloaded, err := config.Load(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := reloaded.Telemetry.PriceOverrides["gpt-5"]; got != [3]float64{99, 9, 88} {
+	if got := reloaded.Telemetry.PriceOverrides["gpt-5"]; !slices.Equal(got, []float64{99, 9, 88}) {
 		t.Errorf("override not persisted: %v", got)
 	}
 
@@ -222,12 +224,12 @@ func TestSettingsSavePartialPriceRowFillsBlanksWithDefault(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	want := [3]float64{1.25, 0.125, 88}
-	if got := s.config.Telemetry.PriceOverrides["gpt-5"]; got != want {
+	want := []float64{1.25, 0.125, 88}
+	if got := s.config.Telemetry.PriceOverrides["gpt-5"]; !slices.Equal(got, want) {
 		t.Errorf("partial row: blanks should keep defaults, got %v want %v", got, want)
 	}
 	reloaded, _ := config.Load(dir)
-	if got := reloaded.Telemetry.PriceOverrides["gpt-5"]; got != want {
+	if got := reloaded.Telemetry.PriceOverrides["gpt-5"]; !slices.Equal(got, want) {
 		t.Errorf("partial row not persisted with defaults: %v", got)
 	}
 	// The live meter still prices input at the default (1.25), not $0.

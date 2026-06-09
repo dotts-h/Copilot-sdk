@@ -24,8 +24,12 @@ type ModelBreakdown struct {
 	InputTokens  int64
 	CachedTokens int64
 	OutputTokens int64
-	USDTotal     float64 // sum of each turn's total USD (no per-component split in the ledger)
-	Turns        int64
+	// CacheWriteTokens is priced into USDTotal (ADR-0034); ReasoningTokens is a
+	// display-only subset of OutputTokens (already priced at the output rate).
+	CacheWriteTokens int64
+	ReasoningTokens  int64
+	USDTotal         float64 // sum of each turn's total USD (no per-component split in the ledger)
+	Turns            int64
 }
 
 // USD returns the model's total dollar cost over the ledger.
@@ -50,6 +54,8 @@ func ModelBreakdowns(records []SpendRecord) []ModelBreakdown {
 		b.InputTokens += r.InputTokens
 		b.CachedTokens += r.CachedTokens
 		b.OutputTokens += r.OutputTokens
+		b.CacheWriteTokens += r.CacheWriteTokens
+		b.ReasoningTokens += r.ReasoningTokens
 		b.USDTotal += r.USD
 		b.Turns++
 	}
