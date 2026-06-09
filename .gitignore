@@ -17,3 +17,6 @@ npm-debug.log*
 
 # my-orchestra runtime config (user-local)
 /.my-orchestra/
+
+# Transient agent worktrees (Agent isolation:worktree); never commit
+.claude/worktrees/
