@@ -45,8 +45,38 @@ func renderTurn(t convo.Turn) string {
 		return renderToolCard(t.Tool)
 	case convo.RoleDecision:
 		return renderDecisionNote(t.Decision)
+	case convo.RoleHookRun:
+		return renderHookRunNote(t.HookRun)
 	}
 	return ""
+}
+
+// renderHookRunNote renders a PostToolUse hook-execution annotation (G5,
+// ADR-0032): a compact, muted timeline line naming the hook, its resolved command,
+// an exit/timeout status, and a bounded snippet of the command's output. The
+// output is UNTRUSTED — html/template auto-escapes it (ADR-0001), so it is shown
+// verbatim-as-text and can never inject markup or act as an agent instruction. It
+// is telemetry, not a control.
+func renderHookRunNote(h *convo.HookRunView) string {
+	if h == nil {
+		return ""
+	}
+	status := "ok"
+	switch {
+	case h.TimedOut:
+		status = "timed out"
+	case h.Failed:
+		status = fmt.Sprintf("exited %d", h.ExitCode)
+	}
+	glyph := "⚙"
+	if h.Failed {
+		glyph = "⚠"
+	}
+	return frag("hookRunNote", map[string]any{
+		"Glyph": glyph, "HookID": h.HookID, "Command": h.Command,
+		"Status": status, "Failed": h.Failed,
+		"Output": h.Output, "HasOutput": strings.TrimSpace(h.Output) != "",
+	})
 }
 
 // renderDecisionNote renders a governance "why" annotation (ADR-0031): a compact,

@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
 	sdk "github.com/github/copilot-sdk/go"
@@ -32,6 +34,7 @@ type SDKClient struct {
 	sessions  map[string]*sdk.Session
 	unsubs    map[string]func()
 	toolNames map[string]string        // toolCallID -> toolName, for matching end events
+	toolMeta  map[string]toolMeta      // toolCallID -> {kind, target}, for PostToolUse matching (ADR-0032)
 	reasoned  map[string]bool          // sid -> reasoning deltas streamed in the current segment
 	policies  map[string]sessionPolicy // sid -> compiled governance policy (ADR-0029/0030)
 	closed    bool
@@ -41,6 +44,14 @@ type SDKClient struct {
 	// rejects it. nil until first successfully fetched.
 	modelsMu     sync.Mutex
 	modelEfforts map[string][]string
+
+	// PostToolUse command-executor seams (G5, ADR-0032). runCmd execs a single
+	// command (default execCommand); lookupEnv resolves a ${VAR} reference (default
+	// os.Getenv); hookTimeout bounds one command (0 → defaultHookTimeout). They are
+	// fields so the executor is unit-testable without spawning real processes.
+	runCmd      commandRunner
+	lookupEnv   func(string) string
+	hookTimeout time.Duration
 
 	events chan Event
 	done   chan struct{}
@@ -106,8 +117,11 @@ func NewSDKClient(ctx context.Context, opts Options) (*SDKClient, error) {
 		sessions:  make(map[string]*sdk.Session),
 		unsubs:    make(map[string]func()),
 		toolNames: make(map[string]string),
+		toolMeta:  make(map[string]toolMeta),
 		reasoned:  make(map[string]bool),
 		policies:  make(map[string]sessionPolicy),
+		runCmd:    execCommand,
+		lookupEnv: os.Getenv,
 		events:    make(chan Event, 256),
 		done:      make(chan struct{}),
 	}, nil

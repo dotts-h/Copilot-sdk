@@ -109,6 +109,7 @@ func newTestSDKClient() *SDKClient {
 		sessions:  map[string]*sdk.Session{},
 		unsubs:    map[string]func(){},
 		toolNames: map[string]string{},
+		toolMeta:  map[string]toolMeta{},
 		reasoned:  map[string]bool{},
 		events:    make(chan Event, 64),
 		done:      make(chan struct{}),

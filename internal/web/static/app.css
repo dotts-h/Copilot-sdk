@@ -675,6 +675,18 @@ ul.rows { list-style: none; margin: 0; padding: 0; }
 .turn.decision.decision-allow { border-left-color: var(--good); }
 .turn.decision .decision-hook { color: var(--fg); font-weight: 600; }
 .turn.decision .decision-detail { color: var(--fg); }
+
+/* PostToolUse hook-run annotation (ADR-0032): a compact, muted timeline line for a
+   hook's external command. Telemetry, not a control; a failed run is warn-toned.
+   The output snippet is untrusted, shown verbatim-as-text (html/template escapes). */
+.turn.hookrun { background: none; color: var(--dim); font-size: .82rem;
+  padding: .15rem .85rem; border-left: 3px solid var(--subtle); }
+.turn.hookrun.hookrun-failed { border-left-color: var(--warn); }
+.turn.hookrun .hookrun-id { color: var(--fg); font-weight: 600; }
+.turn.hookrun .hookrun-cmd { color: var(--fg); }
+.turn.hookrun .hookrun-output { margin: .25rem 0 0; padding: .35rem .5rem;
+  background: var(--subtle); border-radius: 6px; white-space: pre-wrap;
+  overflow-x: auto; max-height: 9rem; font-size: .78rem; }
 .perm .perm-reason, .perm-review .perm-reason { color: var(--warn); font-size: .85rem;
   flex-basis: 100%; }
 

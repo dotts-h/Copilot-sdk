@@ -3,6 +3,8 @@ package web
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -129,6 +131,9 @@ func renderHookForm(h ctxforge.Hook, isNew bool, errMsg string) string {
 		modesField(h.Modes),
 		checkboxField("Enabled", "enabled", h.Enabled),
 		frag("hookPreflight", map[string]any{"Sample": ""}),
+		textField("PostToolUse command (program to run after a matching tool; post-tool-use only)", "command", h.Command, false),
+		textField("Command args (comma-separated; ${VAR} resolved at run)", "commandArgs", strings.Join(h.CommandArgs, ", "), false),
+		frag("hookCommandPreflight", nil),
 	)
 }
 
@@ -183,10 +188,12 @@ func hookFromForm(r *http.Request, id string) ctxforge.Hook {
 			Pattern:          strings.TrimSpace(r.FormValue("pattern")),
 			OutsideWorkspace: r.FormValue("outsideWorkspace") != "",
 		},
-		Action:  strings.TrimSpace(r.FormValue("action")),
-		Reason:  strings.TrimSpace(r.FormValue("reason")),
-		Enabled: r.FormValue("enabled") != "",
-		Modes:   parseModes(r),
+		Action:      strings.TrimSpace(r.FormValue("action")),
+		Reason:      strings.TrimSpace(r.FormValue("reason")),
+		Enabled:     r.FormValue("enabled") != "",
+		Modes:       parseModes(r),
+		Command:     strings.TrimSpace(r.FormValue("command")),
+		CommandArgs: parseCSV(r.FormValue("commandArgs")),
 	}
 }
 
@@ -214,7 +221,7 @@ func (s *Server) handleHookEdit(w http.ResponseWriter, r *http.Request) { hookCR
 // literal over `{id}`), so the hook could never be saved. Rejecting them at
 // create — the only entry point for a new id — keeps such an id from ever
 // existing. — ADR-0031.
-var reservedHookRouteIDs = map[string]bool{"new": true, "preflight": true}
+var reservedHookRouteIDs = map[string]bool{"new": true, "preflight": true, "command-preflight": true}
 
 func (s *Server) handleHookCreate(w http.ResponseWriter, r *http.Request) {
 	if id := strings.TrimSpace(r.FormValue("id")); reservedHookRouteIDs[id] {
@@ -248,6 +255,62 @@ func (s *Server) handleHookPreflight(w http.ResponseWriter, r *http.Request) {
 	sample := r.FormValue("sample")
 	s.writePartial(w, hookPreflightResult(pattern, sample))
 }
+
+// handleHookCommandPreflight reports, WITHOUT executing, the resolved PostToolUse
+// command line and which ${VAR} references resolve empty in the environment —
+// mirroring the MCP env preflight (ADR-0020) behind the s.lookupEnv seam. It
+// mutates nothing and never runs the command. — ADR-0032.
+func (s *Server) handleHookCommandPreflight(w http.ResponseWriter, r *http.Request) {
+	command := strings.TrimSpace(r.FormValue("command"))
+	args := parseCSV(r.FormValue("commandArgs"))
+	lookup := s.lookupEnv
+	if lookup == nil {
+		lookup = os.Getenv
+	}
+	s.writePartial(w, hookCommandPreflightResult(command, args, lookup))
+}
+
+// hookCommandPreflightResult is the pure command-preflight verdict: the command
+// line (with ${VAR} placeholders left visible) and the set of referenced vars that
+// resolve empty (a missing var would run UNSET at execution, never the literal).
+// A command is only meaningful on a post-tool-use hook, noted in the fragment.
+func hookCommandPreflightResult(command string, args []string, lookup func(string) string) string {
+	if command == "" {
+		return frag("hookCommandPreflightResult", map[string]any{"Empty": true})
+	}
+	line := command
+	if len(args) > 0 {
+		line += " " + strings.Join(args, " ")
+	}
+	var missing []string
+	seen := map[string]bool{}
+	for _, name := range commandVarRefs(line) {
+		if !seen[name] {
+			seen[name] = true
+			if lookup(name) == "" {
+				missing = append(missing, name)
+			}
+		}
+	}
+	return frag("hookCommandPreflightResult", map[string]any{
+		"Command": line, "Missing": strings.Join(missing, ", "), "HasMissing": len(missing) > 0,
+	})
+}
+
+// commandVarRefs returns the VAR_NAMEs referenced as ${VAR} inside s, in order
+// (the inline companion to envRef, which matches a whole-string reference). The
+// ${VAR} shape is decoded only in this web seam, not in ctxforge (ADR-0020).
+func commandVarRefs(s string) []string {
+	matches := commandVarRefPattern.FindAllStringSubmatch(s, -1)
+	out := make([]string, 0, len(matches))
+	for _, m := range matches {
+		out = append(out, m[1])
+	}
+	return out
+}
+
+// commandVarRefPattern matches an inline ${VAR_NAME} reference (ADR-0020).
+var commandVarRefPattern = regexp.MustCompile(`\$\{([A-Z_][A-Z0-9_]*)\}`)
 
 // hookPreflightResult is the pure preflight verdict: which form the pattern takes
 // (glob vs substring) and, given a non-empty sample, whether it matches.

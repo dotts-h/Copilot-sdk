@@ -1,14 +1,14 @@
 ---
 id: 0052
 title: "Epic: Hooks & safe autopilot — first-class forge-managed Pre/PostToolUse hooks + a safe-by-default tool-governance policy (roadmap v10)"
-status: open
+status: closed
 severity: high
 group:
 github:
 links:
-  adr: [0029, 0030, 0031]
-  prs: [84, 83, 85]
-  issues: [0053, 0054, 0055]
+  adr: [0029, 0030, 0031, 0032]
+  prs: [84, 83, 85, 86, 87]
+  issues: [0053, 0054, 0055, 0056]
   regression: []
 ---
 
@@ -70,8 +70,15 @@ or **ask** (the existing HITL gate). This generalizes `AutoApproveTools` from a 
       other forge type. Reuse `${VAR}` + preflight; **hook command output is untrusted** — sanitize. —
       **mechanism shipped in V25** ([0053](0053-hooks-foundation-forge-entity-bridge-evaluator.md),
       ADR-0029): the entity + persistence + compile + built-in allow/deny/ask. **External command-ref
-      execution** (PostToolUse running a user command, `${VAR}` + preflight, untrusted output) is
-      deferred to a later child.
+      execution** (PostToolUse running a user command, `${VAR}` + preflight, untrusted output) —
+      **shipped in V28** ([0056](0056-posttooluse-hook-command-execution.md), ADR-0032).
+- [x] **G5 · External command-ref hook execution** (M; ADR) — *the last child, closes the epic*. A
+      **PostToolUse** hook runs a user-defined local command after a matching tool completes:
+      `Hook.Command`/`CommandArgs` (post-only, `${VAR}` + a command preflight), the executor off the
+      tool-completion flow (direct exec, 5s timeout, ~2KB bounded output, workspace cwd), and the output
+      treated as **untrusted** — display-only `EvHookRun` telemetry, escaped, never agent-visible and
+      **never a gate**. — **shipped in V28** ([0056](0056-posttooluse-hook-command-execution.md),
+      ADR-0032).
 - [x] **G4 · Hook/policy editor UI + mode binding** (M; ADR). Full **CRUD in the app** — add / edit /
       enable-disable / remove hooks from a Hooks page, exactly like the skills/MCP/workflow forms (list +
       form + preflight). Bind a hook set to **agent modes** (auto mode → strict defaults on; ask mode →
@@ -82,16 +89,30 @@ or **ask** (the existing HITL gate). This generalizes `AutoApproveTools` from a 
 
 ## Acceptance (epic)
 
-- [ ] Read-only tools are auto-approved by default; writes/exec are gated; the default build is safe.
-- [ ] A documented set of destructive patterns is hard-denied or force a mandatory gate **even in auto
-      mode**, enforced in the bridge (not bypassable by config alone), and **table-tested**.
+- [x] Read-only tools are auto-approved by default; writes/exec are gated; the default build is safe.
+      (G1, V25 — `ctxforge.DefaultHooks`.)
+- [x] A documented set of destructive patterns is hard-denied or force a mandatory gate **even in auto
+      mode**, enforced in the bridge (not bypassable by config alone), and **table-tested**. (G2, V26 —
+      `ctxforge.DangerousHooks` + the mandatory enforcement at the seam.)
 - [x] Hooks are a **first-class forge entity** persisted in `forge.json`, with full **add/edit/
       enable-disable/remove CRUD in the app** (the Hooks page, G4); Pre/PostToolUse hooks fire from
-      the bridge, return allow/deny/ask. *(Treating hook command output as untrusted is the last
-      child — external command-ref execution.)*
+      the bridge, return allow/deny/ask. **PostToolUse command output is treated as untrusted** — the
+      last child (G5, V28 — external command-ref execution, ADR-0032).
 - [x] Hooks/policy are bound to agent modes; every auto-approve/deny decision is explainable in the UI.
-- [ ] Each child: failing test first, ADR where it sets policy semantics, `make lint && make test`
+- [x] Each child: failing test first, ADR where it sets policy semantics, `make lint && make test`
       (floor 65%) + `make e2e` green, born in its PR, SemVer minor.
+
+## Resolution (shipped)
+
+Epic **fully shipped** across V25–V28. Children: G0+G3-mechanism+G1 in **V25** (#84, ADR-0029,
+[0053](0053-hooks-foundation-forge-entity-bridge-evaluator.md)); G2 in **V26** (#83/#85, ADR-0030,
+[0054](0054-dangerous-action-deny-mandatory-hitl.md)); G4 in **V27** (#86, ADR-0031,
+[0055](0055-hooks-ui-mode-binding-timeline-why.md)); **G5** — external command-ref hook execution — in
+**V28** (#87, ADR-0032, [0056](0056-posttooluse-hook-command-execution.md)). The product now has a
+**third pillar, governance**: safe-by-default reads auto-approved; a mandatory, unbypassable
+dangerous-action floor; hooks as a first-class, app-managed forge entity bound to agent modes with an
+explainable timeline; and PostToolUse hooks that run a bounded local command whose untrusted output is
+display-only telemetry, never a gate. The 0050/0052 burst cuts **v0.3.0**.
 
 ## Sequencing
 

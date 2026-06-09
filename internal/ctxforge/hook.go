@@ -116,7 +116,25 @@ type Hook struct {
 	// still wins over a mandatory ask); it only forecloses the auto-approve escape
 	// hatch. — ADR-0030.
 	Mandatory bool `json:"mandatory,omitempty"`
+	// Command is an external local command a PostToolUse hook runs AFTER a matching
+	// tool completes (the executor — G5, ADR-0032). It is the program to exec; its
+	// CommandArgs are the arguments. Both may carry ${VAR} references (the MCP env
+	// shape, ADR-0020) resolved at EXECUTION by the seam — the secret is never
+	// stored, only the reference. A command is valid ONLY on a post-tool-use hook
+	// (a PreToolUse hook with a command is rejected): the command's output is
+	// UNTRUSTED display-only telemetry, never a gate, so it must never sit on the
+	// pre-tool decision path. The domain keeps the field opaque — it validates the
+	// shape (post-only, no dangling ${VAR}) but never resolves or executes it.
+	Command string `json:"command,omitempty"`
+	// CommandArgs are the arguments passed to Command (run directly, no shell — no
+	// pipes/redirects/chaining). Each may carry a ${VAR} reference. Meaningless
+	// without a Command, so Validate rejects args with an empty Command. — ADR-0032.
+	CommandArgs []string `json:"commandArgs,omitempty"`
 }
+
+// HasCommand reports whether the hook carries a PostToolUse command to execute
+// (G5, ADR-0032). A whitespace-only Command does not count.
+func (h Hook) HasCommand() bool { return strings.TrimSpace(h.Command) != "" }
 
 // wellFormedVarRef matches a complete ${NAME} reference (UPPER_SNAKE), the shape
 // reused from the MCP env indirection (ADR-0020). A "${" that does not begin one
@@ -164,6 +182,36 @@ func (h Hook) Validate() error {
 	for _, m := range h.Modes {
 		if !validHookModes[m] {
 			return fmt.Errorf("hook %q: invalid mode %q", h.ID, m)
+		}
+	}
+	if err := h.validateCommand(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateCommand enforces the PostToolUse command field's shape (G5, ADR-0032):
+// a command is allowed ONLY on a post-tool-use hook (a PreToolUse hook carrying a
+// command is rejected so untrusted output can never become a pre-gate control
+// surface); CommandArgs require a non-empty Command; and neither the Command nor
+// any arg may contain a dangling ${VAR} (the well-formed shape is resolved at
+// execution by the seam, ADR-0020). A hook with no command is unaffected.
+func (h Hook) validateCommand() error {
+	if !h.HasCommand() {
+		if len(h.CommandArgs) > 0 {
+			return fmt.Errorf("hook %q: commandArgs require a command", h.ID)
+		}
+		return nil
+	}
+	if h.Event != HookPostToolUse {
+		return fmt.Errorf("hook %q: a command is only valid on a post-tool-use hook", h.ID)
+	}
+	if hasDanglingVarRef(h.Command) {
+		return fmt.Errorf("hook %q: dangling ${VAR} reference in command", h.ID)
+	}
+	for _, a := range h.CommandArgs {
+		if hasDanglingVarRef(a) {
+			return fmt.Errorf("hook %q: dangling ${VAR} reference in command args", h.ID)
 		}
 	}
 	return nil
@@ -368,6 +416,29 @@ func Evaluate(hooks []Hook, event, toolKind, command, workspace, mode string) De
 	default:
 		return Decision{Action: HookAsk}
 	}
+}
+
+// PostToolUseCommands selects, in declared order, the enabled PostToolUse hooks
+// that carry a command and whose Match applies to a completed tool call of the
+// given kind, command, and workspace under the active mode (G5, ADR-0032). It is
+// the pure companion to Evaluate for the POST-tool path: unlike Evaluate it makes
+// no allow/deny/ask decision (a post-tool command never gates) — it just returns
+// which command hooks should fire, leaving ${VAR} resolution and execution to the
+// seam. Mode binding (ADR-0031) and the Match dimensions apply exactly as for the
+// pre-tool path; a hook without a command is ignored.
+func PostToolUseCommands(hooks []Hook, toolKind, command, workspace, mode string) []Hook {
+	var out []Hook
+	for i := range hooks {
+		h := &hooks[i]
+		if !h.Enabled || h.Event != HookPostToolUse || !h.HasCommand() {
+			continue
+		}
+		if !h.appliesInMode(mode) || !h.Match.matches(toolKind, command, workspace) {
+			continue
+		}
+		out = append(out, *h)
+	}
+	return out
 }
 
 // Hook returns the hook with the given ID, or nil.
