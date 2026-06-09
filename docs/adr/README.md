@@ -36,3 +36,4 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0030 | [Dangerous-action deny + mandatory HITL, unbypassable by config](0030-dangerous-action-deny-and-mandatory-hitl-unbypassable-by-config.md) | accepted |
 | 0031 | [Hooks management UI + mode binding + the timeline "why" annotation](0031-hooks-management-ui-mode-binding-and-timeline-why.md) | accepted |
 | 0032 | [PostToolUse hook command execution: a bounded local command with untrusted, display-only output](0032-posttooluse-hook-command-execution-untrusted-output.md) | accepted |
+| 0033 | [ReportedAIU is the source of truth for actual spend; the price book is the estimate/fallback](0033-reportedaiu-is-source-of-truth-for-actual-spend-price-book-is-the-estimate.md) | accepted |

@@ -325,7 +325,7 @@ _Last generated: 2026-06-09 (UTC)._
 - L39: `func DailyTotalsBy(records []SpendRecord, keyOf func(SpendRecord) string, includeEmpty bool) map[string][]DayTotal`
 - L68: `func BucketForecasts(records []SpendRecord, budget Budget, now time.Time, keyOf func(SpendRecord) string, includeEmpty bool) []BucketProjection`
 
-### credits.go (293 LOC)
+### credits.go (307 LOC)
 - L11: `type Usage struct`
 - L27: `func (u Usage) TotalTokens() int64`
 - L32: `type Cost struct`
@@ -336,25 +336,27 @@ _Last generated: 2026-06-09 (UTC)._
 - L77: `type Meter struct`
 - L93: `func (m *Meter) RecordReportedAIU(aiu float64)`
 - L104: `func (m *Meter) ReportedAIU() float64`
-- L111: `type ModelTotals struct`
-- L123: `func (m ModelTotals) USD() float64 { return m.InputUSD + m.CachedUSD + m.OutputUSD }`
-- L126: `func (m ModelTotals) Credits() float64 { return m.USD() / USDPerCredit }`
-- L130: `func NewMeter(pb *PriceBook) *Meter`
-- L140: `func (m *Meter) PriceBook() *PriceBook { return m.pb }`
-- L144: `func (m *Meter) Record(u Usage) Cost`
-- L179: `func (m *Meter) ExtraTokens() (cacheWrite, reasoning int64)`
-- L188: `func (m *Meter) EstimateTurn(model string, contextTokens int64) Cost`
-- L193: `func (m *Meter) Totals() Cost`
-- L203: `func (m *Meter) TotalTokens() (input, cached, output int64)`
-- L216: `func (m *Meter) ByModel() []ModelTotals`
-- L233: `func (m *Meter) Count() int`
-- L242: `type Budget struct`
-- L254: `func (b Budget) Remaining(used float64) float64 { return b.AllowanceCredits - used }`
-- L258: `func (b Budget) FractionUsed(used float64) float64`
-- L271: `func (b Budget) Warned(used float64) bool`
-- L281: `func (b Budget) CapExceeded(projected float64) bool`
-- L290: `func FormatUSD(v float64) string { return fmt.Sprintf("$%.4f", v) }`
-- L293: `func FormatCredits(v float64) string { return fmt.Sprintf("%.2f cr", v) }`
+- L113: `func (m *Meter) HasReported() bool { return HasReported(m.ReportedAIU()) }`
+- L120: `func (m *Meter) ActualCredits() float64`
+- L125: `type ModelTotals struct`
+- L137: `func (m ModelTotals) USD() float64 { return m.InputUSD + m.CachedUSD + m.OutputUSD }`
+- L140: `func (m ModelTotals) Credits() float64 { return m.USD() / USDPerCredit }`
+- L144: `func NewMeter(pb *PriceBook) *Meter`
+- L154: `func (m *Meter) PriceBook() *PriceBook { return m.pb }`
+- L158: `func (m *Meter) Record(u Usage) Cost`
+- L193: `func (m *Meter) ExtraTokens() (cacheWrite, reasoning int64)`
+- L202: `func (m *Meter) EstimateTurn(model string, contextTokens int64) Cost`
+- L207: `func (m *Meter) Totals() Cost`
+- L217: `func (m *Meter) TotalTokens() (input, cached, output int64)`
+- L230: `func (m *Meter) ByModel() []ModelTotals`
+- L247: `func (m *Meter) Count() int`
+- L256: `type Budget struct`
+- L268: `func (b Budget) Remaining(used float64) float64 { return b.AllowanceCredits - used }`
+- L272: `func (b Budget) FractionUsed(used float64) float64`
+- L285: `func (b Budget) Warned(used float64) bool`
+- L295: `func (b Budget) CapExceeded(projected float64) bool`
+- L304: `func FormatUSD(v float64) string { return fmt.Sprintf("$%.4f", v) }`
+- L307: `func FormatCredits(v float64) string { return fmt.Sprintf("%.2f cr", v) }`
 
 ### dashboard.go (157 LOC)
 - L18: `type DayPoint struct`
@@ -371,28 +373,31 @@ _Last generated: 2026-06-09 (UTC)._
 - L45: `type Projection struct`
 - L76: `func Forecast(daily []DayTotal, budget Budget, now time.Time) Projection`
 
-### history.go (334 LOC)
+### history.go (350 LOC)
 - L24: `type SpendRecord struct`
-- L50: `func (r SpendRecord) Credits() float64 { return r.USD / USDPerCredit }`
-- L53: `func (r SpendRecord) Day() string { return r.At.UTC().Format("2006-01-02") }`
-- L72: `type SpendStore struct`
-- L82: `func LoadSpendStore(dir string) (*SpendStore, error)`
-- L92: `func stampSpend(r SpendRecord) SpendRecord`
-- L100: `type DayTotal struct`
-- L109: `func DailyTotals(records []SpendRecord) []DayTotal`
-- L147: `func MonthToDate(records []SpendRecord, now time.Time) Cost`
-- L161: `type share struct`
-- L175: `func shareBy(records []SpendRecord, keyOf func(SpendRecord) string, includeEmpty bool) []share`
-- L206: `type ModelShare struct`
-- L216: `func ModelShares(records []SpendRecord) []ModelShare`
-- L228: `type AgentShare struct`
-- L239: `func AgentShares(records []SpendRecord) []AgentShare`
-- L250: `type WorkflowShare struct`
-- L262: `func WorkflowShares(records []SpendRecord) []WorkflowShare`
-- L273: `type SessionShare struct`
-- L286: `func SessionShares(records []SpendRecord) []SessionShare`
-- L298: `func WriteCSV(w io.Writer, records []SpendRecord) error`
-- L332: `func csvFloat(v float64) string`
+- L53: `func (r SpendRecord) Credits() float64 { return r.USD / USDPerCredit }`
+- L57: `func (r SpendRecord) EstimateCredits() float64 { return r.Credits() }`
+- L61: `func (r SpendRecord) HasReported() bool { return HasReported(r.AIU) }`
+- L66: `func (r SpendRecord) ActualCredits() float64 { return ActualCredits(r.EstimateCredits(), r.AIU) }`
+- L69: `func (r SpendRecord) Day() string { return r.At.UTC().Format("2006-01-02") }`
+- L88: `type SpendStore struct`
+- L98: `func LoadSpendStore(dir string) (*SpendStore, error)`
+- L108: `func stampSpend(r SpendRecord) SpendRecord`
+- L116: `type DayTotal struct`
+- L125: `func DailyTotals(records []SpendRecord) []DayTotal`
+- L163: `func MonthToDate(records []SpendRecord, now time.Time) Cost`
+- L177: `type share struct`
+- L191: `func shareBy(records []SpendRecord, keyOf func(SpendRecord) string, includeEmpty bool) []share`
+- L222: `type ModelShare struct`
+- L232: `func ModelShares(records []SpendRecord) []ModelShare`
+- L244: `type AgentShare struct`
+- L255: `func AgentShares(records []SpendRecord) []AgentShare`
+- L266: `type WorkflowShare struct`
+- L278: `func WorkflowShares(records []SpendRecord) []WorkflowShare`
+- L289: `type SessionShare struct`
+- L302: `func SessionShares(records []SpendRecord) []SessionShare`
+- L314: `func WriteCSV(w io.Writer, records []SpendRecord) error`
+- L348: `func csvFloat(v float64) string`
 
 ### pricing.go (188 LOC)
 - L27: `type ModelRate struct`
@@ -431,6 +436,13 @@ _Last generated: 2026-06-09 (UTC)._
 - L317: `func csvTime(t time.Time) string`
 - L328: `func laterRun(s2, f2, s1, f1 time.Time) bool`
 
+### spend_source.go (91 LOC)
+- L22: `func HasReported(reportedAIU float64) bool { return reportedAIU > 0 }`
+- L27: `func ReportedCredits(reportedAIU float64) float64 { return reportedAIU }`
+- L32: `func ActualCredits(estimateCredits, reportedAIU float64) float64`
+- L44: `type ActualSpend struct`
+- L67: `func MonthToDateActual(records []SpendRecord, now time.Time) ActualSpend`
+
 ### store.go (185 LOC)
 - L41: `type AppendOnlyStore[T any] struct`
 - L57: `func loadAppendOnlyStore[T any](dir, file, key, what string, version int, stamp func(T) T) (*AppendOnlyStore[T], error)`
@@ -459,18 +471,20 @@ _Last generated: 2026-06-09 (UTC)._
 - L130: `func (s *Server) handleCommands(w http.ResponseWriter, r *http.Request)`
 - L149: `func renderMenu(cmds []commandSpec, snippets []ctxforge.Snippet) string`
 
-### budget.go (100 LOC)
+### budget.go (118 LOC)
 - L17: `type budgetTracker struct`
 - L25: `func (b budgetTracker) Budget() telemetry.Budget`
 - L38: `func (b budgetTracker) MonthToDate(now time.Time) telemetry.Cost`
-- L50: `func (b budgetTracker) Forecast(now time.Time) (telemetry.Projection, bool)`
-- L64: `func (s *Server) budgets() budgetTracker`
-- L76: `func (s *Server) budget() telemetry.Budget { return s.budgets().Budget() }`
-- L79: `func (s *Server) monthToDate() telemetry.Cost { return s.budgets().MonthToDate(time.Now()) }`
-- L82: `func (s *Server) forecast(now time.Time) (telemetry.Projection, bool)`
-- L92: `func (s *Server) overCap() (projected float64, capped bool)`
+- L50: `func (b budgetTracker) MonthToDateActual(now time.Time) telemetry.ActualSpend`
+- L62: `func (b budgetTracker) Forecast(now time.Time) (telemetry.Projection, bool)`
+- L76: `func (s *Server) budgets() budgetTracker`
+- L88: `func (s *Server) budget() telemetry.Budget { return s.budgets().Budget() }`
+- L91: `func (s *Server) monthToDate() telemetry.Cost { return s.budgets().MonthToDate(time.Now()) }`
+- L95: `func (s *Server) monthToDateActual() telemetry.ActualSpend`
+- L100: `func (s *Server) forecast(now time.Time) (telemetry.Projection, bool)`
+- L110: `func (s *Server) overCap() (projected float64, capped bool)`
 
-### commands.go (416 LOC)
+### commands.go (424 LOC)
 - L23: `func parseCommand(input string) (name, args string, ok bool)`
 - L34: `func (s *Server) runCommand(input string) string`
 - L66: `func (s *Server) systemNote(text string) string`
@@ -489,19 +503,19 @@ _Last generated: 2026-06-09 (UTC)._
 - L328: `func (s *Server) compiledSpec(agentID string) copilot.SessionSpec`
 - L342: `func (s *Server) applyAgentSpec(c copilot.SessionSpec, agentID string) string`
 - L359: `func (s *Server) cmdCost() string`
-- L372: `func (s *Server) cmdAttach(path string) string`
-- L386: `func (s *Server) cmdNav(slug string) string`
-- L391: `func isNavSlug(slug string) bool`
-- L402: `func commandHelp() string`
+- L380: `func (s *Server) cmdAttach(path string) string`
+- L394: `func (s *Server) cmdNav(slug string) string`
+- L399: `func isNavSlug(slug string) bool`
+- L410: `func commandHelp() string`
 
 ### dashboard_render.go (153 LOC)
 - L25: `func (s *Server) dashboardView(window int, now time.Time) map[string]any`
 - L113: `func kpiCard(label, value string, series []float64, delta telemetry.Delta, higherIsWorse bool, window int) map[string]any`
 - L128: `func deltaView(d telemetry.Delta, higherIsWorse bool) map[string]any`
 
-### demo.go (131 LOC)
+### demo.go (136 LOC)
 - L16: `func streamDemoReply(m *copilot.MockClient, prompt string)`
-- L122: `func tokenize(s string) []string`
+- L127: `func tokenize(s string) []string`
 
 ### diff.go (157 LOC)
 - L15: `type diffLineKind int`
@@ -645,7 +659,7 @@ _Last generated: 2026-06-09 (UTC)._
 ### palette.go (33 LOC)
 - L15: `func commandPalette() string`
 
-### render.go (508 LOC)
+### render.go (557 LOC)
 - L25: `func esc(s string) string`
 - L31: `func deltaSpan(text string) string { return frag("deltaSpan", text) }`
 - L34: `func renderTurn(t convo.Turn) string`
@@ -670,11 +684,12 @@ _Last generated: 2026-06-09 (UTC)._
 - L356: `func renderStatus(text string, active bool, startMs int64) string`
 - L364: `func renderCtx(cur, limit int64, compacting bool) string`
 - L399: `func renderStatline(s *Server) string`
-- L446: `func statlineForecast(s *Server, now time.Time) (show bool, short string, warn bool, title string)`
-- L460: `func humanTokens(n int64) string`
-- L476: `func renderCostFooter(credits float64, budget telemetry.Budget) string`
-- L493: `func renderBudgetForm(projected, capCredits float64) string`
-- L502: `func clampLines(s string, n int) string`
+- L460: `func statlineForecast(s *Server, now time.Time) (show bool, short string, warn bool, title string)`
+- L474: `func humanTokens(n int64) string`
+- L490: `func renderCostFooter(credits float64, budget telemetry.Budget) string`
+- L510: `func renderActualCostFooter(a telemetry.ActualSpend, budget telemetry.Budget) string`
+- L542: `func renderBudgetForm(projected, capCredits float64) string`
+- L551: `func clampLines(s string, n int) string`
 
 ### runs.go (195 LOC)
 - L28: `func (s *Server) runsPartial(window int) string`
@@ -747,13 +762,13 @@ _Last generated: 2026-06-09 (UTC)._
 - L842: `func (s *Server) editForge(fn func() error) error`
 - L856: `func (s *Server) writePartial(w http.ResponseWriter, html string)`
 
-### session.go (348 LOC)
+### session.go (352 LOC)
 - L15: `type liveKind int`
 - L28: `func (s *Server) handleEvent(e copilot.Event) []fragment`
 - L279: `type spendTag struct`
 - L295: `func (s *Server) recordUsage(u copilot.UsageData, tag spendTag) telemetry.Cost`
-- L330: `func (s *Server) timelineFragments() []fragment`
-- L343: `func toolID(e copilot.Event) string`
+- L334: `func (s *Server) timelineFragments() []fragment`
+- L347: `func toolID(e copilot.Event) string`
 
 ### sessions.go (182 LOC)
 - L21: `func (s *Server) sessionsPartial() string`

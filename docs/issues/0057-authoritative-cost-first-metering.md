@@ -7,12 +7,25 @@ group: 0050
 depends_on: []
 github:
 links:
-  adr: []          # reserves ADR-0033 (written first when built)
+  adr: [33]        # ADR-0033 (the framing decision, written first per ADR-0004)
   prs: []
   issues: [0050]
   regression: [3]
 assets: []
 ---
+
+> **Status (2026-06-09, in progress on `feat/billing-authoritative-cost-first`).**
+> Shipped the authoritative-cost-first framing: `telemetry.ActualCredits`/`HasReported`
+> (the table-tested estimate-vs-reported selection), `Meter.ActualCredits`/`HasReported`,
+> `SpendRecord.EstimateCredits`/`ActualCredits`/`HasReported`, and the pure
+> `MonthToDateActual` aggregate; the reported AIU is now folded into the per-session
+> meter too. The statusline cost cell and the topbar cost footer
+> (`renderActualCostFooter`) surface the actual figure tagged reported / est / mixed,
+> with the estimate shown beside the reported figure when they diverge. The price book
+> stays the deterministic estimate (pre-flight + forecast + offline fallback). Decision
+> recorded in [ADR-0033](../adr/0033-reportedaiu-is-source-of-truth-for-actual-spend-price-book-is-the-estimate.md).
+> Out of scope (sibling lanes): the per-model breakdown table (0058) and the
+> estimate-vs-reported drift row (0060). `make lint && make test` green; coverage 88.4%.
 
 ## Summary
 Re-frame the meter around a **three-tier source hierarchy**: the SDK's `ReportedAIU` is the truth for
