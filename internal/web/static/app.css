@@ -503,6 +503,15 @@ main { flex: 1 1 auto; min-width: 0; overflow: hidden; display: flex; }
 .stat-forecast.warn { color: var(--warn); font-weight: 600; }
 .stat-cost { color: var(--fg); }
 .stat-cost.warn { color: var(--warn); font-weight: 600; }
+/* Spend-source tag (ADR-0033): the actual figure is labelled reported / est / mixed
+   so an estimate is never read as the real bill. The estimate-beside-reported note
+   reuses .dim. */
+/* No opacity: it composites --dim over the bg to 4.44:1, under the 4.5 AA floor
+   (axe color-contrast). The --dim/--accent tokens already meet contrast unmuted. */
+.cost-src { font-size: .8em; text-transform: uppercase; letter-spacing: .03em; }
+.cost-src.reported { color: var(--accent); }
+.cost-src.est, .cost-src.mixed { color: var(--dim); }
+.cost-est { font-size: .85em; }
 
 /* Models page: reasoning-effort selector row. */
 .effort-row { display: flex; align-items: center; gap: .4rem; margin: .25rem 0 .75rem; }

@@ -46,8 +46,24 @@ type SpendRecord struct {
 	LaneIndex int `json:"lane,omitempty"`
 }
 
-// Credits expresses the record's USD cost in GitHub AI Credits (1 cr = $0.01).
+// Credits expresses the record's estimate-priced USD cost in GitHub AI Credits
+// (1 cr = $0.01). It is the price-book *estimate*, not the actual spend — prefer
+// ActualCredits where what the turn really cost matters (ADR-0033). Retained for the
+// aggregation readers (DailyTotals/shares) that bucket estimate-priced USD.
 func (r SpendRecord) Credits() float64 { return r.USD / USDPerCredit }
+
+// EstimateCredits is the record's price-book estimate in credits — Credits under its
+// authoritative-cost-first name (ADR-0033), so a reader's intent is explicit.
+func (r SpendRecord) EstimateCredits() float64 { return r.Credits() }
+
+// HasReported reports whether the runtime reported this turn's authoritative cost
+// (a non-zero AIU), so ActualCredits reads the reported figure not the estimate.
+func (r SpendRecord) HasReported() bool { return HasReported(r.AIU) }
+
+// ActualCredits is the record's actual spend on the authoritative-cost-first basis
+// (ADR-0033): the reported AIU (1 AIU = 1 credit) when the runtime reported it, else
+// the price-book EstimateCredits as the offline fallback.
+func (r SpendRecord) ActualCredits() float64 { return ActualCredits(r.EstimateCredits(), r.AIU) }
 
 // Day is the record's UTC calendar day (YYYY-MM-DD), the bucket key for trends.
 func (r SpendRecord) Day() string { return r.At.UTC().Format("2006-01-02") }

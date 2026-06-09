@@ -158,7 +158,7 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		// Attribute the chat turn to the active agent persona (no workflow owns it).
 		s.recordUsage(e.Usage, spendTag{agentID: s.agentID})
 		return []fragment{
-			{Event: "cost", HTML: renderCostFooter(s.monthToDate().Credits(), s.budget())},
+			{Event: "cost", HTML: renderActualCostFooter(s.monthToDateActual(), s.budget())},
 			s.statFrag(),
 		}
 
@@ -303,8 +303,12 @@ func (s *Server) recordUsage(u copilot.UsageData, tag spendTag) telemetry.Cost {
 	}
 	cost := s.meter.Record(usage)
 	s.sessionMeter.Record(usage)
+	// Fold GitHub's authoritative per-turn cost into BOTH meters: the account-wide
+	// one (Telemetry page) and the per-session one (statusline), so each surface
+	// prefers reported over estimate on its own scope — ADR-0033.
 	aiu := u.NanoAIU * 1e-9
 	s.meter.RecordReportedAIU(aiu)
+	s.sessionMeter.RecordReportedAIU(aiu)
 	if s.spend != nil {
 		rec := telemetry.SpendRecord{
 			SessionID:    s.sessionID,

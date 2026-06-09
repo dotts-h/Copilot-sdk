@@ -123,7 +123,13 @@
 - **credit** — a GitHub AI Credit. **1 credit = $0.01** (`USDPerCredit`). All UI cost reads
   in credits (`FormatCredits`).
 - **AIU** — GitHub's **authoritative** cost in AI units, when the runtime reports it (0 for
-  the offline mock).
+  the offline mock). **1 AIU = 1 credit** (same unit) — see *reported spend*.
+- **estimate vs. reported (actual) spend** — the **source hierarchy** for what a turn cost
+  (`telemetry.ActualCredits`/`HasReported`): the **reported** figure (`ReportedAIU`, GitHub's
+  authoritative AIU) is the truth for **actual** spend when present; the **price-book
+  estimate** is the fallback (pre-flight composer + forecast + offline). A surface shows the
+  actual figure tagged *reported* / *est* / *mixed* (`MonthToDateActual` → `ActualSpend`,
+  `renderActualCostFooter`). — ADR-0033
 - **meter** — the **live, in-memory** cost gauge (`telemetry.Meter`). Two scopes share one
   price book: the **account-wide** meter (topbar/budget) and the **per-session** meter
   (statusline). A gauge — not the source of truth across restarts. — ADR-0011, TECH_DEBT #2

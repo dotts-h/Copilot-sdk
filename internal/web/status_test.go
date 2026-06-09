@@ -114,6 +114,37 @@ func TestUsageEmitsStatlineWithTokenBreakdown(t *testing.T) {
 	}
 }
 
+// TestStatlineLabelsReportedVsEstimatedSpend asserts the statusline cost cell makes
+// the source of the actual-spend figure explicit (ADR-0033): before the runtime
+// reports an AIU the cell carries the price-book estimate flagged "est", and once a
+// turn is reported the cell shows the authoritative reported figure (1 AIU = 1 credit)
+// flagged as reported — not the estimate.
+func TestStatlineLabelsReportedVsEstimatedSpend(t *testing.T) {
+	s, _ := newTestServer()
+
+	// A turn with no reported AIU: the cell is the price-book estimate, labelled "est".
+	est := statFor(s, copilot.Event{
+		Type:  copilot.EvUsage,
+		Usage: copilot.UsageData{Model: "gpt-5", InputTokens: 1000, OutputTokens: 250},
+	})
+	if !strings.Contains(est, "est") {
+		t.Errorf("an unreported turn's cost cell should be flagged as an estimate: %q", est)
+	}
+
+	// A turn the runtime reports (NanoAIU set): the cell switches to the reported
+	// figure — 1.5e9 nano-AIU = 1.5 AIU = 1.50 cr — and is no longer flagged "est".
+	rep := statFor(s, copilot.Event{
+		Type:  copilot.EvUsage,
+		Usage: copilot.UsageData{Model: "gpt-5", InputTokens: 1000, OutputTokens: 250, NanoAIU: 1_500_000_000},
+	})
+	if !strings.Contains(rep, "1.50 cr") {
+		t.Errorf("a reported turn's cost cell should show the reported figure 1.50 cr: %q", rep)
+	}
+	if strings.Contains(rep, ">est<") || strings.Contains(rep, " est ") {
+		t.Errorf("a reported turn's cost cell must not be flagged as an estimate: %q", rep)
+	}
+}
+
 // statFor returns the HTML of the "stat" (statline) fragment emitted for an
 // event, or "".
 func statFor(s *Server, e copilot.Event) string {

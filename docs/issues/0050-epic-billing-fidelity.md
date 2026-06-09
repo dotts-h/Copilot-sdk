@@ -6,10 +6,10 @@ severity: high
 group:
 github:
 links:
-  adr: []
-  prs: []
+  adr: [0033]
+  prs: [95]
   issues: []
-  regression: [3]
+  regression: [3, 21]
 ---
 
 ## Charter
@@ -50,9 +50,9 @@ Filed 2026-06-09 with `depends_on` edges (graph below). P2 is split: **P2-core**
 the missing integration test) is independent of P0/P1 and buildable now; P1 later extends that same
 table with the new priced columns (hence P1 `depends_on` P2-core — shared seam).
 
-- [ ] **P0 · Authoritative-cost-first metering** — [0057](0057-authoritative-cost-first-metering.md)
+- [x] **P0 · Authoritative-cost-first metering** — [0057](0057-authoritative-cost-first-metering.md)
       (M; ADR-0033). `depends_on: []`. Re-frames `Meter`/`SpendRecord` around "estimated vs reported";
-      `ReportedAIU` = actual, price book = estimate/fallback.
+      `ReportedAIU` = actual, price book = estimate/fallback. **Shipped — PR #95.**
 - [ ] **P2-core · Per-model breakdown from the ledger + missing integration test** —
       [0058](0058-per-model-breakdown-from-ledger.md) (M; no ADR). `depends_on: []`. Computes the table
       from the persisted ledger and adds the integration test that currently doesn't exist. **Buildable
@@ -79,7 +79,7 @@ Unblocked now (parallel lanes if seams are disjoint): **0057, 0058**.
 
 ## Acceptance (epic)
 
-- [ ] `ReportedAIU` is the actual-spend source of truth; the price book is explicitly the estimate.
+- [x] `ReportedAIU` is the actual-spend source of truth; the price book is explicitly the estimate. (0057, PR #95)
 - [ ] Cache-write and reasoning tokens are **priced** (not display-only), with the confirmed defaults,
       overridable, and table-tested; the price book stays deterministic and migrates cleanly.
 - [ ] The per-model breakdown is populated from history and guarded by an integration test.
