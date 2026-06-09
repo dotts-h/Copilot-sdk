@@ -936,6 +936,16 @@ Epics 0001 (cost), 0005 (orchestration), 0007 (polish) — all **closed**.
 > seams: surface/elevation restyle vs. the motion system — W3 writes ADR-0037 first); then
 > **W4 (0066)** closes the epic on the two hero surfaces.
 
+> **v11 update (after W2):** **W2 shipped** (issue 0064, ADR-0038) — the dual-theme elevation
+> model: a `--surface-base/raised/overlay` luminance ladder (strictly increasing in dark, AA +
+> monotonicity machine-proved) with `--bg`/`--panel` as guarded aliases; a 3-step hue-tinted
+> layered shadow scale off one `--shadow-color`; constrained radius/space/type scales with the
+> guard banning literal radii/shadows outside the tokens layer; keycap/card/overlay/palette
+> restyle + `.glass`/`.glow` staged for W4. Zero template changes. (P3-gamut accents remain
+> deferred — the guard would need gamut-conditional primitives.) **Remaining, re-ranked:**
+> **W3 (0065)** is the only unblocked child (writes ADR-0037 first); then **W4 (0066)** closes
+> the epic on the two hero surfaces.
+
 ### Sources (cited research)
 - Raycast design vocabulary: github.com/VoltAgent/awesome-design-md (design-md/raycast/DESIGN.md);
   styles.refero.design (Raycast style teardown — *auto-extracted, indicative*); raycast.com/blog,

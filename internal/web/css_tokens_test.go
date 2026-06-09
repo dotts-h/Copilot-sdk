@@ -252,6 +252,11 @@ func contrastRatio(a, b srgb) float64 {
 var (
 	primitiveRe = regexp.MustCompile(`--p-([\w-]+)\s*:\s*oklch\(\s*([\d.]+)%\s+([\d.]+)\s+([\d.]+)\s*\)`)
 	semanticRe  = regexp.MustCompile(`--([\w-]+)\s*:\s*light-dark\(\s*var\(--p-([\w-]+)\)\s*,\s*var\(--p-([\w-]+)\)\s*\)`)
+	// aliasRe is the third (and last) guarded semantic form: a one-level alias
+	// of another guarded role (`--bg: var(--surface-base);`, ADR-0038), so the
+	// ladder is the single home of the gray choice and the old names still
+	// resolve through the contrast guard.
+	aliasRe = regexp.MustCompile(`--([\w-]+)\s*:\s*var\(--([\w-]+)\)\s*;`)
 )
 
 // tokenColors resolves every guarded semantic token to its light/dark sRGB pair.
@@ -293,17 +298,28 @@ func tokenColors(t *testing.T) map[string][2]srgb {
 		}
 		sem[m[1]] = [2]srgb{light, dark}
 	}
+	// One-level aliases of an already-guarded role (ADR-0038). A var() of a
+	// token that is NOT in sem (a duration, a component token) is simply not a
+	// guarded color and is skipped.
+	for _, m := range aliasRe.FindAllStringSubmatch(tokens, -1) {
+		if target, ok := sem[m[2]]; ok {
+			sem[m[1]] = target
+		}
+	}
 	return sem
 }
 
 func TestTokenContrastAA(t *testing.T) {
 	sem := tokenColors(t)
 
-	// Every semantic role ADR-0025/0036 commits to must resolve through the
-	// primitive tier (so the contrast math below actually covers it).
-	for _, role := range []string{"bg", "panel", "fg", "dim", "subtle", "accent", "accent2", "good", "warn", "bad", "on-bright"} {
+	// Every semantic role ADR-0025/0036/0038 commits to must resolve through
+	// the primitive tier (so the contrast math below actually covers it).
+	for _, role := range []string{
+		"bg", "panel", "fg", "dim", "subtle", "accent", "accent2", "good", "warn", "bad", "on-bright",
+		"surface-base", "surface-raised", "surface-overlay", // the elevation ladder (ADR-0038)
+	} {
 		if _, ok := sem[role]; !ok {
-			t.Fatalf("semantic token --%s not defined as light-dark(var(--p-…), var(--p-…)) in the tokens layer", role)
+			t.Fatalf("semantic token --%s not defined as light-dark(var(--p-…), var(--p-…)) or a one-level alias of a guarded role in the tokens layer", role)
 		}
 	}
 
@@ -313,7 +329,7 @@ func TestTokenContrastAA(t *testing.T) {
 	// slice, and combinations the UI already uses (accent headings on --panel
 	// cards, status colors on the panel) can't be forgotten.
 	textRoles := []string{"fg", "dim", "accent", "accent2", "good", "warn", "bad"}
-	surfaces := []string{"bg", "panel"}
+	surfaces := []string{"bg", "panel", "surface-base", "surface-raised", "surface-overlay"}
 	fills := []string{"accent", "good", "warn", "bad"} // --on-bright is the single companion on ANY solid fill
 	type pair struct{ text, surface string }
 	var pairs []pair
@@ -331,6 +347,94 @@ func TestTokenContrastAA(t *testing.T) {
 			got := contrastRatio(sem[p.text][idx], sem[p.surface][idx])
 			if got < aa {
 				t.Errorf("--%s on --%s (%s) = %.2f:1, below WCAG AA %.1f:1", p.text, p.surface, theme, got, aa)
+			}
+		}
+	}
+}
+
+// ---- 3. elevation & geometry: the W2 model (issue 0064, ADR-0038) ----
+
+// TestSurfaceLadderMonotonic pins the dual-theme elevation model: in dark the
+// ladder IS the elevation, so luminance must be strictly increasing
+// base → raised → overlay; in light the shadows carry depth and the ladder
+// only needs to never descend (raised/overlay share white).
+func TestSurfaceLadderMonotonic(t *testing.T) {
+	sem := tokenColors(t)
+	ladder := []string{"surface-base", "surface-raised", "surface-overlay"}
+	for _, role := range ladder {
+		if _, ok := sem[role]; !ok {
+			t.Fatalf("ladder token --%s missing from the tokens layer", role)
+		}
+	}
+	for i := 1; i < len(ladder); i++ {
+		lo, hi := ladder[i-1], ladder[i]
+		if l, h := relLuminance(sem[lo][1]), relLuminance(sem[hi][1]); h <= l {
+			t.Errorf("dark ladder not strictly increasing: --%s (%.4f) -> --%s (%.4f)", lo, l, hi, h)
+		}
+		if l, h := relLuminance(sem[lo][0]), relLuminance(sem[hi][0]); h < l {
+			t.Errorf("light ladder descends: --%s (%.4f) -> --%s (%.4f)", lo, l, hi, h)
+		}
+	}
+}
+
+// TestGeometryAndTypeScales asserts the constrained scales exist in the tokens
+// layer (ADR-0038): the radius ladder, the 8px(+4px half-step) spacing rhythm,
+// the 3-step shadow scale derived from one --shadow-color, and the type scale
+// with its font stacks and display tracking. Presence-guarded (adoption is the
+// restyle itself); the literal bans below close the accretion path.
+func TestGeometryAndTypeScales(t *testing.T) {
+	tokens := layerBlock(appCSS(t), "tokens")
+	var want []string
+	for i := 1; i <= 5; i++ {
+		want = append(want, fmt.Sprintf("--radius-%d:", i))
+	}
+	want = append(want, "--radius-full:")
+	for i := 1; i <= 6; i++ {
+		want = append(want, fmt.Sprintf("--space-%d:", i))
+	}
+	for i := 1; i <= 3; i++ {
+		want = append(want, fmt.Sprintf("--shadow-%d:", i))
+	}
+	want = append(want, "--shadow-color:", "--border-glass:",
+		"--font-sans:", "--font-mono:", "--tracking-tight:", "--tracking-wide:")
+	for i := 0; i <= 5; i++ {
+		want = append(want, fmt.Sprintf("--text-%d:", i))
+	}
+	for _, tok := range want {
+		if !strings.Contains(tokens, tok) {
+			t.Errorf("tokens layer missing scale token %q (ADR-0038)", tok)
+		}
+	}
+}
+
+var (
+	radiusDeclRe = regexp.MustCompile(`border-radius\s*:\s*([^;}]+)`)
+	shadowDeclRe = regexp.MustCompile(`box-shadow\s*:\s*([^;}]+)`)
+	radiusTokRe  = regexp.MustCompile(`^(0|var\(--radius-[\w-]+\))$`)
+	shadowValRe  = regexp.MustCompile(`^(none|var\(--shadow-[\w-]+\)(\s*,\s*var\(--shadow-[\w-]+\))*)$`)
+)
+
+// TestComponentGeometryUsesTokens bans geometry literals outside the tokens
+// layer: every border-radius is composed of var(--radius-*) steps (or 0) and
+// every box-shadow resolves through the var(--shadow-*) scale (or none) — so
+// the constrained ladders can't erode rule-by-rule (ADR-0038), the same way
+// the tiering rule bans raw --p-* reads.
+func TestComponentGeometryUsesTokens(t *testing.T) {
+	raw := appCSS(t)
+	for _, layer := range []string{"base", "components", "utilities"} {
+		body := layerBlock(raw, layer)
+		for _, m := range radiusDeclRe.FindAllStringSubmatch(body, -1) {
+			val := strings.TrimSpace(wsRun.ReplaceAllString(m[1], " "))
+			for _, part := range strings.Fields(val) {
+				if !radiusTokRe.MatchString(part) {
+					t.Errorf("layer %q: border-radius %q uses a non-token radius %q — use var(--radius-*) (ADR-0038)", layer, val, part)
+				}
+			}
+		}
+		for _, m := range shadowDeclRe.FindAllStringSubmatch(body, -1) {
+			val := strings.TrimSpace(wsRun.ReplaceAllString(m[1], " "))
+			if !shadowValRe.MatchString(val) {
+				t.Errorf("layer %q: box-shadow %q bypasses the shadow scale — use var(--shadow-1..3) or none (ADR-0038)", layer, val)
 			}
 		}
 	}

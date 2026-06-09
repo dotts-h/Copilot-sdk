@@ -107,10 +107,11 @@ the highest-risk slice (could regress AA) — it lands first, behind the axe gat
       introduce `@layer`, vendor Open Props (or a curated easings/animations subset), add
       `color-mix()` state tints + `@property` animatable tokens. The foundation every later child builds on.
       **Shipped** (ADR-0036; see the issue's close-out).
-- [ ] **W2 · Elevation, surface & component restyle** — [0064](0064-elevation-surface-component-restyle.md)
-      (L; ADR if a new dark/light elevation model is decided). `depends_on: [0063]`. Surface luminance
+- [x] **W2 · Elevation, surface & component restyle** — [0064](0064-elevation-surface-component-restyle.md)
+      (L; ADR-0038). `depends_on: [0063]`. Surface luminance
       ladder (dark) + hue-tinted layered shadows (light), radius scale, glass/radial-glow atmosphere,
       restyle keycap/badge/button/card/input + the type scale.
+      **Shipped** (ADR-0038; see the issue's close-out).
 - [ ] **W3 · Motion & micro-interaction system** — [0065](0065-motion-microinteraction-system.md)
       (M/L; ADR-0037). `depends_on: [0063]`. `linear()` spring easings + motion/duration tokens; the
       micro-interaction catalogue (`@starting-style`/`allow-discrete`/`popover`); per-nav + scoped
@@ -124,8 +125,7 @@ Dependency graph:
 0063 (W1) ─┬─► 0064 (W2) ─┐
            └─► 0065 (W3) ─┴─► 0066 (W4)
 ```
-Unblocked now: **0064, 0065** (W1 shipped; the two are parallelizable — disjoint seams:
-elevation/surface restyle vs. the motion system).
+Unblocked now: **0065** (W1 + W2 shipped; W4 stays blocked on 0065).
 
 ## Acceptance (epic)
 
