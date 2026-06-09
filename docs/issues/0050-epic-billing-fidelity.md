@@ -46,23 +46,36 @@ A **three-tier source hierarchy** — confirmed against the live billing surface
 
 ## Children
 
-- [ ] **P0 · Authoritative-cost-first metering** (M; ADR). `ReportedAIU` is the truth for actual turn
-      spend when present; price book = estimate/fallback. Surface estimate-vs-reported. Re-frames
-      `Meter`/`SpendRecord` around "estimated vs reported."
-- [ ] **P1 · Price cache-write + reasoning tokens** (L; ADR — money math + price-book migration).
-      Add `CacheWritePerMTok` + reasoning pricing to `ModelRate`; promote the counts out of
-      display-only `ExtraTokens` into priced `Usage`; surface in the statusline split + per-model
-      breakdown. **Default: cache-write = 1.25× input, reasoning = output rate**, overridable
-      per-model via the Settings price editor (G1). Table-tested; deterministic price book.
-- [ ] **P2 · Per-model breakdown from the ledger** (M; no ADR). Compute the per-model token table
-      (in / cached / cache-write / out / reasoning + credits/usd) from the persisted ledger; relabel
-      live ("this session") vs ledger ("all-time"). Closes the empty-table finding; adds the missing
-      integration coverage.
-- [ ] **P3 · Estimate-vs-reported reconciliation + drift** (M; no ADR). Telemetry row joining computed
-      credits to `ReportedAIU` (optionally `/billing/usage`), ambered past an epsilon.
-- [ ] **P4 · Live price-book refresh (optional, opt-in)** (L; ADR — network in an offline-first tool).
-      Fetch per-model multipliers from `catalog/models` on a cadence, cached to disk, fail-open to the
-      static book. Spike the payload shape + network policy first. Strictly additive.
+Filed 2026-06-09 with `depends_on` edges (graph below). P2 is split: **P2-core** (empty-table fix +
+the missing integration test) is independent of P0/P1 and buildable now; P1 later extends that same
+table with the new priced columns (hence P1 `depends_on` P2-core — shared seam).
+
+- [ ] **P0 · Authoritative-cost-first metering** — [0057](0057-authoritative-cost-first-metering.md)
+      (M; ADR-0033). `depends_on: []`. Re-frames `Meter`/`SpendRecord` around "estimated vs reported";
+      `ReportedAIU` = actual, price book = estimate/fallback.
+- [ ] **P2-core · Per-model breakdown from the ledger + missing integration test** —
+      [0058](0058-per-model-breakdown-from-ledger.md) (M; no ADR). `depends_on: []`. Computes the table
+      from the persisted ledger and adds the integration test that currently doesn't exist. **Buildable
+      now** — a first parallel lane.
+- [ ] **P1 · Price cache-write + reasoning tokens** —
+      [0059](0059-price-cache-write-and-reasoning-tokens.md) (L; ADR-0034). `depends_on: [0057, 0058]`.
+      Promotes cache-write (1.25× input) + reasoning (output rate) out of display-only `ExtraTokens`
+      into priced `Usage`; extends the per-model breakdown columns.
+- [ ] **P3 · Estimate-vs-reported reconciliation + drift** —
+      [0060](0060-estimate-vs-reported-reconciliation-drift.md) (M; no ADR). `depends_on: [0057]`.
+      Telemetry row joining computed credits to `ReportedAIU`, ambered past an epsilon. Parallel lane
+      after 0057.
+- [ ] **P4 · Live price-book refresh (optional, opt-in)** —
+      [0061](0061-live-price-book-refresh.md) (L; ADR-0035). `depends_on: [0059]`. Opt-in, cached,
+      fail-open fetch of per-model multipliers; spike payload + network policy first.
+
+Dependency graph:
+```
+0057 (P0) ─┬─► 0059 (P1) ──► 0061 (P4)
+           └─► 0060 (P3)
+0058 (P2-core) ──► 0059 (P1)
+```
+Unblocked now (parallel lanes if seams are disjoint): **0057, 0058**.
 
 ## Acceptance (epic)
 

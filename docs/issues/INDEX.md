@@ -63,10 +63,15 @@ issues are added or closed.
 | [0047](0047-grouped-sidebar-command-palette.md) | Navigation → grouped left sidebar + ⌘K command palette (item V22) | closed | medium | 0045 | ADR-0026, PR #79 |
 | [0048](0048-telemetry-kpi-dashboard.md) | Telemetry dashboard — KPI cards + server-rendered inline-SVG sparklines (item V23) | closed | medium | 0045 | ADR-0027, REGRESSIONS #20, PR #81 |
 | [0049](0049-motion-and-polish.md) | Motion & polish — htmx per-navigation View-Transition page swaps + a token-driven component pass (item V24) | closed | low | 0045 | ADR-0028, REGRESSIONS (global-VT dead-end), PR #82 |
-| [0050](0050-epic-billing-fidelity.md) | Epic: Billing fidelity — price cache-write + reasoning tokens; authoritative-cost-first source hierarchy (roadmap v10, P0–P4) | open | high | — | NEXT_FEATURES v10 |
+| [0050](0050-epic-billing-fidelity.md) | Epic: Billing fidelity — price cache-write + reasoning tokens; authoritative-cost-first source hierarchy (roadmap v10, P0–P4) | open | high | — | 0057, 0058, 0059, 0060, 0061, NEXT_FEATURES v10 |
 | [0051](0051-epic-auth-and-connection.md) | Epic: Auth & connection — device flow / local ${VAR} token / gh reuse (roadmap v10, A0–A1) | open | medium | — | NEXT_FEATURES v10 |
 | [0052](0052-epic-safe-autopilot-governance.md) | Epic: Hooks & safe autopilot — first-class forge-managed Pre/PostToolUse hooks + safe-by-default governance policy (roadmap v10, G0–G5) | closed | high | — | 0053, 0054, 0055, 0056, ADR-0029, ADR-0030, ADR-0031, ADR-0032, NEXT_FEATURES v10 |
 | [0053](0053-hooks-foundation-forge-entity-bridge-evaluator.md) | Hooks foundation — Hook forge entity + bridge evaluator + safe-read defaults (V25, G0+G3-mechanism+G1) | closed | high | 0052 | ADR-0029, PR #84 |
 | [0054](0054-dangerous-action-deny-mandatory-hitl.md) | Dangerous-action deny + mandatory HITL — built-in unbypassable ruleset enforced on the auto path (V26, G2) | closed | high | 0052 | ADR-0030, PR #83 #85 |
 | [0055](0055-hooks-ui-mode-binding-timeline-why.md) | Hooks management UI + mode binding + timeline why — in-app CRUD over governance hooks (V27, G4) | closed | high | 0052 | ADR-0031, PR #86 |
 | [0056](0056-posttooluse-hook-command-execution.md) | PostToolUse hook command execution — bounded local command, untrusted display-only output (V28, G5) | closed | high | 0052 | ADR-0032, PR #87 |
+| [0057](0057-authoritative-cost-first-metering.md) | Authoritative-cost-first metering — ReportedAIU is actual spend, price book is the estimate (P0) | open | high | 0050 | depends_on: —, ADR-0033 (reserved) |
+| [0058](0058-per-model-breakdown-from-ledger.md) | Per-model breakdown from the ledger + the missing integration test (P2-core) | open | high | 0050 | depends_on: —, REGRESSIONS #3 |
+| [0059](0059-price-cache-write-and-reasoning-tokens.md) | Price cache-write + reasoning tokens — promote out of display-only ExtraTokens into priced Usage (P1) | open | high | 0050 | depends_on: 0057 0058, ADR-0034 (reserved) |
+| [0060](0060-estimate-vs-reported-reconciliation-drift.md) | Estimate-vs-reported reconciliation + drift on the Telemetry page (P3) | open | medium | 0050 | depends_on: 0057 |
+| [0061](0061-live-price-book-refresh.md) | Live price-book refresh — opt-in, cached, fail-open fetch of per-model multipliers (P4) | open | low | 0050 | depends_on: 0059, ADR-0035 (reserved) |
