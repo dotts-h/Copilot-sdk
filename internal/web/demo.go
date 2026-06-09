@@ -105,9 +105,14 @@ func streamDemoReply(m *copilot.MockClient, prompt string) {
 	stream(reply, copilot.EvMessageDelta)
 	m.Emit(copilot.Event{Type: copilot.EvMessage, Text: reply})
 
-	// 7. Usage → cost footer, and a context-window reading → live ctx meter.
+	// 7. Usage → cost footer, and a context-window reading → live ctx meter. The
+	// runtime reports GitHub's authoritative per-turn cost (NanoAIU); it sits a little
+	// above the price-book estimate (the unpriced cache-write/reasoning the estimate
+	// can't see — epic 0050), so the surfaces show the reported figure with the
+	// estimate beside it — ADR-0033.
 	m.Emit(copilot.Event{Type: copilot.EvUsage, Usage: copilot.UsageData{
 		Model: "gpt-5", InputTokens: 1200, CachedTokens: 200, OutputTokens: 340,
+		CacheWriteTokens: 800, ReasoningTokens: 120, NanoAIU: 550_000_000, // 0.55 AIU = 0.55 cr
 	}})
 	m.Emit(copilot.Event{Type: copilot.EvContextWindow, Context: copilot.ContextInfo{
 		CurrentTokens: 18400, TokenLimit: 128000,

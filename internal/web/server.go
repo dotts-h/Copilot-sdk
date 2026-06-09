@@ -188,11 +188,11 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	s.hub.forgeMu.Unlock()
 	data := indexData{
 		Nav:        navGroups(),
-		Cost:       template.HTML(renderCostFooter(s.monthToDate().Credits(), s.budget())), //nolint:gosec // internally rendered, escaped via esc()
-		Main:       template.HTML(s.chatPartial()),                                         //nolint:gosec // internally rendered, escaped via esc()
-		Overlay:    template.HTML(helpOverlay(keymap)),                                     //nolint:gosec // internally rendered, escaped via esc()
-		Palette:    template.HTML(commandPalette()),                                        //nolint:gosec // internally rendered, escaped via esc()
-		KeymapJSON: keymapJSON(keymap),                                                     // shared with the Settings live-apply OOB swap
+		Cost:       template.HTML(renderActualCostFooter(s.monthToDateActual(), s.budget())), //nolint:gosec // internally rendered, escaped via esc()
+		Main:       template.HTML(s.chatPartial()),                                           //nolint:gosec // internally rendered, escaped via esc()
+		Overlay:    template.HTML(helpOverlay(keymap)),                                       //nolint:gosec // internally rendered, escaped via esc()
+		Palette:    template.HTML(commandPalette()),                                          //nolint:gosec // internally rendered, escaped via esc()
+		KeymapJSON: keymapJSON(keymap),                                                       // shared with the Settings live-apply OOB swap
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := pageTemplates.ExecuteTemplate(w, "index", data); err != nil {

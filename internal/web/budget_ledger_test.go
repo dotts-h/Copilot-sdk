@@ -131,3 +131,28 @@ func TestCostFooterReadsLedger(t *testing.T) {
 		t.Fatalf("precondition: meter must be empty, got %v", s.meter.Totals().Credits())
 	}
 }
+
+// TestCostFooterPrefersReportedSpend asserts the topbar cost footer reports the
+// account-wide month total on the authoritative-cost-first basis (ADR-0033): when the
+// ledger's in-month turns carry a reported AIU, the footer shows the reported total
+// (not the price-book estimate), and flags the figure as reported. An estimate-only
+// ledger falls back to the estimate, flagged as such.
+func TestCostFooterPrefersReportedSpend(t *testing.T) {
+	s, _ := newTestServer()
+	s.allowance = 200
+	// A turn whose estimate (USD 0.50 = 50 cr) disagrees with GitHub's reported cost
+	// (AIU 30 = 30 cr): the footer must trust the reported figure.
+	seedLedger(t, s, telemetry.SpendRecord{At: time.Now().UTC(), Model: "gpt-5", USD: 0.50, AIU: 30})
+
+	a := s.monthToDateActual()
+	if a.ActualCredits != 30 {
+		t.Fatalf("month-to-date actual must prefer the reported AIU (30 cr), got %v", a.ActualCredits)
+	}
+	got := renderActualCostFooter(a, s.budget())
+	if !strings.Contains(got, "30.00 cr") {
+		t.Errorf("cost footer must report the reported total (30 cr), not the estimate (50 cr): %q", got)
+	}
+	if strings.Contains(got, "50.00 cr") {
+		t.Errorf("cost footer must not show the estimate when a reported figure is present: %q", got)
+	}
+}

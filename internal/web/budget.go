@@ -42,6 +42,18 @@ func (b budgetTracker) MonthToDate(now time.Time) telemetry.Cost {
 	return telemetry.MonthToDate(b.spend.Records(), now)
 }
 
+// MonthToDateActual is the account-wide month total on the authoritative-cost-first
+// basis (ADR-0033): each in-month turn contributes its reported AIU when GitHub
+// reported one and its price-book estimate otherwise, plus the reported-coverage flags
+// so the cost footer can label the figure reported / estimated / mixed. Same ledger
+// window as MonthToDate; the empty value when no ledger is wired.
+func (b budgetTracker) MonthToDateActual(now time.Time) telemetry.ActualSpend {
+	if b.spend == nil {
+		return telemetry.ActualSpend{}
+	}
+	return telemetry.MonthToDateActual(b.spend.Records(), now)
+}
+
 // Forecast projects when the monthly allowance is exhausted at the recent burn rate,
 // account-wide off the same ledger (a pure telemetry.Forecast over the daily series —
 // ADR-0019). ok is false when no ledger is wired or it holds no records, so callers
@@ -77,6 +89,12 @@ func (s *Server) budget() telemetry.Budget { return s.budgets().Budget() }
 
 // monthToDate returns the account-wide spend in the current UTC month off the ledger.
 func (s *Server) monthToDate() telemetry.Cost { return s.budgets().MonthToDate(time.Now()) }
+
+// monthToDateActual returns the account-wide month total on the authoritative-cost-first
+// basis (reported-where-present, estimate elsewhere) for the cost footer — ADR-0033.
+func (s *Server) monthToDateActual() telemetry.ActualSpend {
+	return s.budgets().MonthToDateActual(time.Now())
+}
 
 // forecast projects allowance exhaustion at the recent burn rate (account-wide).
 func (s *Server) forecast(now time.Time) (telemetry.Projection, bool) {

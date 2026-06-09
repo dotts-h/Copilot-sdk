@@ -417,9 +417,15 @@ func renderStatline(s *Server) string {
 	// context as input, so the abort decision is informed before sending. Shown
 	// only once a context reading has arrived (EvContextWindow).
 	est := meter.EstimateTurn(s.spec.Model, s.ctxCurrent)
-	// Soft-warn: turn the cost item amber once this session's spend crosses the
+	// Actual spend on the authoritative-cost-first basis (ADR-0033): the reported AIU
+	// when the runtime reported one this session, else the price-book estimate. The
+	// cell labels which source it is so an estimate is never mistaken for the real bill.
+	estimateCredits := totals.Credits()
+	reported := meter.HasReported()
+	actualCredits := meter.ActualCredits()
+	// Soft-warn: turn the cost item amber once this session's actual spend crosses the
 	// budget threshold (the account-wide banner stays the topbar cost footer).
-	costWarn := s.budget().Warned(totals.Credits())
+	costWarn := s.budget().Warned(actualCredits)
 	// Compact burn-rate cell: account-wide projection off the ledger (ADR-0019),
 	// shown only when there's a finite projection to make. Ambers when on track to
 	// exhaust the monthly allowance before the month resets.
@@ -433,8 +439,16 @@ func renderStatline(s *Server) string {
 		"Reasoning": humanTokens(reasoning), "Hit": hit,
 		"HasEst": s.ctxCurrent > 0, "Est": telemetry.FormatCredits(est.Credits()),
 		"CostWarn": costWarn,
-		"Credits":  telemetry.FormatCredits(totals.Credits()), "USD": telemetry.FormatUSD(totals.USD()),
-		"HasForecast": hasForecast, "Forecast": fShort, "ForecastWarn": fWarn, "ForecastTitle": fTitle,
+		// Reported: the cell shows GitHub's authoritative figure; otherwise it shows
+		// the price-book estimate, tagged "est". ShowEstimate surfaces the estimate
+		// alongside the reported figure only when the two diverge, so the drift is
+		// visible without cluttering the common case where they agree.
+		"Credits":      telemetry.FormatCredits(actualCredits),
+		"Reported":     reported,
+		"Estimate":     telemetry.FormatCredits(estimateCredits),
+		"ShowEstimate": reported && math.Abs(actualCredits-estimateCredits) >= 0.005,
+		"USD":          telemetry.FormatUSD(totals.USD()),
+		"HasForecast":  hasForecast, "Forecast": fShort, "ForecastWarn": fWarn, "ForecastTitle": fTitle,
 	})
 }
 
@@ -484,6 +498,41 @@ func renderCostFooter(credits float64, budget telemetry.Budget) string {
 		"Width":    fmt.Sprintf("%.1f%%", pct),
 		"PctWhole": fmt.Sprintf("%.0f", frac*100),
 		"Warn":     budget.Warned(credits),
+	})
+}
+
+// renderActualCostFooter renders the ambient credit/budget meter on the
+// authoritative-cost-first basis (ADR-0033): the month-to-date total prefers GitHub's
+// reported AIU where present and falls back to the price-book estimate, and the figure
+// is tagged with its source (reported / estimated / mixed) so an estimate is never read
+// as the real bill. It is the cost-footer sibling of renderCostFooter, which still
+// serves callers that only have the estimate-priced Cost.
+func renderActualCostFooter(a telemetry.ActualSpend, budget telemetry.Budget) string {
+	credits := a.ActualCredits
+	frac := budget.FractionUsed(credits)
+	pct := frac * 100
+	if pct > 100 {
+		pct = 100
+	}
+	// Source label: fully reported, fully estimated, or a mix (some turns reported,
+	// some still on the estimate). A title spells the estimate out when it diverges.
+	source := "est"
+	title := "estimated from the price book — GitHub has not reported a cost yet"
+	switch {
+	case a.AllReported && a.AnyReported:
+		source, title = "reported", "GitHub-reported actual cost"
+	case a.AnyReported:
+		source = "mixed"
+		title = fmt.Sprintf("reported where GitHub billed it, estimated elsewhere (price-book estimate: %s)",
+			telemetry.FormatCredits(a.EstimateCredits))
+	}
+	return frag("costFooter", map[string]any{
+		"Credits":  telemetry.FormatCredits(credits),
+		"Width":    fmt.Sprintf("%.1f%%", pct),
+		"PctWhole": fmt.Sprintf("%.0f", frac*100),
+		"Warn":     budget.Warned(credits),
+		"Source":   source,
+		"Title":    title,
 	})
 }
 

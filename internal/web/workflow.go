@@ -587,7 +587,7 @@ func (s *Server) handleRunEvent(run *workflowRun, e copilot.Event) []fragment {
 			l.credits += cost.Credits()
 		}
 		return []fragment{
-			{Event: "cost", HTML: renderCostFooter(s.monthToDate().Credits(), s.budget())},
+			{Event: "cost", HTML: renderActualCostFooter(s.monthToDateActual(), s.budget())},
 			s.lanesFrag(), s.statFrag(),
 		}
 
