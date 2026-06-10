@@ -39,9 +39,9 @@ func (d ModelDrift) Drifted(epsilon float64) bool { return math.Abs(d.Delta) >= 
 
 // ModelDrifts joins the price-book estimate to the reported cost per model over
 // the reported turns (HasReported) of the given records. A model with no
-// reported turn has nothing to compare and yields no row. Ledger estimates sum
-// USD then convert once (mirroring shareBy / WorkflowReconcile) so the figure
-// matches the shares it sits beside. Sorted by absolute delta DESCENDING — the
+// reported turn has nothing to compare and yields no row. Each turn's estimate
+// reads the named EstimateCredits seam, so the figure can never diverge from
+// what every other surface calls the estimate. Sorted by absolute delta DESCENDING — the
 // biggest mis-pricing reads first — with ties broken by estimate descending,
 // then model ascending: a total order over the unique model key for full
 // determinism regardless of input order. Empty input → empty slice. Pure: same
@@ -58,7 +58,7 @@ func ModelDrifts(records []SpendRecord) []ModelDrift {
 			d.UnreportedTurns++
 			continue
 		}
-		d.EstimateCredits += r.USD / USDPerCredit
+		d.EstimateCredits += r.EstimateCredits()
 		d.ReportedCredits += ReportedCredits(r.AIU)
 		d.ReportedTurns++
 	}

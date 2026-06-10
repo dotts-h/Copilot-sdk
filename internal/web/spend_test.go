@@ -221,13 +221,14 @@ func TestTelemetryPageShowsEstimateVsReportedDrift(t *testing.T) {
 	}
 	html := s.telemetryPartial(defaultSpendWindow)
 	for _, want := range []string{
-		"Estimate vs reported",        // the section heading
-		`class="grid drift"`,          // the comparison table
-		`class="recon-row drift-row"`, // a per-model row
-		"5.00 cr",                     // the estimate over the reported turn only (not 15.00)
-		"4.00 cr",                     // the reported figure
-		`class="recon-delta amber"`,   // the non-trivial delta is ambered
-		"1 reported · 1 est-only",     // the coverage cell
+		"Estimate vs reported", // the section heading
+		`class="grid drift"`,   // the comparison table
+		// The full row pins the estimate to the REPORTED turn only (5.00 cr, not the
+		// 15.00 cr both turns sum to — which the Total-cost row legitimately shows
+		// elsewhere on the page) beside the reported figure.
+		`class="recon-row drift-row"><td class="drift-model">gpt-5</td><td class="recon-ledger">5.00 cr</td><td class="recon-runs">4.00 cr</td>`,
+		`class="recon-delta amber"`, // the non-trivial delta is ambered
+		"1 reported · 1 est-only",   // the coverage cell
 	} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("telemetry page missing drift %q\n%s", want, html)
