@@ -215,6 +215,16 @@
   vendored Open Props subset imports into `tokens`, and `css_tokens_test.go` enforces the
   structure plus WCAG AA contrast for every text-role/surface pair in both themes, computed from
   the OKLCH primitives. — ADR-0036
+- **elevation (dual-channel)** — how a surface reads as raised, one channel per theme: in **dark**
+  the **surface ladder** (`--bg` → `--panel` → `--overlay`) steps *lighter* when raised (shadows are
+  invisible on a dark canvas); in **light**, **hue-tinted layered shadows** — one `--shadow-color`
+  stacked as `--shadow-1/2/3` (2/4/5 layers, alpha accumulating) — carry depth instead.
+  `--border-glass` is the 1px translucent glass border; `.glass`/`.atmosphere` (low-opacity radial
+  glow) are the opt-in hero utilities. — ADR-0038
+- **scales** — the constrained geometry/type ladders components must consume: radius
+  `--radius-1…5/full` (a `border-radius` px literal outside the tokens layer fails the guard), space
+  `--space-1…6` (8px rhythm, 4px half-step), type `--text-0…5` + `--tracking-display` (negative at
+  display sizes) / `--tracking-caps` on the `--font-sans`/`--font-mono` pair. — ADR-0038
 - **theme** — the **light** or **dark** color scheme. Tokens carry both values in one declaration
   via the CSS `light-dark()` function, resolved by `color-scheme`; the toggle flips
   `<html data-theme>` (→ `color-scheme`), persisted **client-side** in `localStorage`, with the
