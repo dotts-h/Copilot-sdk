@@ -1,16 +1,22 @@
 ---
 id: 0050
 title: "Epic: Billing fidelity — price every token type GitHub bills, with an authoritative-cost-first source hierarchy (roadmap v10)"
-status: open
+status: closed
 severity: high
 group:
 github:
 links:
-  adr: [0033]
-  prs: [95, 96, 98]
+  adr: [0033, 0034, 0035]
+  prs: [95, 96, 98, 103]
   issues: []
   regression: [3, 21]
 ---
+
+> **Closed 2026-06-10.** All five children resolved: 0057 (PR #95, ADR-0033), 0058
+> (PR #96), 0059 (PR #98, ADR-0034), 0060 (PR #103), 0061 (refuted by spike,
+> ADR-0035 — no code). The meter prices every token type GitHub bills, actual spend
+> is authoritative-cost-first, the gap between the two is visible per model, and the
+> binary stays fully offline.
 
 ## Charter
 
@@ -66,9 +72,10 @@ table with the new priced columns (hence P1 `depends_on` P2-core — shared seam
       [0060](0060-estimate-vs-reported-reconciliation-drift.md) (M; no ADR). `depends_on: [0057]`.
       Telemetry row joining computed credits to `ReportedAIU`, ambered past an epsilon. Parallel lane
       after 0057. **Shipped — PR #103.**
-- [ ] **P4 · Live price-book refresh (optional, opt-in)** —
+- [x] **P4 · Live price-book refresh (optional, opt-in)** —
       [0061](0061-live-price-book-refresh.md) (L; ADR-0035). `depends_on: [0059]`. Opt-in, cached,
       fail-open fetch of per-model multipliers; spike payload + network policy first.
+      **Closed — refuted by the spike (the catalog carries no pricing); ADR-0035, no code.**
 
 Dependency graph:
 ```
@@ -86,9 +93,13 @@ Unblocked now (parallel lanes if seams are disjoint): **0057, 0058**.
       (0059, PR #98, ADR-0034). The price book stays deterministic and migrates cleanly.
 - [x] The per-model breakdown is populated from history and guarded by an integration test. (0058, PR #96)
 - [x] Estimate-vs-reported drift is visible on the Telemetry page, ambered past epsilon. (0060, PR #103)
-- [ ] Any live fetch is opt-in, cached, and fail-open — the binary still runs fully offline.
-- [ ] Each child: failing test first, ADR where it changes money math / a decision, `make lint &&
-      make test` (floor 65%) + `make e2e` green, born in its PR, SemVer minor on the epic (`v0.3.0`).
+- [x] Any live fetch is opt-in, cached, and fail-open — the binary still runs fully offline.
+      Resolved by **not fetching**: the spiked catalog carries no pricing, so the binary keeps
+      zero runtime network dependencies (0061, ADR-0035).
+- [x] Each child: failing test first, ADR where it changes money math / a decision, `make lint &&
+      make test` (floor 65%) + `make e2e` green, born in its PR, SemVer minor on the epic
+      (`v0.4.0` — `v0.3.0` was taken by epic 0052's close). 0061 shipped no code: its child
+      gate is the spike + ADR-0035 it mandated.
 
 ## Sequencing
 

@@ -63,7 +63,7 @@ issues are added or closed.
 | [0047](0047-grouped-sidebar-command-palette.md) | Navigation → grouped left sidebar + ⌘K command palette (item V22) | closed | medium | 0045 | ADR-0026, PR #79 |
 | [0048](0048-telemetry-kpi-dashboard.md) | Telemetry dashboard — KPI cards + server-rendered inline-SVG sparklines (item V23) | closed | medium | 0045 | ADR-0027, REGRESSIONS #20, PR #81 |
 | [0049](0049-motion-and-polish.md) | Motion & polish — htmx per-navigation View-Transition page swaps + a token-driven component pass (item V24) | closed | low | 0045 | ADR-0028, REGRESSIONS (global-VT dead-end), PR #82 |
-| [0050](0050-epic-billing-fidelity.md) | Epic: Billing fidelity — price cache-write + reasoning tokens; authoritative-cost-first source hierarchy (roadmap v10, P0–P4) | open | high | — | 0057, 0058, 0059, 0060, 0061, NEXT_FEATURES v10 |
+| [0050](0050-epic-billing-fidelity.md) | Epic: Billing fidelity — price cache-write + reasoning tokens; authoritative-cost-first source hierarchy (roadmap v10, P0–P4) | closed | high | — | 0057, 0058, 0059, 0060, 0061, ADR-0033/0034/0035, PRs #95 #96 #98 #103, NEXT_FEATURES v10 |
 | [0051](0051-epic-auth-and-connection.md) | Epic: Auth & connection — device flow / local ${VAR} token / gh reuse (roadmap v10, A0–A1) | open | medium | — | NEXT_FEATURES v10 |
 | [0052](0052-epic-safe-autopilot-governance.md) | Epic: Hooks & safe autopilot — first-class forge-managed Pre/PostToolUse hooks + safe-by-default governance policy (roadmap v10, G0–G5) | closed | high | — | 0053, 0054, 0055, 0056, ADR-0029, ADR-0030, ADR-0031, ADR-0032, NEXT_FEATURES v10 |
 | [0053](0053-hooks-foundation-forge-entity-bridge-evaluator.md) | Hooks foundation — Hook forge entity + bridge evaluator + safe-read defaults (V25, G0+G3-mechanism+G1) | closed | high | 0052 | ADR-0029, PR #84 |
@@ -74,7 +74,7 @@ issues are added or closed.
 | [0058](0058-per-model-breakdown-from-ledger.md) | Per-model breakdown from the ledger + the missing integration test (P2-core) | closed | high | 0050 | depends_on: —, REGRESSIONS #3, PR #96 |
 | [0059](0059-price-cache-write-and-reasoning-tokens.md) | Price cache-write + reasoning tokens — promote out of display-only ExtraTokens into priced Usage (P1) | closed | high | 0050 | depends_on: 0057 0058, ADR-0034, PR #98 |
 | [0060](0060-estimate-vs-reported-reconciliation-drift.md) | Estimate-vs-reported reconciliation + drift on the Telemetry page (P3) | closed | medium | 0050 | depends_on: 0057, PR #103 |
-| [0061](0061-live-price-book-refresh.md) | Live price-book refresh — opt-in, cached, fail-open fetch of per-model multipliers (P4) | open | low | 0050 | depends_on: 0059, ADR-0035 (reserved) |
+| [0061](0061-live-price-book-refresh.md) | Live price-book refresh — opt-in, cached, fail-open fetch of per-model multipliers (P4) | closed | low | 0050 | depends_on: 0059, ADR-0035 (refuted by spike — catalog has no pricing) |
 | [0062](0062-epic-playful-polished-ui-motion-overhaul.md) | Epic: Playful-polished visual + motion overhaul — re-derived OKLCH palette, depth, spring motion system (roadmap v11) | open | medium | — | 0063, 0064, 0065, 0066, NEXT_FEATURES v11 |
 | [0063](0063-token-palette-foundation-oklch-layer-openprops.md) | Token & palette foundation — re-derive palette in OKLCH, @layer, Open Props (W1) | closed | medium | 0062 | depends_on: —, ADR-0036 |
 | [0064](0064-elevation-surface-component-restyle.md) | Elevation, surface & component restyle — luminance ladder + hue-tinted shadows, radius/space/type scales (W2) | open | medium | 0062 | depends_on: 0063, REGRESSIONS #20 |
