@@ -118,17 +118,25 @@
   --chip-bg:     color-mix(in oklch, var(--accent2) 14%, transparent);
   --chip-border: color-mix(in oklch, var(--accent2) 35%, transparent);
 
-  /* ---- motion tokens (V24/ADR-0028; duration scale + Open Props seam) ----
-     One speed/ease so every hover, focus, and page cross-fade share a motion
-     language; --dur-2/--dur-3 and the Open Props springs are the W3 (issue
-     0065) raw material. All motion collapses under prefers-reduced-motion. */
-  --dur-1: .14s;            /* micro: hovers, focus, cross-fades  */
-  --dur-2: .3s;             /* transforms (W3)                    */
-  --dur-3: .7s;             /* springs/bounces (W3)               */
+  /* ---- motion tokens (ADR-0037, extending the V24/ADR-0028 seam) ----
+     One duration scale + a small named easing vocabulary so every hover,
+     press, enter/exit, and page cross-fade share a motion language. The scale:
+     micro (--dur-1) → transform (--dur-2) → spring (--dur-3) → ambient loop
+     (--dur-4). --ease-spring defaults to the cubic-bezier overshoot — the
+     @supports gate below this block upgrades it to a real linear() spring
+     where the engine supports linear() (a raw linear() here would IACVT-
+     degrade to `ease`, silently). All motion collapses under
+     prefers-reduced-motion (the base-layer guard). */
+  --dur-1: .15s;            /* micro: hovers, focus rings, cross-fades */
+  --dur-2: .35s;            /* transforms: lifts, presses, enter/exit  */
+  --dur-3: .7s;             /* springs/bounces                         */
+  --dur-4: 1.2s;            /* ambient loops: shimmer, long springs    */
   --speed: var(--dur-1);
   --ease:  cubic-bezier(.2, .6, .2, 1);
   --ease-out-soft: var(--ease-3);       /* Open Props */
-  --ease-spring:   var(--ease-spring-2); /* Open Props linear() spring (W3) */
+  --ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);  /* decisive settle  */
+  --ease-overshoot: cubic-bezier(0.34, 1.56, 0.64, 1); /* playful pop    */
+  --ease-spring: var(--ease-overshoot); /* fallback; upgraded below */
 
   /* ---- dual-channel elevation (W2, ADR-0038) ----
      Light theme: hue-tinted layered shadows — ONE --shadow-color (slate-blue,
@@ -189,6 +197,16 @@
    follows the OS preference. */
 html[data-theme="light"] { color-scheme: light; }
 html[data-theme="dark"]  { color-scheme: dark; }
+
+/* Where the engine understands linear() easing (Chrome 113+ / FF 112+ /
+   Safari 17.2+), upgrade --ease-spring to a real spring curve — the vendored
+   Open Props --ease-spring-2 (ADR-0036), a linear() approximation of a
+   physical spring. Engines without linear() keep the cubic-bezier overshoot
+   default above. The guard (css_tokens_test.go) pins that every linear()
+   spring/bounce reference stays inside this gate. — ADR-0037 */
+@supports (animation-timing-function: linear(0, 1)) {
+  :root { --ease-spring: var(--ease-spring-2); }
+}
 }
 
 @layer base {
@@ -196,8 +214,12 @@ html[data-theme="dark"]  { color-scheme: dark; }
 
 /* Visible keyboard focus on every interactive element that doesn't define its own
    (WCAG 2.4.7 / focus-appearance): a 2px ring, offset so it clears both the element
-   and the adjacent background. — ADR-0025 */
-:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+   and the adjacent background. — ADR-0025
+   Ring polish (W3, ADR-0037): the offset eases out from 0, so the ring "lands"
+   with a subtle grow — the ring itself appears instantly at full 2px/contrast,
+   only its offset moves, keeping the WCAG ring intact. */
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px;
+  transition: outline-offset var(--dur-1) var(--ease-out-quint); }
 
 /* Respect the OS "reduce motion" setting — neutralize non-essential animation /
    transition (the spinners, hovers). An a11y requirement, not a nicety. The
@@ -273,10 +295,11 @@ button.add, button.abort, .run-head .stop-run, .run-rec-head .rerun,
               filter var(--speed) var(--ease),
               transform var(--speed) var(--ease);
 }
-/* A tactile press on the solid primary buttons — a 1px sink confirms the click. */
+/* A tactile press on the solid primary buttons — the 1px sink joins the W3
+   scale(.97) compress (ADR-0037), confirming the click. */
 #composer button:active,
 .form-actions button[type=submit]:active,
-.session-actions button:active { transform: translateY(1px); background: var(--btn-bg-press); }
+.session-actions button:active { transform: translateY(1px) scale(.97); background: var(--btn-bg-press); }
 
 /* Resting elevation on the card surfaces (KPI cards, run records, the live run
    panel, session rows): step 1 of the layered-shadow ladder (light theme); the
@@ -915,6 +938,115 @@ p.ok { color: var(--good); margin: 0 0 .6rem; }
 .cmd-tag { font-size: .68rem; text-transform: uppercase; letter-spacing: .04em;
   color: var(--accent2); border: 1px solid var(--subtle); border-radius: var(--radius-1);
   padding: 0 .3rem; }
+
+/* ---- W3 motion & micro-interaction catalogue (issue 0065, ADR-0037) ----
+   Movement only: every rule below animates transform / opacity / shadow or a
+   registered token — never a color pairing or layout — through the motion
+   tokens, so the base-layer reduced-motion guard collapses all of it. None of
+   these wrap an htmx OOB/SSE swap: element transitions/animations run AFTER a
+   swap lands (they never defer or abort it), and the only view-transition
+   opt-in stays the per-nav links (ADR-0028/0037). */
+
+/* hover-lift: the card-like surfaces rise 2px and deepen their shadow. Shadow
+   VALUES live in the elevation tokens (--shadow/--shadow-lg, the W2 seam) —
+   this rule only moves between them. */
+.kpi-card, .run-record, .workflow-run, .session-row {
+  transition: box-shadow var(--dur-2) var(--ease-out-quint),
+              transform var(--dur-2) var(--ease-out-quint);
+}
+.kpi-card:hover, .run-record:hover, .workflow-run:hover, .session-row:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* press: the ghost/secondary buttons compress on :active (the solid primary
+   press — translateY(1px) scale(.97) — lives with the button rules above). */
+button.add:active, button.abort:active, .effort:active, .window:active,
+.perm button:active, .ask-choice:active, .plan-action:active,
+.elicit-ok:active, .elicit-no:active, .ask-send:active, .plan-reject:active,
+.run-head .stop-run:active, .run-rec-head .rerun:active,
+.row button:active, .overlay-close:active, .theme-toggle:active {
+  transform: scale(.97);
+}
+
+/* skeleton shimmer: a loading-placeholder block. The pulse animates the
+   REGISTERED --mix-soft (@property, typed <percentage>, so it interpolates)
+   through the same color-mix derivation the soft fills use — theme-aware with
+   no gradient math. W4 (issue 0066) applies it to the hero surfaces. */
+@keyframes skeleton-pulse { 50% { --mix-soft: 18%; } }
+.skeleton {
+  background: color-mix(in oklch, var(--dim) var(--mix-soft), transparent);
+  border-radius: 6px;
+  min-height: 1em;
+  animation: skeleton-pulse var(--dur-4) var(--ease) infinite;
+}
+
+/* list enter: the action cards stream in via SSE `beforeend` appends (append-
+   once), so @starting-style gives each a one-shot rise-and-settle as it lands;
+   the server flash notes (p.ok/p.error) get the same toast-style entry. The
+   child combinators are deliberate: ONLY the append-once containers animate —
+   a lane-embedded .perm rides the high-frequency `lanes` innerHTML swap and
+   would re-trigger its entry on every update (same for the budget gate). A
+   CSS transition on the swapped-in element runs after the swap — it cannot
+   wrap, defer, or drop it. */
+#perms > .perm, #asks > .ask, #plans > .plan, #elicits > .elicit, p.ok, p.error {
+  transition: opacity var(--dur-2) var(--ease-out-quint),
+              transform var(--dur-2) var(--ease-spring);
+  @starting-style { opacity: 0; transform: translateY(8px); }
+}
+
+/* overlay open/close (help dialog + ⌘K palette): entry via @starting-style
+   (display flips none→flex, so the first frame needs a start value), exit
+   holds display through the fade via transition-behavior: allow-discrete.
+   The [hidden] attribute stays the single JS state hook (setOverlay) — no new
+   JS. Engines without allow-discrete drop the whole transition and keep
+   today's instant toggle (progressive enhancement). */
+.overlay {
+  transition: opacity var(--dur-1) var(--ease),
+              display var(--dur-1) var(--ease) allow-discrete;
+  @starting-style { opacity: 0; }
+}
+.overlay[hidden] { opacity: 0; }
+/* The card pops on a spring while the scrim fades — scoped to the open
+   transition only (transform/opacity, no color change). */
+.overlay-card {
+  transition: transform var(--dur-2) var(--ease-spring),
+              opacity var(--dur-2) var(--ease-out-quint);
+  @starting-style { opacity: 0; transform: translateY(10px) scale(.97); }
+}
+
+/* palette filter enter/exit: items fade through their [hidden] toggle
+   (cmdkFilter) — allow-discrete holds display:flex through the fade-out, and
+   @starting-style fades a re-shown item back in. Fast (--dur-1) so filtering
+   never feels laggy; the :not([hidden]) keyboard path reads the attribute, so
+   Enter-on-top-match is unaffected. This re-declares `transition`, which
+   REPLACES the shared interactive-controls list above for .cmdk-item — so the
+   V24 color/background hover ease is carried along explicitly. */
+.cmdk-item {
+  transition: color var(--speed) var(--ease),
+              background-color var(--speed) var(--ease),
+              opacity var(--dur-1) var(--ease),
+              display var(--dur-1) var(--ease) allow-discrete;
+  @starting-style { opacity: 0; }
+}
+.cmdk-item[hidden] { opacity: 0; }
+
+/* scroll-driven reveal (progressive enhancement — Chromium/Safari; Firefox has
+   no animation-timeline and simply never sees this). Transform only, never
+   opacity: a half-revealed row must not fail the axe contrast scan. The
+   reduced-motion star reset zeroes DURATIONS, which a view() timeline ignores,
+   so this is explicitly double-gated behind no-preference (the guard pins
+   both gates). */
+@keyframes rise-in { from { transform: translateY(12px); } }
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    ul.rows .row {
+      animation: rise-in linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 80%;
+    }
+  }
+}
 }
 
 @layer utilities {
