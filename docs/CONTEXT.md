@@ -117,6 +117,17 @@
   new terminal status. The **dual of rerun**, completing the interactive control set (start
   → rerun → stop). Distinct from the **chat-turn** abort (`web.handleAbort`, `POST /abort`),
   which stops the chat session, not a run. — ADR-0024
+- **sub-agent** — an agent the *running agent* spawns inside a turn (the SDK's
+  `SubagentStarted/Completed/Failed` + `AgentID`-tagged stream), distinct from a workflow
+  **lane** (which *we* orchestrate). Identified by **two keys**: the spawn `ToolCallID`
+  (lifecycle events) and the instance `AgentID` (its streamed events). — ADR-0040
+- **registry** (sub-agent registry) — the pure, `convo`-sibling model of every sub-agent
+  instance observed this session (`convo.Subagents`): one entry per instance — status,
+  current activity, credits — joined across the two keys by **first-tag-after-start**,
+  rendered as the chat's live list (`#subagents`). A **persistent roster**: finished
+  entries stay listed with their terminal status (working / **input-required** / done /
+  failed), and an uncorroborated zero-token completion renders **done (unverified)**.
+  Replaces the transient activity strip (issue 0031). — ADR-0041, issue 0071
 
 ## Cost — the meter and the ledger (`internal/telemetry`)
 

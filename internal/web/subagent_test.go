@@ -28,40 +28,70 @@ func subStartDesc(tc, name, desc string) copilot.Event {
 	}}
 }
 
-func subEnd(tc, name string, ok bool, detail string) copilot.Event {
+func subEnd(tc, name string, ok bool, detail string, tokens int64) copilot.Event {
 	return copilot.Event{Type: copilot.EvSubagentEnd, Subagent: &copilot.SubagentInfo{
 		ToolCallID: tc, Name: "explorer", DisplayName: name, Success: ok, Detail: detail,
+		TotalTokens: tokens,
 	}}
 }
 
-func TestSubagentStartShowsIndicator(t *testing.T) {
+func TestSubagentStartShowsWorkingRow(t *testing.T) {
 	s, _ := newTestServer()
 	html := fragFor(s, subStart("tc-1", "Explore"), "subagents")
 	if html == "" || !strings.Contains(html, "Explore") {
-		t.Fatalf("subagent start should render an activity indicator: %q", html)
+		t.Fatalf("subagent start should render a list row: %q", html)
 	}
-	if len(s.subagents) != 1 {
-		t.Fatalf("active subagent not tracked: %d", len(s.subagents))
+	if !strings.Contains(html, "working") {
+		t.Errorf("a fresh row must carry the textual status label: %q", html)
+	}
+	if got := len(s.subreg.Entries()); got != 1 {
+		t.Fatalf("subagent not registered: %d", got)
 	}
 }
 
-func TestSubagentEndClearsIndicator(t *testing.T) {
+// A finished sub-agent STAYS listed with its terminal status — the list is the
+// session's roster (issue 0071), not the transient busy strip it replaces
+// (issue 0031).
+func TestSubagentEndKeepsRowAsDone(t *testing.T) {
 	s, _ := newTestServer()
 	s.handleEvent(subStart("tc-1", "Explore"))
-	html := fragFor(s, subEnd("tc-1", "Explore", true, "1.2s · 3.4k tok"), "subagents")
-	if len(s.subagents) != 0 {
-		t.Fatalf("completed subagent should be removed: %d remain", len(s.subagents))
+	html := fragFor(s, subEnd("tc-1", "Explore", true, "1.2s · 3.4k tok", 3400), "subagents")
+	if got := len(s.subreg.Entries()); got != 1 {
+		t.Fatalf("finished subagent must stay listed: %d entries", got)
 	}
-	// With no active subagents the strip is empty (ambient — appears only while running).
-	if strings.Contains(html, "Explore") {
-		t.Errorf("strip should be empty once the subagent finished: %q", html)
+	if !strings.Contains(html, "Explore") || !strings.Contains(html, "done") {
+		t.Errorf("finished row should render with the done label: %q", html)
+	}
+	if strings.Contains(html, "unverified") {
+		t.Errorf("a token-corroborated completion is verified: %q", html)
+	}
+}
+
+func TestSubagentFailureRowShowsFailed(t *testing.T) {
+	s, _ := newTestServer()
+	s.handleEvent(subStart("tc-1", "Build"))
+	html := fragFor(s, subEnd("tc-1", "Build", false, "boom", 0), "subagents")
+	if !strings.Contains(html, "failed") || !strings.Contains(html, "boom") {
+		t.Errorf("failed row should carry the failed label and the error: %q", html)
+	}
+}
+
+// Don't trust completed blindly (claude-code#47936): a successful end that
+// reported zero tokens, from an instance whose stream we never observed,
+// renders done (unverified).
+func TestZeroTokenCompletionRendersUnverified(t *testing.T) {
+	s, _ := newTestServer()
+	s.handleEvent(subStart("tc-1", "Explore"))
+	html := fragFor(s, subEnd("tc-1", "Explore", true, "", 0), "subagents")
+	if !strings.Contains(html, "done (unverified)") {
+		t.Errorf("zero-token silent completion must render done (unverified): %q", html)
 	}
 }
 
 func TestSubagentEndAddsTimelineNote(t *testing.T) {
 	s, _ := newTestServer()
 	s.handleEvent(subStart("tc-1", "Explore"))
-	note := fragFor(s, subEnd("tc-1", "Explore", true, "1.2s · 3.4k tok"), "timeline")
+	note := fragFor(s, subEnd("tc-1", "Explore", true, "1.2s · 3.4k tok", 3400), "timeline")
 	if !strings.Contains(note, "Explore") || !strings.Contains(note, "1.2s") {
 		t.Errorf("subagent completion should add a timeline note with the summary: %q", note)
 	}
@@ -70,7 +100,7 @@ func TestSubagentEndAddsTimelineNote(t *testing.T) {
 func TestSubagentFailureNoted(t *testing.T) {
 	s, _ := newTestServer()
 	s.handleEvent(subStart("tc-2", "Build"))
-	note := fragFor(s, subEnd("tc-2", "Build", false, "boom"), "timeline")
+	note := fragFor(s, subEnd("tc-2", "Build", false, "boom", 0), "timeline")
 	if !strings.Contains(note, "boom") {
 		t.Errorf("subagent failure should surface the error: %q", note)
 	}
@@ -80,25 +110,25 @@ func TestClearResetsSubagents(t *testing.T) {
 	s, _ := newTestServer()
 	s.handleEvent(subStart("tc-1", "Explore"))
 	out := s.runCommand("/clear")
-	if len(s.subagents) != 0 {
-		t.Errorf("clear should drop active subagents: %d", len(s.subagents))
+	if !s.subreg.Empty() {
+		t.Errorf("clear should reset the registry: %d entries", len(s.subreg.Entries()))
 	}
 	if !strings.Contains(out, `id="subagents"`) {
-		t.Errorf("clear should OOB-clear the #subagents strip: %s", out)
+		t.Errorf("clear should OOB-clear the #subagents list: %s", out)
 	}
 }
 
-func TestSubagentChipSurfacesDescription(t *testing.T) {
+func TestSubagentRowSurfacesDescription(t *testing.T) {
 	s, _ := newTestServer()
 	html := fragFor(s, subStartDesc("tc-1", "Explore", "search the repo"), "subagents")
 	if !strings.Contains(html, `title="search the repo"`) {
-		t.Errorf("chip should surface the description as a title tooltip: %q", html)
+		t.Errorf("row should surface the description as a title tooltip: %q", html)
 	}
 }
 
-func TestSubagentChipEmptyDescriptionKeepsPriorShape(t *testing.T) {
+func TestSubagentRowEmptyDescriptionKeepsPriorShape(t *testing.T) {
 	s, _ := newTestServer()
-	// subStart leaves Description empty — the chip must render no title attribute,
+	// subStart leaves Description empty — the row must render no title attribute,
 	// preserving the prior shape (not every sub-agent carries a description).
 	html := fragFor(s, subStart("tc-1", "Explore"), "subagents")
 	if strings.Contains(html, "title=") {
@@ -106,7 +136,7 @@ func TestSubagentChipEmptyDescriptionKeepsPriorShape(t *testing.T) {
 	}
 }
 
-func TestSubagentChipEscapesDescription(t *testing.T) {
+func TestSubagentRowEscapesModelText(t *testing.T) {
 	s, _ := newTestServer()
 	// Description is model/SDK-originated text → it must be HTML-escaped (ADR-0001),
 	// mirroring TestWorkflowLanesEscapeModelText.
@@ -117,13 +147,98 @@ func TestSubagentChipEscapesDescription(t *testing.T) {
 	if !strings.Contains(html, "&lt;b&gt;grep&lt;/b&gt;") || !strings.Contains(html, "&amp;") {
 		t.Errorf("description not escaped as expected: %q", html)
 	}
+	// The activity column is tool-originated text on the same surface.
+	act := fragFor(s, tagSub("sub-1", copilot.Event{Type: copilot.EvToolStart, Tool: "<img onerror=x>",
+		ToolCall: &copilot.ToolCall{ID: "t1", Name: "<img onerror=x>"}}), "subagents")
+	if strings.Contains(act, "<img") {
+		t.Fatalf("activity must be HTML-escaped, not raw: %q", act)
+	}
+}
+
+func tagSub(id string, e copilot.Event) copilot.Event { e.AgentID = id; return e }
+
+// The tagged stream now FEEDS the registry (S2): a tool start becomes the row's
+// current activity; a tool end / delta returns it to "thinking…". It still
+// never touches the root transcript or meter (the S1 invariant, pinned below).
+func TestTaggedToolStartUpdatesRowActivity(t *testing.T) {
+	s, _ := newTestServer()
+	s.handleEvent(subStart("tc-1", "Explore"))
+	html := fragFor(s, tagSub("sub-1", copilot.Event{Type: copilot.EvToolStart, Tool: "grep",
+		ToolCall: &copilot.ToolCall{ID: "t1", Name: "grep", Args: "func main"}}), "subagents")
+	if !strings.Contains(html, "grep") {
+		t.Fatalf("tagged tool start should surface as the row's activity: %q", html)
+	}
+	html = fragFor(s, tagSub("sub-1", copilot.Event{Type: copilot.EvToolEnd,
+		ToolCall: &copilot.ToolCall{ID: "t1", Success: true}}), "subagents")
+	if !strings.Contains(html, "thinking…") {
+		t.Fatalf("tagged tool end should return the activity to thinking: %q", html)
+	}
+}
+
+// An observed stream verifies the completion even when the lifecycle event
+// reports zero tokens — the registry watched the instance do work.
+func TestObservedStreamVerifiesCompletion(t *testing.T) {
+	s, _ := newTestServer()
+	s.handleEvent(subStart("tc-1", "Explore"))
+	s.handleEvent(tagSub("sub-1", copilot.Event{Type: copilot.EvToolStart, Tool: "grep",
+		ToolCall: &copilot.ToolCall{ID: "t1", Name: "grep"}}))
+	html := fragFor(s, subEnd("tc-1", "Explore", true, "", 0), "subagents")
+	if strings.Contains(html, "unverified") {
+		t.Errorf("an observed stream corroborates the completion: %q", html)
+	}
+}
+
+// A tagged event with no started sub-agent to join is ignored gracefully: no
+// registry entry, no fragment, no transcript mutation.
+func TestUnknownInstanceTagIgnored(t *testing.T) {
+	s, _ := newTestServer()
+	frags := s.handleEvent(tagSub("ghost", copilot.Event{Type: copilot.EvToolStart, Tool: "grep",
+		ToolCall: &copilot.ToolCall{ID: "t1", Name: "grep"}}))
+	if len(frags) != 0 {
+		t.Fatalf("unjoinable tag should emit nothing: %v", frags)
+	}
+	if !s.subreg.Empty() {
+		t.Fatalf("unjoinable tag should not invent an entry")
+	}
+}
+
+// Replaying the same registry state produces byte-identical HTML: the list is
+// an idempotent full-fragment re-render (no append-leak), so an SSE reconnect
+// or duplicate render is safe.
+func TestSubagentListRenderIdempotent(t *testing.T) {
+	s, _ := newTestServer()
+	s.handleEvent(subStartDesc("tc-1", "Explore", "search the repo"))
+	s.handleEvent(tagSub("sub-1", copilot.Event{Type: copilot.EvToolStart, Tool: "grep",
+		ToolCall: &copilot.ToolCall{ID: "t1", Name: "grep"}}))
+	s.mu.Lock()
+	a := s.subagentsFrag().HTML
+	b := s.subagentsFrag().HTML
+	s.mu.Unlock()
+	if a != b {
+		t.Fatalf("re-render of the same state must be identical:\n%q\n%q", a, b)
+	}
+	// A repeated identical activity event changes nothing — no fragment at all
+	// (the delta-storm guard).
+	if frags := s.handleEvent(tagSub("sub-1", copilot.Event{Type: copilot.EvToolStart, Tool: "grep",
+		ToolCall: &copilot.ToolCall{ID: "t1", Name: "grep"}})); len(frags) != 0 {
+		t.Errorf("an unchanged registry should emit no fragments: %v", frags)
+	}
+}
+
+// Credits render from the registry (0.00 cr until S3 wires the priced value).
+func TestSubagentRowRendersCreditsPlaceholder(t *testing.T) {
+	s, _ := newTestServer()
+	html := fragFor(s, subStart("tc-1", "Explore"), "subagents")
+	if !strings.Contains(html, "0.00 cr") {
+		t.Errorf("row should render the credits cell (0.00 cr until S3): %q", html)
+	}
 }
 
 // TestAgentTaggedEventsDoNotMutateRootTranscript is the reducer half of epic 0069
-// S1 (ADR-0040): a sub-agent-tagged delta/tool/usage must NOT append to the root
-// user-facing transcript or meter the root agent's spend — it is parked until S2
-// renders it. The sub-agent LIFECYCLE strip (EvSubagentStart/End, AgentID empty —
-// session-level events) keeps working unchanged (issue 0031).
+// S1 (ADR-0040), still binding under S2: a sub-agent-tagged delta/tool/usage now
+// feeds the REGISTRY, but must never append to the root user-facing transcript
+// or meter the root agent's spend. The sub-agent LIFECYCLE events (EvSubagentStart/
+// End, AgentID empty — session-level events) keep working unchanged.
 func TestAgentTaggedEventsDoNotMutateRootTranscript(t *testing.T) {
 	s, _ := newTestServer()
 
@@ -169,5 +284,15 @@ func TestChatPartialRendersActiveSubagent(t *testing.T) {
 	s.handleEvent(subStart("tc-1", "Explore"))
 	if html := s.chatPartial(); !strings.Contains(html, "Explore") {
 		t.Errorf("chat page should render active subagents: %s", html)
+	}
+}
+
+// The list is a labelled region: status is conveyed by text inside a named
+// container, so assistive tech can find and read it (a11y acceptance).
+func TestSubagentListIsLabelledRegion(t *testing.T) {
+	s, _ := newTestServer()
+	html := fragFor(s, subStart("tc-1", "Explore"), "subagents")
+	if !strings.Contains(html, `aria-label="Sub-agents"`) {
+		t.Errorf("list should be a labelled region: %q", html)
 	}
 }

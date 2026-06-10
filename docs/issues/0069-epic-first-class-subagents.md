@@ -55,7 +55,7 @@ governed by the existing third pillar (the pause/permission gates).
 - [ ] **S1 · `AgentID` attribution through the seam** ([0070](0070-agentid-attribution-seam.md), S/M; ADR) —
       the keystone. Envelope `AgentID` → `copilot.Event.AgentID` on every normalized
       event; `MockClient`/demo emit tagged events. Pure seam change, no UI.
-- [ ] **S2 · Sub-agent registry + live list** ([0071](0071-subagent-registry-live-list.md), M; ADR) —
+- [x] **S2 · Sub-agent registry + live list** ([0071](0071-subagent-registry-live-list.md), M; ADR-0041) —
       pure registry state (id, name, status, current activity, credits) fed by S1 +
       the existing lifecycle events; the chat-side list with the 4-state status
       vocabulary, rendered as idempotent SSE fragment re-renders.

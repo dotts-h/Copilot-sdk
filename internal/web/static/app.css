@@ -547,15 +547,26 @@ button.add, button.abort, .run-head .stop-run, .run-rec-head .rerun,
 .elicit .elicit-ok { border: none; border-radius: var(--radius-2); padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--good); color: var(--on-bright); }
 .elicit .elicit-no { border: none; border-radius: var(--radius-2); padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--bad); color: var(--on-bright); }
 
-/* sub-agent background-activity strip */
-.subagents { display: flex; flex-wrap: wrap; gap: .4rem; max-width: 56rem; margin: 0 auto .35rem;
-  min-height: 0; }
+/* sub-agent live list (issue 0071) — one row per instance: status glyph + text
+   label, name, current activity, live credits. Collapses to nothing when the
+   registry is empty (the container keeps the strip's ambient behaviour). */
+.subagents { max-width: 56rem; margin: 0 auto .35rem; min-height: 0; }
 .subagents:empty { margin: 0; }
-.subagent-chip { display: inline-flex; align-items: center; gap: .35rem; font-size: .85em;
-  padding: .15rem .6rem; border-radius: var(--radius-full);
+.subagent-list { display: flex; flex-direction: column; gap: .2rem; margin: 0; padding: 0;
+  list-style: none; }
+.subagent-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem;
+  font-size: .85em; padding: .15rem .6rem; border-radius: var(--radius-2);
   background: var(--chip-bg); border: 1px solid var(--chip-border); }
-.subagent-chip .spin { display: inline-block; animation: spin 1.1s linear infinite; }
-.subagent-chip .subagent-model { opacity: .7; }
+.subagent-row .spin { display: inline-block; animation: spin 1.1s linear infinite; }
+.subagent-row .subagent-model { opacity: .7; }
+.subagent-row .sa-status { white-space: nowrap; }
+.subagent-row.sa-working .sa-status { color: var(--accent); }
+.subagent-row.sa-input-required .sa-status { color: var(--warn); }
+.subagent-row.sa-done .sa-status { color: var(--good); }
+.subagent-row.sa-failed .sa-status { color: var(--bad); }
+.subagent-row .sa-activity, .subagent-row .sa-detail { opacity: .75;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 18rem; }
+.subagent-row .sa-credits { margin-left: auto; font-variant-numeric: tabular-nums; opacity: .8; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* workflow run lanes (item 2.1) */

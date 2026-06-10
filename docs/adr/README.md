@@ -44,3 +44,4 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0038 | [Dual-channel elevation — luminance ladder (dark) / hue-tinted layered shadows (light) — and the constrained radius/space/type scales](0038-dual-channel-elevation-luminance-ladder-dark-layered-shadows-light.md) | accepted |
 | 0039 | [Connection page — auth method via config (applies at next launch), live credential via `auth.getStatus`, no secret at rest](0039-connection-page-auth-method-via-config-status-via-auth-getstatus.md) | accepted |
 | 0040 | [Sub-agent identity through the seam — instance `AgentID` vs spawn `ToolCallID`, joined at the registry](0040-subagent-identity-instance-agentid-vs-spawn-toolcallid.md) | accepted |
+| 0041 | [The sub-agent registry — a persistent roster in `convo`, the 4-state status vocabulary, the first-tag-after-start join, and the unverified-done rule](0041-subagent-registry-roster-semantics-status-vocabulary-unverified-done.md) | accepted |

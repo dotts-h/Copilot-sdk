@@ -156,6 +156,7 @@ func (c *SDKClient) makeHandler(sid string) func(sdk.SessionEvent) {
 			emit(Event{Type: EvSubagentEnd, Subagent: &SubagentInfo{
 				ToolCallID: d.ToolCallID, Name: d.AgentName, DisplayName: d.AgentDisplayName,
 				Model: derefStr(d.Model), Success: true, Detail: subagentSummary(d.DurationMs, d.TotalTokens),
+				TotalTokens: deref(d.TotalTokens),
 			}})
 		case *sdk.SubagentFailedData:
 			emit(Event{Type: EvSubagentEnd, Subagent: &SubagentInfo{

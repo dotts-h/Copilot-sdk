@@ -84,7 +84,10 @@ type InputRequest struct {
 // background-activity indicator. ToolCallID (the parent tool invocation that
 // spawned it) threads the start and end events so the UI can update one entry.
 // Detail carries a one-line summary on completion (duration/tokens) or the error
-// message on failure.
+// message on failure. TotalTokens is the completion's raw reported token count —
+// the registry cross-checks it before trusting a "completed" (sub-agents are
+// known to die early yet report completed; epic 0069 / claude-code#47936), so it
+// rides beside the display-formatted Detail rather than being parseable from it.
 type SubagentInfo struct {
 	ToolCallID  string
 	Name        string
@@ -93,6 +96,7 @@ type SubagentInfo struct {
 	Model       string
 	Success     bool
 	Detail      string
+	TotalTokens int64
 }
 
 // ElicitRequest describes a schema-driven elicitation form awaiting input: an

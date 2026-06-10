@@ -123,7 +123,7 @@ func (s *Server) chatPartial() string {
 		elicits.WriteString(renderElicitForm(e))
 	}
 	ctx := renderCtx(s.ctxCurrent, s.ctxLimit, s.compacting)
-	subagents := renderSubagents(s.subagents)
+	subagents := renderSubagents(s.subreg.Entries())
 	lanes := renderLanes(s.run)
 	statline := renderStatline(s)
 	budget := s.renderGate()

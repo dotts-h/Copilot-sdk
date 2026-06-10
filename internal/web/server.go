@@ -71,7 +71,7 @@ type Server struct {
 	inputs      []copilot.InputRequest  // pending ask_user questions (EvUserInput)
 	plans       []copilot.PlanRequest   // pending exit-plan-mode reviews (EvPlanReview)
 	elicits     []copilot.ElicitRequest // pending elicitation forms (EvElicitation)
-	subagents   []copilot.SubagentInfo  // sub-agents currently running (activity indicator)
+	subreg      convo.Subagents         // sub-agent registry: the live list of every instance this session (issue 0071)
 	mode        string                  // agent mode for outgoing prompts: "" | "plan" | "autopilot" | "interactive"
 	agentID     string                  // active agent persona id, tagged onto each turn's SpendRecord for cost attribution (ADR-0018); "" = built-in chat
 	live        liveKind
@@ -769,10 +769,10 @@ func (s *Server) oobStat() string {
 	return `<div id="statline" hx-swap-oob="innerHTML">` + renderStatline(s) + `</div>`
 }
 
-// subagentsFrag builds the background-activity strip from the currently-running
-// sub-agents. Caller must hold s.mu.
+// subagentsFrag builds the live sub-agent list from the registry — always the
+// idempotent full-fragment re-render (issue 0071). Caller must hold s.mu.
 func (s *Server) subagentsFrag() fragment {
-	return fragment{Event: "subagents", HTML: renderSubagents(s.subagents)}
+	return fragment{Event: "subagents", HTML: renderSubagents(s.subreg.Entries())}
 }
 
 // nowMs returns the current time in epoch milliseconds.
@@ -806,7 +806,6 @@ func permID(p copilot.PermissionRequest) string { return p.ID }
 func inputID(p copilot.InputRequest) string     { return p.ID }
 func planID(p copilot.PlanRequest) string       { return p.ID }
 func elicitID(e copilot.ElicitRequest) string   { return e.ID }
-func subagentKey(a copilot.SubagentInfo) string { return a.ToolCallID }
 
 // The drop* / findElicit helpers below keep their names (callers are unchanged);
 // each is a one-line binding of dropByID/findByID to its queue. Caller holds s.mu.
@@ -822,11 +821,6 @@ func (s *Server) dropElicit(id string) {
 // whether it was found.
 func (s *Server) findElicit(id string) (copilot.ElicitRequest, bool) {
 	return findByID(s.elicits, id, elicitID)
-}
-
-// dropSubagent removes a finished sub-agent by its parent tool-call id.
-func (s *Server) dropSubagent(toolCallID string) {
-	s.subagents = dropByID(s.subagents, toolCallID, subagentKey)
 }
 
 // firstNonEmpty returns the first non-empty, trimmed string in vals, or "".

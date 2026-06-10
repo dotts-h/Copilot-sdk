@@ -50,7 +50,12 @@
      the budget cap. Reuses the permission-form look; posts to /budget/{action}. */}}
 {{define "budgetForm"}}<form class="perm budget" id="budget-gate" hx-target="#budget" hx-swap="innerHTML"><span class="perm-q">⚠ this turn (~{{.Projected}}) would exceed your budget cap ({{.Cap}}) — proceed anyway?</span><button class="ok" hx-post="/budget/proceed">proceed</button><button class="ok raise" hx-post="/budget/raise">raise cap</button><button class="no" hx-post="/budget/cancel" formnovalidate>cancel</button></form>{{end}}
 
-{{define "subagentChip"}}<span class="subagent-chip"{{if .Description}} title="{{.Description}}"{{end}}><span class="spin">◐</span> {{.Label}}{{if .Model}} <span class="subagent-model">{{.Model}}</span>{{end}}</span>{{end}}
+{{/* subagentRow: one live-list row per sub-agent instance (issue 0071). Status
+     is glyph PLUS text label — never icon/color alone (a11y); the glyph is
+     decorative (aria-hidden). Activity is the latest tool or "thinking…";
+     Detail is the completion summary / failure error; Credits renders 0.00 cr
+     until S3 wires the priced value. */}}
+{{define "subagentRow"}}<li class="subagent-row {{.Class}}"{{if .Description}} title="{{.Description}}"{{end}}><span class="sa-status"><span class="sa-glyph{{if .Working}} spin{{end}}" aria-hidden="true">{{.Glyph}}</span> {{.Label}}</span> <span class="sa-name">{{.Name}}{{if .Model}} <span class="subagent-model">{{.Model}}</span>{{end}}</span>{{if .Activity}} <span class="sa-activity">{{.Activity}}</span>{{end}}{{if .Detail}} <span class="sa-detail">{{.Detail}}</span>{{end}} <span class="sa-credits">{{.Credits}}</span></li>{{end}}
 
 {{/* workflowLanes: the multi-agent run panel — one lane per step (item 2.1). */}}
 {{define "workflowLanes"}}<section class="workflow-run" role="group" aria-label="workflow {{.Name}}"><div class="run-head"><span class="run-title">⏵ {{.Name}}</span> <span class="run-mode">{{.Mode}}</span>{{if .Running}} <span class="run-status">running…</span> <button class="stop-run" hx-post="/run/abort" hx-target="#main" hx-swap="innerHTML" title="Stop this run — settle the in-flight lanes and free the server">⏹ stop run</button>{{else}} <span class="run-status done">finished</span>{{end}}</div>{{range .Lanes}}{{template "laneCard" .}}{{end}}</section>{{end}}

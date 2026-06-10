@@ -26,16 +26,19 @@ const (
 // permission requests append an inline form. Mirrors the TUI's applyAgentMsg
 // (internal/tui/events.go) but emits HTML instead of mutating a Bubble Tea model.
 func (s *Server) handleEvent(e copilot.Event) []fragment {
-	// Park sub-agent-tagged events (epic 0069 S1, ADR-0040). The SDK streams a
-	// sub-agent's deltas/tools/usage tagged with its instance AgentID; folding them
-	// into the root transcript renders a sub-agent's text in the user-facing bubble
-	// and meters its spend as the root agent's. Until S2 gives them their own
-	// surface they are dropped here — for BOTH the chat and the workflow-lane paths
-	// (this guard precedes the lane router below). The sub-agent LIFECYCLE strip
-	// (EvSubagentStart/End, AgentID empty — session-level events) is unaffected.
-	// The check reads only the event value, so it runs before taking s.mu.
+	// Route sub-agent-tagged events to the registry (epic 0069 S2, issue 0071,
+	// ADR-0041). The SDK streams a sub-agent's deltas/tools/usage tagged with its
+	// instance AgentID; folding them into the root transcript would render a
+	// sub-agent's text in the user-facing bubble and meter its spend as the root
+	// agent's (the S1 invariant, ADR-0040), so they reach ONLY the registry — its
+	// live list is their surface. The guard precedes the lane router below, so a
+	// sub-agent running during a workflow still feeds the list. The sub-agent
+	// LIFECYCLE events (EvSubagentStart/End, AgentID empty — session-level) are
+	// handled in the switch like before.
 	if e.AgentID != "" {
-		return nil
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return s.handleSubagentStream(e)
 	}
 
 	s.mu.Lock()
@@ -226,15 +229,16 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		if e.Subagent == nil {
 			return nil
 		}
-		s.subagents = append(s.subagents, *e.Subagent)
-		s.state.AddSystem("▸ sub-agent " + subagentLabel(*e.Subagent) + " started")
+		sa := *e.Subagent
+		s.subreg.Start(sa.ToolCallID, sa.Name, sa.DisplayName, sa.Description, sa.Model)
+		s.state.AddSystem("▸ sub-agent " + subagentLabel(sa) + " started")
 		return append(s.timelineFragments(), s.subagentsFrag())
 
 	case copilot.EvSubagentEnd:
 		if e.Subagent == nil {
 			return nil
 		}
-		s.dropSubagent(e.Subagent.ToolCallID)
+		s.subreg.End(e.Subagent.ToolCallID, e.Subagent.Success, e.Subagent.Detail, e.Subagent.TotalTokens)
 		glyph := "✓"
 		if !e.Subagent.Success {
 			glyph = "✗"
@@ -341,6 +345,31 @@ func (s *Server) recordUsage(u copilot.UsageData, tag spendTag) telemetry.Cost {
 		}
 	}
 	return cost
+}
+
+// handleSubagentStream folds one sub-agent-tagged stream event into the
+// registry: a tool start becomes the row's current activity, a tool end or a
+// streamed delta returns it to "thinking…", and everything else (usage in
+// particular — S3 prices it into Credits) is recorded as an observation only,
+// which still performs the ADR-0040 instance↔spawn join and corroborates the
+// eventual completion. A fragment is emitted only when the displayed registry
+// actually changed, so a delta storm doesn't re-render the list per chunk.
+// Caller holds s.mu.
+func (s *Server) handleSubagentStream(e copilot.Event) []fragment {
+	changed := false
+	switch e.Type {
+	case copilot.EvToolStart:
+		changed = s.subreg.Observe(e.AgentID, e.Tool)
+	case copilot.EvToolEnd, copilot.EvMessage, copilot.EvMessageDelta,
+		copilot.EvReasoning, copilot.EvReasoningDelta:
+		changed = s.subreg.Observe(e.AgentID, "thinking…")
+	default:
+		s.subreg.Observe(e.AgentID, "")
+	}
+	if !changed {
+		return nil
+	}
+	return []fragment{s.subagentsFrag()}
 }
 
 // timelineFragments re-renders the whole #timeline and resets the live-kind to

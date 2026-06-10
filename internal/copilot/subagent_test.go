@@ -39,6 +39,11 @@ func TestHandlerMapsSubagentLifecycle(t *testing.T) {
 	if end.Subagent.Detail != "1.2s · 3.4k tok" {
 		t.Fatalf("end summary = %q, want duration+tokens", end.Subagent.Detail)
 	}
+	// The raw token count rides beside the formatted Detail: the registry (S2)
+	// cross-checks it before trusting a "completed" (claude-code#47936).
+	if end.Subagent.TotalTokens != tok {
+		t.Fatalf("end TotalTokens = %d, want %d", end.Subagent.TotalTokens, tok)
+	}
 }
 
 func TestHandlerMapsSubagentFailure(t *testing.T) {

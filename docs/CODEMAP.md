@@ -83,6 +83,22 @@ _Last generated: 2026-06-10 (UTC)._
 - L220: `func (c *State) Committed() []Turn`
 - L229: `func (c *State) Pending() (Role, string)`
 
+### subagents.go (202 LOC)
+- L23: `type SubagentStatus int`
+- L34: `func (st SubagentStatus) Label() string`
+- L48: `func (st SubagentStatus) Class() string`
+- L64: `type SubagentView struct`
+- L81: `type Subagents struct`
+- L88: `func (r *Subagents) Start(spawnID, name, displayName, description, model string)`
+- L104: `func (r *Subagents) Observe(instanceID, activity string) bool`
+- L123: `func (r *Subagents) AddCredits(instanceID string, credits float64) bool`
+- L144: `func (r *Subagents) End(spawnID string, success bool, detail string, totalTokens int64) bool`
+- L161: `func (r *Subagents) Entries() []SubagentView`
+- L168: `func (r *Subagents) Empty() bool { return len(r.entries) == 0 }`
+- L171: `func (r *Subagents) Reset() { r.entries, r.seen = nil, nil }`
+- L174: `func (r *Subagents) bySpawn(spawnID string) *SubagentView`
+- L186: `func (r *Subagents) join(instanceID string) *SubagentView`
+
 ## internal/copilot
 
 ### bridge.go (82 LOC)
@@ -98,27 +114,27 @@ _Last generated: 2026-06-10 (UTC)._
 - L70: `type planDecision struct`
 - L79: `type elicitDecision struct`
 
-### copilot.go (358 LOC)
+### copilot.go (362 LOC)
 - L17: `type EventType int`
 - L48: `type SessionMeta struct`
 - L59: `type PermissionRequest struct`
 - L76: `type InputRequest struct`
-- L88: `type SubagentInfo struct`
-- L104: `type ElicitRequest struct`
-- L115: `type ElicitField struct`
-- L132: `type PlanRequest struct`
-- L142: `type UsageData struct`
-- L155: `type Event struct`
-- L195: `type HookRun struct`
-- L211: `type ToolDecision struct`
-- L221: `type ContextInfo struct`
-- L228: `type ModelInfo struct`
-- L239: `type AuthStatus struct`
-- L250: `type ToolCall struct`
-- L267: `type SessionSpec struct`
-- L293: `type MCPServer struct`
-- L308: `func (m MCPServer) Key() string`
-- L316: `type Client interface`
+- L91: `type SubagentInfo struct`
+- L108: `type ElicitRequest struct`
+- L119: `type ElicitField struct`
+- L136: `type PlanRequest struct`
+- L146: `type UsageData struct`
+- L159: `type Event struct`
+- L199: `type HookRun struct`
+- L215: `type ToolDecision struct`
+- L225: `type ContextInfo struct`
+- L232: `type ModelInfo struct`
+- L243: `type AuthStatus struct`
+- L254: `type ToolCall struct`
+- L271: `type SessionSpec struct`
+- L297: `type MCPServer struct`
+- L312: `func (m MCPServer) Key() string`
+- L320: `type Client interface`
 
 ### handlers.go (197 LOC)
 - L31: `func (c *SDKClient) permissionHandler() sdk.PermissionHandlerFunc`
@@ -129,18 +145,18 @@ _Last generated: 2026-06-10 (UTC)._
 - L157: `func (c *SDKClient) exitPlanModeHandler() sdk.ExitPlanModeRequestHandler`
 - L180: `func (c *SDKClient) elicitationHandler() sdk.ElicitationHandler`
 
-### hookexec.go (194 LOC)
+### hookexec.go (198 LOC)
 - L40: `type commandRunner func(ctx context.Context, dir, name string, args []string) (output string, exitCode int, err error)`
 - L50: `func (c *SDKClient) resolveVarRefs(s string) string`
 - L62: `func (c *SDKClient) hookTimeoutOrDefault() time.Duration`
-- L74: `func (c *SDKClient) firePostToolHooks(sid string, hooks []ctxforge.Hook, workspace string)`
-- L86: `func (c *SDKClient) runPostToolHook(h ctxforge.Hook, workspace string) Event`
-- L125: `func execCommand(ctx context.Context, dir, name string, args []string) (string, int, error)`
-- L148: `type capWriter struct`
-- L153: `func (w *capWriter) Write(p []byte) (int, error)`
-- L165: `func (w *capWriter) String() string { return w.buf.String() }`
-- L173: `func capOutput(s string) string`
-- L189: `func commandLine(name string, args []string) string`
+- L77: `func (c *SDKClient) firePostToolHooks(sid, agentID string, hooks []ctxforge.Hook, workspace string)`
+- L90: `func (c *SDKClient) runPostToolHook(h ctxforge.Hook, workspace string) Event`
+- L129: `func execCommand(ctx context.Context, dir, name string, args []string) (string, int, error)`
+- L152: `type capWriter struct`
+- L157: `func (w *capWriter) Write(p []byte) (int, error)`
+- L169: `func (w *capWriter) String() string { return w.buf.String() }`
+- L177: `func capOutput(s string) string`
+- L193: `func commandLine(name string, args []string) string`
 
 ### mock.go (245 LOC)
 - L11: `type MockClient struct`
@@ -169,32 +185,32 @@ _Last generated: 2026-06-10 (UTC)._
 - L228: `func (m *MockClient) Emit(e Event)`
 - L237: `func (m *MockClient) Close() error`
 
-### normalize.go (494 LOC)
+### normalize.go (495 LOC)
 - L22: `type toolMeta struct`
 - L28: `func postToolMeta(d *sdk.ToolExecutionStartData, argsSummary string) toolMeta`
 - L43: `func toolKindFromName(name string, isMCP bool) string`
 - L71: `func (c *SDKClient) makeHandler(sid string) func(sdk.SessionEvent)`
-- L183: `func historyEvents(sid string, raw []sdk.SessionEvent) []Event`
-- L213: `func normalizeUsage(d *sdk.AssistantUsageData) UsageData`
-- L232: `func normalizeElicitFields(schema *sdk.ElicitationSchema) []ElicitField`
-- L257: `func normalizeElicitField(name string, raw any) ElicitField`
-- L277: `func elicitStr(m map[string]any, key string) string`
-- L286: `func elicitStrSlice(v any) []string`
-- L302: `func elicitDefault(v any) string`
-- L323: `func sessionError(d *sdk.SessionErrorData) error`
-- L335: `func planChangeText(op sdk.PlanChangedOperation) string`
-- L350: `func compactionSummary(d *sdk.SessionCompactionCompleteData) string`
-- L364: `func describePermission(req sdk.PermissionRequest) string`
-- L379: `func permWriteFields(req sdk.PermissionRequest) (file, intention, diff string)`
-- L389: `func summarizeArgs(args any) string`
-- L411: `func stringField(m map[string]any, key string) (string, bool)`
-- L424: `func toolResultText(d *sdk.ToolExecutionCompleteData) string`
-- L441: `func oneLine(s string) string`
-- L445: `func clip(s string, n int) string`
-- L456: `func deref(p *int64) int64`
-- L463: `func derefStr(p *string) string`
-- L473: `func subagentSummary(durationMs, totalTokens *int64) string`
-- L485: `func humanTokenCount(n int64) string`
+- L184: `func historyEvents(sid string, raw []sdk.SessionEvent) []Event`
+- L214: `func normalizeUsage(d *sdk.AssistantUsageData) UsageData`
+- L233: `func normalizeElicitFields(schema *sdk.ElicitationSchema) []ElicitField`
+- L258: `func normalizeElicitField(name string, raw any) ElicitField`
+- L278: `func elicitStr(m map[string]any, key string) string`
+- L287: `func elicitStrSlice(v any) []string`
+- L303: `func elicitDefault(v any) string`
+- L324: `func sessionError(d *sdk.SessionErrorData) error`
+- L336: `func planChangeText(op sdk.PlanChangedOperation) string`
+- L351: `func compactionSummary(d *sdk.SessionCompactionCompleteData) string`
+- L365: `func describePermission(req sdk.PermissionRequest) string`
+- L380: `func permWriteFields(req sdk.PermissionRequest) (file, intention, diff string)`
+- L390: `func summarizeArgs(args any) string`
+- L412: `func stringField(m map[string]any, key string) (string, bool)`
+- L425: `func toolResultText(d *sdk.ToolExecutionCompleteData) string`
+- L442: `func oneLine(s string) string`
+- L446: `func clip(s string, n int) string`
+- L457: `func deref(p *int64) int64`
+- L464: `func derefStr(p *string) string`
+- L474: `func subagentSummary(durationMs, totalTokens *int64) string`
+- L486: `func humanTokenCount(n int64) string`
 
 ### sdkclient.go (535 LOC)
 - L25: `type SDKClient struct`
@@ -538,9 +554,9 @@ _Last generated: 2026-06-10 (UTC)._
 - L113: `func kpiCard(label, value string, series []float64, delta telemetry.Delta, higherIsWorse bool, window int) map[string]any`
 - L128: `func deltaView(d telemetry.Delta, higherIsWorse bool) map[string]any`
 
-### demo.go (152 LOC)
-- L16: `func streamDemoReply(m *copilot.MockClient, prompt string)`
-- L143: `func tokenize(s string) []string`
+### demo.go (157 LOC)
+- L17: `func streamDemoReply(m *copilot.MockClient, prompt string)`
+- L148: `func tokenize(s string) []string`
 
 ### diff.go (157 LOC)
 - L15: `type diffLineKind int`
@@ -684,7 +700,7 @@ _Last generated: 2026-06-10 (UTC)._
 ### palette.go (33 LOC)
 - L15: `func commandPalette() string`
 
-### render.go (561 LOC)
+### render.go (596 LOC)
 - L25: `func esc(s string) string`
 - L31: `func deltaSpan(text string) string { return frag("deltaSpan", text) }`
 - L34: `func renderTurn(t convo.Turn) string`
@@ -705,16 +721,17 @@ _Last generated: 2026-06-10 (UTC)._
 - L295: `func elicitFieldView(f copilot.ElicitField) map[string]any`
 - L320: `func elicitFieldKey(name string) string { return "f." + name }`
 - L324: `func subagentLabel(sa copilot.SubagentInfo) string`
-- L339: `func renderSubagents(active []copilot.SubagentInfo) string`
-- L360: `func renderStatus(text string, active bool, startMs int64) string`
-- L368: `func renderCtx(cur, limit int64, compacting bool) string`
-- L403: `func renderStatline(s *Server) string`
-- L464: `func statlineForecast(s *Server, now time.Time) (show bool, short string, warn bool, title string)`
-- L478: `func humanTokens(n int64) string`
-- L494: `func renderCostFooter(credits float64, budget telemetry.Budget) string`
-- L514: `func renderActualCostFooter(a telemetry.ActualSpend, budget telemetry.Budget) string`
-- L546: `func renderBudgetForm(projected, capCredits float64) string`
-- L555: `func clampLines(s string, n int) string`
+- L337: `func subagentGlyph(st convo.SubagentStatus) string`
+- L356: `func renderSubagents(entries []convo.SubagentView) string`
+- L395: `func renderStatus(text string, active bool, startMs int64) string`
+- L403: `func renderCtx(cur, limit int64, compacting bool) string`
+- L438: `func renderStatline(s *Server) string`
+- L499: `func statlineForecast(s *Server, now time.Time) (show bool, short string, warn bool, title string)`
+- L513: `func humanTokens(n int64) string`
+- L529: `func renderCostFooter(credits float64, budget telemetry.Budget) string`
+- L549: `func renderActualCostFooter(a telemetry.ActualSpend, budget telemetry.Budget) string`
+- L581: `func renderBudgetForm(projected, capCredits float64) string`
+- L590: `func clampLines(s string, n int) string`
 
 ### runs.go (195 LOC)
 - L28: `func (s *Server) runsPartial(window int) string`
@@ -725,7 +742,7 @@ _Last generated: 2026-06-10 (UTC)._
 - L162: `func humanDuration(d time.Duration) string`
 - L190: `func runOutcomeGlyph(outcome string) (glyph, state string)`
 
-### server.go (863 LOC)
+### server.go (857 LOC)
 - L27: `type Server struct`
 - L98: `func (s *Server) subscribe() chan fragment`
 - L107: `func (s *Server) unsubscribe(ch chan fragment)`
@@ -776,24 +793,23 @@ _Last generated: 2026-06-10 (UTC)._
 - L806: `func inputID(p copilot.InputRequest) string     { return p.ID }`
 - L807: `func planID(p copilot.PlanRequest) string       { return p.ID }`
 - L808: `func elicitID(e copilot.ElicitRequest) string   { return e.ID }`
-- L809: `func subagentKey(a copilot.SubagentInfo) string { return a.ToolCallID }`
-- L814: `func (s *Server) dropPerm(id string)  { s.perms = dropByID(s.perms, id, permID) }`
-- L815: `func (s *Server) dropInput(id string) { s.inputs = dropByID(s.inputs, id, inputID) }`
-- L816: `func (s *Server) dropPlan(id string)  { s.plans = dropByID(s.plans, id, planID) }`
-- L817: `func (s *Server) dropElicit(id string)`
-- L823: `func (s *Server) findElicit(id string) (copilot.ElicitRequest, bool)`
-- L828: `func (s *Server) dropSubagent(toolCallID string)`
-- L833: `func firstNonEmpty(vals []string) string`
-- L846: `func (s *Server) editForge(fn func() error) error`
-- L860: `func (s *Server) writePartial(w http.ResponseWriter, html string)`
+- L813: `func (s *Server) dropPerm(id string)  { s.perms = dropByID(s.perms, id, permID) }`
+- L814: `func (s *Server) dropInput(id string) { s.inputs = dropByID(s.inputs, id, inputID) }`
+- L815: `func (s *Server) dropPlan(id string)  { s.plans = dropByID(s.plans, id, planID) }`
+- L816: `func (s *Server) dropElicit(id string)`
+- L822: `func (s *Server) findElicit(id string) (copilot.ElicitRequest, bool)`
+- L827: `func firstNonEmpty(vals []string) string`
+- L840: `func (s *Server) editForge(fn func() error) error`
+- L854: `func (s *Server) writePartial(w http.ResponseWriter, html string)`
 
-### session.go (365 LOC)
+### session.go (395 LOC)
 - L15: `type liveKind int`
 - L28: `func (s *Server) handleEvent(e copilot.Event) []fragment`
-- L290: `type spendTag struct`
-- L306: `func (s *Server) recordUsage(u copilot.UsageData, tag spendTag) telemetry.Cost`
-- L347: `func (s *Server) timelineFragments() []fragment`
-- L360: `func toolID(e copilot.Event) string`
+- L295: `type spendTag struct`
+- L311: `func (s *Server) recordUsage(u copilot.UsageData, tag spendTag) telemetry.Cost`
+- L358: `func (s *Server) handleSubagentStream(e copilot.Event) []fragment`
+- L377: `func (s *Server) timelineFragments() []fragment`
+- L390: `func toolID(e copilot.Event) string`
 
 ### sessions.go (182 LOC)
 - L21: `func (s *Server) sessionsPartial() string`

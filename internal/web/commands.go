@@ -78,7 +78,7 @@ func (s *Server) clearConversation() {
 	s.inputs = nil
 	s.plans = nil
 	s.elicits = nil
-	s.subagents = nil
+	s.subreg.Reset()
 	s.run = nil
 	s.mode = ""
 	s.pending = nil
