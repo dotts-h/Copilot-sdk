@@ -14,7 +14,7 @@ const MEMBERS: Record<string, string[]> = {
   Primary: ["Chat", "Sessions"],
   Build: ["Agents", "Workflows", "Skills", "Instructions", "Snippets", "Hooks"],
   Observe: ["Runs", "Telemetry"],
-  Config: ["Models", "MCP", "Settings"],
+  Config: ["Connection", "Models", "MCP", "Settings"],
   Help: ["Help"],
 };
 

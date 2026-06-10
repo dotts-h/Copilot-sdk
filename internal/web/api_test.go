@@ -32,7 +32,7 @@ func TestAllPagesRenderHTML(t *testing.T) {
 	srv := httptest.NewServer(s.Handler())
 	defer srv.Close()
 
-	pages := []string{"chat", "telemetry", "skills", "instructions", "agents", "models", "settings", "help"}
+	pages := []string{"chat", "telemetry", "skills", "instructions", "agents", "connection", "models", "settings", "help"}
 	for _, p := range pages {
 		t.Run(p, func(t *testing.T) {
 			resp, err := http.Get(srv.URL + "/page/" + p)

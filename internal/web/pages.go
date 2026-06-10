@@ -29,6 +29,7 @@ var pageNames = []struct{ slug, label, group string }{
 	{"hooks", "Hooks", "Build"},
 	{"runs", "Runs", "Observe"},
 	{"telemetry", "Telemetry", "Observe"},
+	{"connection", "Connection", "Config"},
 	{"models", "Models", "Config"},
 	{"mcp", "MCP", "Config"},
 	{"settings", "Settings", "Config"},
@@ -90,6 +91,8 @@ func (s *Server) renderPage(slug, window string) string {
 		return s.hooksPartial()
 	case "models":
 		return s.modelsPartial()
+	case "connection":
+		return s.connectionPartial()
 	case "settings":
 		return s.settingsPartial()
 	case "help":

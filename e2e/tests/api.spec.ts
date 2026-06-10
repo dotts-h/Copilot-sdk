@@ -6,7 +6,7 @@ import { test, expect } from "./fixtures";
 // contract over a real socket against the running demo binary.
 
 test.describe("page & asset contract", () => {
-  const htmlPages = ["chat", "telemetry", "skills", "instructions", "agents", "models", "settings", "help"];
+  const htmlPages = ["chat", "telemetry", "skills", "instructions", "agents", "connection", "models", "settings", "help"];
 
   for (const slug of htmlPages) {
     test(`GET /page/${slug} → 200 text/html`, async ({ request }) => {

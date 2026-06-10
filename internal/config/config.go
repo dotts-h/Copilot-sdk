@@ -29,7 +29,14 @@ type Config struct {
 	// GitHubTokenEnv optionally names an env var holding a GitHub token to use
 	// as an explicit auth override. When empty (the default), the app uses the
 	// already-logged-in `copilot` CLI session instead of requesting a token.
+	// Always a NAME, never a token — no secret at rest (ADR-0020/0039).
 	GitHubTokenEnv string `json:"githubTokenEnv"`
+	// AuthMethod selects how the app authenticates to Copilot at dial time:
+	// "" (auto: the CLI's own chain — env tokens, gh, device-flow login),
+	// "token" (the explicit ${GitHubTokenEnv} token), "gh" (reuse the gh CLI
+	// credential). Applied at the next launch; chosen on the Connection page.
+	// omitempty so older files read clean. — ADR-0039.
+	AuthMethod string `json:"authMethod,omitempty"`
 
 	// Telemetry configures the credits dashboard.
 	Telemetry TelemetryConfig `json:"telemetry"`
@@ -135,6 +142,7 @@ func (c *Config) Save() error {
 // normalize fills empty derived fields and trims whitespace.
 func (c *Config) normalize() {
 	c.DefaultModel = strings.TrimSpace(c.DefaultModel)
+	c.AuthMethod = strings.TrimSpace(c.AuthMethod)
 	// GitHubTokenEnv is intentionally left empty by default so the app uses the
 	// logged-in `copilot` CLI session; only honor an explicitly configured name.
 	if c.ForgeDir == "" {
@@ -161,6 +169,14 @@ func (c *Config) Validate() error {
 	}
 	if c.Telemetry.HardCapCredits < 0 {
 		return fmt.Errorf("hardCapCredits must be >= 0")
+	}
+	// Membership only: a "token" method whose var is unset degrades at dial and
+	// surfaces on the Connection page preflight — rejecting it here would let a
+	// Settings save that clears the var strand the whole file. — ADR-0039.
+	switch c.AuthMethod {
+	case "", "token", "gh":
+	default:
+		return fmt.Errorf("invalid authMethod %q (want \"\", \"token\" or \"gh\")", c.AuthMethod)
 	}
 	// Price overrides are USD-per-million-token rates: input/cached/output, plus an
 	// optional 4th cache-write rate (ADR-0034). A row must carry 3 or 4 elements (a

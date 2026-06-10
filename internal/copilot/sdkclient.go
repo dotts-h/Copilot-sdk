@@ -85,6 +85,56 @@ func ResolveAuth(token string) (githubToken string, useLoggedInUser *bool) {
 	return token, nil
 }
 
+// ResolveAuthMethod dispatches the configured auth method (config.AuthMethod,
+// ADR-0039) onto the Options pair. "gh" resolves the token through the ghToken
+// seam (`gh auth token` at the call site); a method that cannot produce a token
+// — unset var, gh missing/unauthenticated, nil seam — degrades to the
+// logged-in `copilot` CLI session (auto) rather than failing the dial; the
+// Connection page preflights make the degradation visible.
+func ResolveAuthMethod(method, configured string, ghToken func() (string, error)) (githubToken string, useLoggedInUser *bool) {
+	if method == "gh" {
+		if ghToken != nil {
+			if tok, err := ghToken(); err == nil && tok != "" {
+				return ResolveAuth(tok)
+			}
+		}
+		return ResolveAuth("")
+	}
+	// "token", auto ("") and any unknown method use the configured ${VAR} token
+	// when it resolves, else the logged-in session — the pre-0068 behavior.
+	return ResolveAuth(configured)
+}
+
+// authStatusFromSDK normalizes the SDK's auth.getStatus response, nil-safe on
+// the response and each optional field. — ADR-0039.
+func authStatusFromSDK(r *sdk.GetAuthStatusResponse) AuthStatus {
+	if r == nil {
+		return AuthStatus{}
+	}
+	deref := func(p *string) string {
+		if p == nil {
+			return ""
+		}
+		return *p
+	}
+	return AuthStatus{
+		Authenticated: r.IsAuthenticated,
+		Method:        deref(r.AuthType),
+		Login:         deref(r.Login),
+		Host:          deref(r.Host),
+		Detail:        deref(r.StatusMessage),
+	}
+}
+
+// AuthStatus implements Client: the runtime's live credential.
+func (c *SDKClient) AuthStatus(ctx context.Context) (AuthStatus, error) {
+	resp, err := c.client.GetAuthStatus(ctx)
+	if err != nil {
+		return AuthStatus{}, fmt.Errorf("auth status: %w", err)
+	}
+	return authStatusFromSDK(resp), nil
+}
+
 // NewSDKClient constructs and starts a real SDK-backed client. It requires the
 // `copilot` CLI to be available (it is not bundled for Go).
 func NewSDKClient(ctx context.Context, opts Options) (*SDKClient, error) {

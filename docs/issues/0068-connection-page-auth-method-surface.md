@@ -1,18 +1,25 @@
 ---
 id: 0068
 title: Connection page — see + choose the active auth method: device flow, masked ${VAR} token, gh reuse (roadmap v10, A1)
-status: open
+status: closed
 severity: medium
 group: 0051
 depends_on: [0067]
 github:
 links:
   adr: [0039]
-  prs: []
+  prs: [109]
   issues: [0051, 0067]
   regression:
 assets: []
 ---
+
+> **Closed 2026-06-10 — shipped in PR #109 (ADR-0039). Closes epic 0051.** The Connection
+> page ships the full A1 surface: the live credential over the new read-only `AuthStatus`
+> seam, the precedence ladder with the configured rung marked, method choose-via-config
+> (applied at next launch — the no-live-re-dial trade-off ADR-0039 records), gh/token-var
+> preflights, and the paste flow that never puts a secret at rest (config-before-env
+> ordering, preserve-on-absent, var-name shape guard — all guard-tested).
 
 ## Summary
 
