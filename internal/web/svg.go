@@ -141,11 +141,16 @@ func svgOpen(class string, w, h float64, label string) string {
 }
 
 // sparklineSVG renders a per-card trend polyline: a normalized line over the
-// series, stroked in currentColor (the card's accent), with no fill. Pure.
+// series, stroked in currentColor (the card's accent), over a soft area fill
+// (W4, issue 0066 — depth without a second color: same currentColor at low
+// opacity). pathLength="1" normalizes the line's length so the CSS draw-in
+// (a one-unit dash sweeping its offset, app.css) works for any series. Pure.
 func sparklineSVG(series []float64, label string) string {
 	pts := sparkPoints(series, sparkW, sparkH, sparkPad)
+	area := areaPath(series, sparkW, sparkH, sparkPad)
 	return svgOpen("spark", sparkW, sparkH, label) +
-		`<polyline class="spark-line" points="` + pts + `" fill="none" stroke="currentColor" ` +
+		`<path class="spark-fill" d="` + area + `" fill="currentColor" fill-opacity="0.12" stroke="none"/>` +
+		`<polyline class="spark-line" pathLength="1" points="` + pts + `" fill="none" stroke="currentColor" ` +
 		`stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>` +
 		`</svg>`
 }

@@ -43,6 +43,12 @@ func TestRenderToolCardStates(t *testing.T) {
 		!strings.Contains(running, "tool-progress") {
 		t.Errorf("running card wrong: %q", running)
 	}
+	// While the tool runs, the awaited result shows the skeleton loading
+	// placeholder (W4, issue 0066 — the ADR-0037 staged-primitive's consumer).
+	// Decorative only, so it's hidden from assistive tech.
+	if !strings.Contains(running, `class="tool-pending skeleton"`) || !strings.Contains(running, `aria-hidden="true"`) {
+		t.Errorf("running card missing the skeleton pending placeholder: %q", running)
+	}
 	done := renderToolCard(&convo.ToolView{ID: "t1", Name: "bash", Done: true, Result: "ok"})
 	if !strings.Contains(done, "done") || !strings.Contains(done, "✓") || !strings.Contains(done, "ok") {
 		t.Errorf("done card wrong: %q", done)
@@ -50,6 +56,12 @@ func TestRenderToolCardStates(t *testing.T) {
 	failed := renderToolCard(&convo.ToolView{ID: "t1", Name: "bash", Done: true, Failed: true})
 	if !strings.Contains(failed, "failed") || !strings.Contains(failed, "✗") {
 		t.Errorf("failed card wrong: %q", failed)
+	}
+	// A settled card (done or failed) must NOT keep a shimmering placeholder.
+	for name, html := range map[string]string{"done": done, "failed": failed} {
+		if strings.Contains(html, "skeleton") {
+			t.Errorf("%s card still carries the skeleton placeholder: %q", name, html)
+		}
 	}
 }
 

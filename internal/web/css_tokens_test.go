@@ -587,6 +587,10 @@ func TestMotionReducedMotionGuard(t *testing.T) {
 	for _, want := range []string{
 		"animation-duration: .01ms !important",
 		"transition-duration: .01ms !important",
+		// Delays must collapse too (W4's staggered KPI entry): the duration reset
+		// alone would leave a reduced-motion render waiting out each delay.
+		"animation-delay: 0s !important",
+		"transition-delay: 0s !important",
 		"::view-transition-old(*)",
 		"::view-transition-new(*)",
 		"animation: none !important",
@@ -648,6 +652,80 @@ func TestMotionNoGlobalViewTransitions(t *testing.T) {
 	for _, tag := range regexp.MustCompile(`<[^>]*sse-swap=[^>]*>`).FindAllString(string(idx), -1) {
 		if strings.Contains(tag, "transition") {
 			t.Errorf("SSE listener wraps its swap in a transition (streaming must never transition): %s", tag)
+		}
+	}
+}
+
+// ---- 5. hero surfaces: the W4 polish wiring (issue 0066, closing epic 0062) ----
+
+// TestHeroSurfacesConsumeStagedSystem pins the capstone wiring: the two hero
+// surfaces (Chat + Telemetry) consume the utilities W2/W3 staged for them —
+// `.atmosphere` on the hero chrome (ADR-0038), `.glass` on the KPI cards, and
+// the `.skeleton` shimmer on a pending tool result (ADR-0037 named W4 as its
+// consumer) — and the streaming-token entry animates ONLY through the
+// append-once `#cur > span` child combinator (a broader timeline selector
+// would re-trigger its entry on every high-frequency innerHTML swap).
+func TestHeroSurfacesConsumeStagedSystem(t *testing.T) {
+	b, err := fs.ReadFile(templateFS, "templates/fragments.html")
+	if err != nil {
+		t.Fatalf("read fragments.html: %v", err)
+	}
+	frags := string(b)
+	for marker, why := range map[string]string{
+		`class="chat atmosphere"`:       "the Chat hero chrome consumes .atmosphere (ADR-0038 staged it for W4)",
+		`class="page atmosphere"`:       "the Telemetry hero consumes .atmosphere",
+		`class="kpi-card glass"`:        "the KPI cards consume the .glass translucent border (Arc card recipe)",
+		`class="tool-pending skeleton"`: "a pending tool result consumes the .skeleton shimmer (ADR-0037 staged it for W4)",
+	} {
+		if !strings.Contains(frags, marker) {
+			t.Errorf("fragments.html missing %q — %s", marker, why)
+		}
+	}
+
+	components := layerBlock(appCSS(t), "components")
+	for sel, why := range map[string]string{
+		"#cur > span":   "the streaming-token entry must target the append-once child combinator only",
+		".tool-pending": "the skeleton consumer needs its sizing rule",
+	} {
+		if !strings.Contains(components, sel) {
+			t.Errorf("components layer missing %q — %s", sel, why)
+		}
+	}
+}
+
+// TestNoUndefinedTokenReferences — every var(--x) consumed anywhere in app.css
+// must be declared: in app.css itself, by a vendored Open Props import, or via
+// @property. An undefined custom property is invalid at computed-value time, so
+// the consuming declaration silently becomes `unset` — the W4 review found the
+// W3 hover-lift's `var(--shadow-lg)` doing exactly that (hover REMOVED a card's
+// shadow instead of deepening it). This makes that failure mode fail loud.
+func TestNoUndefinedTokenReferences(t *testing.T) {
+	css := stripComments(appCSS(t))
+
+	declared := map[string]bool{}
+	declRe := regexp.MustCompile(`(--[\w-]+)\s*:`)
+	propRe := regexp.MustCompile(`@property\s+(--[\w-]+)`)
+	collect := func(src string) {
+		for _, m := range declRe.FindAllStringSubmatch(src, -1) {
+			declared[m[1]] = true
+		}
+		for _, m := range propRe.FindAllStringSubmatch(src, -1) {
+			declared[m[1]] = true
+		}
+	}
+	collect(css)
+	for _, f := range []string{"static/open-props.easings.min.css", "static/open-props.animations.min.css"} {
+		b, err := staticFS.ReadFile(f)
+		if err != nil {
+			t.Fatalf("read vendored %s: %v", f, err)
+		}
+		collect(stripComments(string(b)))
+	}
+
+	useRe := regexp.MustCompile(`var\(\s*(--[\w-]+)`)
+	for _, m := range useRe.FindAllStringSubmatch(css, -1) {
+		if !declared[m[1]] {
+			t.Errorf("var(%s) consumed but never declared — the declaration is invalid at computed-value time and silently unsets", m[1])
 		}
 	}
 }
