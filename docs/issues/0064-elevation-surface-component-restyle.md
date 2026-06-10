@@ -1,14 +1,14 @@
 ---
 id: 0064
 title: "Elevation, surface & component restyle — luminance ladder + hue-tinted shadows, radius/space scales, component pass (roadmap v11, W2)"
-status: open
+status: closed
 severity: medium
 group: 0062
 depends_on: [0063]
 github:
 links:
-  adr: []          # an ADR only if a new dual-theme elevation model is decided
-  prs: []
+  adr: [0038]      # the dual-channel elevation model was a decision worth recording
+  prs: [105]
   issues: [0062]
   regression: [20]
 assets: []
@@ -46,3 +46,24 @@ the **type scale** (negative tracking at display sizes; sans + mono pairing).
 Sources: Raycast surface ladder (awesome-design-md/refero), Arc layered-shadow + glow (blakecrosley),
 Josh Comeau "Designing Shadows" (hue-tinted layered shadows, one `--shadow-color`), Geist
 radius/space scales. See [epic 0062](0062-epic-playful-polished-ui-motion-overhaul.md).
+
+## Resolution (shipped)
+
+Shipped in **PR #105** with **ADR-0038** (the dual-channel elevation model). What landed:
+
+- **Dual-channel elevation:** dark = surface luminance ladder `--bg` → `--panel` → `--overlay`
+  (new `--p-gray-8`, L 31% — raised steps lighter); light = hue-tinted layered shadows, one
+  `--shadow-color` feeding `--shadow-1/2/3` (2/4/5 Comeau-style stacked layers); `--border-glass`
+  1px glass border; `.glass`/`.atmosphere` opt-in utilities staged for W4.
+- **Scales:** radius `--radius-1…5/full` with a **total** migration (px-literal ban guarded),
+  space `--space-1…6` (8px rhythm, 4px half-step), type `--text-0…5` + negative
+  `--tracking-display` / `--tracking-caps` on the unchanged sans+mono stacks.
+- **Guard extended** (failing first): `--overlay` joined the text-role × surface AA matrix (worst
+  new pair ≈ 5.25:1 dark), `TestSurfaceLadderDarkStepsLighter` (ladder monotonicity),
+  `TestTokenScales` (scale structure, shadow stacking depth, negative display tracking),
+  `TestNoRadiusLiteralsOutsideTokens`.
+- **Component pass:** keycap kbd, badges/tags, buttons, KPI/run/workflow/session cards, inputs,
+  sidebar, ⌘K palette + dialogs (now on `--overlay` with `--shadow-3` + glass border), tables.
+  **Zero template changes**; the 0065 motion seam untouched.
+- Gates: `make lint && make test` green (web 90.3%), `make e2e` 142 passed — both-theme axe scan
+  green (REGRESSIONS #20 carried).

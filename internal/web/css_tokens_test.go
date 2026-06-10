@@ -299,9 +299,9 @@ func tokenColors(t *testing.T) map[string][2]srgb {
 func TestTokenContrastAA(t *testing.T) {
 	sem := tokenColors(t)
 
-	// Every semantic role ADR-0025/0036 commits to must resolve through the
-	// primitive tier (so the contrast math below actually covers it).
-	for _, role := range []string{"bg", "panel", "fg", "dim", "subtle", "accent", "accent2", "good", "warn", "bad", "on-bright"} {
+	// Every semantic role ADR-0025/0036/0038 commits to must resolve through
+	// the primitive tier (so the contrast math below actually covers it).
+	for _, role := range []string{"bg", "panel", "overlay", "fg", "dim", "subtle", "accent", "accent2", "good", "warn", "bad", "on-bright"} {
 		if _, ok := sem[role]; !ok {
 			t.Fatalf("semantic token --%s not defined as light-dark(var(--p-…), var(--p-…)) in the tokens layer", role)
 		}
@@ -313,7 +313,7 @@ func TestTokenContrastAA(t *testing.T) {
 	// slice, and combinations the UI already uses (accent headings on --panel
 	// cards, status colors on the panel) can't be forgotten.
 	textRoles := []string{"fg", "dim", "accent", "accent2", "good", "warn", "bad"}
-	surfaces := []string{"bg", "panel"}
+	surfaces := []string{"bg", "panel", "overlay"}     // the surface luminance ladder, base → raised → overlay (ADR-0038)
 	fills := []string{"accent", "good", "warn", "bad"} // --on-bright is the single companion on ANY solid fill
 	type pair struct{ text, surface string }
 	var pairs []pair
@@ -332,6 +332,100 @@ func TestTokenContrastAA(t *testing.T) {
 			if got < aa {
 				t.Errorf("--%s on --%s (%s) = %.2f:1, below WCAG AA %.1f:1", p.text, p.surface, theme, got, aa)
 			}
+		}
+	}
+}
+
+// ---- 3. elevation + scales: the W2 token contract (issue 0064, ADR-0038) ----
+
+// TestSurfaceLadderDarkStepsLighter proves the dark theme's elevation channel:
+// shadows are invisible on a dark canvas, so a raised surface must step
+// LIGHTER instead — base (--bg) < raised (--panel) < overlay (--overlay) in
+// luminance. Light theme carries elevation via the layered shadows below, so
+// its ladder is only required to be non-inverted (never darker when raised).
+func TestSurfaceLadderDarkStepsLighter(t *testing.T) {
+	sem := tokenColors(t)
+	ladder := []string{"bg", "panel", "overlay"}
+	for i := 0; i+1 < len(ladder); i++ {
+		lo, hi := ladder[i], ladder[i+1]
+		if _, ok := sem[lo]; !ok {
+			t.Fatalf("ladder surface --%s not defined in the guarded grammar", lo)
+		}
+		if _, ok := sem[hi]; !ok {
+			t.Fatalf("ladder surface --%s not defined in the guarded grammar", hi)
+		}
+		const dark = 1
+		if a, b := relLuminance(sem[lo][dark]), relLuminance(sem[hi][dark]); a >= b {
+			t.Errorf("dark ladder inverted: --%s (%.4f) must be lighter than --%s (%.4f)", hi, b, lo, a)
+		}
+		const light = 0
+		if a, b := relLuminance(sem[lo][light]), relLuminance(sem[hi][light]); b < a {
+			t.Errorf("light ladder inverted: --%s (%.4f) darker than --%s (%.4f)", hi, b, lo, a)
+		}
+	}
+}
+
+// TestTokenScales guards the structure of the W2 scales in the tokens layer:
+// the dual-channel elevation tokens (one --shadow-color hue variable, layered
+// --shadow-1/2/3 stacks), the constrained radius ladder + 8px/4px-half-step
+// space scale, the type scale with display tracking, and the glass border.
+// Presence + shape only — the contrast math lives above.
+func TestTokenScales(t *testing.T) {
+	tokens := layerBlock(appCSS(t), "tokens")
+
+	wanted := []string{
+		"--shadow-color:", // the single hue variable every shadow layer stacks
+		"--border-glass:", // 1px translucent border for glass surfaces
+		"--font-sans:", "--font-mono:",
+		"--tracking-display:", // negative tracking at display sizes
+		"--tracking-caps:",    // open tracking on uppercase labels
+	}
+	for _, r := range []string{"1", "2", "3", "4", "5", "full"} {
+		wanted = append(wanted, "--radius-"+r+":")
+	}
+	for i := 1; i <= 6; i++ {
+		wanted = append(wanted, fmt.Sprintf("--space-%d:", i))
+	}
+	for i := 0; i <= 5; i++ {
+		wanted = append(wanted, fmt.Sprintf("--text-%d:", i))
+	}
+	for _, w := range wanted {
+		if !strings.Contains(tokens, w) {
+			t.Errorf("tokens layer missing scale token %q", w)
+		}
+	}
+
+	// Layered-shadow grammar (Comeau-style): every --shadow-N layer consumes
+	// var(--shadow-color) — one hue to retune — and deeper steps stack MORE
+	// layers (alpha accumulates where layers overlap, so depth compounds).
+	shadowRe := regexp.MustCompile(`--shadow-([123])\s*:\s*([^;]+);`)
+	layers := map[string]int{}
+	for _, m := range shadowRe.FindAllStringSubmatch(tokens, -1) {
+		layers[m[1]] = strings.Count(m[2], "var(--shadow-color)")
+	}
+	if layers["1"] < 2 || layers["2"] <= layers["1"] || layers["3"] <= layers["2"] {
+		t.Errorf("layered shadows must deepen by stacking var(--shadow-color) layers: got --shadow-1=%d --shadow-2=%d --shadow-3=%d",
+			layers["1"], layers["2"], layers["3"])
+	}
+
+	// Display tracking is negative (the engineered register: tight at size).
+	trackRe := regexp.MustCompile(`--tracking-display\s*:\s*(-?[\d.]+)em`)
+	if m := trackRe.FindStringSubmatch(tokens); m == nil {
+		t.Error("--tracking-display must be an em value")
+	} else if v, _ := strconv.ParseFloat(m[1], 64); v >= 0 {
+		t.Errorf("--tracking-display = %sem; display tracking must be negative", m[1])
+	}
+}
+
+// TestNoRadiusLiteralsOutsideTokens — the radius migration is total: every
+// border-radius in base/components/utilities consumes the --radius-* ladder,
+// never a px literal (the scattered 4/5/6/8/10/999px this replaced).
+func TestNoRadiusLiteralsOutsideTokens(t *testing.T) {
+	re := regexp.MustCompile(`border-radius\s*:[^;}]*[0-9]+px`)
+	css := appCSS(t)
+	for _, layer := range []string{"base", "components", "utilities"} {
+		for _, m := range re.FindAllString(layerBlock(css, layer), -1) {
+			t.Errorf("layer %q: border-radius px literal (use the --radius-* ladder): %q", layer, m)
 		}
 	}
 }
