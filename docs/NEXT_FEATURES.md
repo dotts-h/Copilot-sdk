@@ -936,6 +936,20 @@ Epics 0001 (cost), 0005 (orchestration), 0007 (polish) — all **closed**.
 > seams: surface/elevation restyle vs. the motion system — W3 writes ADR-0037 first); then
 > **W4 (0066)** closes the epic on the two hero surfaces.
 
+> **v11 update (after W4) — roadmap v11 CLOSED, epic 0062 CLOSED:** all four children shipped —
+> **W2 (0064)** dual-channel elevation + the radius/space/type scales (PR #105, ADR-0038),
+> **W3 (0065)** the spring motion system + CSS-only catalogue (PR #106, ADR-0037), and
+> **W4 (0066)** the hero-surface capstone (PR #107, no new ADR — it consumed 0036/0037/0038):
+> Chat got the streaming-token fade (append-once `#cur > span`) + live caret, ladder/shadow tool
+> cards in the mono register, the staged `.skeleton` on pending tool results, glass composer
+> chrome and the mono statusline; Telemetry got `.atmosphere`, ladder+`.glass` KPI cards with a
+> staggered one-shot entry (safe across the `?window=` swap), sparkline area fills + a
+> `pathLength`-normalized draw-in, and the BI-table treatment. The polish surfaced and fixed a W3
+> regression (hover read the undefined `var(--shadow-lg)` and silently *removed* the shadow);
+> two contract guards grew out of it (`TestNoUndefinedTokenReferences`; reduced-motion zeroes
+> animation/transition *delays*). Hard constraints held throughout (one CSS file, no build chain,
+> no new JS); both-theme axe + streaming e2e green per slice. SemVer **minor** bump on release.
+
 ### Sources (cited research)
 - Raycast design vocabulary: github.com/VoltAgent/awesome-design-md (design-md/raycast/DESIGN.md);
   styles.refero.design (Raycast style teardown — *auto-extracted, indicative*); raycast.com/blog,

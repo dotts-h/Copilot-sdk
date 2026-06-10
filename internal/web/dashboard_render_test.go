@@ -109,14 +109,14 @@ func TestTelemetryPageRendersKPIDashboard(t *testing.T) {
 	}
 	html := s.telemetryPartial(defaultSpendWindow)
 	for _, want := range []string{
-		`class="kpi"`,       // the KPI card row
-		`class="kpi-card"`,  // a big-number card
-		`class="kpi-value"`, // the big number
-		`class="kpi-delta`,  // the Δ badge (direction/tone classes follow)
-		`class="spark"`,     // a per-card sparkline svg
-		`class="band"`,      // the cumulative trend band svg
-		`class="bullet"`,    // the spend-vs-budget bullet svg
-		"Total spend",       // a card label
+		`class="kpi"`,            // the KPI card row
+		`class="kpi-card glass"`, // a big-number card on the glass border (W4, issue 0066)
+		`class="kpi-value"`,      // the big number
+		`class="kpi-delta`,       // the Δ badge (direction/tone classes follow)
+		`class="spark"`,          // a per-card sparkline svg
+		`class="band"`,           // the cumulative trend band svg
+		`class="bullet"`,         // the spend-vs-budget bullet svg
+		"Total spend",            // a card label
 		"Burn rate",
 	} {
 		if !strings.Contains(html, want) {

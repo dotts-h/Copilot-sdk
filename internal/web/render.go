@@ -121,7 +121,11 @@ func renderToolCard(tv *convo.ToolView) string {
 		"ID": tv.ID, "Name": tv.Name, "Args": tv.Args,
 		"Glyph": glyph, "State": state,
 		"Progress": tv.Progress, "ShowProgress": !tv.Done && tv.Progress != "",
-		"Result": clampLines(tv.Result, maxToolResultLines), "ShowResult": tv.Done && tv.Result != "",
+		// While the tool runs, the awaited result slot shows the skeleton
+		// shimmer (W4, issue 0066 — the ADR-0037 staged-primitive's consumer);
+		// it disappears with the settled (done/failed) re-render.
+		"Pending": state == "running",
+		"Result":  clampLines(tv.Result, maxToolResultLines), "ShowResult": tv.Done && tv.Result != "",
 	})
 }
 

@@ -1,13 +1,13 @@
 ---
 id: 0062
 title: "Epic: Playful-polished visual + motion overhaul — re-derived OKLCH palette, depth, and a spring motion system (roadmap v11)"
-status: open
+status: closed
 severity: medium
 group:
 github:
 links:
-  adr: []          # reserves ADR-0036 (token/palette + @layer + Open Props) and ADR-0037 (motion system)
-  prs: []
+  adr: [0036, 0037, 0038]
+  prs: [101, 105, 106, 107]
   issues: [0063, 0064, 0065, 0066]
   regression: [20]
 ---
@@ -117,9 +117,10 @@ the highest-risk slice (could regress AA) — it lands first, behind the axe gat
       micro-interaction catalogue (`@starting-style`/`allow-discrete`/`popover`); per-nav + scoped
       view-transitions (NOT global); reduced-motion guard extended.
       **Shipped** — PR #106, ADR-0037 (see the issue's Resolution).
-- [ ] **W4 · Hero-surface polish — Chat + Telemetry** — [0066](0066-hero-surface-polish-chat-telemetry.md)
+- [x] **W4 · Hero-surface polish — Chat + Telemetry** — [0066](0066-hero-surface-polish-chat-telemetry.md)
       (M). `depends_on: [0064, 0065]`. Apply the full system to the two hero surfaces (streaming chat,
       dashboard motion, palette delight) as the proof + showcase.
+      **Shipped** — PR #107 (see the issue's Resolution). Its merge **closes this epic**.
 
 Dependency graph:
 ```
@@ -131,17 +132,24 @@ elevation/surface restyle vs. the motion system).
 
 ## Acceptance (epic)
 
-- [ ] A re-derived, "playful" OKLCH palette + three-tier token system ships, AA in **both** themes
+- [x] A re-derived, "playful" OKLCH palette + three-tier token system ships, AA in **both** themes
       (axe both-theme scan green), organized with `@layer`.
-- [ ] Depth reads as designed: luminance ladder (dark) / hue-tinted layered shadows (light), restyled
+- [x] Depth reads as designed: luminance ladder (dark) / hue-tinted layered shadows (light), restyled
       surfaces + components on the constrained radius/space scales.
-- [ ] A CSS-only **spring motion system** (tokens + micro-interaction catalogue) with delightful
+- [x] A CSS-only **spring motion system** (tokens + micro-interaction catalogue) with delightful
       hover/press/focus/enter-exit/toast/palette/transition states — **all** degrading under
       `prefers-reduced-motion`, none breaking htmx OOB / SSE streaming.
-- [ ] The two hero surfaces (Chat + Telemetry) showcase the direction end-to-end.
-- [ ] Each child: born in its PR, ADR where it changes the token/motion contract, `make lint && make
+- [x] The two hero surfaces (Chat + Telemetry) showcase the direction end-to-end.
+- [x] Each child: born in its PR, ADR where it changes the token/motion contract, `make lint && make
       test` + `make e2e` green; the hard constraints hold (no build chain / framework / new JS dep —
       or it's a conscious ADR trade-off). SemVer **minor** on the epic.
+
+**Closed** with W4 (issue 0066, PR #107): all four children shipped — 0063 (W1) / 0064 (W2,
+PR #105, ADR-0038) / 0065 (W3, PR #106, ADR-0037) / 0066 (W4, PR #107) — every acceptance item
+above holds, the hard constraints were never relaxed (no new ADR needed for W4: it consumed
+0036/0037/0038 without contract changes), and the standing guards grew two new invariants along
+the way (no undefined `var(--x)` references; reduced-motion zeroes delays). SemVer **minor**
+bump to follow on the next release.
 
 ## Notes
 

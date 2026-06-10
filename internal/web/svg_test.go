@@ -58,6 +58,11 @@ func TestSparklineSVGAccessibleAndThemed(t *testing.T) {
 		`aria-label="Total spend trend, last 14 days"`,
 		`<polyline`,
 		`viewBox=`,
+		// W4 (issue 0066): a soft area under the line gives the card depth, and
+		// pathLength="1" normalizes the polyline so the CSS draw-in (a one-unit
+		// dash sweeping its offset) works for any series length.
+		`class="spark-fill"`,
+		`pathLength="1"`,
 	} {
 		if !strings.Contains(svg, want) {
 			t.Fatalf("sparklineSVG missing %q\n%s", want, svg)
