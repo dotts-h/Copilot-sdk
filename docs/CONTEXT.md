@@ -172,6 +172,12 @@
   locatable at the exact step, not just the workflow total.
 - **delta** — `LedgerCredits − RunCredits`: how far the two stores **disagree** for a
   workflow. Ambered in the UI when non-trivial.
+- **drift** — the per-model gap between the **price-book estimate** and GitHub's **reported**
+  cost over the ledger's *reported turns* (`telemetry.ModelDrifts` → `ModelDrift`): the cost
+  cousin of *reconcile*, joining the two figures **within one store** (each `SpendRecord`
+  carries both — see *estimate vs. reported*). `Delta = EstimateCredits − ReportedCredits`;
+  ambered past epsilon. An unreported turn has no authoritative figure to drift from, so it
+  is counted (est-only coverage) but never compared. — issue 0060
 - **window** — the **14/30/90-day** slice selector shared by the spend trend and the Runs
   page (`clampWindow`, `spendWindows`). — G3/V12
 - **AppendOnlyStore[T]** — the **generic** persisted store both `SpendStore` and `RunStore`

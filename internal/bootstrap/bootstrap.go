@@ -171,9 +171,12 @@ func seedSpend(store *telemetry.SpendStore) {
 		{At: at(2), SessionID: "demo-sess-1", Model: "gpt-5", InputTokens: 1200, CachedTokens: 200, OutputTokens: 340, CacheWriteTokens: 400, ReasoningTokens: 90, USD: 0.018, AgentID: "builder"},
 		// Two turns a workflow run owned: the Build & harden lanes (sequential),
 		// attributed to the run and the lane within it. Cache-write + reasoning counts
-		// populate the per-model breakdown's new columns (ADR-0034).
-		{At: at(1), SessionID: "demo-sess-1", Model: "gpt-5", InputTokens: 2200, CachedTokens: 600, OutputTokens: 520, CacheWriteTokens: 700, ReasoningTokens: 160, USD: 0.026, AgentID: "builder", WorkflowID: "build-and-harden", LaneIndex: 0},
-		{At: at(0), SessionID: "demo-sess-1", Model: "claude-sonnet-4-6", InputTokens: 1400, OutputTokens: 360, USD: 0.022, AgentID: "sdet", WorkflowID: "build-and-harden", LaneIndex: 1},
+		// populate the per-model breakdown's new columns (ADR-0034). Both carry a
+		// reported AIU so the estimate-vs-reported drift table renders offline (issue
+		// 0060): gpt-5's estimate (2.6 cr) sits under its reported cost (2.75 cr) —
+		// drifted past epsilon, ambered — while the sonnet turn's figures agree.
+		{At: at(1), SessionID: "demo-sess-1", Model: "gpt-5", InputTokens: 2200, CachedTokens: 600, OutputTokens: 520, CacheWriteTokens: 700, ReasoningTokens: 160, USD: 0.026, AIU: 2.75, AgentID: "builder", WorkflowID: "build-and-harden", LaneIndex: 0},
+		{At: at(0), SessionID: "demo-sess-1", Model: "claude-sonnet-4-6", InputTokens: 1400, OutputTokens: 360, USD: 0.022, AIU: 2.2, AgentID: "sdet", WorkflowID: "build-and-harden", LaneIndex: 1},
 		{At: at(0), SessionID: "demo-sess-1", Model: "claude-haiku-4-5", InputTokens: 800, OutputTokens: 150, USD: 0.004, AgentID: "builder"},
 	} {
 		_ = store.Append(r)

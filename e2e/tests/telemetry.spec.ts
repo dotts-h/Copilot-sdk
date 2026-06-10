@@ -83,3 +83,20 @@ test("re-selecting a window re-renders the dashboard server-side (no JS)", async
   await expect(page.locator("svg.band")).toHaveCount(1);
   await expect(page.locator("svg.bullet")).toHaveCount(1);
 });
+
+test("the estimate-vs-reported drift table renders from the seeded ledger", async ({ page }) => {
+  // The drift table (issue 0060) joins the price-book estimate to GitHub's
+  // reported cost per model over reported turns. The demo seeds two reported
+  // turns — one whose estimate drifted past epsilon — so the table and the
+  // ambered delta render offline.
+  await expect(page.locator("#main h4", { hasText: "Estimate vs reported" })).toBeVisible();
+  const rows = page.locator(".grid.drift .drift-row");
+  expect(await rows.count()).toBeGreaterThan(0);
+  // Each row carries both figures, a delta, and the reported/est-only coverage.
+  const first = rows.first();
+  await expect(first.locator(".drift-model")).not.toBeEmpty();
+  await expect(first.locator(".recon-delta")).not.toBeEmpty();
+  await expect(first.locator(".drift-coverage")).toContainText("reported");
+  // The seeded gpt-5 estimate sits under its reported cost — ambered.
+  await expect(page.locator(".grid.drift .recon-delta.amber").first()).toBeVisible();
+});
