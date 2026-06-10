@@ -19,6 +19,7 @@ issues are added or closed.
 | [0038](0038-epic-cost-run-reconciliation.md) | Epic: cost⋈run reconciliation — converge the two persisted stores (roadmap v7) | closed | 0039, 0040, 0041 |
 | [0042](0042-epic-interactive-orchestration.md) | Epic: interactive orchestration — the Runs surface goes actionable (roadmap v8) | closed | 0043, 0044 |
 | [0045](0045-epic-ui-ux-refresh.md) | Epic: UI/UX refresh — token foundation, theming, navigation IA, telemetry dashboard, motion (roadmap v9) | closed | 0046, 0047, 0048, 0049 |
+| [0069](0069-epic-first-class-subagents.md) | Epic: First-class sub-agents — live view, per-subagent cost, HITL pause/continue/cancel (roadmap v12) | open | 0070, 0071, 0072, 0073, 0074, 0075 |
 
 ## Issues
 
@@ -82,3 +83,9 @@ issues are added or closed.
 | [0066](0066-hero-surface-polish-chat-telemetry.md) | Hero-surface polish — apply the full system to Chat + Telemetry (W4) | closed | low | 0062 | depends_on: 0064 0065, PR #107 — closes the epic |
 | [0067](0067-auth-spike-sdkclient-auth-today.md) | Auth spike — how SDKClient authenticates today + the seam a Connection page needs (A0) | closed | medium | 0051 | depends_on: —, PR #108 |
 | [0068](0068-connection-page-auth-method-surface.md) | Connection page — see + choose the active auth method: device flow / masked ${VAR} token / gh reuse (A1) | closed | medium | 0051 | depends_on: 0067, ADR-0039, PR #109 — closes the epic |
+| [0070](0070-agentid-attribution-seam.md) | AgentID attribution through the seam — every normalized event knows root vs sub-agent (S1) | open | high | 0069 | depends_on: —, SUBAGENTS_RESEARCH §0/§3, ADR TBD |
+| [0071](0071-subagent-registry-live-list.md) | Sub-agent registry + live list — status, current activity, live credits beside the chat (S2) | open | high | 0069 | depends_on: 0070, supersedes 0031's strip, SUBAGENTS_RESEARCH §5 |
+| [0072](0072-per-subagent-cost-budget-leash.md) | Per-subagent cost + budget leash — live metering, ledger attribution, pre-Send cap (S3) | open | high | 0069 | depends_on: 0070, ADR-0018 pattern, SUBAGENTS_RESEARCH §4 |
+| [0073](0073-pause-continue-cancel-escalate.md) | Pause / continue / cancel — typed pause records + the orchestrator escalate tool (S4) | open | high | 0069 | depends_on: 0070, permBridge/ADR-0008/ADR-0024, SUBAGENTS_RESEARCH §1–2, ADR TBD |
+| [0074](0074-subagent-chat-overlay.md) | Per-subagent chat overlay — popup transcript with live stream, pause form, and steer (S5) | open | medium | 0069 | depends_on: 0071, see also 0073, SUBAGENTS_RESEARCH §3/§5 |
+| [0075](0075-subagent-attention-surface.md) | Attention surface — needs-you badging, title/favicon dot, Runs integration (S6) | open | medium | 0069 | depends_on: 0071+0073, ADR-0022 run store — closes the epic |
