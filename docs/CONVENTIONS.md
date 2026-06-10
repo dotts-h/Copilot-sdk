@@ -38,7 +38,15 @@ Module: `github.com/dotts-h/copilot-sdk` · app *my-orchestra*.
 - **Self-review the diff before pushing:** run `/code-review` (always) and, for UI
   changes, `/verify` or `make run`/`make e2e` to exercise the behavior. Audits
   done *before* coding don't catch what the resulting diff introduces — this is
-  cheap insurance, not optional. — see [RETROS 0001](RETROS/0001-quality-and-architecture-hardening.md)
+  cheap insurance, not optional. **Size the review to the diff:** default to
+  `/code-review low` or `medium` (a Sonnet pass, fewer high-confidence findings);
+  reserve high effort for large or correctness-critical diffs. A **bare**
+  `/code-review` defaults to a **high-effort Opus fan-out** (7 finder angles, a
+  verifier per candidate) — wasted spend on a small, guard-tested presentation
+  diff, and easy to leave running into a session-limit with nothing returned.
+  Lean on the artifacts: when a guard test already proves an invariant (e.g.
+  `css_tokens_test.go` for the token/contrast contract), point the reviewer at
+  what the test *can't* cover rather than re-deriving the structure. — see [RETROS 0001](RETROS/0001-quality-and-architecture-hardening.md)
 - Open a PR; **CI must be green** (lint, race tests + coverage floor, fuzz, build matrix) before merge.
 - Merge with `--no-ff`, push `origin/main`, then delete the local branch.
 - **Fold supporting docs into the feature branch** — ADRs, REGRESSIONS, TECH_DEBT, and
