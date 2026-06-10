@@ -80,6 +80,17 @@ func TestSeedSpendPopulatesDeterministicHistory(t *testing.T) {
 	if shares := telemetry.ModelShares(recs); len(shares) < 2 {
 		t.Fatalf("seed should span multiple models, got %d", len(shares))
 	}
+	// The estimate-vs-reported drift table (issue 0060) joins reported turns only,
+	// so the seed must carry some reported AIU — including one model whose estimate
+	// has drifted past the display epsilon, so the amber path renders offline.
+	drifts := telemetry.ModelDrifts(recs)
+	if len(drifts) == 0 {
+		t.Fatal("seed should include reported turns so the drift table renders offline")
+	}
+	// ModelDrifts sorts |delta| descending, so the drifted model is always row 0.
+	if !drifts[0].Drifted(0.005) {
+		t.Fatalf("seed should include a drifted model so the amber path is visible, got %+v", drifts)
+	}
 }
 
 // A demo-mode Build wires the seeded ledger through to the Telemetry page, so

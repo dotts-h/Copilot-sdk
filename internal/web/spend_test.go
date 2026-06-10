@@ -203,6 +203,54 @@ func TestTelemetryPageShowsPerLaneReconciliation(t *testing.T) {
 	}
 }
 
+func TestTelemetryPageShowsEstimateVsReportedDrift(t *testing.T) {
+	// The "Estimate vs reported" drift table (issue 0060) joins the price-book
+	// estimate to GitHub's reported cost per model over the REPORTED turns, the cost
+	// cousin of the ledger⋈runs reconciliation: a delta past epsilon is ambered, and
+	// unreported turns are counted as est-only coverage, never compared.
+	s, store := newSpendServer(t)
+	for _, r := range []telemetry.SpendRecord{
+		// Reported turn: estimate 5.00 cr ($0.05) vs reported 4.00 AIU — drifts by +1.00.
+		{At: day("2026-06-04T10:00:00Z"), Model: "gpt-5", USD: 0.05, AIU: 4},
+		// Unreported turn: counted in the coverage cell, excluded from the comparison.
+		{At: day("2026-06-05T10:00:00Z"), Model: "gpt-5", USD: 0.10},
+	} {
+		if err := store.Append(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	html := s.telemetryPartial(defaultSpendWindow)
+	for _, want := range []string{
+		"Estimate vs reported", // the section heading
+		`class="grid drift"`,   // the comparison table
+		// The full row pins the estimate to the REPORTED turn only (5.00 cr, not the
+		// 15.00 cr both turns sum to — which the Total-cost row legitimately shows
+		// elsewhere on the page) beside the reported figure.
+		`class="recon-row drift-row"><td class="drift-model">gpt-5</td><td class="recon-ledger">5.00 cr</td><td class="recon-runs">4.00 cr</td>`,
+		`class="recon-delta amber"`, // the non-trivial delta is ambered
+		"1 reported · 1 est-only",   // the coverage cell
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("telemetry page missing drift %q\n%s", want, html)
+		}
+	}
+}
+
+func TestTelemetryPageHidesDriftWithoutReportedTurns(t *testing.T) {
+	// With no reported turn there is nothing to compare — the drift section stays
+	// hidden rather than showing an empty (or estimate-vs-zero) table.
+	s, store := newSpendServer(t)
+	if err := store.Append(telemetry.SpendRecord{
+		At: day("2026-06-04T10:00:00Z"), Model: "gpt-5", USD: 0.05,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	html := s.telemetryPartial(defaultSpendWindow)
+	if strings.Contains(html, "Estimate vs reported") {
+		t.Fatalf("drift section should be hidden when no turn was reported\n%s", html)
+	}
+}
+
 func TestReconcileExportReturnsCSV(t *testing.T) {
 	// The reconciliation export (V17) mirrors the spend and runs exports: a CSV
 	// attachment over the cross-store join, so the ledger-vs-runs divergence can be

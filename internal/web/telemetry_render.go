@@ -70,6 +70,7 @@ func (s *Server) telemetryPartial(window int) string {
 		"AgentShares": agents, "WorkflowShares": workflows,
 		"Reconcile":     s.workflowReconcile(),
 		"LaneReconcile": s.laneReconcile(),
+		"Drift":         s.estimateDrift(),
 		"Forecast":      forecast, "Windows": windows,
 	})
 }
@@ -254,6 +255,35 @@ func (s *Server) laneReconcileRow(r telemetry.LaneRecon) map[string]any {
 		"Delta":         telemetry.FormatCredits(r.Delta),
 		"Amber":         math.Abs(r.Delta) >= reconcileEpsilon,
 	}
+}
+
+// estimateDrift builds the per-model "Estimate vs reported" drift rows for the
+// Telemetry page (issue 0060) — the cost cousin of the ledger⋈runs reconciliation,
+// joining the price-book estimate to GitHub's reported cost over the ledger's
+// REPORTED turns (ModelDrifts). The delta is ambered when its magnitude clears
+// reconcileEpsilon (it displays as a non-zero figure); the coverage cell counts the
+// turns joined and the est-only turns the comparison can't cover. Empty when no
+// ledger is wired or no turn was ever reported (nothing to compare).
+func (s *Server) estimateDrift() []map[string]any {
+	rows := []map[string]any{}
+	if s.spend == nil {
+		return rows
+	}
+	for _, d := range telemetry.ModelDrifts(s.spend.Records()) {
+		coverage := fmt.Sprintf("%d reported", d.ReportedTurns)
+		if d.UnreportedTurns > 0 {
+			coverage += fmt.Sprintf(" · %d est-only", d.UnreportedTurns)
+		}
+		rows = append(rows, map[string]any{
+			"Model":    d.Model,
+			"Estimate": telemetry.FormatCredits(d.EstimateCredits),
+			"Reported": telemetry.FormatCredits(d.ReportedCredits),
+			"Delta":    telemetry.FormatCredits(d.Delta),
+			"Amber":    d.Drifted(reconcileEpsilon),
+			"Coverage": coverage,
+		})
+	}
+	return rows
 }
 
 // bucketTrajectories renders each bucket's burn-trajectory sentence keyed by the

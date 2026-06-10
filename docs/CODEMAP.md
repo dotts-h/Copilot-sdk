@@ -6,7 +6,7 @@
 > this first; jump straight to `file:symbol`. The source is the source of
 > truth — if this looks stale, re-run `make codemap`.
 
-_Last generated: 2026-06-09 (UTC)._
+_Last generated: 2026-06-10 (UTC)._
 
 ## cmd/my-orchestra
 
@@ -23,16 +23,16 @@ _Last generated: 2026-06-09 (UTC)._
 
 ## internal/bootstrap
 
-### bootstrap.go (386 LOC)
+### bootstrap.go (389 LOC)
 - L34: `func Build(configDir string, demo bool) (srv *web.Hub, close func(), err error)`
 - L120: `func demoClient(forge *ctxforge.Forge, spec *copilot.SessionSpec) (copilot.Client, func())`
 - L160: `func seedSpend(store *telemetry.SpendStore)`
-- L187: `func seedRuns(store *telemetry.RunStore)`
-- L215: `func dialClient(cfg *config.Config) (copilot.Client, func())`
-- L237: `func ServeLocal(h http.Handler) (port int, stop func(), err error)`
-- L249: `func DefaultConfigDir() string`
-- L263: `func SeedForge(forge *ctxforge.Forge)`
-- L374: `func curatedMCPServers() []ctxforge.MCPServer`
+- L190: `func seedRuns(store *telemetry.RunStore)`
+- L218: `func dialClient(cfg *config.Config) (copilot.Client, func())`
+- L240: `func ServeLocal(h http.Handler) (port int, stop func(), err error)`
+- L252: `func DefaultConfigDir() string`
+- L266: `func SeedForge(forge *ctxforge.Forge)`
+- L377: `func curatedMCPServers() []ctxforge.MCPServer`
 
 ## internal/config
 
@@ -373,6 +373,11 @@ _Last generated: 2026-06-09 (UTC)._
 - L71: `func Dashboard(records []SpendRecord, now time.Time, window int) WindowDashboard`
 - L125: `type Delta struct`
 - L139: `func ChangePct(prior, current float64) Delta`
+
+### drift.go (84 LOC)
+- L25: `type ModelDrift struct`
+- L38: `func (d ModelDrift) Drifted(epsilon float64) bool { return math.Abs(d.Delta) >= epsilon }`
+- L49: `func ModelDrifts(records []SpendRecord) []ModelDrift`
 
 ### forecast.go (142 LOC)
 - L24: `type ProjectionStatus int`
@@ -830,25 +835,26 @@ _Last generated: 2026-06-09 (UTC)._
 - L158: `func trendBandSVG(actual, forecast []float64, label string) string`
 - L211: `func bulletSVG(value, target, scaleMax float64, overTarget bool, label string) string`
 
-### telemetry_render.go (396 LOC)
+### telemetry_render.go (426 LOC)
 - L12: `func (s *Server) telemetryPartial(window int) string`
-- L82: `func (s *Server) spendTrend(window int) (days, shares []map[string]any, hasHistory bool)`
-- L139: `func (s *Server) spendShares(now time.Time) (agents, workflows []map[string]any)`
-- L169: `func agentKey(r telemetry.SpendRecord) string { return r.AgentID }`
-- L171: `func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }`
-- L189: `func (s *Server) workflowReconcile() []map[string]any`
-- L210: `func (s *Server) reconcileRow(r telemetry.WorkflowRecon) map[string]any`
-- L227: `func (s *Server) laneReconcile() []map[string]any`
-- L249: `func (s *Server) laneReconcileRow(r telemetry.LaneRecon) map[string]any`
-- L263: `func bucketTrajectories(bs []telemetry.BucketProjection, now time.Time) map[string]string`
-- L279: `func bucketTrajectoryText(p telemetry.Projection, now time.Time) string`
-- L298: `func daysLeftInMonth(now time.Time) int`
-- L309: `func shareRow(label string, credits, fraction float64) map[string]any`
-- L321: `func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any`
-- L345: `func forecastSoon(exhaust, now time.Time) bool`
-- L355: `func plural(n int, one, many string) string`
-- L365: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
-- L382: `func (s *Server) handleReconcileExport(w http.ResponseWriter, r *http.Request)`
+- L83: `func (s *Server) spendTrend(window int) (days, shares []map[string]any, hasHistory bool)`
+- L140: `func (s *Server) spendShares(now time.Time) (agents, workflows []map[string]any)`
+- L170: `func agentKey(r telemetry.SpendRecord) string { return r.AgentID }`
+- L172: `func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }`
+- L190: `func (s *Server) workflowReconcile() []map[string]any`
+- L211: `func (s *Server) reconcileRow(r telemetry.WorkflowRecon) map[string]any`
+- L228: `func (s *Server) laneReconcile() []map[string]any`
+- L250: `func (s *Server) laneReconcileRow(r telemetry.LaneRecon) map[string]any`
+- L267: `func (s *Server) estimateDrift() []map[string]any`
+- L293: `func bucketTrajectories(bs []telemetry.BucketProjection, now time.Time) map[string]string`
+- L309: `func bucketTrajectoryText(p telemetry.Projection, now time.Time) string`
+- L328: `func daysLeftInMonth(now time.Time) int`
+- L339: `func shareRow(label string, credits, fraction float64) map[string]any`
+- L351: `func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any`
+- L375: `func forecastSoon(exhaust, now time.Time) bool`
+- L385: `func plural(n int, one, many string) string`
+- L395: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
+- L412: `func (s *Server) handleReconcileExport(w http.ResponseWriter, r *http.Request)`
 
 ### tmpl.go (55 LOC)
 - L44: `func trusted(s string) template.HTML { return template.HTML(s) } //nolint:gosec // composed from escaped fragments`
