@@ -91,9 +91,25 @@ func streamDemoReply(m *copilot.MockClient, prompt string) {
 		ToolCallID: "demo-sa-1", Name: "explorer", DisplayName: "Explore",
 		Description: "search the repo", Model: model,
 	}})
+	// While the sub-agent works it streams its OWN deltas/tool/usage, each tagged
+	// with its instance AgentID (epic 0069 S1). The reducer PARKS these — they must
+	// not interleave into the root transcript or meter the root agent's spend — so
+	// the strip shows the sub-agent busy while its stream is held back for S2 to
+	// render. The synthetic instance id ("sub-explorer-1") is distinct from the
+	// spawn's ToolCallID ("demo-sa-1"): the two join per ADR-0040.
+	const subAgent = "sub-explorer-1"
+	tagged := func(e copilot.Event) copilot.Event { e.AgentID = subAgent; return e }
+	m.Emit(tagged(copilot.Event{Type: copilot.EvMessageDelta, Text: "scanning internal/… "}))
+	m.Emit(tagged(copilot.Event{Type: copilot.EvToolStart, Tool: "grep",
+		ToolCall: &copilot.ToolCall{ID: "sub-grep-1", Name: "grep", Args: "func makeHandler"}}))
+	time.Sleep(300 * time.Millisecond)
+	m.Emit(tagged(copilot.Event{Type: copilot.EvToolEnd,
+		ToolCall: &copilot.ToolCall{ID: "sub-grep-1", Result: "normalize.go:71", Success: true}}))
+	m.Emit(tagged(copilot.Event{Type: copilot.EvUsage, Usage: copilot.UsageData{
+		Model: model, InputTokens: 900, OutputTokens: 120, NanoAIU: 80_000_000}}))
 	// Dwell long enough that the activity strip (and its description tooltip) is
 	// observably visible before the sub-agent finishes — see the e2e strip spec.
-	time.Sleep(600 * time.Millisecond)
+	time.Sleep(300 * time.Millisecond)
 	m.Emit(copilot.Event{Type: copilot.EvSubagentEnd, Subagent: &copilot.SubagentInfo{
 		ToolCallID: "demo-sa-1", Name: "explorer", DisplayName: "Explore", Model: model,
 		Success: true, Detail: "1.2s · 3.4k tok",

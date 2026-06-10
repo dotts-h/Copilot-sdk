@@ -26,6 +26,18 @@ const (
 // permission requests append an inline form. Mirrors the TUI's applyAgentMsg
 // (internal/tui/events.go) but emits HTML instead of mutating a Bubble Tea model.
 func (s *Server) handleEvent(e copilot.Event) []fragment {
+	// Park sub-agent-tagged events (epic 0069 S1, ADR-0040). The SDK streams a
+	// sub-agent's deltas/tools/usage tagged with its instance AgentID; folding them
+	// into the root transcript renders a sub-agent's text in the user-facing bubble
+	// and meters its spend as the root agent's. Until S2 gives them their own
+	// surface they are dropped here — for BOTH the chat and the workflow-lane paths
+	// (this guard precedes the lane router below). The sub-agent LIFECYCLE strip
+	// (EvSubagentStart/End, AgentID empty — session-level events) is unaffected.
+	// The check reads only the event value, so it runs before taking s.mu.
+	if e.AgentID != "" {
+		return nil
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

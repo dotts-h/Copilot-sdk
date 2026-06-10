@@ -103,6 +103,20 @@ test.describe("streaming a turn", () => {
     await expect(chip).toHaveAttribute("title", /\S/, { timeout: 15_000 });
   });
 
+  test("a sub-agent's tagged stream is parked, not leaked into the root transcript", async ({ page }) => {
+    await gotoApp(page);
+    await send(page, "explore");
+    // The scripted sub-agent streams its OWN tagged delta/tool while it runs
+    // (demo "scanning internal/…", a grep tool). Those AgentID-tagged events are
+    // parked by the reducer (epic 0069 S1) — they must NOT interleave into the
+    // user-facing transcript. Wait for the committed root reply, then assert the
+    // sub-agent's text never appears in the timeline.
+    await expect(
+      page.locator(`${sel.agentTurn}:not(#cur)`).filter({ hasText: "You said: explore" }),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator(sel.timeline)).not.toContainText("scanning internal/");
+  });
+
   test("the sub-agent activity strip does not leak a chip after the turn settles", async ({ page }) => {
     await gotoApp(page);
     await send(page, "explore");

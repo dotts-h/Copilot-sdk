@@ -119,6 +119,51 @@ func TestSubagentChipEscapesDescription(t *testing.T) {
 	}
 }
 
+// TestAgentTaggedEventsDoNotMutateRootTranscript is the reducer half of epic 0069
+// S1 (ADR-0040): a sub-agent-tagged delta/tool/usage must NOT append to the root
+// user-facing transcript or meter the root agent's spend — it is parked until S2
+// renders it. The sub-agent LIFECYCLE strip (EvSubagentStart/End, AgentID empty —
+// session-level events) keeps working unchanged (issue 0031).
+func TestAgentTaggedEventsDoNotMutateRootTranscript(t *testing.T) {
+	s, _ := newTestServer()
+
+	tagged := func(e copilot.Event) copilot.Event { e.AgentID = "sub-1"; return e }
+	s.handleEvent(tagged(copilot.Event{Type: copilot.EvMessageDelta, Text: "secret sub-agent text"}))
+	s.handleEvent(tagged(copilot.Event{Type: copilot.EvToolStart, Tool: "bash",
+		ToolCall: &copilot.ToolCall{ID: "sa-tool", Name: "bash", Args: "rm -rf"}}))
+	s.handleEvent(tagged(copilot.Event{Type: copilot.EvUsage, Usage: copilot.UsageData{
+		Model: "gpt-5", InputTokens: 1000, OutputTokens: 500}}))
+
+	if role, text := s.state.Pending(); text != "" {
+		t.Fatalf("tagged delta leaked into root transcript: role=%v text=%q", role, text)
+	}
+	if got := len(s.state.Committed()); got != 0 {
+		t.Fatalf("tagged events committed %d root turns, want 0", got)
+	}
+	if s.toolsUsed != 0 || len(s.state.ActiveTools()) != 0 {
+		t.Fatalf("tagged tool mutated root tool state: toolsUsed=%d active=%v", s.toolsUsed, s.state.ActiveTools())
+	}
+	if in, _, out := s.meter.TotalTokens(); in != 0 || out != 0 {
+		t.Fatalf("tagged usage metered as root spend: in=%d out=%d, want 0", in, out)
+	}
+}
+
+// TestRootEventsStillMutateTranscript pins the other side: an untagged (root)
+// delta + usage still drive the transcript and meter, so the filter is scoped to
+// tagged events only.
+func TestRootEventsStillMutateTranscript(t *testing.T) {
+	s, _ := newTestServer()
+	s.handleEvent(copilot.Event{Type: copilot.EvMessageDelta, Text: "root says hi"})
+	if _, text := s.state.Pending(); text != "root says hi" {
+		t.Fatalf("root delta did not append to transcript: %q", text)
+	}
+	s.handleEvent(copilot.Event{Type: copilot.EvUsage, Usage: copilot.UsageData{
+		Model: "gpt-5", InputTokens: 1000, OutputTokens: 500}})
+	if in, _, out := s.meter.TotalTokens(); in != 1000 || out != 500 {
+		t.Fatalf("root usage not metered: in=%d out=%d", in, out)
+	}
+}
+
 func TestChatPartialRendersActiveSubagent(t *testing.T) {
 	s, _ := newTestServer()
 	s.handleEvent(subStart("tc-1", "Explore"))

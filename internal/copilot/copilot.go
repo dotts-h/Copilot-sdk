@@ -158,8 +158,14 @@ type Event struct {
 	// frontend can route it to the right conversation. Empty for events from a
 	// MockClient (demo/tests), which a single-session consumer can ignore.
 	SessionID string
-	Text      string // delta or full message/reasoning text
-	Tool      string // tool name for tool events
+	// AgentID identifies the sub-agent instance that produced the event, threaded
+	// from the SDK envelope (sdk.SessionEvent.AgentID). Empty for the root/main
+	// agent and session-level events — every current path. A reducer filters on it
+	// so sub-agent activity no longer interleaves into the root transcript or meter
+	// (epic 0069 S1, ADR-0040); it joins to a spawn via SubagentInfo.ToolCallID.
+	AgentID string
+	Text    string // delta or full message/reasoning text
+	Tool    string // tool name for tool events
 
 	// ToolCall carries the timeline detail for tool events (EvToolStart,
 	// EvToolProgress, EvToolEnd). Nil for non-tool events.

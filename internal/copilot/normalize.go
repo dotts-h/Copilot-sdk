@@ -69,11 +69,17 @@ func toolKindFromName(name string, isMCP bool) string {
 // Every emitted event is stamped with sid so a multi-session consumer can route
 // it to the originating conversation.
 func (c *SDKClient) makeHandler(sid string) func(sdk.SessionEvent) {
-	emit := func(e Event) {
-		e.SessionID = sid
-		c.emit(e)
-	}
 	return func(ev sdk.SessionEvent) {
+		// Stamp every event this turn with the session id and the envelope's
+		// sub-agent tag (AgentID), so a reducer can route root vs sub-agent
+		// activity (epic 0069 S1). derefStr yields "" for the root/main agent and
+		// session-level events — additive: empty for every pre-existing path.
+		agentID := derefStr(ev.AgentID)
+		emit := func(e Event) {
+			e.SessionID = sid
+			e.AgentID = agentID
+			c.emit(e)
+		}
 		switch d := ev.Data.(type) {
 		case *sdk.AssistantMessageDeltaData:
 			emit(Event{Type: EvMessageDelta, Text: d.DeltaContent})
@@ -129,7 +135,7 @@ func (c *SDKClient) makeHandler(sid string) func(sdk.SessionEvent) {
 			// off this event-handler goroutine so a command's latency never blocks
 			// event delivery; each emits an EvHookRun annotation when it finishes.
 			if cmds := ctxforge.PostToolUseCommands(pol.hooks, meta.kind, meta.target, pol.workspace, pol.mode); len(cmds) > 0 {
-				go c.firePostToolHooks(sid, cmds, pol.workspace)
+				go c.firePostToolHooks(sid, agentID, cmds, pol.workspace)
 			}
 		case *sdk.SessionUsageInfoData:
 			emit(Event{Type: EvContextWindow, Context: ContextInfo{
