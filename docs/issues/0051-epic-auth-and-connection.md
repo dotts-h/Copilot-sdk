@@ -1,16 +1,19 @@
 ---
 id: 0051
 title: "Epic: Auth & connection — choose how to reach Copilot (device flow / local token / gh reuse) (roadmap v10)"
-status: open
+status: closed
 severity: medium
 group:
 github:
 links:
-  adr: []
-  prs: []
-  issues: []
+  adr: [0039]
+  prs: [108, 109]
+  issues: [0067, 0068]
   regression: []
 ---
+
+> **Closed 2026-06-10 — both children shipped: A0 spike (issue 0067, PR #108) and the A1
+> Connection page (issue 0068, PR #109, ADR-0039). SemVer minor.**
 
 ## Charter
 
@@ -35,7 +38,8 @@ have the masked `${VAR}` indirection (ADR-0020, no secret at rest) to reuse.
       Findings: A1 is buildable — explicit-token path exists (GitHubTokenEnv, ADR-0020 shape), the
       CLI inherits our env (precedence applies transparently), public `auth.getStatus` is the read
       seam. Dead-end recorded: no in-app device-flow initiation; method changes are choose-by-re-dial.
-- [ ] **A1 · Auth-method surface** (L; ADR) → issue [0068](0068-connection-page-auth-method-surface.md).
+- [x] **A1 · Auth-method surface** (L; ADR) → issue [0068](0068-connection-page-auth-method-surface.md),
+      PR #109, ADR-0039.
       A Connection page to choose + see the **active** method:
       (a) device flow (current/auto), (b) a pasted token saved locally **masked via `${VAR}`**
       (ADR-0020 reuse — no secret at rest), (c) reuse the `gh` CLI token. Shows the resolved precedence
@@ -43,11 +47,12 @@ have the masked `${VAR}` indirection (ADR-0020, no secret at rest) to reuse.
 
 ## Acceptance (epic)
 
-- [ ] The active auth method + precedence is visible in the UI.
-- [ ] A user can supply a token that is stored **only** as a `${VAR}` reference (no plaintext at rest).
-- [ ] `gh`-reuse and device-flow paths are selectable/inspectable.
-- [ ] A0 findings are written down before A1 design; A1 takes an ADR.
-- [ ] `make lint && make test` + `make e2e` green; born in its PR; SemVer minor.
+- [x] The active auth method + precedence is visible in the UI.
+- [x] A user can supply a token that is stored **only** as a `${VAR}` reference (no plaintext at rest).
+- [x] `gh`-reuse and device-flow paths are selectable/inspectable (in-app device-flow *initiation*
+      is the SDK dead-end A0 recorded; the page links the user to `copilot` login instead).
+- [x] A0 findings are written down before A1 design (0067, PR #108); A1 takes ADR-0039.
+- [x] `make lint && make test` + `make e2e` green; born in its PR; SemVer minor.
 
 ## Notes
 
