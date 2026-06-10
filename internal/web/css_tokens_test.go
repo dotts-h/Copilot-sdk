@@ -313,7 +313,7 @@ func TestTokenContrastAA(t *testing.T) {
 	// slice, and combinations the UI already uses (accent headings on --panel
 	// cards, status colors on the panel) can't be forgotten.
 	textRoles := []string{"fg", "dim", "accent", "accent2", "good", "warn", "bad"}
-	surfaces := []string{"bg", "panel", "overlay"} // the surface luminance ladder, base → raised → overlay (ADR-0038)
+	surfaces := []string{"bg", "panel", "overlay"}     // the surface luminance ladder, base → raised → overlay (ADR-0038)
 	fills := []string{"accent", "good", "warn", "bad"} // --on-bright is the single companion on ANY solid fill
 	type pair struct{ text, surface string }
 	var pairs []pair
@@ -403,7 +403,7 @@ func TestTokenScales(t *testing.T) {
 	for _, m := range shadowRe.FindAllStringSubmatch(tokens, -1) {
 		layers[m[1]] = strings.Count(m[2], "var(--shadow-color)")
 	}
-	if !(layers["1"] >= 2 && layers["2"] > layers["1"] && layers["3"] > layers["2"]) {
+	if layers["1"] < 2 || layers["2"] <= layers["1"] || layers["3"] <= layers["2"] {
 		t.Errorf("layered shadows must deepen by stacking var(--shadow-color) layers: got --shadow-1=%d --shadow-2=%d --shadow-3=%d",
 			layers["1"], layers["2"], layers["3"])
 	}
