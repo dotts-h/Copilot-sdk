@@ -1,17 +1,22 @@
 ---
 id: 0070
 title: "AgentID attribution through the seam — every normalized event knows root vs sub-agent (S1)"
-status: open
+status: closed
 severity: high
 group: 0069
 depends_on: []
 github: 111
 links:
   adr: [0040]
-  prs: []
+  prs: [118]
   issues: [0069]
   regression:
 ---
+
+> **Closed 2026-06-10.** Shipped in PR #118 (ADR-0040): `copilot.Event.AgentID`
+> stamped from the envelope on every normalized event (incl. async PostToolUse hook
+> runs — a review fix); the reducer parks tagged events; demo + e2e exercise a
+> synthetic sub-agent offline. Unblocks 0071/0072/0073.
 
 ## Summary
 
