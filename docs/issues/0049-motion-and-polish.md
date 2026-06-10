@@ -1,13 +1,13 @@
 ---
 id: 0049
 title: "Motion & polish — htmx View-Transition page swaps + a token-driven component pass (roadmap v9, item V24)"
-status: open
+status: closed
 severity: low
 group: 0045
 github:
 links:
   adr: [0028]
-  prs: []
+  prs: [82]
   issues: [0045]
 ---
 

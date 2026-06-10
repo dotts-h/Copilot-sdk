@@ -64,7 +64,7 @@ issues are added or closed.
 | [0048](0048-telemetry-kpi-dashboard.md) | Telemetry dashboard — KPI cards + server-rendered inline-SVG sparklines (item V23) | closed | medium | 0045 | ADR-0027, REGRESSIONS #20, PR #81 |
 | [0049](0049-motion-and-polish.md) | Motion & polish — htmx per-navigation View-Transition page swaps + a token-driven component pass (item V24) | closed | low | 0045 | ADR-0028, REGRESSIONS (global-VT dead-end), PR #82 |
 | [0050](0050-epic-billing-fidelity.md) | Epic: Billing fidelity — price cache-write + reasoning tokens; authoritative-cost-first source hierarchy (roadmap v10, P0–P4) | closed | high | — | 0057, 0058, 0059, 0060, 0061, ADR-0033/0034/0035, PRs #95 #96 #98 #103, NEXT_FEATURES v10 |
-| [0051](0051-epic-auth-and-connection.md) | Epic: Auth & connection — device flow / local ${VAR} token / gh reuse (roadmap v10, A0–A1) | open | medium | — | NEXT_FEATURES v10 |
+| [0051](0051-epic-auth-and-connection.md) | Epic: Auth & connection — device flow / local ${VAR} token / gh reuse (roadmap v10, A0–A1) | open | medium | — | 0067, 0068, NEXT_FEATURES v10 |
 | [0052](0052-epic-safe-autopilot-governance.md) | Epic: Hooks & safe autopilot — first-class forge-managed Pre/PostToolUse hooks + safe-by-default governance policy (roadmap v10, G0–G5) | closed | high | — | 0053, 0054, 0055, 0056, ADR-0029, ADR-0030, ADR-0031, ADR-0032, NEXT_FEATURES v10 |
 | [0053](0053-hooks-foundation-forge-entity-bridge-evaluator.md) | Hooks foundation — Hook forge entity + bridge evaluator + safe-read defaults (V25, G0+G3-mechanism+G1) | closed | high | 0052 | ADR-0029, PR #84 |
 | [0054](0054-dangerous-action-deny-mandatory-hitl.md) | Dangerous-action deny + mandatory HITL — built-in unbypassable ruleset enforced on the auto path (V26, G2) | closed | high | 0052 | ADR-0030, PR #83 #85 |
@@ -80,3 +80,5 @@ issues are added or closed.
 | [0064](0064-elevation-surface-component-restyle.md) | Elevation, surface & component restyle — luminance ladder + hue-tinted shadows, radius/space/type scales (W2) | closed | medium | 0062 | depends_on: 0063, ADR-0038, PR #105, REGRESSIONS #20 |
 | [0065](0065-motion-microinteraction-system.md) | Motion & micro-interaction system — linear() springs, motion tokens, CSS-only interaction catalogue (W3) | closed | medium | 0062 | depends_on: 0063, ADR-0037, PR #106 |
 | [0066](0066-hero-surface-polish-chat-telemetry.md) | Hero-surface polish — apply the full system to Chat + Telemetry (W4) | closed | low | 0062 | depends_on: 0064 0065, PR #107 — closes the epic |
+| [0067](0067-auth-spike-sdkclient-auth-today.md) | Auth spike — how SDKClient authenticates today + the seam a Connection page needs (A0) | open | medium | 0051 | depends_on: — |
+| [0068](0068-connection-page-auth-method-surface.md) | Connection page — see + choose the active auth method: device flow / masked ${VAR} token / gh reuse (A1) | open | medium | 0051 | depends_on: 0067 |
