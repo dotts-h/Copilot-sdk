@@ -22,6 +22,7 @@ package web
 
 import (
 	"fmt"
+	"io/fs"
 	"math"
 	"regexp"
 	"strconv"
@@ -426,6 +427,227 @@ func TestNoRadiusLiteralsOutsideTokens(t *testing.T) {
 	for _, layer := range []string{"base", "components", "utilities"} {
 		for _, m := range re.FindAllString(layerBlock(css, layer), -1) {
 			t.Errorf("layer %q: border-radius px literal (use the --radius-* ladder): %q", layer, m)
+		}
+	}
+}
+
+// ---- 4. motion: the W3 motion-token / view-transition guard (issue 0065, ADR-0037) ----
+
+// atRuleBlocks returns every `@<name> <condition-containing-cond> { … }` rule
+// (full text, condition + brace-balanced body) found at ANY nesting depth in
+// the comment-stripped css. Quoted strings are opaque, as in topLevelStatements.
+func atRuleBlocks(css, name, cond string) []string {
+	var out []string
+	for i := 0; ; {
+		at := strings.Index(css[i:], name)
+		if at < 0 {
+			break
+		}
+		start := i + at
+		open := strings.Index(css[start:], "{")
+		if open < 0 {
+			break
+		}
+		open += start
+		depth := 0
+		var quote rune
+		end := -1
+		for j, r := range css[open:] {
+			if quote != 0 {
+				if r == quote {
+					quote = 0
+				}
+				continue
+			}
+			switch r {
+			case '"', '\'':
+				quote = r
+			case '{':
+				depth++
+			case '}':
+				depth--
+				if depth == 0 {
+					end = open + j + 1
+				}
+			}
+			if end >= 0 {
+				break
+			}
+		}
+		if end < 0 {
+			break
+		}
+		if strings.Contains(css[start:open], cond) {
+			out = append(out, css[start:end])
+		}
+		i = end
+	}
+	return out
+}
+
+// TestMotionTokenVocabulary pins the ADR-0037 motion-token set in the tokens
+// layer: the duration scale's bands (micro / transform / spring / ambient) and
+// the named easing vocabulary with its exact curves.
+func TestMotionTokenVocabulary(t *testing.T) {
+	tokens := layerBlock(appCSS(t), "tokens")
+	norm := wsRun.ReplaceAllString(tokens, "")
+
+	for tok, curve := range map[string]string{
+		"--ease-out-quint": "cubic-bezier(0.23,1,0.32,1)",
+		"--ease-overshoot": "cubic-bezier(0.34,1.56,0.64,1)",
+	} {
+		if !strings.Contains(norm, tok+":"+curve) {
+			t.Errorf("tokens layer must declare %s: %s", tok, curve)
+		}
+	}
+	if !regexp.MustCompile(`--ease-spring\s*:`).MatchString(tokens) {
+		t.Error("tokens layer must declare --ease-spring")
+	}
+
+	// The duration scale: --dur-1..4, ascending, inside the documented bands
+	// (micro ~150–200ms, transform ~300–400ms, spring/ambient ~600–1200ms).
+	durRe := regexp.MustCompile(`--dur-(\d)\s*:\s*([\d.]+)s`)
+	durs := map[int]float64{}
+	for _, m := range durRe.FindAllStringSubmatch(tokens, -1) {
+		n, _ := strconv.Atoi(m[1])
+		v, _ := strconv.ParseFloat(m[2], 64)
+		durs[n] = v
+	}
+	bands := map[int][2]float64{
+		1: {0.14, 0.20},
+		2: {0.30, 0.40},
+		3: {0.60, 1.20},
+		4: {0.60, 1.20},
+	}
+	for n, band := range bands {
+		v, ok := durs[n]
+		if !ok {
+			t.Errorf("tokens layer must declare --dur-%d (the W3 duration scale)", n)
+			continue
+		}
+		if v < band[0] || v > band[1] {
+			t.Errorf("--dur-%d = %gs outside its band [%g, %g]s", n, v, band[0], band[1])
+		}
+	}
+	for n := 1; n < 4; n++ {
+		if durs[n] != 0 && durs[n+1] != 0 && durs[n] > durs[n+1] {
+			t.Errorf("duration scale must be ascending: --dur-%d (%gs) > --dur-%d (%gs)", n, durs[n], n+1, durs[n+1])
+		}
+	}
+}
+
+// TestMotionSpringSupportsGate pins the linear() fallback strategy (ADR-0037):
+// every linear() spring usage in app.css sits inside an
+// `@supports (animation-timing-function: linear(…))` block that upgrades
+// --ease-spring, and the default --ease-spring outside it is a plain
+// cubic-bezier — never a raw linear() (which would IACVT-degrade to `ease` on
+// engines without linear() support).
+func TestMotionSpringSupportsGate(t *testing.T) {
+	css := stripComments(appCSS(t))
+
+	gates := atRuleBlocks(css, "@supports", "animation-timing-function: linear(")
+	if len(gates) == 0 {
+		t.Fatal("no @supports (animation-timing-function: linear(…)) gate found")
+	}
+	joined := strings.Join(gates, "\n")
+	if !regexp.MustCompile(`--ease-spring\s*:`).MatchString(joined) {
+		t.Error("the linear() @supports gate must upgrade --ease-spring")
+	}
+
+	outside := css
+	for _, g := range gates {
+		outside = strings.Replace(outside, g, "", 1)
+	}
+	// No raw linear() and no Open Props linear() spring/bounce reference may
+	// escape the gate ("linear(" never matches "linear-gradient(").
+	for _, marker := range []string{"linear(", "var(--ease-spring-", "var(--ease-bounce-"} {
+		if strings.Contains(outside, marker) {
+			t.Errorf("%q used outside the @supports linear() gate — engines without linear() would IACVT-degrade it to `ease`", marker)
+		}
+	}
+	// The ungated default must exist and be linear()-free (checked above).
+	if !regexp.MustCompile(`--ease-spring\s*:\s*[^;]+;`).MatchString(outside) {
+		t.Error("no ungated --ease-spring fallback declaration found (the cubic-bezier default)")
+	}
+}
+
+// TestMotionReducedMotionGuard verifies the reduced-motion invariant reaches
+// everything W3 added: the global star reset + the ::view-transition-* guard
+// still hold, and every scroll-driven animation (whose view() timeline IGNORES
+// the star reset's zeroed durations) is explicitly double-gated behind
+// `prefers-reduced-motion: no-preference` inside its @supports block.
+func TestMotionReducedMotionGuard(t *testing.T) {
+	css := stripComments(appCSS(t))
+
+	reduce := atRuleBlocks(css, "@media", "prefers-reduced-motion: reduce")
+	if len(reduce) == 0 {
+		t.Fatal("no @media (prefers-reduced-motion: reduce) guard found")
+	}
+	guard := strings.Join(reduce, "\n")
+	for _, want := range []string{
+		"animation-duration: .01ms !important",
+		"transition-duration: .01ms !important",
+		"::view-transition-old(*)",
+		"::view-transition-new(*)",
+		"animation: none !important",
+	} {
+		if !strings.Contains(guard, want) {
+			t.Errorf("reduced-motion guard lost %q", want)
+		}
+	}
+
+	// Scroll-driven animations: only inside @supports (animation-timeline:
+	// view()) blocks, each carrying its own no-preference media gate.
+	gates := atRuleBlocks(css, "@supports", "animation-timeline: view()")
+	outside := css
+	for _, g := range gates {
+		if !strings.Contains(g, "prefers-reduced-motion: no-preference") {
+			t.Error("a scroll-driven @supports block lacks the explicit prefers-reduced-motion: no-preference gate (the star reset can't zero a view() timeline)")
+		}
+		outside = strings.Replace(outside, g, "", 1)
+	}
+	if strings.Contains(outside, "animation-timeline") {
+		t.Error("animation-timeline used outside an @supports (animation-timeline: view()) gate")
+	}
+}
+
+// TestMotionNoGlobalViewTransitions is the grep-shaped guard for the ADR-0028/
+// ADR-0037 policy: htmx's globalViewTransitions flag must never be enabled
+// anywhere in the embedded templates or static JS (one transition runs per
+// document, so global wrapping drops hx-swap-oob / SSE swaps — REGRESSIONS
+// dead-end), the per-navigation opt-in stays, and no SSE listener carries a
+// transition modifier.
+func TestMotionNoGlobalViewTransitions(t *testing.T) {
+	globalRe := regexp.MustCompile(`globalViewTransitions\s*[:=]\s*true`)
+	for name, fsys := range map[string]fs.FS{"templateFS": templateFS, "staticFS": staticFS} {
+		err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			b, err := fs.ReadFile(fsys, path)
+			if err != nil {
+				return err
+			}
+			if globalRe.Match(b) {
+				t.Errorf("%s/%s enables htmx.config.globalViewTransitions — forbidden (ADR-0028/0037, REGRESSIONS global-VT dead-end)", name, path)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("walk %s: %v", name, err)
+		}
+	}
+
+	idx, err := fs.ReadFile(templateFS, "templates/index.html")
+	if err != nil {
+		t.Fatalf("read index.html: %v", err)
+	}
+	if !strings.Contains(string(idx), "transition:true") {
+		t.Error("the per-navigation transition:true opt-in is gone from index.html (ADR-0028)")
+	}
+	for _, tag := range regexp.MustCompile(`<[^>]*sse-swap=[^>]*>`).FindAllString(string(idx), -1) {
+		if strings.Contains(tag, "transition") {
+			t.Errorf("SSE listener wraps its swap in a transition (streaming must never transition): %s", tag)
 		}
 	}
 }

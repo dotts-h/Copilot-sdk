@@ -112,10 +112,11 @@ the highest-risk slice (could regress AA) — it lands first, behind the axe gat
       ladder (dark) + hue-tinted layered shadows (light), radius scale, glass/radial-glow atmosphere,
       restyle keycap/badge/button/card/input + the type scale.
       **Shipped** (PR #105; ADR-0038; see the issue's resolution).
-- [ ] **W3 · Motion & micro-interaction system** — [0065](0065-motion-microinteraction-system.md)
+- [x] **W3 · Motion & micro-interaction system** — [0065](0065-motion-microinteraction-system.md)
       (M/L; ADR-0037). `depends_on: [0063]`. `linear()` spring easings + motion/duration tokens; the
       micro-interaction catalogue (`@starting-style`/`allow-discrete`/`popover`); per-nav + scoped
       view-transitions (NOT global); reduced-motion guard extended.
+      **Shipped** — PR #106, ADR-0037 (see the issue's Resolution).
 - [ ] **W4 · Hero-surface polish — Chat + Telemetry** — [0066](0066-hero-surface-polish-chat-telemetry.md)
       (M). `depends_on: [0064, 0065]`. Apply the full system to the two hero surfaces (streaming chat,
       dashboard motion, palette delight) as the proof + showcase.

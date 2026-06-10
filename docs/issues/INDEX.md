@@ -78,5 +78,5 @@ issues are added or closed.
 | [0062](0062-epic-playful-polished-ui-motion-overhaul.md) | Epic: Playful-polished visual + motion overhaul — re-derived OKLCH palette, depth, spring motion system (roadmap v11) | open | medium | — | 0063, 0064, 0065, 0066, NEXT_FEATURES v11 |
 | [0063](0063-token-palette-foundation-oklch-layer-openprops.md) | Token & palette foundation — re-derive palette in OKLCH, @layer, Open Props (W1) | closed | medium | 0062 | depends_on: —, ADR-0036 |
 | [0064](0064-elevation-surface-component-restyle.md) | Elevation, surface & component restyle — luminance ladder + hue-tinted shadows, radius/space/type scales (W2) | closed | medium | 0062 | depends_on: 0063, ADR-0038, PR #105, REGRESSIONS #20 |
-| [0065](0065-motion-microinteraction-system.md) | Motion & micro-interaction system — linear() springs, motion tokens, CSS-only interaction catalogue (W3) | open | medium | 0062 | depends_on: 0063, ADR-0037 (reserved) |
+| [0065](0065-motion-microinteraction-system.md) | Motion & micro-interaction system — linear() springs, motion tokens, CSS-only interaction catalogue (W3) | closed | medium | 0062 | depends_on: 0063, ADR-0037, PR #106 |
 | [0066](0066-hero-surface-polish-chat-telemetry.md) | Hero-surface polish — apply the full system to Chat + Telemetry (W4) | open | low | 0062 | depends_on: 0064 0065 |
