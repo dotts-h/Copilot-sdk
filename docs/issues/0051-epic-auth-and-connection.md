@@ -31,10 +31,12 @@ have the masked `${VAR}` indirection (ADR-0020, no secret at rest) to reuse.
 
 ## Children
 
-- [ ] **A0 · Auth spike** (S). Document how `SDKClient` authenticates **today** — which method the
-      underlying CLI/SDK resolves, and what (if anything) we can influence. Output: a short findings
-      note + the seam A1 needs. (Recorded as a dead-end/decision input if a path proves closed.)
-- [ ] **A1 · Auth-method surface** (L; ADR). A Connection page to choose + see the **active** method:
+- [x] **A0 · Auth spike** (S) → issue [0067](0067-auth-spike-sdkclient-auth-today.md), PR #108.
+      Findings: A1 is buildable — explicit-token path exists (GitHubTokenEnv, ADR-0020 shape), the
+      CLI inherits our env (precedence applies transparently), public `auth.getStatus` is the read
+      seam. Dead-end recorded: no in-app device-flow initiation; method changes are choose-by-re-dial.
+- [ ] **A1 · Auth-method surface** (L; ADR) → issue [0068](0068-connection-page-auth-method-surface.md).
+      A Connection page to choose + see the **active** method:
       (a) device flow (current/auto), (b) a pasted token saved locally **masked via `${VAR}`**
       (ADR-0020 reuse — no secret at rest), (c) reuse the `gh` CLI token. Shows the resolved precedence
       and which credential is live; never persists a raw secret.
