@@ -62,10 +62,10 @@ table with the new priced columns (hence P1 `depends_on` P2-core — shared seam
       Prices cache-write (1.25× input) out of display-only `ExtraTokens` into priced `Usage`; reasoning
       is a subset of output (already priced) — surfaced, not double-charged; extends the per-model
       breakdown columns. **Shipped — PR #98.**
-- [ ] **P3 · Estimate-vs-reported reconciliation + drift** —
+- [x] **P3 · Estimate-vs-reported reconciliation + drift** —
       [0060](0060-estimate-vs-reported-reconciliation-drift.md) (M; no ADR). `depends_on: [0057]`.
       Telemetry row joining computed credits to `ReportedAIU`, ambered past an epsilon. Parallel lane
-      after 0057.
+      after 0057. **Shipped — PR #103.**
 - [ ] **P4 · Live price-book refresh (optional, opt-in)** —
       [0061](0061-live-price-book-refresh.md) (L; ADR-0035). `depends_on: [0059]`. Opt-in, cached,
       fail-open fetch of per-model multipliers; spike payload + network policy first.
@@ -85,7 +85,7 @@ Unblocked now (parallel lanes if seams are disjoint): **0057, 0058**.
       table-tested; reasoning is recognised as an already-priced subset of output, not double-charged
       (0059, PR #98, ADR-0034). The price book stays deterministic and migrates cleanly.
 - [x] The per-model breakdown is populated from history and guarded by an integration test. (0058, PR #96)
-- [ ] Estimate-vs-reported drift is visible on the Telemetry page.
+- [x] Estimate-vs-reported drift is visible on the Telemetry page, ambered past epsilon. (0060, PR #103)
 - [ ] Any live fetch is opt-in, cached, and fail-open — the binary still runs fully offline.
 - [ ] Each child: failing test first, ADR where it changes money math / a decision, `make lint &&
       make test` (floor 65%) + `make e2e` green, born in its PR, SemVer minor on the epic (`v0.3.0`).

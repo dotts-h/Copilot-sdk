@@ -73,7 +73,7 @@ issues are added or closed.
 | [0057](0057-authoritative-cost-first-metering.md) | Authoritative-cost-first metering — ReportedAIU is actual spend, price book is the estimate (P0) | closed | high | 0050 | depends_on: —, ADR-0033, REGRESSIONS #21, PR #95 |
 | [0058](0058-per-model-breakdown-from-ledger.md) | Per-model breakdown from the ledger + the missing integration test (P2-core) | closed | high | 0050 | depends_on: —, REGRESSIONS #3, PR #96 |
 | [0059](0059-price-cache-write-and-reasoning-tokens.md) | Price cache-write + reasoning tokens — promote out of display-only ExtraTokens into priced Usage (P1) | closed | high | 0050 | depends_on: 0057 0058, ADR-0034, PR #98 |
-| [0060](0060-estimate-vs-reported-reconciliation-drift.md) | Estimate-vs-reported reconciliation + drift on the Telemetry page (P3) | open | medium | 0050 | depends_on: 0057 |
+| [0060](0060-estimate-vs-reported-reconciliation-drift.md) | Estimate-vs-reported reconciliation + drift on the Telemetry page (P3) | closed | medium | 0050 | depends_on: 0057, PR #103 |
 | [0061](0061-live-price-book-refresh.md) | Live price-book refresh — opt-in, cached, fail-open fetch of per-model multipliers (P4) | open | low | 0050 | depends_on: 0059, ADR-0035 (reserved) |
 | [0062](0062-epic-playful-polished-ui-motion-overhaul.md) | Epic: Playful-polished visual + motion overhaul — re-derived OKLCH palette, depth, spring motion system (roadmap v11) | open | medium | — | 0063, 0064, 0065, 0066, NEXT_FEATURES v11 |
 | [0063](0063-token-palette-foundation-oklch-layer-openprops.md) | Token & palette foundation — re-derive palette in OKLCH, @layer, Open Props (W1) | closed | medium | 0062 | depends_on: —, ADR-0036 |
