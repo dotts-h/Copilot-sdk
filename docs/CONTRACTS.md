@@ -100,10 +100,18 @@ command** annotation: a hook ran an external command after a matching tool compl
 compact `convo.RoleHookRun` turn carrying the hook id + a bounded, **escaped**, UNTRUSTED output
 snippet — display-only telemetry, never fed back to the agent and never a gate.
 
-**`Event` shape** (`copilot.go`): `Type, SessionID, Text, Tool, ToolCall*, Usage, Context,
+**`Event` shape** (`copilot.go`): `Type, SessionID, AgentID, Text, Tool, ToolCall*, Usage, Context,
 Permission*, Input*, Plan*, Elicit*, Subagent*, Decision*, HookRun*, Err`. Pointer fields are set only for
 the matching event type (e.g. `Permission` for `EvPermission`, `Decision` for `EvToolDecision`,
-`HookRun` for `EvHookRun`). **`HookRun`** (`copilot.go`): `HookID, Command, Output, ExitCode,
+`HookRun` for `EvHookRun`). **`AgentID`** (epic 0069 S1, [ADR-0040](adr/0040-subagent-identity-instance-agentid-vs-spawn-toolcallid.md))
+is the **sub-agent instance** tag, threaded from the SDK envelope (`sdk.SessionEvent.AgentID`) onto
+**every** normalized event type — **empty for the root/main agent and session-level events, i.e. every
+pre-existing path (additive, no consumer breaks)**. The reducer **filters** on it: an event with a
+non-empty `AgentID` is **parked** (dropped in both `web.handleEvent` and the workflow-lane path) so a
+sub-agent's deltas/tools/usage never mutate the root transcript or meter the root agent's spend —
+until S2 gives them their own surface. It is the **instance** key; `SubagentInfo.ToolCallID` is the
+**spawn** key; the two join at the registry (ADR-0040). The lifecycle strip (`EvSubagentStart`/`End`,
+`AgentID` empty) is unaffected. **`HookRun`** (`copilot.go`): `HookID, Command, Output, ExitCode,
 TimedOut, Failed` — the resolved command line + its bounded untrusted output; `Output` is rendered
 through `html/template` auto-escaping (ADR-0001), never `trusted()` raw.
 `PermissionRequest` gained a `Reason` (the gating hook's message, shown on the gate). `SessionID` is empty for

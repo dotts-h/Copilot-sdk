@@ -7,7 +7,7 @@ group: 0069
 depends_on: []
 github: 111
 links:
-  adr: []
+  adr: [0040]
   prs: []
   issues: [0069]
   regression:
@@ -42,17 +42,20 @@ S1 threads the tag through the seam, UI-free:
 
 ## Acceptance
 
-- [ ] `copilot.Event.AgentID` is set from the envelope on every event type the
+- [x] `copilot.Event.AgentID` is set from the envelope on every event type the
       normalizer emits; table-test: each SDK event type with/without envelope AgentID →
       expected normalized event (extends the existing translation-correctness suite).
-- [ ] Sub-agent-tagged `EvMessageDelta`/`EvToolStart`/`EvUsage` no longer mutate the
+      `TestHandlerStampsAgentID` + `TestHandlerLeavesAgentIDEmptyForRootAgent`.
+- [x] Sub-agent-tagged `EvMessageDelta`/`EvToolStart`/`EvUsage` no longer mutate the
       root transcript or the session meter (reducer test against the mock).
-- [ ] `MockClient`/demo emit tagged events; the demo lane runs a synthetic sub-agent
-      end-to-end offline.
-- [ ] ADR records the identity model (AgentID vs ToolCallID join).
-- [ ] CONTRACTS §2 (event vocabulary) updated additively; no existing event consumer
+      `TestAgentTaggedEventsDoNotMutateRootTranscript` (+ `TestRootEventsStillMutateTranscript`).
+- [x] `MockClient`/demo emit tagged events; the demo lane runs a synthetic sub-agent
+      end-to-end offline. `streamDemoReply` streams a tagged delta/tool/usage under
+      `sub-explorer-1`; e2e asserts the stream is parked, not leaked.
+- [x] ADR records the identity model (AgentID vs ToolCallID join). ADR-0040.
+- [x] CONTRACTS §2 (event vocabulary) updated additively; no existing event consumer
       breaks (the seam is additive — `AgentID` empty for all current paths).
-- [ ] Gates green: `make lint && make test` (floor 65%), `make e2e`.
+- [x] Gates green: `make lint && make test` (floor 65%), `make e2e`.
 
 ## Out of scope (later children)
 

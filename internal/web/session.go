@@ -29,6 +29,17 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Park sub-agent-tagged events (epic 0069 S1, ADR-0040). The SDK streams a
+	// sub-agent's deltas/tools/usage tagged with its instance AgentID; folding them
+	// into the root transcript renders a sub-agent's text in the user-facing bubble
+	// and meters its spend as the root agent's. Until S2 gives them their own
+	// surface they are dropped here — for BOTH the chat and the workflow-lane paths
+	// (this guard precedes the lane router below). The sub-agent LIFECYCLE strip
+	// (EvSubagentStart/End, AgentID empty — session-level events) is unaffected.
+	if e.AgentID != "" {
+		return nil
+	}
+
 	// While a multi-agent workflow run is in flight, its sub-runs' events feed the
 	// lanes surface (item 2.1) rather than the main chat transcript.
 	if s.run != nil && !s.run.done {
