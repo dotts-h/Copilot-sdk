@@ -33,7 +33,7 @@ func TestResolveAuthMethod(t *testing.T) {
 		{"gh method, gh errors, degrades to auto", "gh", "", ghErr, "", true},
 		{"gh method, empty token, degrades to auto", "gh", "", ghEmpty, "", true},
 		{"gh method, nil seam, degrades to auto", "gh", "", nil, "", true},
-		{"unknown method behaves as auto", "bogus", "ghp_cfg", nil, "ghp_cfg", false},
+		{"unknown method falls through to the auto path (configured token wins)", "bogus", "ghp_cfg", nil, "ghp_cfg", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

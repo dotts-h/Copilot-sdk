@@ -231,6 +231,68 @@ func TestConnectionTokenPasteRequiresAVarName(t *testing.T) {
 	}
 }
 
+func TestConnectionSavePreservesAbsentFields(t *testing.T) {
+	s, _, _ := newConnectionServer(t)
+	s.config.GitHubTokenEnv = "KEEP_ME"
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	// A method-only POST (no githubTokenEnv field) must not wipe the var name.
+	resp, err := http.PostForm(srv.URL+"/connection", url.Values{"authMethod": {"gh"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if s.config.GitHubTokenEnv != "KEEP_ME" || s.config.AuthMethod != "gh" {
+		t.Errorf("absent field wiped: var=%q method=%q", s.config.GitHubTokenEnv, s.config.AuthMethod)
+	}
+}
+
+func TestConnectionSaveRejectsAnUnresolvableVarName(t *testing.T) {
+	s, _, _ := newConnectionServer(t)
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	resp, err := http.PostForm(srv.URL+"/connection", url.Values{
+		"authMethod": {"token"}, "githubTokenEnv": {"MY TOKEN"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "can&#39;t contain spaces") {
+		t.Errorf("expected the var-name shape error, got: %s", body)
+	}
+	if s.config.GitHubTokenEnv != "" {
+		t.Errorf("invalid var name persisted: %q", s.config.GitHubTokenEnv)
+	}
+}
+
+// The paste lands in the process env only AFTER the config save succeeds —
+// the reverse order would orphan the secret in the environment (or leave it
+// live under a rolled-back config) when the save fails.
+func TestConnectionPasteNotStoredWhenSaveFails(t *testing.T) {
+	s, _, _ := newConnectionServer(t)
+	called := false
+	s.setEnv = func(string, string) error { called = true; return nil }
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	resp, err := http.PostForm(srv.URL+"/connection", url.Values{
+		"authMethod":     {"device"}, // rejected by config.Validate → editConfig rolls back
+		"githubTokenEnv": {"MY_TOKEN"},
+		"pasteToken":     {"ghp_must_not_land"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if called {
+		t.Error("a failed config save must not store the pasted token in the env")
+	}
+}
+
 // precedenceRows is the pure ladder renderer: the configured method marks its
 // rung; auto marks the explicit-token rung only when a var is configured.
 func TestPrecedenceRows(t *testing.T) {

@@ -21,7 +21,7 @@ import (
 // the live credential renders separately from AuthStatus).
 type authRung struct {
 	Label  string
-	Note   string
+	Desc   string
 	Active bool
 }
 
@@ -31,12 +31,12 @@ type authRung struct {
 // resolves top-down and only the live status says where it landed.
 func precedenceRows(method, tokenEnv string) []authRung {
 	rows := []authRung{
-		{Label: "Explicit token", Note: "the configured ${VAR}, injected as COPILOT_SDK_AUTH_TOKEN — never written to disk"},
-		{Label: "COPILOT_GITHUB_TOKEN", Note: "process env, inherited by the CLI"},
-		{Label: "GITHUB_TOKEN", Note: "process env, inherited by the CLI"},
-		{Label: "GH_TOKEN", Note: "process env, inherited by the CLI"},
-		{Label: "gh CLI token", Note: "an authenticated GitHub CLI"},
-		{Label: "Device-flow login", Note: "the copilot CLI's stored session"},
+		{Label: "Explicit token", Desc: "the configured ${VAR}, injected as COPILOT_SDK_AUTH_TOKEN — never written to disk"},
+		{Label: "COPILOT_GITHUB_TOKEN", Desc: "process env, inherited by the CLI"},
+		{Label: "GITHUB_TOKEN", Desc: "process env, inherited by the CLI"},
+		{Label: "GH_TOKEN", Desc: "process env, inherited by the CLI"},
+		{Label: "gh CLI token", Desc: "an authenticated GitHub CLI"},
+		{Label: "Device-flow login", Desc: "the copilot CLI's stored session"},
 	}
 	switch {
 	case method == "token", method == "" && tokenEnv != "":
@@ -64,10 +64,8 @@ func (s *Server) renderConnection(note, errMsg string) string {
 	s.hub.forgeMu.Unlock()
 
 	var warns []string
-	if method == "gh" {
-		if _, err := s.lookPath("gh"); err != nil {
-			warns = append(warns, "gh not found on PATH — the gh method will degrade to auto at the next launch")
-		}
+	if method == "gh" && !s.commandAvailable("gh") {
+		warns = append(warns, "gh not found on PATH — the gh method will degrade to auto at the next launch")
 	}
 	tokenVarState := "" // "", "set", "unset" — the value itself never renders
 	if tokenEnv != "" {
@@ -92,11 +90,17 @@ func (s *Server) renderConnection(note, errMsg string) string {
 	return frag("connectionPage", data)
 }
 
-// handleConnectionSave applies the chooser form: an optional paste lands in
-// the process env (never in config, never echoed back), then the method + var
-// name persist through editConfig (validate + rollback).
+// handleConnectionSave applies the chooser form: the method + var name persist
+// through editConfig (validate + rollback) FIRST, then an optional paste lands
+// in the process env (never in config, never echoed back). Config-before-env
+// ordering matters: the reverse would orphan the secret in the environment —
+// or leave it live under a rolled-back config — when the save fails. A field
+// the form didn't carry is preserved, not wiped (the settings-page
+// preserve-on-absent discipline), so a method-only POST can't clear the var.
 func (s *Server) handleConnectionSave(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
+	_, hasMethod := r.Form["authMethod"]
+	_, hasVarField := r.Form["githubTokenEnv"]
 	method := strings.TrimSpace(r.FormValue("authMethod"))
 	if method == "auto" {
 		method = "" // the form's explicit label for the default chain
@@ -104,27 +108,38 @@ func (s *Server) handleConnectionSave(w http.ResponseWriter, r *http.Request) {
 	varName := strings.TrimSpace(r.FormValue("githubTokenEnv"))
 	paste := strings.TrimSpace(r.FormValue("pasteToken"))
 
-	if paste != "" {
-		if varName == "" {
-			s.writePartial(w, s.renderConnection("", "name the env var that will hold the pasted token — only the name is stored"))
-			return
-		}
-		if err := s.setEnv(varName, paste); err != nil {
-			s.writePartial(w, s.renderConnection("", "store token in the process env: "+err.Error()))
-			return
-		}
+	if paste != "" && varName == "" {
+		s.writePartial(w, s.renderConnection("", "name the env var that will hold the pasted token — only the name is stored"))
+		return
+	}
+	// An env-var name with whitespace or '=' can never resolve (os.Getenv
+	// would always return empty), so the token method would silently degrade
+	// forever. Reject here rather than in config.Validate, where it could
+	// brick an existing file at Load.
+	if strings.ContainsAny(varName, " \t\n=") {
+		s.writePartial(w, s.renderConnection("", "the env var name can't contain spaces or '='"))
+		return
 	}
 	err := s.editConfig(func(c *config.Config) {
-		c.AuthMethod = method
-		c.GitHubTokenEnv = varName
+		if hasMethod {
+			c.AuthMethod = method
+		}
+		if hasVarField {
+			c.GitHubTokenEnv = varName
+		}
 	})
 	if err != nil {
 		s.writePartial(w, s.renderConnection("", err.Error()))
 		return
 	}
-	note := "saved — applies at next launch"
+	const appliesNext = "applies at next launch"
+	note := "saved — " + appliesNext
 	if paste != "" {
-		note = "saved — the token lives in this process only (export it in your shell to survive a restart); applies at next launch"
+		if err := s.setEnv(varName, paste); err != nil {
+			s.writePartial(w, s.renderConnection("", "saved, but storing the token in the process env failed: "+err.Error()))
+			return
+		}
+		note = "saved — the token lives in this process only (export it in your shell to survive a restart); " + appliesNext
 	}
 	s.writePartial(w, s.renderConnection(note, ""))
 }
