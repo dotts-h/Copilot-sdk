@@ -38,4 +38,5 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0032 | [PostToolUse hook command execution: a bounded local command with untrusted, display-only output](0032-posttooluse-hook-command-execution-untrusted-output.md) | accepted |
 | 0033 | [ReportedAIU is the source of truth for actual spend; the price book is the estimate/fallback](0033-reportedaiu-is-source-of-truth-for-actual-spend-price-book-is-the-estimate.md) | accepted |
 | 0034 | [Price cache-write tokens (additive, 1.25× input); reasoning is a subset of output, not a second charge](0034-price-cache-write-additive-reasoning-is-output-subset.md) | accepted |
+| 0035 | [No live price-book refresh — the models catalog carries no pricing; the static book + ReportedAIU already self-heal](0035-no-live-price-book-refresh-catalog-has-no-pricing.md) | accepted |
 | 0036 | [OKLCH palette re-derivation (terracotta kept), the `@layer` ordering contract, vendored Open Props subset](0036-oklch-palette-rederivation-layer-contract-vendored-open-props.md) | accepted |
