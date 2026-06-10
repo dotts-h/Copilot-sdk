@@ -190,11 +190,30 @@ func TestFirePostToolHooksEmitsPerHook(t *testing.T) {
 		return name + " ran", 0, nil
 	}
 	c := newExecTestClient(run, nil)
-	c.firePostToolHooks("s9", []ctxforge.Hook{cmdHook()}, "/ws")
+	c.firePostToolHooks("s9", "", []ctxforge.Hook{cmdHook()}, "/ws")
 	select {
 	case e := <-c.events:
 		if e.Type != EvHookRun || e.SessionID != "s9" || e.HookRun.HookID != "fmt" {
 			t.Fatalf("event = %+v, want EvHookRun for fmt on s9", e)
+		}
+	default:
+		t.Fatal("firePostToolHooks emitted no event")
+	}
+}
+
+// A hook fired by a SUB-AGENT's tool completion must carry the sub-agent's
+// AgentID — otherwise the EvHookRun arrives untagged and slips past the reducer's
+// parking guard into the root transcript (epic 0069 S1, ADR-0040).
+func TestFirePostToolHooksStampsAgentID(t *testing.T) {
+	run := func(_ context.Context, _, name string, _ []string) (string, int, error) {
+		return name + " ran", 0, nil
+	}
+	c := newExecTestClient(run, nil)
+	c.firePostToolHooks("s9", "agent-7", []ctxforge.Hook{cmdHook()}, "/ws")
+	select {
+	case e := <-c.events:
+		if e.AgentID != "agent-7" {
+			t.Fatalf("EvHookRun AgentID = %q, want agent-7 (sub-agent hook output must be parkable)", e.AgentID)
 		}
 	default:
 		t.Fatal("firePostToolHooks emitted no event")
@@ -237,6 +256,30 @@ func TestPostToolHookFiresOnToolCompletion(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("a toolKind=write post hook did not fire on an edit completion")
+	}
+
+	// The same chain for a SUB-AGENT's tool: the envelope tag must thread through
+	// the async hook fire onto the EvHookRun (drain events until it arrives).
+	sub := "agent-7"
+	h(sdk.SessionEvent{AgentID: &sub, Data: &sdk.ToolExecutionStartData{ToolCallID: "t2", ToolName: "edit", Arguments: map[string]any{"path": "main.go"}}})
+	h(sdk.SessionEvent{AgentID: &sub, Data: &sdk.ToolExecutionCompleteData{ToolCallID: "t2", Success: true}})
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case e := <-c.events:
+			if e.Type != EvHookRun || e.HookRun == nil {
+				continue // tool start/end events from both calls
+			}
+			if e.AgentID == "agent-7" {
+				return // tagged hook run observed — done
+			}
+			if e.AgentID == "" && e.SessionID == "s1" {
+				continue // the root-agent hook run from the first completion
+			}
+			t.Fatalf("EvHookRun AgentID = %q, want agent-7", e.AgentID)
+		case <-deadline:
+			t.Fatal("no AgentID-tagged EvHookRun arrived for the sub-agent's tool completion")
+		}
 	}
 }
 

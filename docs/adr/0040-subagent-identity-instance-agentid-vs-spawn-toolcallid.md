@@ -86,6 +86,14 @@ root agent is the empty pointer.
   a synthetic instance id distinct from the spawn's `ToolCallID`, so the whole epic
   is exercised end-to-end with no live runtime — and the demo proves the parking
   filter (the strip shows the sub-agent busy while its stream is held back).
+- **Callback-path events remain untagged — an SDK limitation, not a choice.**
+  `EvPermission`/`EvUserInput`/`EvElicitation`/`EvToolDecision` flow through SDK
+  bridge callbacks (`handlers.go`) whose invocation types carry **no** envelope
+  `AgentID`, so a sub-agent's permission/input request (if the SDK ever raises one
+  through those callbacks) would arrive untagged and hit the root surface. The
+  issue charter scopes S1 to "where the SDK provides it"; stamp these the moment
+  the SDK exposes the tag on the callback payloads. `EvHookRun` IS tagged: the
+  PostToolUse fire inherits the completing tool's envelope tag.
 - **Revisit if the SDK exposes the pairing directly.** Should a future SDK event
   carry both keys (or a `parentToolCallId` on the tagged stream), the registry's
   chronological correlation is replaced by the authoritative mapping; this ADR's

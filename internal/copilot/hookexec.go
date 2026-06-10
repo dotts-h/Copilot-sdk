@@ -70,11 +70,15 @@ func (c *SDKClient) hookTimeoutOrDefault() time.Duration {
 // tool call and emits an EvHookRun per hook. It runs in its own goroutine (off the
 // SDK event-handler path) so a hook command's latency never blocks event delivery;
 // the resulting annotations land in the timeline asynchronously, which is correct
-// for display-only telemetry. Each event is stamped with the session id.
-func (c *SDKClient) firePostToolHooks(sid string, hooks []ctxforge.Hook, workspace string) {
+// for display-only telemetry. Each event is stamped with the session id and the
+// completing tool's agent tag — a SUB-AGENT's hook output must carry its AgentID
+// or it would slip past the reducer's parking guard into the root transcript
+// (epic 0069 S1, ADR-0040).
+func (c *SDKClient) firePostToolHooks(sid, agentID string, hooks []ctxforge.Hook, workspace string) {
 	for _, h := range hooks {
 		e := c.runPostToolHook(h, workspace)
 		e.SessionID = sid
+		e.AgentID = agentID
 		c.emit(e)
 	}
 }

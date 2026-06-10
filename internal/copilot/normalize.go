@@ -135,7 +135,7 @@ func (c *SDKClient) makeHandler(sid string) func(sdk.SessionEvent) {
 			// off this event-handler goroutine so a command's latency never blocks
 			// event delivery; each emits an EvHookRun annotation when it finishes.
 			if cmds := ctxforge.PostToolUseCommands(pol.hooks, meta.kind, meta.target, pol.workspace, pol.mode); len(cmds) > 0 {
-				go c.firePostToolHooks(sid, cmds, pol.workspace)
+				go c.firePostToolHooks(sid, agentID, cmds, pol.workspace)
 			}
 		case *sdk.SessionUsageInfoData:
 			emit(Event{Type: EvContextWindow, Context: ContextInfo{
