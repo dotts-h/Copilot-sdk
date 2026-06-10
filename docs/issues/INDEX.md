@@ -80,5 +80,5 @@ issues are added or closed.
 | [0064](0064-elevation-surface-component-restyle.md) | Elevation, surface & component restyle — luminance ladder + hue-tinted shadows, radius/space/type scales (W2) | closed | medium | 0062 | depends_on: 0063, ADR-0038, PR #105, REGRESSIONS #20 |
 | [0065](0065-motion-microinteraction-system.md) | Motion & micro-interaction system — linear() springs, motion tokens, CSS-only interaction catalogue (W3) | closed | medium | 0062 | depends_on: 0063, ADR-0037, PR #106 |
 | [0066](0066-hero-surface-polish-chat-telemetry.md) | Hero-surface polish — apply the full system to Chat + Telemetry (W4) | closed | low | 0062 | depends_on: 0064 0065, PR #107 — closes the epic |
-| [0067](0067-auth-spike-sdkclient-auth-today.md) | Auth spike — how SDKClient authenticates today + the seam a Connection page needs (A0) | open | medium | 0051 | depends_on: — |
+| [0067](0067-auth-spike-sdkclient-auth-today.md) | Auth spike — how SDKClient authenticates today + the seam a Connection page needs (A0) | closed | medium | 0051 | depends_on: —, PR #108 |
 | [0068](0068-connection-page-auth-method-surface.md) | Connection page — see + choose the active auth method: device flow / masked ${VAR} token / gh reuse (A1) | open | medium | 0051 | depends_on: 0067 |

@@ -1,18 +1,21 @@
 ---
 id: 0067
 title: Auth spike — how SDKClient authenticates today and the seam a Connection page needs (roadmap v10, A0)
-status: open
+status: closed
 severity: medium
 group: 0051
 depends_on: []
 github:
 links:
   adr:
-  prs: []
+  prs: [108]
   issues: [0051]
   regression:
 assets: []
 ---
+
+> **Closed 2026-06-10 — spike complete; findings below are the decision input for A1
+> ([0068](0068-connection-page-auth-method-surface.md)). Shipped in PR #108. No code.**
 
 ## Summary
 
