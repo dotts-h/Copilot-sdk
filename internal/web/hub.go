@@ -48,6 +48,10 @@ type Hub struct {
 	// and the secrets preflight (ADR-0020), behind a seam so tests inject a fake
 	// env; defaults to os.Getenv.
 	lookupEnv func(string) string
+	// setEnv stores the Connection page's pasted token in the process env — the
+	// only place it ever lands (no secret at rest, ADR-0039) — behind a seam so
+	// tests never touch the real environment; defaults to os.Setenv.
+	setEnv func(string, string) error
 
 	// forgeMu serializes mutation of (and reads against mutation of) the shared
 	// forge and config across all sessions.
@@ -102,7 +106,7 @@ func New(opts Options) *Hub {
 		client: opts.Client, forge: opts.Forge, config: opts.Config, meter: opts.Meter, spend: opts.Spend, runs: opts.Runs,
 		allowance: allowance, warnFraction: warnFraction, hardCap: hardCap,
 		baseSpec: opts.Spec, baseAgentID: baseAgentID, logger: lg, demo: opts.Demo, workdir: workdir,
-		lookPath: exec.LookPath, lookupEnv: os.Getenv,
+		lookPath: exec.LookPath, lookupEnv: os.Getenv, setEnv: os.Setenv,
 		sessions: map[string]*Server{}, byCopilot: map[string]*Server{},
 	}
 	go h.pump()
@@ -122,7 +126,7 @@ func (h *Hub) newSession(id string) *Server {
 		// always supply one).
 		sessionMeter: telemetry.NewMeter(h.meter.PriceBook()),
 		allowance:    h.allowance, warnFraction: h.warnFraction, hardCap: h.hardCap,
-		lookPath: h.lookPath, lookupEnv: h.lookupEnv,
+		lookPath: h.lookPath, lookupEnv: h.lookupEnv, setEnv: h.setEnv,
 		logger: h.logger, demo: h.demo,
 		spec:           h.baseSpec,
 		agentID:        h.baseAgentID,
@@ -289,6 +293,7 @@ func (h *Hub) Handler() http.Handler {
 	route("POST /sessions/new", (*Server).handleSessionNew)
 	route("POST /sessions/{id}/resume", (*Server).handleSessionResume)
 	route("POST /sessions/{id}/delete", (*Server).handleSessionDelete)
+	route("POST /connection", (*Server).handleConnectionSave)
 	route("POST /settings", (*Server).handleSettingsSave)
 	route("POST /models/{id}/select", (*Server).handleModelSelect)
 	route("POST /effort/{value}/select", (*Server).handleEffortSelect)

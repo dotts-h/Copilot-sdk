@@ -12,7 +12,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/dotts-h/copilot-sdk/internal/config"
@@ -130,6 +132,11 @@ func demoClient(forge *ctxforge.Forge, spec *copilot.SessionSpec) (copilot.Clien
 	// Pin the demo to a listed model so the picker and reasoning-effort row are
 	// self-consistent (and the statusline shows a real model).
 	spec.Model, spec.ReasoningEffort = "gpt-5", "medium"
+	// A deterministic authenticated credential so the Connection page renders
+	// the full live-status shape in demo / e2e (ADR-0039).
+	mock.Auth = copilot.AuthStatus{
+		Authenticated: true, Method: "device flow (demo)", Login: "demo-user", Host: "github.com",
+	}
 	// Seed a couple of persisted sessions (with history) so the Sessions page
 	// has something to list, resume, and delete in demo / e2e.
 	mock.Sessions = []copilot.SessionMeta{
@@ -216,9 +223,10 @@ func seedRuns(store *telemetry.RunStore) {
 // dialClient starts the SDK-backed client, returning a mock if the runtime is
 // unavailable so the app still launches.
 func dialClient(cfg *config.Config) (copilot.Client, func()) {
-	// Prefer the already-logged-in `copilot` CLI session; only fall back to an
-	// explicit token when one is configured via GitHubTokenEnv.
-	token, useLoggedInUser := copilot.ResolveAuth(cfg.GitHubToken())
+	// Dispatch the configured auth method (Connection page, ADR-0039): "gh"
+	// resolves a token from the GitHub CLI in-memory, "token"/auto use the
+	// ${GitHubTokenEnv} token when it resolves, else the logged-in CLI session.
+	token, useLoggedInUser := copilot.ResolveAuthMethod(cfg.AuthMethod, cfg.GitHubToken(), ghCLIToken)
 	c, err := copilot.NewSDKClient(context.Background(), copilot.Options{
 		GitHubToken:     token,
 		UseLoggedInUser: useLoggedInUser,
@@ -230,6 +238,21 @@ func dialClient(cfg *config.Config) (copilot.Client, func()) {
 		return mock, func() { _ = mock.Close() }
 	}
 	return c, func() { _ = c.Close() }
+}
+
+// ghCLIToken resolves a token from an authenticated GitHub CLI (`gh auth
+// token`), bounded so a hung gh can't stall launch. The token stays in memory
+// on its way to the SDK options — never on disk (ADR-0039). gh missing or
+// unauthenticated returns an error; ResolveAuthMethod degrades that to the
+// logged-in CLI session and the Connection page preflight surfaces it.
+func ghCLIToken() (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "gh", "auth", "token").Output()
+	if err != nil {
+		return "", fmt.Errorf("gh auth token: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // ServeLocal binds an ephemeral loopback port and serves h on it in a

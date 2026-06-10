@@ -26,6 +26,7 @@ no SDK import is allowed on the consumer side (see CONVENTIONS architecture rule
 | `RespondPlan(id, approved, action, feedback) error` | Answer a pending `EvPlanReview`. |
 | `RespondElicit(id, action, content) error` | Answer a pending `EvElicitation`; `action` ∈ {accept, decline, cancel}. |
 | `ListModels(ctx) ([]ModelInfo, error)` | Models available to the account. |
+| `AuthStatus(ctx) (AuthStatus, error)` | The runtime's live credential (`auth.getStatus`): authenticated?, opaque method label, login, host. Read-only — the runtime exposes no auth write surface; changing the method is a config edit applied at the next dial. `MockClient` returns a settable canned status. — see [ADR-0039](adr/0039-connection-page-auth-method-via-config-status-via-auth-getstatus.md) |
 | `ListSessions(ctx) ([]SessionMeta, error)` | Persisted sessions, most-recent first. |
 | `ResumeSession(ctx, sessionID, SessionSpec) (id, error)` | Reattach to a persisted session, wiring the same handlers as `CreateSession`; runtime restores full history. — see [ADR-0002](adr/0002-restore-sdk-session-resume-for-session-pick-start-continue.md) |
 | `SessionHistory(ctx, sessionID) ([]Event, error)` | A session's conversation as normalized events, for rebuilding the transcript. |
@@ -155,6 +156,7 @@ for the streaming/turn routes (`/events`, `/send`, the `/perm|ask|plan|elicit/{i
 | Hooks | `GET /hooks/new` · `GET /hooks/{id}/edit` · `POST /hooks` · `POST /hooks/preflight` · `POST /hooks/command-preflight` · `POST /hooks/{id}` · `POST /hooks/{id}/toggle` · `POST /hooks/{id}/delete` |
 | Sessions | `POST /sessions/new` · `POST /sessions/{id}/resume` · `POST /sessions/{id}/delete` |
 | Settings | `POST /settings` · `POST /models/{id}/select` · `POST /effort/{value}/select` |
+| Connection | `POST /connection` |
 
 `/instructions/import`, `/agents/{id}/select`, and the `/sessions/*` routes are the
 phase-2–4 additions. — see [ADR-0002](adr/0002-restore-sdk-session-resume-for-session-pick-start-continue.md), [ADR-0003](adr/0003-claude-cli-style-agents-built-in-chat-agent-and-per-agent-tool-allowlist.md)
@@ -376,6 +378,19 @@ additive UI over an existing config field, with the live-apply seam an obvious m
 the startup price-book build (`internal/bootstrap`). — see
 [ADR-0008](adr/0008-budget-guardrails-soft-warn-and-hard-cap-gate.md)
 
+The **Connection page** (`GET /page/connection`, `POST /connection`, A1/issue 0068) is the
+auth surface: the live credential (the seam's read-only `AuthStatus`, §1), the credential-
+precedence ladder with the configured rung marked, and the method chooser —
+`config.AuthMethod` ∈ {auto, token, gh} persisted through `editConfig` and **applied at the
+next launch** (no runtime auth write surface, no live re-dial). A pasted token lands **only**
+in the process environment (the `setEnv` seam, default `os.Setenv`); config persists the
+`${VAR}` **name** (`GitHubTokenEnv`), never the value, and the value never renders — no
+secret at rest (ADR-0020). Preflights make a method that will degrade visible: `gh` missing
+on PATH (the `lookPath` seam) and the token var unset in this process (the `lookupEnv` seam).
+Device flow cannot start in-app (no SDK surface); the page says to run `copilot` in a
+terminal and relaunch. — see
+[ADR-0039](adr/0039-connection-page-auth-method-via-config-status-via-auth-getstatus.md)
+
 The **Sessions page** (`GET /page/sessions`) lists the runtime's persisted sessions
 (title + relative age, with resume/delete controls) and — when a spend store is wired —
 a **per-session cost cell** (G2): `sessionRows` joins `SessionShares(s.spend.Records())`
@@ -492,6 +507,13 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   overrides (`DefaultPriceBook`). `TelemetryConfig.WarnFraction` (soft-warn threshold,
   `[0,1]`) and `TelemetryConfig.HardCapCredits` (absolute credit ceiling, `>= 0`,
   `0` = off) back the budget guardrails. — see [ADR-0008](adr/0008-budget-guardrails-soft-warn-and-hard-cap-gate.md)
+  `Config.AuthMethod` (`authMethod`, omitempty — older files read clean) selects how the app
+  authenticates at dial time: `""` (auto: the CLI's own chain), `"token"` (the explicit
+  `${GitHubTokenEnv}` token), `"gh"` (a token resolved from `gh auth token`, in-memory only).
+  Membership-only validation; a method that can't produce a token degrades to auto at dial
+  (`copilot.ResolveAuthMethod`) and the Connection page preflight surfaces it. `GitHubTokenEnv`
+  stays a NAME, never a token (no secret at rest). — see
+  [ADR-0039](adr/0039-connection-page-auth-method-via-config-status-via-auth-getstatus.md)
   `TelemetryConfig.PriceOverrides` (`priceOverrides`, omitempty) maps a model id to a
   `[]float64` of USD-per-million-token rates: `[input, cached, output]` and an **optional
   4th** `cacheWrite` element (ADR-0034). It is applied over `DefaultPriceBook` at startup

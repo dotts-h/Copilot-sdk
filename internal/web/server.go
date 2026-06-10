@@ -57,8 +57,12 @@ type Server struct {
 	// and in the secrets preflight (ADR-0020), behind a seam so tests inject a
 	// fake env without touching the process environment (defaults to os.Getenv).
 	lookupEnv func(string) string
-	logger    *log.Logger
-	demo      bool
+	// setEnv stores the Connection page's pasted token in the process env (its
+	// only landing place — ADR-0039), seam-injected in tests (defaults to
+	// os.Setenv).
+	setEnv func(string, string) error
+	logger *log.Logger
+	demo   bool
 
 	mu          sync.Mutex
 	spec        copilot.SessionSpec // per-session model/effort (mutable via /model, /agent)

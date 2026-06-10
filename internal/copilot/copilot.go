@@ -225,6 +225,19 @@ type ModelInfo struct {
 	SupportedReasoningEfforts []string
 }
 
+// AuthStatus is the normalized live credential from the runtime's
+// auth.getStatus: whether a credential is live and, when known, which kind,
+// for whom, and against which host. Method is OPAQUE display text (the SDK's
+// AuthType vocabulary is unverified — issue 0067), never an enum to switch on.
+// Read-only: the runtime exposes no auth write surface. — ADR-0039.
+type AuthStatus struct {
+	Authenticated bool
+	Method        string // the SDK's AuthType, e.g. an OAuth/token/gh label
+	Login         string
+	Host          string
+	Detail        string // the SDK's StatusMessage
+}
+
 // ToolCall is the normalized, displayable view of a single tool execution as it
 // moves through start → progress → completion. The same ID threads all three
 // phases so the UI can update one timeline entry in place.
@@ -317,6 +330,10 @@ type Client interface {
 	RespondElicit(id, action string, content map[string]any) error
 	// ListModels returns the models available to the account.
 	ListModels(ctx context.Context) ([]ModelInfo, error)
+	// AuthStatus reports the live credential (auth.getStatus): authenticated?,
+	// method, login, host. Read-only — changing the method is a config edit
+	// applied at the next dial (ADR-0039).
+	AuthStatus(ctx context.Context) (AuthStatus, error)
 	// ListSessions returns metadata for the persisted sessions, most-recent first.
 	ListSessions(ctx context.Context) ([]SessionMeta, error)
 	// ResumeSession reattaches to a persisted session by id (wiring the same event

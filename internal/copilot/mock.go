@@ -28,6 +28,11 @@ type MockClient struct {
 	Models        []ModelInfo
 	ListModelsErr error
 
+	// Auth is returned by AuthStatus; tests set it to drive the Connection page.
+	// The default is an honest unauthenticated offline status (ADR-0039).
+	Auth    AuthStatus
+	AuthErr error
+
 	// Session-management state, settable by tests to drive the session picker.
 	Sessions        []SessionMeta      // returned by ListSessions
 	Histories       map[string][]Event // returned by SessionHistory, keyed by id
@@ -41,7 +46,10 @@ type MockClient struct {
 
 // NewMockClient returns a ready mock with a buffered event channel.
 func NewMockClient() *MockClient {
-	return &MockClient{events: make(chan Event, 256)}
+	return &MockClient{
+		events: make(chan Event, 256),
+		Auth:   AuthStatus{Method: "offline mock", Detail: "copilot runtime not connected"},
+	}
 }
 
 // CreateSession implements Client. Each call returns a DISTINCT session id
@@ -165,6 +173,13 @@ func (m *MockClient) ListModels(context.Context) ([]ModelInfo, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.Models, m.ListModelsErr
+}
+
+// AuthStatus implements Client.
+func (m *MockClient) AuthStatus(context.Context) (AuthStatus, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.Auth, m.AuthErr
 }
 
 // ListSessions implements Client.
