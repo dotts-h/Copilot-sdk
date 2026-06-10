@@ -976,7 +976,7 @@ button.add:active, button.abort:active, .effort:active, .window:active,
 @keyframes skeleton-pulse { 50% { --mix-soft: 18%; } }
 .skeleton {
   background: color-mix(in oklch, var(--dim) var(--mix-soft), transparent);
-  border-radius: 6px;
+  border-radius: var(--radius-2);
   min-height: 1em;
   animation: skeleton-pulse var(--dur-4) var(--ease) infinite;
 }
