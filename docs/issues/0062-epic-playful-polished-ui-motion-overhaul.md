@@ -107,10 +107,11 @@ the highest-risk slice (could regress AA) — it lands first, behind the axe gat
       introduce `@layer`, vendor Open Props (or a curated easings/animations subset), add
       `color-mix()` state tints + `@property` animatable tokens. The foundation every later child builds on.
       **Shipped** (ADR-0036; see the issue's close-out).
-- [ ] **W2 · Elevation, surface & component restyle** — [0064](0064-elevation-surface-component-restyle.md)
-      (L; ADR if a new dark/light elevation model is decided). `depends_on: [0063]`. Surface luminance
+- [x] **W2 · Elevation, surface & component restyle** — [0064](0064-elevation-surface-component-restyle.md)
+      (L; ADR-0038). `depends_on: [0063]`. Surface luminance
       ladder (dark) + hue-tinted layered shadows (light), radius scale, glass/radial-glow atmosphere,
       restyle keycap/badge/button/card/input + the type scale.
+      **Shipped** (PR #105; ADR-0038; see the issue's resolution).
 - [ ] **W3 · Motion & micro-interaction system** — [0065](0065-motion-microinteraction-system.md)
       (M/L; ADR-0037). `depends_on: [0063]`. `linear()` spring easings + motion/duration tokens; the
       micro-interaction catalogue (`@starting-style`/`allow-discrete`/`popover`); per-nav + scoped
