@@ -26,7 +26,7 @@ Recorded in TECH_DEBT #17 (the two god files) and #18 (the map leak).
 
 ## Children
 
-- [ ] **0087 · Split `workflow.go`** ([0087](0087-split-workflow-god-file.md), M) — the
+- [x] **0087 · Split `workflow.go`** ([0087](0087-split-workflow-god-file.md), M) — the
       1222-LOC file bundles five responsibilities (pure run engine, seam adapter, demo lane
       simulator, lane renderer, Workflows CRUD); split into `run_engine.go` /
       `run_adapter.go` / `run_render.go` along the audit's named seams. Same-package move,
