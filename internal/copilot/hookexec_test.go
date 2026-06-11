@@ -231,12 +231,13 @@ func TestPostToolHookFiresOnToolCompletion(t *testing.T) {
 		return "ok", 0, nil
 	}
 	c := &SDKClient{
-		events:    make(chan Event, 16),
-		done:      make(chan struct{}),
-		toolNames: map[string]string{},
-		toolMeta:  map[string]toolMeta{},
-		runCmd:    run,
-		lookupEnv: func(string) string { return "" },
+		events:      make(chan Event, 16),
+		done:        make(chan struct{}),
+		toolNames:   map[string]string{},
+		toolMeta:    map[string]toolMeta{},
+		toolSession: map[string]string{},
+		runCmd:      run,
+		lookupEnv:   func(string) string { return "" },
 		policies: map[string]sessionPolicy{"s1": {hooks: []ctxforge.Hook{{
 			ID: "fmt", Event: ctxforge.HookPostToolUse,
 			Match:   ctxforge.HookMatch{ToolKind: "write"},

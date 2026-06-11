@@ -201,62 +201,63 @@ _Last generated: 2026-06-11 (UTC)._
 - L230: `func (m *MockClient) Emit(e Event)`
 - L239: `func (m *MockClient) Close() error`
 
-### normalize.go (495 LOC)
+### normalize.go (497 LOC)
 - L22: `type toolMeta struct`
 - L28: `func postToolMeta(d *sdk.ToolExecutionStartData, argsSummary string) toolMeta`
 - L43: `func toolKindFromName(name string, isMCP bool) string`
 - L71: `func (c *SDKClient) makeHandler(sid string) func(sdk.SessionEvent)`
-- L184: `func historyEvents(sid string, raw []sdk.SessionEvent) []Event`
-- L214: `func normalizeUsage(d *sdk.AssistantUsageData) UsageData`
-- L233: `func normalizeElicitFields(schema *sdk.ElicitationSchema) []ElicitField`
-- L258: `func normalizeElicitField(name string, raw any) ElicitField`
-- L278: `func elicitStr(m map[string]any, key string) string`
-- L287: `func elicitStrSlice(v any) []string`
-- L303: `func elicitDefault(v any) string`
-- L324: `func sessionError(d *sdk.SessionErrorData) error`
-- L336: `func planChangeText(op sdk.PlanChangedOperation) string`
-- L351: `func compactionSummary(d *sdk.SessionCompactionCompleteData) string`
-- L365: `func describePermission(req sdk.PermissionRequest) string`
-- L380: `func permWriteFields(req sdk.PermissionRequest) (file, intention, diff string)`
-- L390: `func summarizeArgs(args any) string`
-- L412: `func stringField(m map[string]any, key string) (string, bool)`
-- L425: `func toolResultText(d *sdk.ToolExecutionCompleteData) string`
-- L442: `func oneLine(s string) string`
-- L446: `func clip(s string, n int) string`
-- L457: `func deref(p *int64) int64`
-- L464: `func derefStr(p *string) string`
-- L474: `func subagentSummary(durationMs, totalTokens *int64) string`
-- L486: `func humanTokenCount(n int64) string`
+- L186: `func historyEvents(sid string, raw []sdk.SessionEvent) []Event`
+- L216: `func normalizeUsage(d *sdk.AssistantUsageData) UsageData`
+- L235: `func normalizeElicitFields(schema *sdk.ElicitationSchema) []ElicitField`
+- L260: `func normalizeElicitField(name string, raw any) ElicitField`
+- L280: `func elicitStr(m map[string]any, key string) string`
+- L289: `func elicitStrSlice(v any) []string`
+- L305: `func elicitDefault(v any) string`
+- L326: `func sessionError(d *sdk.SessionErrorData) error`
+- L338: `func planChangeText(op sdk.PlanChangedOperation) string`
+- L353: `func compactionSummary(d *sdk.SessionCompactionCompleteData) string`
+- L367: `func describePermission(req sdk.PermissionRequest) string`
+- L382: `func permWriteFields(req sdk.PermissionRequest) (file, intention, diff string)`
+- L392: `func summarizeArgs(args any) string`
+- L414: `func stringField(m map[string]any, key string) (string, bool)`
+- L427: `func toolResultText(d *sdk.ToolExecutionCompleteData) string`
+- L444: `func oneLine(s string) string`
+- L448: `func clip(s string, n int) string`
+- L459: `func deref(p *int64) int64`
+- L466: `func derefStr(p *string) string`
+- L476: `func subagentSummary(durationMs, totalTokens *int64) string`
+- L488: `func humanTokenCount(n int64) string`
 
-### sdkclient.go (535 LOC)
+### sdkclient.go (560 LOC)
 - L25: `type SDKClient struct`
-- L62: `type Options struct`
-- L80: `func ResolveAuth(token string) (githubToken string, useLoggedInUser *bool)`
-- L94: `func ResolveAuthMethod(method, configured string, ghToken func() (string, error)) (githubToken string, useLoggedInUser *bool)`
-- L110: `func authStatusFromSDK(r *sdk.GetAuthStatusResponse) AuthStatus`
-- L130: `func (c *SDKClient) AuthStatus(ctx context.Context) (AuthStatus, error)`
-- L140: `func NewSDKClient(ctx context.Context, opts Options) (*SDKClient, error)`
-- L184: `type sessionPolicy struct`
-- L201: `func (c *SDKClient) applyHandlers() (onPerm sdk.PermissionHandlerFunc, onInput sdk.UserInputHandler, onPlan sdk.ExitPlanModeRequestHandler, onElicit sdk.ElicitationHandler)`
-- L206: `func (c *SDKClient) CreateSession(ctx context.Context, spec SessionSpec) (string, error)`
-- L248: `func (c *SDKClient) ListSessions(ctx context.Context) ([]SessionMeta, error)`
-- L269: `func (c *SDKClient) ResumeSession(ctx context.Context, sessionID string, spec SessionSpec) (string, error)`
-- L296: `func (c *SDKClient) SessionHistory(ctx context.Context, sessionID string) ([]Event, error)`
-- L312: `func (c *SDKClient) DeleteSession(ctx context.Context, sessionID string) error`
-- L331: `func shouldDropReasoningEffort(effort string, supported []string, known bool) bool`
-- L349: `func (c *SDKClient) modelReasoningEfforts(ctx context.Context, model string) (efforts []string, known bool)`
-- L375: `func (c *SDKClient) register(session *sdk.Session, spec SessionSpec)`
-- L390: `func (c *SDKClient) ListModels(ctx context.Context) ([]ModelInfo, error)`
-- L403: `func (c *SDKClient) Respond(id string, approve bool) error`
-- L411: `func (c *SDKClient) RespondInput(id, answer string) error`
-- L419: `func (c *SDKClient) RespondPlan(id string, approved bool, action, feedback string) error`
-- L427: `func (c *SDKClient) RespondElicit(id, action string, content map[string]any) error`
-- L435: `func (c *SDKClient) Send(ctx context.Context, sessionID, prompt string, attachments []string, agentMode string) error`
-- L462: `func toAgentMode(mode string) sdk.AgentMode`
-- L478: `func (c *SDKClient) Abort(ctx context.Context, sessionID string) error`
-- L489: `func (c *SDKClient) Events() <-chan Event { return c.events }`
-- L492: `func (c *SDKClient) emit(e Event)`
-- L500: `func (c *SDKClient) Close() error`
+- L66: `type Options struct`
+- L84: `func ResolveAuth(token string) (githubToken string, useLoggedInUser *bool)`
+- L98: `func ResolveAuthMethod(method, configured string, ghToken func() (string, error)) (githubToken string, useLoggedInUser *bool)`
+- L114: `func authStatusFromSDK(r *sdk.GetAuthStatusResponse) AuthStatus`
+- L134: `func (c *SDKClient) AuthStatus(ctx context.Context) (AuthStatus, error)`
+- L144: `func NewSDKClient(ctx context.Context, opts Options) (*SDKClient, error)`
+- L189: `type sessionPolicy struct`
+- L206: `func (c *SDKClient) applyHandlers() (onPerm sdk.PermissionHandlerFunc, onInput sdk.UserInputHandler, onPlan sdk.ExitPlanModeRequestHandler, onElicit sdk.ElicitationHandler)`
+- L211: `func (c *SDKClient) CreateSession(ctx context.Context, spec SessionSpec) (string, error)`
+- L253: `func (c *SDKClient) ListSessions(ctx context.Context) ([]SessionMeta, error)`
+- L274: `func (c *SDKClient) ResumeSession(ctx context.Context, sessionID string, spec SessionSpec) (string, error)`
+- L301: `func (c *SDKClient) SessionHistory(ctx context.Context, sessionID string) ([]Event, error)`
+- L317: `func (c *SDKClient) DeleteSession(ctx context.Context, sessionID string) error`
+- L337: `func (c *SDKClient) sweepToolMaps(sid string)`
+- L351: `func shouldDropReasoningEffort(effort string, supported []string, known bool) bool`
+- L369: `func (c *SDKClient) modelReasoningEfforts(ctx context.Context, model string) (efforts []string, known bool)`
+- L395: `func (c *SDKClient) register(session *sdk.Session, spec SessionSpec)`
+- L410: `func (c *SDKClient) ListModels(ctx context.Context) ([]ModelInfo, error)`
+- L423: `func (c *SDKClient) Respond(id string, approve bool) error`
+- L431: `func (c *SDKClient) RespondInput(id, answer string) error`
+- L439: `func (c *SDKClient) RespondPlan(id string, approved bool, action, feedback string) error`
+- L447: `func (c *SDKClient) RespondElicit(id, action string, content map[string]any) error`
+- L455: `func (c *SDKClient) Send(ctx context.Context, sessionID, prompt string, attachments []string, agentMode string) error`
+- L482: `func toAgentMode(mode string) sdk.AgentMode`
+- L498: `func (c *SDKClient) Abort(ctx context.Context, sessionID string) error`
+- L509: `func (c *SDKClient) Events() <-chan Event { return c.events }`
+- L512: `func (c *SDKClient) emit(e Event)`
+- L520: `func (c *SDKClient) Close() error`
 
 ## internal/ctxforge
 
@@ -570,15 +571,15 @@ _Last generated: 2026-06-11 (UTC)._
 - L100: `func (s *Server) forecast(now time.Time) (telemetry.Projection, bool)`
 - L110: `func (s *Server) overCap() (projected float64, capped bool)`
 
-### citations.go (162 LOC)
+### citations.go (182 LOC)
 - L43: `type citeSource struct`
 - L54: `type sourcesBlock struct`
 - L62: `type citeScope struct`
 - L69: `func scopeOf(blocks []Block) *citeScope`
-- L88: `func extractCitations(lines []string) ([]string, []citeSource)`
-- L121: `func citeOrigin(rawURL string) string`
-- L136: `func renderCiteRef(src citeSource) string`
-- L145: `func (s sourcesBlock) renderTo(b *strings.Builder, _ *citeScope)`
+- L98: `func extractCitations(lines []string) ([]string, []citeSource)`
+- L141: `func citeOrigin(rawURL string) string`
+- L156: `func renderCiteRef(src citeSource) string`
+- L165: `func (s sourcesBlock) renderTo(b *strings.Builder, _ *citeScope)`
 
 ### commands.go (440 LOC)
 - L23: `func parseCommand(input string) (name, args string, ok bool)`
@@ -867,7 +868,7 @@ _Last generated: 2026-06-11 (UTC)._
 - L180: `func humanDuration(d time.Duration) string`
 - L208: `func runOutcomeGlyph(outcome string) (glyph, state string)`
 
-### server.go (1006 LOC)
+### server.go (1015 LOC)
 - L28: `type Server struct`
 - L136: `func (s *Server) subscribe() chan fragment`
 - L145: `func (s *Server) unsubscribe(ch chan fragment)`
@@ -901,36 +902,36 @@ _Last generated: 2026-06-11 (UTC)._
 - L755: `func (s *Server) handleInstructionToggle(w http.ResponseWriter, r *http.Request)`
 - L761: `func (s *Server) handleInstructionDelete(w http.ResponseWriter, r *http.Request)`
 - L765: `func (s *Server) handleAgentSelect(w http.ResponseWriter, r *http.Request)`
-- L797: `func (s *Server) handleModelSelect(w http.ResponseWriter, r *http.Request)`
-- L804: `func (s *Server) handleEffortSelect(w http.ResponseWriter, r *http.Request)`
-- L813: `func (s *Server) handleAgentDelete(w http.ResponseWriter, r *http.Request)`
-- L836: `func (s *Server) oobTimeline() string`
-- L841: `func oobStatus(text string, active bool, startMs int64) string`
-- L847: `func (s *Server) oobBudget() string`
-- L853: `func (s *Server) budgetFrag() fragment`
-- L859: `func (s *Server) renderGate() string`
-- L871: `func (s *Server) statusFrag(text string, active bool) fragment`
-- L881: `func (s *Server) ctxFrag() fragment`
-- L887: `func (s *Server) statFrag() fragment`
-- L894: `func (s *Server) oobStat() string`
-- L900: `func (s *Server) subagentsFrag() fragment`
-- L911: `func (s *Server) attentionFrag() fragment`
-- L922: `func attentionMarker(n int) string`
-- L928: `func nowMs() int64 { return time.Now().UnixMilli() }`
-- L933: `func dropByID[T any](sl []T, id string, key func(T) string) []T`
-- L944: `func findByID[T any](sl []T, id string, key func(T) string) (T, bool)`
-- L954: `func permID(p copilot.PermissionRequest) string { return p.ID }`
-- L955: `func inputID(p copilot.InputRequest) string     { return p.ID }`
-- L956: `func planID(p copilot.PlanRequest) string       { return p.ID }`
-- L957: `func elicitID(e copilot.ElicitRequest) string   { return e.ID }`
-- L962: `func (s *Server) dropPerm(id string)  { s.perms = dropByID(s.perms, id, permID) }`
-- L963: `func (s *Server) dropInput(id string) { s.inputs = dropByID(s.inputs, id, inputID) }`
-- L964: `func (s *Server) dropPlan(id string)  { s.plans = dropByID(s.plans, id, planID) }`
-- L965: `func (s *Server) dropElicit(id string)`
-- L971: `func (s *Server) findElicit(id string) (copilot.ElicitRequest, bool)`
-- L976: `func firstNonEmpty(vals []string) string`
-- L989: `func (s *Server) editForge(fn func() error) error`
-- L1003: `func (s *Server) writePartial(w http.ResponseWriter, html string)`
+- L804: `func (s *Server) handleModelSelect(w http.ResponseWriter, r *http.Request)`
+- L811: `func (s *Server) handleEffortSelect(w http.ResponseWriter, r *http.Request)`
+- L820: `func (s *Server) handleAgentDelete(w http.ResponseWriter, r *http.Request)`
+- L845: `func (s *Server) oobTimeline() string`
+- L850: `func oobStatus(text string, active bool, startMs int64) string`
+- L856: `func (s *Server) oobBudget() string`
+- L862: `func (s *Server) budgetFrag() fragment`
+- L868: `func (s *Server) renderGate() string`
+- L880: `func (s *Server) statusFrag(text string, active bool) fragment`
+- L890: `func (s *Server) ctxFrag() fragment`
+- L896: `func (s *Server) statFrag() fragment`
+- L903: `func (s *Server) oobStat() string`
+- L909: `func (s *Server) subagentsFrag() fragment`
+- L920: `func (s *Server) attentionFrag() fragment`
+- L931: `func attentionMarker(n int) string`
+- L937: `func nowMs() int64 { return time.Now().UnixMilli() }`
+- L942: `func dropByID[T any](sl []T, id string, key func(T) string) []T`
+- L953: `func findByID[T any](sl []T, id string, key func(T) string) (T, bool)`
+- L963: `func permID(p copilot.PermissionRequest) string { return p.ID }`
+- L964: `func inputID(p copilot.InputRequest) string     { return p.ID }`
+- L965: `func planID(p copilot.PlanRequest) string       { return p.ID }`
+- L966: `func elicitID(e copilot.ElicitRequest) string   { return e.ID }`
+- L971: `func (s *Server) dropPerm(id string)  { s.perms = dropByID(s.perms, id, permID) }`
+- L972: `func (s *Server) dropInput(id string) { s.inputs = dropByID(s.inputs, id, inputID) }`
+- L973: `func (s *Server) dropPlan(id string)  { s.plans = dropByID(s.plans, id, planID) }`
+- L974: `func (s *Server) dropElicit(id string)`
+- L980: `func (s *Server) findElicit(id string) (copilot.ElicitRequest, bool)`
+- L985: `func firstNonEmpty(vals []string) string`
+- L998: `func (s *Server) editForge(fn func() error) error`
+- L1012: `func (s *Server) writePartial(w http.ResponseWriter, html string)`
 
 ### session.go (503 LOC)
 - L15: `type liveKind int`

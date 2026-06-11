@@ -104,4 +104,4 @@ issues are added or closed.
 | [0085](0085-per-run-event-log-for-replay-audit-on-appendonlystore.md) | Per-run event log for replay/audit on AppendOnlyStore | closed | medium | 0083 | depends_on: —, ADR-0048, builds on AppendOnlyStore (0033); replay vs summary |
 | [0087](0087-split-workflow-god-file.md) | Split workflow.go — separate the run engine, seam adapter, renderer, demo, and CRUD | open | low | 0086 | depends_on: —, RETROS 0005, TECH_DEBT #17; parallel-safe w/ 0089 |
 | [0088](0088-split-server-god-file.md) | Split server.go — lift the interaction + forge-mutation handlers out of the god file | open | low | 0086 | depends_on: —, RETROS 0005, TECH_DEBT #17; same package as 0087 |
-| [0089](0089-normalize-toolmap-leak-sweep.md) | Sweep orphaned toolNames/toolMeta entries in normalize.go on session teardown | open | low | 0086 | depends_on: —, RETROS 0005, TECH_DEBT #18; different package → fully parallel |
+| [0089](0089-normalize-toolmap-leak-sweep.md) | Sweep orphaned toolNames/toolMeta entries in normalize.go on session teardown | closed | low | 0086 | depends_on: —, RETROS 0005, TECH_DEBT #18 (paid); toolSession index + sweepToolMaps |

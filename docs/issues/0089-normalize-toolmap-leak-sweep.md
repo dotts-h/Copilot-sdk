@@ -1,7 +1,7 @@
 ---
 id: 0089
 title: "Sweep orphaned toolNames/toolMeta entries in normalize.go on session teardown"
-status: open
+status: closed
 severity: low
 group: 0086
 depends_on: []
@@ -39,15 +39,28 @@ long-running multi-session use becomes real. Cheap and local.
 
 ## Acceptance
 
-- [ ] An orphaned tool entry (start with no complete) is reclaimed on session teardown —
+- [x] An orphaned tool entry (start with no complete) is reclaimed on session teardown —
       assert via a test that drives a start-without-complete then `DeleteSession`/`Close` and
       checks the maps are empty for that session.
-- [ ] Normal start→complete threading is unchanged (existing normalize tests pass).
-- [ ] `make lint && make test` (floor 65%) green, run under `-race` (the maps are `c.mu`-guarded).
+- [x] Normal start→complete threading is unchanged (existing normalize tests pass).
+- [x] `make lint && make test` (floor 65%) green, run under `-race` (the maps are `c.mu`-guarded).
 
 ## Notes
 
 Different package from 0087/0088 (`internal/copilot` vs `internal/web`) → **fully
 parallel-safe**. This one *does* add a guard test (it fixes a real leak, unlike the pure
 splits). SemVer **patch**.
+
+## Close-out
+
+A `toolSession map[string]string` reverse index (toolCallID → sid) is maintained alongside
+`toolNames`/`toolMeta` on `ToolExecutionStart`/`…Complete` under the existing `c.mu`. A new
+`(*SDKClient).sweepToolMaps(sid)` (caller holds `c.mu`) reclaims a session's orphaned entries
+on teardown: `DeleteSession` sweeps the one session; `Close` resets all three maps. The
+start→complete name/meta threading is byte-identical (one index write on start, one delete on
+complete), so existing normalize tests pass unchanged — no behavior change, no schema, **no
+ADR**. Guarded under `-race` by `internal/copilot` `TestSweepToolMapsReclaimsOrphanedToolEntries`
+(a start-without-complete orphan is reclaimed on sweep while a sibling session's in-flight tool
+survives). Touches: `internal/copilot/normalize.go`, `internal/copilot/sdkclient.go`; CODEMAP
+regenerated. TECH_DEBT #18 paid. SemVer **patch**.
 </parameter>
