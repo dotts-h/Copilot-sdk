@@ -61,7 +61,7 @@ var directiveRegistry = map[string]directiveSpec{
 				Summary template.HTML
 				Body    template.HTML
 			}{
-				Summary: template.HTML(inline(summary)), //nolint:gosec // inline() escapes first, whitelist-only tags
+				Summary: template.HTML(inline(summary, nil)), //nolint:gosec // inline() escapes first, whitelist-only tags
 				Body:    body,
 			}
 		},
@@ -79,16 +79,17 @@ type directiveBlock struct {
 	children []Block
 }
 
-func (d directiveBlock) renderTo(b *strings.Builder) {
+func (d directiveBlock) renderTo(b *strings.Builder, cs *citeScope) {
 	spec, ok := directiveRegistry[d.name]
 	if !ok {
 		// Unreachable: only a registered name produces a directiveBlock. Fail
 		// closed (emit nothing) rather than render an unknown component.
 		return
 	}
-	// Body is composed from the escaped child renderers; the projector escapes
-	// any attribute-derived value before it rides into the template.
-	body := template.HTML(renderBlocks(d.children)) //nolint:gosec // composed from escaped block renderers
+	// Body is composed from the escaped child renderers under the document
+	// citation scope; the projector escapes any attribute-derived value before it
+	// rides into the template.
+	body := template.HTML(renderBlocksScoped(d.children, cs)) //nolint:gosec // composed from escaped block renderers
 	b.WriteString(frag(spec.frag, spec.project(d.attrs, body)))
 }
 

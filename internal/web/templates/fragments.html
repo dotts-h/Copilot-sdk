@@ -39,6 +39,17 @@
 {{define "dirCard"}}<div class="directive dir-card">{{.Body}}</div>{{end}}
 {{define "dirDetails"}}<details class="directive dir-details"><summary class="dir-summary">{{.Summary}}</summary><div class="dir-body">{{.Body}}</div></details>{{end}}
 
+{{/* citation cards (R6, issue 0082, ADR-0049): the source-card list closing the
+     document. .N is an int and .Origin a plain string (both auto-escaped here);
+     .Title is already-escaped trusted HTML from the inline pass; .URL is a
+     parse-time safeURL-validated target, escaped contextually in the href. The
+     inline marker that anchors to #cite-N is hand-built in renderCiteRef (not a
+     template) — inline() must not statically reach the template engine or it
+     forms a package-init cycle (frag → pageTemplates → funcMap → renderMarkdown
+     → … → inline); see ADR-0049 and the renderCiteRef comment. No JS — the
+     preview is pure CSS and the marker is a native in-page anchor. */}}
+{{define "citations"}}<ol class="citations">{{range .Sources}}<li id="cite-{{.N}}" class="cite-card"><a class="cite-link" href="{{.URL}}">{{.Title}}</a><span class="cite-origin">{{.Origin}}</span></li>{{end}}</ol>{{end}}
+
 {{define "toolCard"}}<div{{if .ID}} id="tool-{{.ID}}"{{end}} class="turn tool {{.State}}"><div class="tool-head"><span class="glyph">{{.Glyph}}</span> <span class="tool-name">{{.Name}}</span>{{if .Args}} <span class="tool-args">{{richtext .Args}}</span>{{end}}</div>{{if .ShowProgress}}<div class="tool-progress">… {{richtext .Progress}}</div>{{end}}{{if .Pending}}<div class="tool-pending skeleton" aria-hidden="true"></div>{{end}}{{if .ShowResult}}<pre class="tool-result">{{richtext .Result}}</pre>{{end}}</div>{{end}}
 
 {{define "cur"}}<div id="cur" class="{{.Class}}">{{if .Has}}<span>{{richtext .Text}}</span>{{end}}</div>{{end}}

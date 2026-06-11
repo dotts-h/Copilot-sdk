@@ -492,6 +492,38 @@ button.add, button.abort, .run-head .stop-run, .run-rec-head .rerun,
 .body.md .dir-details[open] .dir-summary { border-bottom: 1px solid var(--subtle); }
 .body.md .dir-body { padding: .6rem .75rem; }
 
+/* citation cards (R6, issue 0082, ADR-0049): an inline [n] marker is a small
+   superscript anchor to its source card; on hover/focus a CSS-only popover
+   previews the source (the Perplexity progressive-disclosure pattern, no JS).
+   The source cards close the turn as a token-styled ordered list. Everything
+   reuses guarded semantic tokens (--accent2 link, --dim origin, the --panel/
+   --subtle surface ladder, the radius/shadow ladders) — no new color pair, so
+   the css_tokens AA guard and the both-theme axe scan stay green. */
+.body.md .cite { position: relative; font-size: .7em; line-height: 0; }
+.body.md .cite > a { color: var(--accent2); text-decoration: none; font-weight: 600;
+  padding: 0 .1em; }
+.body.md .cite > a::before { content: "["; }
+.body.md .cite > a::after { content: "]"; }
+.body.md .cite-pop { display: none; position: absolute; bottom: 1.4em; left: 0; z-index: 5;
+  width: max-content; max-width: 16rem; padding: .4rem .55rem; font-size: var(--text-1);
+  line-height: 1.35; text-align: left; background: var(--panel); color: var(--fg);
+  border: 1px solid var(--subtle); border-radius: var(--radius-3); box-shadow: var(--shadow-2); }
+.body.md .cite:hover .cite-pop, .body.md .cite:focus-within .cite-pop { display: block; }
+.body.md .cite-pop-title { display: block; font-weight: 600; }
+.body.md .cite-pop-origin { display: block; color: var(--dim);
+  font: var(--text-0)/1.4 var(--font-mono); }
+.body.md .citations { list-style: none; margin: .75rem 0 .5rem; padding: .5rem 0 0;
+  display: flex; flex-direction: column; gap: .35rem; counter-reset: cite;
+  border-top: 1px solid var(--subtle); }
+.body.md .cite-card { display: flex; align-items: baseline; gap: .5rem;
+  padding: .35rem .55rem; background: var(--panel); border: 1px solid var(--subtle);
+  border-radius: var(--radius-2); counter-increment: cite; }
+.body.md .cite-card::before { content: counter(cite); color: var(--dim);
+  font: var(--text-1)/1.4 var(--font-mono); flex: none; min-width: 1.2em; text-align: right; }
+.body.md .cite-link { color: var(--accent2); font-weight: 600; }
+.body.md .cite-origin { color: var(--dim); font: var(--text-0)/1.4 var(--font-mono);
+  margin-left: auto; flex: none; }
+
 /* reasoning ("thinking") — dim, collapsible */
 .turn.reasoning { background: var(--raised-2); border-left: 3px solid var(--subtle);
   color: var(--dim); font-size: .92rem; }

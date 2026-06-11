@@ -242,9 +242,10 @@
   (`hx-get` into `#main`) or streamed over **SSE** (`/events`). Model-originated text is
   escaped (ADR-0001).
 - **block** — one structural element of the markdown subset a committed agent turn renders
-  through (`internal/web` `Block`: heading, code fence, list, blockquote, hr, paragraph).
-  `renderMarkdown` = `parseBlocks` → typed `[]Block` → `renderBlocks`; each block's renderer
-  may emit only whitelisted/templated HTML (escape-first), and new rich components (epic 0076)
+  through (`internal/web` `Block`: heading, code fence, list, blockquote, callout, table, hr,
+  paragraph, directive, sources). `renderMarkdown` = `parseBlocks` → typed `[]Block` →
+  `renderBlocks`; each block's renderer may emit only whitelisted/templated HTML (escape-first),
+  and the rich components of epic 0076 (callouts, code blocks, tables, directives, citations)
   attach as new block kinds on this seam. — ADR-0045
 - **directive** — a model-authorable designed block written `:::name{attrs}` … `:::` (the
   remark-directive *syntax*, no Node toolchain), resolved against a **closed `directiveRegistry`**
@@ -252,6 +253,15 @@
   **unregistered name is not a directive** (it degrades to escaped text), so shipping a new
   designed block is adding a registry entry + a `frag`, and forgetting to register fails closed.
   **allowlist > blocklist**, safe by construction. — ADR-0047
+- **citation** — a numbered source reference in a committed agent turn: a reference-style
+  **definition** `[n]: url "title"` registers a **source** (lifted out of the prose at parse
+  time), and an inline **marker** `[n]` resolves to a `<sup>` anchor to a server-rendered
+  **source card** (title + origin) *only when a matching source exists* — every other `[n]`
+  degrades to escaped literal text (a broken citation is never fabricated), and an unsafe URL
+  registers no source. The defined-number set (`citeScope`) travels inside the block list (a
+  `sourcesBlock` that closes the document) and is threaded through the renderers. Progressive
+  disclosure is a CSS-only hover/focus preview; the marker is a native `#cite-n` anchor — no
+  JS. — ADR-0049
 - **lock order** — **`forgeMu → s.mu`**, never inverted (shared forge/config before
   per-session state). Race-tested. — see `internal/web/sessions.go`
 - **demo / mock mode** — the offline path (`-demo`): a scripted `MockClient` + seeded
