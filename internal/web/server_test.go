@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -23,10 +24,17 @@ import (
 // cookieless test requests to it).
 func newTestServer() (*Server, *copilot.MockClient) {
 	mock := copilot.NewMockClient()
+	// A writable config dir so config-mutating handlers' Save() succeeds (the
+	// in-memory config never drifts from disk). An empty-dir config would make
+	// every Save() fail, which previously masked the now-fixed select/delete
+	// drift-on-save-failure. The temp dir is OS-reclaimed.
+	dir, _ := os.MkdirTemp("", "mo-web-test-")
+	c := config.Default(dir)
+	c.DefaultModel = "gpt-5"
 	hub := New(Options{
 		Client: mock,
 		Forge:  &ctxforge.Forge{},
-		Config: &config.Config{DefaultModel: "gpt-5"},
+		Config: c,
 		Meter:  telemetry.NewMeter(telemetry.DefaultPriceBook()),
 		Logger: log.New(io.Discard, "", 0),
 	})

@@ -1,6 +1,6 @@
 import { test, expect } from "./fixtures";
 import AxeBuilder from "@axe-core/playwright";
-import { pages, gotoApp, navTo, send } from "./helpers";
+import { pages, gotoApp, navTo, send, sel } from "./helpers";
 
 // Accessibility scans with axe-core. Each nav page is scanned against the WCAG
 // 2.1 A/AA rule set, in BOTH the light and dark theme (ADR-0025) — the palette
@@ -76,6 +76,38 @@ for (const theme of THEMES) {
     expect(
       results.violations,
       formatViolations(`command palette (${theme})`, results.violations),
+    ).toEqual([]);
+  });
+}
+
+// The per-sub-agent drill-down overlay (S5, ADR-0044) is a native <dialog>,
+// hidden until opened, so it is not covered by the page scans above. Its
+// secondary text (model, credits, description, reasoning, tool args) was dimmed
+// via `opacity` — the exact failure mode that dropped .elicit-desc / the spend
+// badge below AA on a tinted fill (REGRESSIONS #20/#21) — so scan it open, in
+// both themes, after a demo sub-agent has run and populated its transcript.
+for (const theme of THEMES) {
+  test(`sub-agent overlay is accessible when open — ${theme}`, async ({ page }) => {
+    await gotoApp(page);
+    await setTheme(page, theme);
+    await send(page, "explore");
+    const row = page
+      .locator(`${sel.subagents} .subagent-row`)
+      .filter({ hasText: "Explore" })
+      .first();
+    await expect(row).toBeVisible({ timeout: 15_000 });
+    await row.locator(".sa-open").click();
+    const dialog = page.locator("dialog#subagent-dialog");
+    await expect(dialog).toBeVisible();
+    // Wait for the dimmed transcript text (the demo's grep tool) so the scan
+    // covers the live overlay content, not an empty shell.
+    await expect(dialog.locator(".sa-transcript .sa-tool-name")).toContainText("grep", {
+      timeout: 15_000,
+    });
+    const results = await scan(page);
+    expect(
+      results.violations,
+      formatViolations(`sub-agent overlay (${theme})`, results.violations),
     ).toEqual([]);
   });
 }
