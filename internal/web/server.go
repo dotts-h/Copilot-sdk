@@ -764,17 +764,24 @@ func (s *Server) handleInstructionDelete(w http.ResponseWriter, r *http.Request)
 
 func (s *Server) handleAgentSelect(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	s.hub.forgeMu.Lock()
-	compileID := id
-	if s.config.DefaultAgent == id {
-		s.config.DefaultAgent = "" // toggle off → no agent persona
-		compileID = ""
-	} else {
-		s.config.DefaultAgent = id
-	}
-	if err := s.config.Save(); err != nil {
+	// Persist the selection through editConfig (snapshot → mutate → validating
+	// Save → roll back on failure) so a disk error can't leave the live config
+	// pointing at an agent that was never written — the same discipline every
+	// other config mutation uses (REGRESSIONS: "edit through Server.editConfig").
+	var compileID string
+	if err := s.editConfig(func(c *config.Config) {
+		if c.DefaultAgent == id {
+			c.DefaultAgent = "" // toggle off → no agent persona
+		} else {
+			c.DefaultAgent = id
+		}
+		compileID = c.DefaultAgent
+	}); err != nil {
 		s.logger.Printf("save config: %v", err)
+		s.writePartial(w, s.agentsPartial()) // selection didn't persist; leave the session as-is
+		return
 	}
+	s.hub.forgeMu.Lock()
 	c := s.compiledSpec(compileID)
 	// Capture the selected persona's leash + label under forgeMu so applyAgentSpec can
 	// snapshot it under s.mu (issue 0072); toggle-off (compileID "") leaves it inert.
@@ -817,15 +824,17 @@ func (s *Server) handleAgentDelete(w http.ResponseWriter, r *http.Request) {
 		s.writePartial(w, s.agentsPartial())
 		return
 	}
-	// Deleting the active agent clears the config pointer to it.
+	// Deleting the active agent clears the config pointer to it — through
+	// editConfig so a Save failure rolls back rather than leaving the live config
+	// dangling at a now-deleted agent (matches every other config mutation).
 	s.hub.forgeMu.Lock()
-	if s.config.DefaultAgent == id {
-		s.config.DefaultAgent = ""
-		if err := s.config.Save(); err != nil {
+	wasActive := s.config.DefaultAgent == id
+	s.hub.forgeMu.Unlock()
+	if wasActive {
+		if err := s.editConfig(func(c *config.Config) { c.DefaultAgent = "" }); err != nil {
 			s.logger.Printf("save config: %v", err)
 		}
 	}
-	s.hub.forgeMu.Unlock()
 	s.writePartial(w, s.agentsPartial())
 }
 

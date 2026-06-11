@@ -109,6 +109,42 @@ func TestAgentClearCompilesGlobalContext(t *testing.T) {
 	}
 }
 
+// TestAgentSelectRollsBackOnSaveFailure guards that a persistence failure on
+// agent-select does not leave the live config pointing at an agent that was
+// never written to disk. handleAgentSelect routes through editConfig, which
+// snapshots → mutates → rolls back if the validating Save fails — the same
+// discipline every other config mutation uses (REGRESSIONS: "edit through
+// Server.editConfig"). Before the fix it mutated s.config.DefaultAgent directly
+// and only logged a Save error, leaving the in-memory config drifted from disk.
+func TestAgentSelectRollsBackOnSaveFailure(t *testing.T) {
+	s, dir := newSettingsServer(t)
+	s.forge.Agents = []ctxforge.Agent{{ID: "builder", Name: "Builder", Model: "gpt-5"}}
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	// Sabotage persistence: replace the config dir with a regular file so any
+	// Save() fails at MkdirAll ("not a directory") — a stand-in for a disk error
+	// on the rare write path.
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dir, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := http.PostForm(srv.URL+"/agents/builder/select", url.Values{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	// The Save failed, so the selection must NOT stick in memory: the live config
+	// must match the (unwritten) disk state, not the attempted selection.
+	if s.config.DefaultAgent != "" {
+		t.Errorf("config drifted on save failure: DefaultAgent=%q, want empty (rolled back)", s.config.DefaultAgent)
+	}
+}
+
 func TestAgentFormHasAllowedToolsField(t *testing.T) {
 	s, _ := newTestServer()
 	srv := httptest.NewServer(s.Handler())
