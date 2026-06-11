@@ -88,4 +88,4 @@ issues are added or closed.
 | [0072](0072-per-subagent-cost-budget-leash.md) | Per-subagent cost + budget leash — live metering, ledger attribution, pre-Send cap (S3) | closed | high | 0069 | depends_on: 0070, ADR-0018 pattern, SUBAGENTS_RESEARCH §4, ADR-0042 |
 | [0073](0073-pause-continue-cancel-escalate.md) | Pause / continue / cancel — typed pause records + the orchestrator escalate tool (S4) | closed | high | 0069 | depends_on: 0070, permBridge/ADR-0008/ADR-0024, SUBAGENTS_RESEARCH §1–2, ADR-0043 |
 | [0074](0074-subagent-chat-overlay.md) | Per-subagent chat overlay — popup transcript with live stream, pause form, and steer (S5) | closed | medium | 0069 | depends_on: 0071, see also 0073, SUBAGENTS_RESEARCH §3/§5, ADR-0044 |
-| [0075](0075-subagent-attention-surface.md) | Attention surface — needs-you badging, title/favicon dot, Runs integration (S6) | open | medium | 0069 | depends_on: 0071+0073, ADR-0022 run store — closes the epic |
+| [0075](0075-subagent-attention-surface.md) | Attention surface — needs-you badging, title/favicon dot, Runs integration (S6) | closed | medium | 0069 | depends_on: 0071+0073, ADR-0022 run store — closes the epic |
