@@ -92,7 +92,7 @@ issues are added or closed.
 | [0075](0075-subagent-attention-surface.md) | Attention surface — needs-you badging, title/favicon dot, Runs integration (S6) | closed | medium | 0069 | depends_on: 0071+0073, ADR-0022 run store — closes the epic |
 | [0076](0076-epic-designed-agent-output.md) | Epic: Designed agent output — block-AST + token-styled components from markdown (roadmap v13) | open | medium | | children 0077–0082; NEXT_FEATURES roadmap-v13; ADR-0001 doctrine |
 | [0077](0077-block-ast-seam.md) | Block-AST seam — parse markdown to a typed []Block, render byte-identically (R1) | closed | medium | 0076 | depends_on: —, keystone; ADR-0045, builds on ADR-0001 |
-| [0078](0078-callouts-admonitions.md) | Callouts / admonitions — GitHub-alert blockquotes as designed callout components (R2) | open | medium | 0076 | depends_on: 0077, highest visual ROI |
+| [0078](0078-callouts-admonitions.md) | Callouts / admonitions — GitHub-alert blockquotes as designed callout components (R2) | closed | medium | 0076 | depends_on: 0077, highest visual ROI; ADR-0046 |
 | [0079](0079-designed-code-blocks.md) | Designed code blocks — language label + copy affordance + token-styled frame (R3) | open | medium | 0076 | depends_on: 0077, no highlighting lib |
 | [0080](0080-tables.md) | Tables — GFM pipe tables as token-styled table components (R4) | open | medium | 0076 | depends_on: 0077, the missing common block |
 | [0081](0081-container-directives.md) | Container directives — :::card / :::details, allowlisted model-authorable blocks (R5) | open | medium | 0076 | depends_on: 0077+0078, ADR (new) grammar+allowlist |

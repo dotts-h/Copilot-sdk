@@ -81,6 +81,18 @@ the most *differentiating* and the best fit for the stack.
 > conflict" (deps recommended externally vs. rejected here) is resolved in favor of this
 > repo's own ADR-0001 + REGRESSIONS — high. Effort/impact rankings are indicative.
 
+> **v13 update (after R1 + R2).** **R1 shipped** (block-AST seam, issue 0077, ADR-0045) —
+> `renderMarkdown` is now `renderBlocks(parseBlocks(src))`, a typed `[]Block` between parse
+> and render with a per-block extension point. **R2 shipped** (callouts, issue 0078,
+> ADR-0046) — a blockquote whose first line is `[!NOTE|TIP|IMPORTANT|WARNING|CAUTION]`
+> renders as a designed `calloutBlock` through one `frag("callout", …)` template, each kind
+> mapped to a guarded semantic token (note→`--accent2`, tip→`--good`, important→`--accent`,
+> warning→`--warn`, caution→`--bad`) with a glyph + text label (never color alone), unknown
+> kinds degrading to a plain blockquote. **Remaining, in sequence:** **R3** designed code
+> blocks (0079) → **R4** tables (0080) → **R5** container directives (0081, unblocked now
+> that R2 is in; needs its own grammar/allowlist ADR) → **R6** citation cards (0082,
+> stretch). All four are unblocked children of epic 0076.
+
 ---
 
 ## Where the product is now

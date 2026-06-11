@@ -57,6 +57,40 @@ func TestRenderMarkdown(t *testing.T) {
 	}
 }
 
+func TestRenderMarkdownCallout(t *testing.T) {
+	// GitHub-alert blockquotes render as designed callout components: a
+	// kind-classed surface with a glyph + text label and a recursively-rendered
+	// body. The kind class drives the token mapping in app.css.
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			"note default label",
+			"> [!NOTE]\n> heads up",
+			`<div class="callout callout-note"><div class="callout-head"><span class="callout-glyph" aria-hidden="true">ℹ</span><span class="callout-title">Note</span></div><div class="callout-body"><p>heads up</p></div></div>`,
+		},
+		{
+			"warning custom title with emphasis in body",
+			"> [!WARNING] Watch out\n> be **careful**",
+			`<div class="callout callout-warning"><div class="callout-head"><span class="callout-glyph" aria-hidden="true">⚠</span><span class="callout-title">Watch out</span></div><div class="callout-body"><p>be <strong>careful</strong></p></div></div>`,
+		},
+		{
+			"unknown kind degrades to blockquote",
+			"> [!FOO]\n> x",
+			"<blockquote><p>[!FOO]<br>x</p></blockquote>",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := renderMarkdown(c.in); got != c.want {
+				t.Errorf("renderMarkdown(%q)\n  got:  %q\n  want: %q", c.in, got, c.want)
+			}
+		})
+	}
+}
+
 func TestRenderMarkdownXSS(t *testing.T) {
 	// Inputs that must never produce *live* markup. The invariant is structural:
 	// no dangerous opening tag and no href with an executable scheme. Escaped text
@@ -74,6 +108,8 @@ func TestRenderMarkdownXSS(t *testing.T) {
 		{"vbscript link", "[x](vbscript:msgbox)", []string{`href="vbscript`}},
 		{"html in code", "`<img src=x onerror=alert(1)>`", []string{"<img"}},
 		{"html in fence", "```\n<img onerror=alert(1)>\n```", []string{"<img"}},
+		{"callout title html", "> [!NOTE] <script>alert(1)</script>\n> hi", []string{"<script"}},
+		{"callout body html", "> [!WARNING]\n> <img src=x onerror=alert(1)>", []string{"<img"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -103,6 +139,9 @@ var allowedTags = map[string]bool{
 	"pre": true, "a": true, "ul": true, "ol": true, "li": true,
 	"blockquote": true, "hr": true,
 	"h1": true, "h2": true, "h3": true, "h4": true, "h5": true, "h6": true,
+	// callout components (R2, issue 0078): the callout frag emits div/span with
+	// fixed classes derived from a validated kind set — never attacker markup.
+	"div": true, "span": true,
 }
 
 // assertOnlyAllowedTags fails if the rendered HTML contains any tag outside the
@@ -136,6 +175,7 @@ func FuzzRenderMarkdown(f *testing.F) {
 		"", "# h", "**b**", "`c`", "- a\n- b", "> q", "---",
 		"[x](javascript:alert(1))", "<script>x</script>", "```\n<b>\n```",
 		"*\x00*", "[a](b)[c](d)", "###### \x00 # nested",
+		"> [!NOTE]\n> body", "> [!WARNING] <script>\n> <img onerror=x>", "> [!FOO]\n> x",
 	} {
 		f.Add(s)
 	}

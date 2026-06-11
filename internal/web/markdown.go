@@ -2,6 +2,7 @@ package web
 
 import (
 	"html"
+	"html/template"
 	"regexp"
 	"strconv"
 	"strings"
@@ -25,7 +26,23 @@ var (
 	// Asterisk emphasis stays intraword-capable.
 	mdBold   = regexp.MustCompile(`\*\*([^*]+)\*\*|\b__([^_]+)__\b`)
 	mdItalic = regexp.MustCompile(`\*([^*]+)\*|\b_([^_]+)_\b`)
+	// mdCallout matches a GitHub-alert marker as the first line of a blockquote:
+	// `[!KIND]` optionally followed by a custom title. The kind is validated
+	// against calloutKinds before a callout block is produced.
+	mdCallout = regexp.MustCompile(`^\[!([A-Za-z]+)\]\s*(.*)$`)
 )
+
+// calloutKinds maps each recognized alert kind to its default label and glyph.
+// The glyph plus the label both carry the kind, so meaning never rides on color
+// alone (WCAG); the kind also names the CSS class that maps to a semantic token.
+// An unrecognized kind is not a callout — the blockquote degrades unchanged.
+var calloutKinds = map[string]struct{ label, glyph string }{
+	"note":      {"Note", "ℹ"},
+	"tip":       {"Tip", "✦"},
+	"important": {"Important", "❖"},
+	"warning":   {"Warning", "⚠"},
+	"caution":   {"Caution", "⛔"},
+}
 
 // Block is one structural element of the markdown subset (ADR 0045). The
 // interface is sealed: every implementation lives in this file, and each
@@ -57,6 +74,15 @@ type listBlock struct {
 // quoteBlock is a blockquote; its inner lines are parsed recursively, so the
 // AST is a tree.
 type quoteBlock struct {
+	children []Block
+}
+
+// calloutBlock is a GitHub-alert blockquote rendered as a designed callout
+// (ADR 0046): kind is one of calloutKinds, title is the raw label/custom text
+// for the inline pass, and children are the recursively-parsed body.
+type calloutBlock struct {
+	kind     string
+	title    string
 	children []Block
 }
 
@@ -132,6 +158,24 @@ func parseLines(lines []string) []Block {
 				t = strings.TrimPrefix(t, ">")
 				inner = append(inner, strings.TrimPrefix(t, " "))
 				i++
+			}
+			// A leading [!KIND] marker of a known kind promotes the blockquote to
+			// a callout; anything else stays a plain quote (degrade-safe).
+			if len(inner) > 0 {
+				if m := mdCallout.FindStringSubmatch(strings.TrimSpace(inner[0])); m != nil {
+					if k, ok := calloutKinds[strings.ToLower(m[1])]; ok {
+						title := strings.TrimSpace(m[2])
+						if title == "" {
+							title = k.label
+						}
+						blocks = append(blocks, calloutBlock{
+							kind:     strings.ToLower(m[1]),
+							title:    title,
+							children: parseLines(inner[1:]),
+						})
+						continue
+					}
+				}
 			}
 			blocks = append(blocks, quoteBlock{children: parseLines(inner)})
 			continue
@@ -217,6 +261,23 @@ func (q quoteBlock) renderTo(b *strings.Builder) {
 	b.WriteString("<blockquote>")
 	renderBlocksTo(b, q.children)
 	b.WriteString("</blockquote>")
+}
+
+func (c calloutBlock) renderTo(b *strings.Builder) {
+	// Kind is validated against calloutKinds at parse time, so the glyph lookup
+	// always hits; the title rides the inline pass (escape-first), the body is
+	// already-rendered trusted HTML. All dynamic parts are escaped before assembly.
+	b.WriteString(frag("callout", struct {
+		Kind  string
+		Glyph string
+		Title template.HTML
+		Body  template.HTML
+	}{
+		Kind:  c.kind,
+		Glyph: calloutKinds[c.kind].glyph,
+		Title: template.HTML(inline(c.title)),          //nolint:gosec // inline() escapes first, whitelist-only tags
+		Body:  template.HTML(renderBlocks(c.children)), //nolint:gosec // composed from escaped block renderers
+	}))
 }
 
 func (hrBlock) renderTo(b *strings.Builder) {

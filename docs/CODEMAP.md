@@ -705,30 +705,32 @@ _Last generated: 2026-06-11 (UTC)._
 - L31: `func importInstructionFiles(dir string) []ctxforge.Instruction`
 - L51: `func (s *Server) handleInstructionImport(w http.ResponseWriter, r *http.Request)`
 
-### markdown.go (349 LOC)
-- L34: `type Block interface`
-- L39: `type headingBlock struct`
-- L46: `type codeBlock struct`
-- L52: `type listBlock struct`
-- L59: `type quoteBlock struct`
-- L64: `type hrBlock struct{}`
-- L68: `type paragraphBlock struct`
-- L75: `func renderMarkdown(src string) string`
-- L83: `func parseBlocks(src string) []Block`
-- L87: `func parseLines(lines []string) []Block`
-- L168: `func listItemRe(line string) *regexp.Regexp`
-- L179: `func renderBlocks(blocks []Block) string`
-- L185: `func renderBlocksTo(b *strings.Builder, blocks []Block)`
-- L191: `func (h headingBlock) renderTo(b *strings.Builder)`
-- L196: `func (c codeBlock) renderTo(b *strings.Builder)`
-- L204: `func (l listBlock) renderTo(b *strings.Builder)`
-- L216: `func (q quoteBlock) renderTo(b *strings.Builder)`
-- L222: `func (hrBlock) renderTo(b *strings.Builder)`
-- L226: `func (p paragraphBlock) renderTo(b *strings.Builder)`
-- L239: `func isBlockStart(line string) bool`
-- L256: `func isHR(line string) bool`
-- L276: `func inline(s string) string`
-- L341: `func safeURL(url string) bool`
+### markdown.go (410 LOC)
+- L51: `type Block interface`
+- L56: `type headingBlock struct`
+- L63: `type codeBlock struct`
+- L69: `type listBlock struct`
+- L76: `type quoteBlock struct`
+- L83: `type calloutBlock struct`
+- L90: `type hrBlock struct{}`
+- L94: `type paragraphBlock struct`
+- L101: `func renderMarkdown(src string) string`
+- L109: `func parseBlocks(src string) []Block`
+- L113: `func parseLines(lines []string) []Block`
+- L212: `func listItemRe(line string) *regexp.Regexp`
+- L223: `func renderBlocks(blocks []Block) string`
+- L229: `func renderBlocksTo(b *strings.Builder, blocks []Block)`
+- L235: `func (h headingBlock) renderTo(b *strings.Builder)`
+- L240: `func (c codeBlock) renderTo(b *strings.Builder)`
+- L248: `func (l listBlock) renderTo(b *strings.Builder)`
+- L260: `func (q quoteBlock) renderTo(b *strings.Builder)`
+- L266: `func (c calloutBlock) renderTo(b *strings.Builder)`
+- L283: `func (hrBlock) renderTo(b *strings.Builder)`
+- L287: `func (p paragraphBlock) renderTo(b *strings.Builder)`
+- L300: `func isBlockStart(line string) bool`
+- L317: `func isHR(line string) bool`
+- L337: `func inline(s string) string`
+- L402: `func safeURL(url string) bool`
 
 ### mcp.go (344 LOC)
 - L27: `func MCPServerSpecs(servers []ctxforge.MCPServer, lookupEnv func(string) string) []copilot.MCPServer`

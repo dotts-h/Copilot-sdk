@@ -9,6 +9,11 @@
 {{define "turnReasoning"}}<details class="turn reasoning"><summary>✻ thinking</summary><div class="body">{{richtext .}}</div></details>{{end}}
 {{define "turnSystem"}}<div class="turn system">· {{richtext .}}</div>{{end}}
 
+{{/* callout (R2, issue 0078): a GitHub-alert blockquote as a designed component.
+     .Kind is a validated kind from a fixed set, .Glyph a label glyph, .Title and
+     .Body already-escaped trusted HTML from the markdown renderer. */}}
+{{define "callout"}}<div class="callout callout-{{.Kind}}"><div class="callout-head"><span class="callout-glyph" aria-hidden="true">{{.Glyph}}</span><span class="callout-title">{{.Title}}</span></div><div class="callout-body">{{.Body}}</div></div>{{end}}
+
 {{define "toolCard"}}<div{{if .ID}} id="tool-{{.ID}}"{{end}} class="turn tool {{.State}}"><div class="tool-head"><span class="glyph">{{.Glyph}}</span> <span class="tool-name">{{.Name}}</span>{{if .Args}} <span class="tool-args">{{richtext .Args}}</span>{{end}}</div>{{if .ShowProgress}}<div class="tool-progress">… {{richtext .Progress}}</div>{{end}}{{if .Pending}}<div class="tool-pending skeleton" aria-hidden="true"></div>{{end}}{{if .ShowResult}}<pre class="tool-result">{{richtext .Result}}</pre>{{end}}</div>{{end}}
 
 {{define "cur"}}<div id="cur" class="{{.Class}}">{{if .Has}}<span>{{richtext .Text}}</span>{{end}}</div>{{end}}
