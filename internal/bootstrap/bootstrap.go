@@ -363,6 +363,18 @@ func SeedForge(forge *ctxforge.Forge) {
 					When: &ctxforge.StepCondition{Step: 1, Condition: ctxforge.CondOutputContains, Value: "perfect"}},
 			},
 		})
+		// A human-in-the-loop demo (S4 / ADR-0043): the Builder hits an ambiguity and
+		// ESCALATES, parking its lane as input-required until the human resolves the
+		// pause with continue(hint) / cancel. The demo lane recognises the "escalate"
+		// marker in the prompt and drives the orchestrator's escalate back-channel
+		// offline, so the pause surface is exercised without a live sub-agent.
+		_ = forge.AddWorkflow(ctxforge.Workflow{
+			ID: "escalation-demo", Name: "Escalation demo", Mode: ctxforge.WorkflowSequential,
+			Description: "Builder escalates an ambiguity mid-run and waits for the human (pause/continue/cancel).",
+			Steps: []ctxforge.WorkflowStep{
+				{AgentID: "builder", Prompt: "Implement the change, but escalate if the requirements are ambiguous."},
+			},
+		})
 	}
 	if len(forge.Snippets) == 0 {
 		// A couple of representative library prompts so the composer autocomplete

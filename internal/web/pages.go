@@ -122,6 +122,7 @@ func (s *Server) chatPartial() string {
 	for _, e := range s.elicits {
 		elicits.WriteString(renderElicitForm(e))
 	}
+	pauses := renderPauses(s.pauses.Pending())
 	ctx := renderCtx(s.ctxCurrent, s.ctxLimit, s.compacting)
 	subagents := renderSubagents(s.subreg.Entries())
 	lanes := renderLanes(s.run)
@@ -133,8 +134,9 @@ func (s *Server) chatPartial() string {
 		"Timeline": trusted(timeline), "Perms": trusted(perms.String()),
 		"Asks": trusted(asks.String()), "Plans": trusted(plans.String()),
 		"Elicits": trusted(elicits.String()), "Subagents": trusted(subagents),
-		"Lanes": trusted(lanes),
-		"Ctx":   trusted(ctx), "Statline": trusted(statline), "Budget": trusted(budget),
+		"Pauses": trusted(pauses),
+		"Lanes":  trusted(lanes),
+		"Ctx":    trusted(ctx), "Statline": trusted(statline), "Budget": trusted(budget),
 	})
 }
 

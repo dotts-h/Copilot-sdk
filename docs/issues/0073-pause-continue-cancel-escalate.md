@@ -1,17 +1,26 @@
 ---
 id: 0073
 title: "Pause / continue / cancel — typed pause records + the orchestrator escalate tool (S4)"
-status: open
+status: closed
 severity: high
 group: 0069
 depends_on: [0070]
 github: 114
 links:
-  adr: []
+  adr: [0043]
   prs: []
   issues: [0069, 0071]
   regression:
 ---
+
+> **Closed 2026-06-11.** Shipped on the `feat/subagent-pause-escalate` branch
+> (ADR-0043): a pure `internal/pause` ledger with idempotent resolution + clock-injected
+> SLA timeout; the orchestrator's `escalate` back-channel (`Server.escalate`) blocking on
+> a one-shot channel; `input-required` as a non-terminal lane state (continue resumes,
+> cooperative-cancel settles `failed (cancelled)`, hard abort `CancelAll`s pending
+> pauses); inline capability-flagged pause forms (`#pauses`, `POST /pause/{id}`); and a
+> demo "Escalation demo" workflow the e2e drives end-to-end. The overlay surface (S5),
+> attention badging (S6), and pause persistence (TECH_DEBT #16) stay out of scope.
 
 ## Summary
 
@@ -49,21 +58,27 @@ continue/cancel — instead of failing or barreling on.
 
 ## Acceptance
 
-- [ ] Pure pause store: register → emit → resolve(continue/cancel) table-tested;
+- [x] Pure pause store: register → emit → resolve(continue/cancel) table-tested;
       double-resolve is a no-op; abort-while-pending resolves exactly once.
-- [ ] `escalate` round-trip against the mock: sub-agent calls tool → pause event →
+      `internal/pause/pause_test.go` (`TestRegisterResolveContinue`,
+      `TestDoubleResolveIsNoOp`, `TestCancelAllThenResolveIsNoOp`).
+- [x] `escalate` round-trip against the mock: sub-agent calls tool → pause event →
       `POST /pause/{id}` continue with payload → tool returns the payload to the
       sub-agent; cancel returns the cancel instruction (seam test, no browser).
-- [ ] A lane parks as `input-required` (run not settled), resumes on continue, settles
+      `TestEscalateContinueReturnsPayload` / `TestEscalateCancelReturnsDirective`.
+- [x] A lane parks as `input-required` (run not settled), resumes on continue, settles
       `failed (cancelled)` on cancel; parallel siblings keep streaming meanwhile.
-- [ ] Pause forms render inline in chat (the `EvPermission` pattern) with only the
+      `TestLaneParksInputRequiredSiblingsStreamThenResumes`, `TestLaneCancelSettlesFailed`.
+- [x] Pause forms render inline in chat (the `EvPermission` pattern) with only the
       capability-flagged buttons (Agent Inbox model: continue/respond/cancel as
-      declared).
-- [ ] Timeout: an expired pause resolves to its default and annotates the timeline
-      (clock injected, table-tested).
-- [ ] Pre-pause idempotency invariant documented (CONVENTIONS or the ADR).
-- [ ] Gates green: `make lint && make test` (floor 65%), `make e2e` (demo drives a
-      scripted escalate).
+      declared). `TestRenderPauseFormCapabilityFlagged`, `TestChatPartialRendersPendingPause`.
+- [x] Timeout: an expired pause resolves to its default and annotates the timeline
+      (clock injected, table-tested). `TestSweepExpiresToDefault` (clock injected via
+      `Ledger.Sweep(now)`).
+- [x] Pre-pause idempotency invariant documented (CONVENTIONS or the ADR). ADR-0043
+      Consequences + CONTRACTS §3 (`POST /pause/{id}`).
+- [x] Gates green: `make lint && make test` (floor 65%), `make e2e` (demo drives a
+      scripted escalate — the "Escalation demo" workflow + the e2e that parks/resumes it).
 
 ## Out of scope
 

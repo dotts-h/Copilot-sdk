@@ -13,6 +13,7 @@ import (
 	"github.com/dotts-h/copilot-sdk/internal/config"
 	"github.com/dotts-h/copilot-sdk/internal/copilot"
 	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
+	"github.com/dotts-h/copilot-sdk/internal/pause"
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
 
@@ -148,6 +149,7 @@ func (h *Hub) newSession(id string) *Server {
 		agentID:         h.baseAgentID,
 		sessionStartMs:  nowMs(),
 		subs:            make(map[chan fragment]struct{}),
+		pauses:          pause.NewLedger(),
 		agentCredits:    make(map[string]float64),
 		agentTurns:      make(map[string]int64),
 		leashLifted:     make(map[string]bool),
@@ -252,6 +254,7 @@ func (h *Hub) Handler() http.Handler {
 	route("POST /ask/{id}", (*Server).handleAsk)
 	route("POST /plan/{id}", (*Server).handlePlanReview)
 	route("POST /elicit/{id}", (*Server).handleElicit)
+	route("POST /pause/{id}", (*Server).handlePause)
 	route("GET /page/{name}", (*Server).handlePage)
 	route("GET /telemetry/export.csv", (*Server).handleSpendExport)
 	route("GET /telemetry/reconcile.csv", (*Server).handleReconcileExport)

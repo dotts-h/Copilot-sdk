@@ -63,7 +63,7 @@ governed by the existing third pillar (the pause/permission gates).
       `AgentID`-tagged `EvUsage` → per-subagent meter + additive `SpendRecord` tag
       (schema v3, the ADR-0018 pattern); live credits on the list; max-credits /
       max-turns leash at the pre-`Send` gate.
-- [ ] **S4 · Pause / continue / cancel — the pause record + escalate tool** ([0073](0073-pause-continue-cancel-escalate.md), M/L; ADR) —
+- [x] **S4 · Pause / continue / cancel — the pause record + escalate tool** ([0073](0073-pause-continue-cancel-escalate.md), M/L; ADR-0043) —
       typed pause records with capability flags; the orchestrator-registered
       `escalate`/`report_status` custom tool blocking on a one-shot channel;
       `input-required` as a non-terminal lane state; idempotent resolution; SLA

@@ -430,7 +430,7 @@ func TestWorkflowLaneToolTextEscaped(t *testing.T) {
 
 func TestStreamDemoLaneTagsSessionID(t *testing.T) {
 	m := copilot.NewMockClient()
-	streamDemoLane(m, "sess-x", "do the thing")
+	streamDemoLane(m, "sess-x", "do the thing", nil)
 	m.Close()
 	var sawTagged, sawIdle, sawTool bool
 	for e := range m.Events() {

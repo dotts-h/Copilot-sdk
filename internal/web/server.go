@@ -16,6 +16,7 @@ import (
 	"github.com/dotts-h/copilot-sdk/internal/convo"
 	"github.com/dotts-h/copilot-sdk/internal/copilot"
 	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
+	"github.com/dotts-h/copilot-sdk/internal/pause"
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
 
@@ -85,6 +86,11 @@ type Server struct {
 	compacting  bool         // conversation compaction is in progress
 	gate        *budgetGate  // a turn paused on the hard cap or an agent leash (nil when none pending)
 	run         *workflowRun // an active/just-finished multi-agent workflow run (item 2.1)
+	// pauses is the human-in-the-loop pause ledger: the typed records a sub-agent
+	// parks on when it escalates / needs input, resolved by POST /pause/{id}. The
+	// orchestrator owns it (one per session); the escalate back-channel blocks on it
+	// while the run stays live (epic 0069 S4, ADR-0043).
+	pauses *pause.Ledger
 
 	// agentCredits/agentTurns accumulate each persona's metered spend this session
 	// (keyed by agent id), so the budget leash can gate a persona's next turn before

@@ -12,6 +12,7 @@ import (
 	"github.com/dotts-h/copilot-sdk/internal/convo"
 	"github.com/dotts-h/copilot-sdk/internal/copilot"
 	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
+	"github.com/dotts-h/copilot-sdk/internal/pause"
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
 
@@ -31,6 +32,7 @@ type laneStatus int
 const (
 	lanePending laneStatus = iota
 	laneRunning
+	laneInputRequired // parked on a human-in-the-loop pause — non-terminal (S4 / ADR-0043)
 	laneDone
 	laneFailed
 	laneSkipped // a gated step whose predicate was unsatisfied (B2 / ADR-0021)
@@ -38,7 +40,9 @@ const (
 
 // settled reports whether a lane has reached a terminal status (done, failed, or
 // skipped) — the predicate evaluator and allSettled both key off this, so a skipped
-// lane counts as settled and a branching run still terminates.
+// lane counts as settled and a branching run still terminates. input-required is
+// deliberately NOT settled: a parked lane keeps the run live (A2A's non-terminal
+// contract) so siblings stream and the human can still resolve it (S4).
 func settled(st laneStatus) bool {
 	return st == laneDone || st == laneFailed || st == laneSkipped
 }
@@ -60,6 +64,12 @@ type lane struct {
 	toolIdx   map[string]int              // tool-call id -> index into tools
 	perms     []copilot.PermissionRequest // this lane's pending inline permission requests (B1)
 	when      *ctxforge.StepCondition     // optional predicate gating this step (B2 / ADR-0021)
+	// pauseID is the open human-in-the-loop pause this lane is parked on (S4); empty
+	// when the lane is not input-required. cancelReason, when set, records that the
+	// human cooperatively cancelled the pause: the lane keeps running so the sub-agent
+	// wraps up, then settles failed(cancelled) at its next idle rather than done.
+	pauseID      string
+	cancelReason string
 }
 
 // toolStart records a tool-execution start on the lane's own timeline. Mirrors
@@ -437,6 +447,10 @@ func (s *Server) abortRun(ctx context.Context) {
 		return
 	}
 	running := run.abort()
+	// Force-resolve any pending pause so a blocked escalate goroutine unblocks and
+	// its lane settles (ADR-0024 + S4): an abort that left a pause open would leak
+	// the tool-handler goroutine and the run would never clear busy.
+	s.pauses.CancelAll("run aborted")
 	frags := s.runFrags(run, true)
 	s.mu.Unlock()
 
@@ -538,7 +552,7 @@ func (s *Server) startLane(run *workflowRun, idx int) {
 	}
 	if s.demo {
 		if mock, ok := s.client.(*copilot.MockClient); ok {
-			go streamDemoLane(mock, cid, prompt)
+			go streamDemoLane(mock, cid, prompt, s.escalate)
 		}
 	}
 }
@@ -595,7 +609,14 @@ func (s *Server) handleRunEvent(run *workflowRun, e copilot.Event) []fragment {
 		if l == nil {
 			return nil
 		}
-		next := run.finishLane(l, l.costDetail())
+		// A cooperatively-cancelled lane wrapped up its turn: settle it failed
+		// (cancelled) rather than done, recording why (S4 / ADR-0043).
+		var next []int
+		if l.cancelReason != "" {
+			next = run.failLane(l, "✗ cancelled: "+l.cancelReason)
+		} else {
+			next = run.finishLane(l, l.costDetail())
+		}
 		if len(next) > 0 {
 			go s.launchLanes(run, next)
 		}
@@ -728,6 +749,8 @@ func laneStatusName(st laneStatus) string {
 	switch st {
 	case laneRunning:
 		return "running"
+	case laneInputRequired:
+		return "input-required"
 	case laneDone:
 		return "done"
 	case laneFailed:
@@ -812,6 +835,8 @@ func glyphFor(status string) (glyph, state string) {
 	switch status {
 	case "running":
 		return "◐", "running"
+	case "input-required":
+		return "◑", "input-required"
 	case "done":
 		return "✓", "done"
 	case "failed":
@@ -831,7 +856,7 @@ func glyphFor(status string) (glyph, state string) {
 // real lane turn: a tool execution, an inline file-write permission, a short
 // streamed answer, usage, and idle — so each lane shows its own tool timeline and
 // inline permission, not just output + cost. Permissions don't block in demo mode.
-func streamDemoLane(m *copilot.MockClient, sid, prompt string) {
+func streamDemoLane(m *copilot.MockClient, sid, prompt string, escalate func(escalateReq) string) {
 	emit := func(e copilot.Event) {
 		e.SessionID = sid
 		m.Emit(e)
@@ -842,6 +867,20 @@ func streamDemoLane(m *copilot.MockClient, sid, prompt string) {
 		ToolCall: &copilot.ToolCall{ID: sid + "-tool", Name: "bash", Args: "go test ./..."}})
 	emit(copilot.Event{Type: copilot.EvToolEnd,
 		ToolCall: &copilot.ToolCall{ID: sid + "-tool", Result: "ok\tgithub.com/dotts-h/copilot-sdk", Success: true}})
+
+	// A scripted human-in-the-loop escalation (S4): when the lane's task asks for it,
+	// the sub-agent parks as input-required via the orchestrator's escalate
+	// back-channel and BLOCKS until the human resolves the pause — driving the pause
+	// surface offline (the e2e clicks continue/cancel). The human's answer (or the
+	// cancel directive) is folded into the lane's reply so the round-trip is visible.
+	steer := ""
+	if escalate != nil && strings.Contains(strings.ToLower(prompt), "escalate") {
+		steer = escalate(escalateReq{
+			laneSession: sid, agentID: sid, kind: pause.KindIssue,
+			message: "The task is ambiguous — continue with a hint, or cancel?",
+			caps:    []pause.Cap{pause.CapContinue, pause.CapCancel},
+		})
+	}
 
 	// An inline file-write permission, rendered as a diff review lane inside this
 	// lane's card. Nothing blocks on the decision in demo mode; submitting it
@@ -859,8 +898,11 @@ func streamDemoLane(m *copilot.MockClient, sid, prompt string) {
 			"+func done() {}\n",
 	}})
 
-	// The streamed answer.
+	// The streamed answer, folding in the human's escalation answer when one was given.
 	reply := "Handled: " + firstLine(prompt)
+	if steer != "" {
+		reply += " — " + steer
+	}
 	for _, tok := range tokenize(reply) {
 		emit(copilot.Event{Type: copilot.EvMessageDelta, Text: tok})
 	}

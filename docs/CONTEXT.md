@@ -128,6 +128,23 @@
   entries stay listed with their terminal status (working / **input-required** / done /
   failed), and an uncorroborated zero-token completion renders **done (unverified)**.
   Replaces the transient activity strip (issue 0031). — ADR-0041, issue 0071
+- **pause** — a typed **human-in-the-loop park** a sub-agent/lane registers when it needs
+  the human (`pause.Pause{Kind ∈ input | issue | budget | permission, Caps ⊆ continue |
+  respond | cancel, Deadline?}`). The generalization of the permission **bridge**: the
+  caller blocks on a one-shot channel; the **pause ledger** (`pause.Ledger`, orchestrator-
+  owned, one per session) resolves it **idempotently** — a duplicate answer, an
+  abort-while-pending, or an SLA timeout all collapse to one delivery. Resolved by
+  `POST /pause/{id}` (continue(payload) | cancel). — ADR-0043, issue 0073
+- **escalate** (back-channel) — the orchestrator-registered **custom tool** a sub-agent
+  invokes to raise a pause and **block** until the human answers (`Server.escalate`); its
+  handler runs in *our* process, so it returns the human's instruction (continue) or a
+  wrap-up directive (cancel/timeout) as the tool result. The non-blocking sibling is
+  `report_status`. — ADR-0043
+- **input-required** — the non-terminal **lane state** a pause parks a lane in: the run
+  stays live (not `settled`) so siblings keep streaming, the row goes **amber**, and the
+  human resolves it. **Cooperative cancel** then settles the lane `failed (cancelled)` at
+  its next idle (the sub-agent wraps up first) — distinct from the hard **abort**
+  (ADR-0024), which force-resolves every pending pause. — ADR-0043
 
 ## Cost — the meter and the ledger (`internal/telemetry`)
 

@@ -154,7 +154,7 @@ for the streaming/turn routes (`/events`, `/send`, the `/perm|ask|plan|elicit/{i
 | Group | Routes |
 |-------|--------|
 | Core | `GET /` · `GET /events` (SSE) · `POST /send` · `POST /abort` |
-| Turn answers | `POST /perm/{id}` · `POST /ask/{id}` · `POST /plan/{id}` · `POST /elicit/{id}` · `POST /budget/{action}` |
+| Turn answers | `POST /perm/{id}` · `POST /ask/{id}` · `POST /plan/{id}` · `POST /elicit/{id}` · `POST /pause/{id}` · `POST /budget/{action}` |
 | Navigation | `GET /page/{name}` · `GET /commands` · `GET /static/…` |
 | Telemetry | `GET /telemetry/export.csv` · `GET /runs/export.csv` |
 | Runs | `POST /runs/rerun/{workflow}` · `POST /run/abort` |
@@ -224,6 +224,19 @@ bypasses the reducer's `!s.run.done` guard — can re-enter `runFrags` after the
 settled the run. The `stop-run` marker class is **disjoint** from the chat-turn `.abort`,
 the Workflows `button.run`, the Runs `button.rerun`, and the `a.export` links. — see
 [ADR-0024](adr/0024-abort-an-in-flight-run-settles-it-as-failed-and-aborts-its-lane-sessions.md)
+
+`POST /pause/{id}` (S4) resolves a **human-in-the-loop pause** a sub-agent parked on
+via the orchestrator's `escalate` back-channel. The form posts `action`
+(`continue` | `cancel`) and, on continue, a `payload` text (the human's instruction)
+to `handlePause` → `pause.Ledger.Resolve`, which delivers the resolution to the blocked
+tool handler **exactly once** and re-renders the inline `#pauses` region. **Idempotent**:
+a duplicate POST or one racing a run abort (`CancelAll`) is a harmless no-op — the ledger
+collapses it. A parked lane flips to the **non-terminal** `input-required` state (amber);
+continue resumes it, cancel arms a cooperative cancel that settles the lane
+`failed (cancelled)` at its next idle. The `pause-*` button classes are disjoint from the
+perm/ask/plan/elicit forms. The live region is the SSE `pauses` event (idempotent
+`innerHTML` re-render, like `subagents`/`lanes`). — see
+[ADR-0043](adr/0043-pause-ledger-escalate-back-channel-and-input-required-lane-state.md)
 
 The **Workflows page** (`GET /page/workflows`) lists each workflow (name + step
 summary) with a run control — and, when history exists, **badges** each row (V4): the
