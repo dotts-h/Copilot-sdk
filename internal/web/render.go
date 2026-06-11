@@ -371,6 +371,7 @@ func renderSubagents(entries []convo.SubagentView) string {
 		// flow through html/template auto-escaping, never trusted() raw (ADR-0001).
 		// An empty Description omits the title attribute entirely.
 		b.WriteString(frag("subagentRow", map[string]any{
+			"ID":    sa.SpawnID,
 			"Class": sa.Status.Class(), "Glyph": subagentGlyph(sa.Status),
 			"Working": sa.Status == convo.SubagentWorking, "Label": label,
 			"Name": name, "Model": sa.Model, "Description": sa.Description,

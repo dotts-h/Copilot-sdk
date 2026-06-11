@@ -58,9 +58,38 @@ func (st SubagentStatus) Class() string {
 	}
 }
 
+// SubagentEntryKind classifies one transcript entry: a run of model prose, a run
+// of reasoning, or a single tool invocation. The overlay (S5) renders prose/
+// reasoning as text blocks and a tool call as a collapsed one-liner.
+type SubagentEntryKind int
+
+const (
+	SubagentMessage SubagentEntryKind = iota
+	SubagentReasoning
+	SubagentToolCall
+	SubagentSteer // a human-authored steer message delivered into the sub-agent (S5)
+)
+
+// SubagentEntry is one entry in a sub-agent's drill-down transcript (issue 0074):
+// either a coalesced run of model/reasoning text, or a tool call (Text = tool
+// name, Args = its one-line arguments). All fields are model/SDK-originated and
+// MUST flow through html/template escaping at the render seam (ADR-0001).
+type SubagentEntry struct {
+	Kind   SubagentEntryKind
+	Text   string // prose/reasoning text, or the tool name for a tool call
+	Args   string // tool arguments (tool calls only)
+	ToolID string // tool-call id (tool calls only) — dedupes a repeated start event
+}
+
+// subagentTranscriptCap bounds the retained per-sub-agent transcript: the full
+// record is the session, the overlay is a bounded recent view (issue 0074's
+// "cap retained turns per sub-agent"). Oldest entries drop on overflow.
+const subagentTranscriptCap = 200
+
 // SubagentView is one registry entry, displayable as a list row: identity
 // (both keys), naming, live status + current activity, the completion detail,
-// and accumulated credits (0.00 until S3 feeds it).
+// and accumulated credits (0.00 until S3 feeds it). The Transcript and
+// LaneSession fields back the S5 overlay drill-down.
 type SubagentView struct {
 	SpawnID     string // lifecycle tool-call id — the spawn key (ADR-0040)
 	InstanceID  string // envelope AgentID — the instance key; "" until joined
@@ -73,6 +102,13 @@ type SubagentView struct {
 	Detail      string  // completion summary, or the error on failure
 	Credits     float64 // live credits (S3 wires the value; renders 0 until then)
 	Unverified  bool    // done, but with zero tokens and no observed stream
+	// LaneSession is the backing copilot session of a lane-backed sub-agent — the
+	// Send target the overlay steers into (issue 0074 S5). Empty for an SDK-native
+	// (in-session) sub-agent, which has no Send target and is read+pause-only.
+	LaneSession string
+	// Transcript is the bounded drill-down record of this instance's own stream
+	// (the overlay's content). Empty until the first tagged text/tool is observed.
+	Transcript []SubagentEntry
 }
 
 // Subagents is the registry. Its zero value is ready to use. Entries are kept
@@ -127,6 +163,197 @@ func (r *Subagents) AddCredits(instanceID string, credits float64) bool {
 	}
 	e.Credits += credits
 	return true
+}
+
+// AppendText folds one streamed text delta (or a committed message) from the
+// instance into its drill-down transcript, joining the instance like Observe.
+// Consecutive text of the same kind coalesces into the trailing entry (the
+// delta-append fast path); a kind change or an intervening tool call starts a
+// fresh run. Empty text, or text from an instance that can't be joined, is a
+// no-op. It reports whether the transcript changed.
+func (r *Subagents) AppendText(instanceID string, reasoning bool, text string) bool {
+	if text == "" {
+		return false
+	}
+	e := r.join(instanceID)
+	if e == nil {
+		return false
+	}
+	kind := SubagentMessage
+	if reasoning {
+		kind = SubagentReasoning
+	}
+	if n := len(e.Transcript); n > 0 && e.Transcript[n-1].Kind == kind {
+		e.Transcript[n-1].Text += text
+	} else {
+		e.Transcript = append(e.Transcript, SubagentEntry{Kind: kind, Text: text})
+	}
+	r.capTranscript(e)
+	return true
+}
+
+// CommitText folds the canonical, non-streaming full text of a message/reasoning
+// block: it REPLACES the trailing run of the same kind (the deltas that streamed
+// it) rather than appending, so streamed deltas followed by the final full
+// message don't double — mirroring the main timeline's Finish. When no same-kind
+// run trails (e.g. a tool intervened, or a non-streaming block with no deltas) it
+// appends a fresh run. An identical re-commit, empty text, or an unjoinable
+// instance is a no-op. Reports whether the transcript changed.
+func (r *Subagents) CommitText(instanceID string, reasoning bool, text string) bool {
+	if text == "" {
+		return false
+	}
+	e := r.join(instanceID)
+	if e == nil {
+		return false
+	}
+	kind := SubagentMessage
+	if reasoning {
+		kind = SubagentReasoning
+	}
+	if n := len(e.Transcript); n > 0 && e.Transcript[n-1].Kind == kind {
+		if e.Transcript[n-1].Text == text {
+			return false
+		}
+		e.Transcript[n-1].Text = text
+		return true
+	}
+	e.Transcript = append(e.Transcript, SubagentEntry{Kind: kind, Text: text})
+	r.capTranscript(e)
+	return true
+}
+
+// RecordTool appends a tool invocation to the instance's transcript as its own
+// one-line entry (Text = name, Args = arguments, keyed by toolID), joining like
+// Observe. It is a discrete entry so a following text delta starts a fresh run
+// rather than merging across the tool. A repeated start for the SAME non-empty
+// toolID as the trailing tool entry is idempotent (the same call, not a new one),
+// so a duplicate stream event doesn't double the line. An empty name, or an
+// unjoinable instance, is a no-op. Reports whether the transcript changed.
+func (r *Subagents) RecordTool(instanceID, toolID, name, args string) bool {
+	if name == "" {
+		return false
+	}
+	e := r.join(instanceID)
+	if e == nil {
+		return false
+	}
+	if n := len(e.Transcript); n > 0 && toolID != "" {
+		if last := e.Transcript[n-1]; last.Kind == SubagentToolCall && last.ToolID == toolID {
+			return false
+		}
+	}
+	e.Transcript = append(e.Transcript, SubagentEntry{Kind: SubagentToolCall, Text: name, Args: args, ToolID: toolID})
+	r.capTranscript(e)
+	return true
+}
+
+// capTranscript trims an entry's transcript to the most recent
+// subagentTranscriptCap entries, dropping the oldest so the registry stays
+// bounded under a long-running sub-agent.
+func (r *Subagents) capTranscript(e *SubagentView) {
+	if over := len(e.Transcript) - subagentTranscriptCap; over > 0 {
+		e.Transcript = append(e.Transcript[:0], e.Transcript[over:]...)
+	}
+}
+
+// MarkInputRequired flips a still-running entry (matched by either identity key,
+// instance or spawn) to the input-required attention state — where a registered
+// pause parks it (S4/S5). A settled (done/failed) entry is left alone, and an
+// already-parked one is a no-op. Reports whether the displayed status changed.
+func (r *Subagents) MarkInputRequired(id string) bool {
+	e := r.byAnyID(id)
+	if e == nil || e.Status != SubagentWorking {
+		return false
+	}
+	e.Status = SubagentInputRequired
+	return true
+}
+
+// ClearInputRequired returns an input-required entry (matched by either key) to
+// working when its pause resolves. A no-op for any other status. Reports whether
+// the status changed.
+func (r *Subagents) ClearInputRequired(id string) bool {
+	e := r.byAnyID(id)
+	if e == nil || e.Status != SubagentInputRequired {
+		return false
+	}
+	e.Status = SubagentWorking
+	return true
+}
+
+// byAnyID resolves an entry by either identity key — the instance AgentID a pause
+// is tagged with, or the spawn ToolCallID the overlay/list row carries. Instance
+// first (the more specific key), then spawn.
+func (r *Subagents) byAnyID(id string) *SubagentView {
+	if id == "" {
+		return nil
+	}
+	for i := range r.entries {
+		if r.entries[i].InstanceID == id {
+			return &r.entries[i]
+		}
+	}
+	return r.bySpawn(id)
+}
+
+// RecordSteer annotates the spawn's transcript with a human-authored steer
+// message (the overlay knows the spawn id, so this is spawn-keyed). It makes the
+// human's mid-run intervention visible in the drill-down. Empty text or an
+// unknown spawn is a no-op; reports whether the transcript changed.
+func (r *Subagents) RecordSteer(spawnID, text string) bool {
+	if text == "" {
+		return false
+	}
+	e := r.bySpawn(spawnID)
+	if e == nil {
+		return false
+	}
+	e.Transcript = append(e.Transcript, SubagentEntry{Kind: SubagentSteer, Text: text})
+	r.capTranscript(e)
+	return true
+}
+
+// SetLaneSession marks the spawn's entry lane-backed, recording the backing
+// session the overlay steers into (issue 0074 S5). An unknown spawn is ignored.
+func (r *Subagents) SetLaneSession(spawnID, session string) {
+	if e := r.bySpawn(spawnID); e != nil {
+		e.LaneSession = session
+	}
+}
+
+// ByID returns a deep copy of the spawn's entry (transcript included) for the
+// overlay drill-down, and whether it was found. The copy is independent of the
+// registry, so a render-side mutation can't corrupt live state.
+func (r *Subagents) ByID(spawnID string) (SubagentView, bool) {
+	if e := r.bySpawn(spawnID); e != nil {
+		return copyView(e), true
+	}
+	return SubagentView{}, false
+}
+
+// ViewByInstance returns a deep copy of the entry currently bound to instanceID
+// — a read-only lookup that does NOT join (unlike join's binding) — and whether
+// one exists. The server uses it to address a just-updated sub-agent's overlay
+// fragment by its spawn id after folding a tagged event.
+func (r *Subagents) ViewByInstance(instanceID string) (SubagentView, bool) {
+	if instanceID == "" {
+		return SubagentView{}, false
+	}
+	for i := range r.entries {
+		if r.entries[i].InstanceID == instanceID {
+			return copyView(&r.entries[i]), true
+		}
+	}
+	return SubagentView{}, false
+}
+
+// copyView returns a deep copy of an entry with its transcript slice cloned, so a
+// handed-out view shares no mutable state with the registry.
+func copyView(e *SubagentView) SubagentView {
+	v := *e
+	v.Transcript = append([]SubagentEntry(nil), e.Transcript...)
+	return v
 }
 
 // NameFor returns the display label of the instance's entry, joining it like

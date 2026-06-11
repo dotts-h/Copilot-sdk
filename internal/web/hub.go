@@ -255,6 +255,8 @@ func (h *Hub) Handler() http.Handler {
 	route("POST /plan/{id}", (*Server).handlePlanReview)
 	route("POST /elicit/{id}", (*Server).handleElicit)
 	route("POST /pause/{id}", (*Server).handlePause)
+	route("GET /subagent/{id}", (*Server).handleSubagentOverlay)
+	route("POST /subagent/{id}/steer", (*Server).handleSubagentSteer)
 	route("GET /page/{name}", (*Server).handlePage)
 	route("GET /telemetry/export.csv", (*Server).handleSpendExport)
 	route("GET /telemetry/reconcile.csv", (*Server).handleReconcileExport)

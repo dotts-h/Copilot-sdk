@@ -13,6 +13,7 @@ type MockClient struct {
 	events          chan Event
 	sessions        int
 	Sent            []string
+	SentSessions    []string // session id each Sent prompt was delivered to
 	SentModes       []string // agent mode passed alongside each Sent prompt
 	LastAttach      []string
 	Aborted         []string
@@ -67,12 +68,13 @@ func (m *MockClient) CreateSession(context.Context, SessionSpec) (string, error)
 }
 
 // Send implements Client.
-func (m *MockClient) Send(_ context.Context, _, prompt string, attachments []string, agentMode string) error {
+func (m *MockClient) Send(_ context.Context, sessionID, prompt string, attachments []string, agentMode string) error {
 	if m.SendErr != nil {
 		return m.SendErr
 	}
 	m.mu.Lock()
 	m.Sent = append(m.Sent, prompt)
+	m.SentSessions = append(m.SentSessions, sessionID)
 	m.SentModes = append(m.SentModes, agentMode)
 	m.LastAttach = attachments
 	m.mu.Unlock()

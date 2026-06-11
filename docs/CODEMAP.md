@@ -83,22 +83,36 @@ _Last generated: 2026-06-11 (UTC)._
 - L220: `func (c *State) Committed() []Turn`
 - L229: `func (c *State) Pending() (Role, string)`
 
-### subagents.go (212 LOC)
+### subagents.go (439 LOC)
 - L23: `type SubagentStatus int`
 - L34: `func (st SubagentStatus) Label() string`
 - L48: `func (st SubagentStatus) Class() string`
-- L64: `type SubagentView struct`
-- L81: `type Subagents struct`
-- L91: `func (r *Subagents) Start(spawnID, name, displayName, description, model string)`
-- L108: `func (r *Subagents) Observe(instanceID, activity string) bool`
-- L123: `func (r *Subagents) AddCredits(instanceID string, credits float64) bool`
-- L137: `func (r *Subagents) NameFor(instanceID string) string`
-- L154: `func (r *Subagents) End(spawnID string, success bool, detail string, totalTokens int64) bool`
-- L171: `func (r *Subagents) Entries() []SubagentView`
-- L178: `func (r *Subagents) Empty() bool { return len(r.entries) == 0 }`
-- L181: `func (r *Subagents) Reset() { r.entries = nil }`
-- L184: `func (r *Subagents) bySpawn(spawnID string) *SubagentView`
-- L196: `func (r *Subagents) join(instanceID string) *SubagentView`
+- L64: `type SubagentEntryKind int`
+- L77: `type SubagentEntry struct`
+- L93: `type SubagentView struct`
+- L117: `type Subagents struct`
+- L127: `func (r *Subagents) Start(spawnID, name, displayName, description, model string)`
+- L144: `func (r *Subagents) Observe(instanceID, activity string) bool`
+- L159: `func (r *Subagents) AddCredits(instanceID string, credits float64) bool`
+- L174: `func (r *Subagents) AppendText(instanceID string, reasoning bool, text string) bool`
+- L202: `func (r *Subagents) CommitText(instanceID string, reasoning bool, text string) bool`
+- L233: `func (r *Subagents) RecordTool(instanceID, toolID, name, args string) bool`
+- L254: `func (r *Subagents) capTranscript(e *SubagentView)`
+- L264: `func (r *Subagents) MarkInputRequired(id string) bool`
+- L276: `func (r *Subagents) ClearInputRequired(id string) bool`
+- L288: `func (r *Subagents) byAnyID(id string) *SubagentView`
+- L304: `func (r *Subagents) RecordSteer(spawnID, text string) bool`
+- L319: `func (r *Subagents) SetLaneSession(spawnID, session string)`
+- L328: `func (r *Subagents) ByID(spawnID string) (SubagentView, bool)`
+- L339: `func (r *Subagents) ViewByInstance(instanceID string) (SubagentView, bool)`
+- L353: `func copyView(e *SubagentView) SubagentView`
+- L364: `func (r *Subagents) NameFor(instanceID string) string`
+- L381: `func (r *Subagents) End(spawnID string, success bool, detail string, totalTokens int64) bool`
+- L398: `func (r *Subagents) Entries() []SubagentView`
+- L405: `func (r *Subagents) Empty() bool { return len(r.entries) == 0 }`
+- L408: `func (r *Subagents) Reset() { r.entries = nil }`
+- L411: `func (r *Subagents) bySpawn(spawnID string) *SubagentView`
+- L423: `func (r *Subagents) join(instanceID string) *SubagentView`
 
 ## internal/copilot
 
@@ -159,32 +173,32 @@ _Last generated: 2026-06-11 (UTC)._
 - L177: `func capOutput(s string) string`
 - L193: `func commandLine(name string, args []string) string`
 
-### mock.go (245 LOC)
+### mock.go (247 LOC)
 - L11: `type MockClient struct`
-- L48: `func NewMockClient() *MockClient`
-- L59: `func (m *MockClient) CreateSession(context.Context, SessionSpec) (string, error)`
-- L70: `func (m *MockClient) Send(_ context.Context, _, prompt string, attachments []string, agentMode string) error`
-- L84: `func (m *MockClient) SentModeAt(i int) string`
-- L91: `func (m *MockClient) Abort(_ context.Context, sessionID string) error`
-- L99: `type PermissionDecision struct`
-- L105: `func (m *MockClient) Respond(id string, approve bool) error`
-- L113: `type InputDecision struct`
-- L119: `func (m *MockClient) RespondInput(id, answer string) error`
-- L127: `type PlanDecision struct`
-- L135: `func (m *MockClient) RespondPlan(id string, approved bool, action, feedback string) error`
-- L143: `type ElicitDecision struct`
-- L150: `func (m *MockClient) RespondElicit(id, action string, content map[string]any) error`
-- L158: `func (m *MockClient) SentCount() int`
-- L165: `func (m *MockClient) SentAt(i int) string`
-- L172: `func (m *MockClient) ListModels(context.Context) ([]ModelInfo, error)`
-- L179: `func (m *MockClient) AuthStatus(context.Context) (AuthStatus, error)`
-- L186: `func (m *MockClient) ListSessions(context.Context) ([]SessionMeta, error)`
-- L193: `func (m *MockClient) ResumeSession(_ context.Context, sessionID string, _ SessionSpec) (string, error)`
-- L204: `func (m *MockClient) SessionHistory(_ context.Context, sessionID string) ([]Event, error)`
-- L214: `func (m *MockClient) DeleteSession(_ context.Context, sessionID string) error`
-- L225: `func (m *MockClient) Events() <-chan Event { return m.events }`
-- L228: `func (m *MockClient) Emit(e Event)`
-- L237: `func (m *MockClient) Close() error`
+- L49: `func NewMockClient() *MockClient`
+- L60: `func (m *MockClient) CreateSession(context.Context, SessionSpec) (string, error)`
+- L71: `func (m *MockClient) Send(_ context.Context, sessionID, prompt string, attachments []string, agentMode string) error`
+- L86: `func (m *MockClient) SentModeAt(i int) string`
+- L93: `func (m *MockClient) Abort(_ context.Context, sessionID string) error`
+- L101: `type PermissionDecision struct`
+- L107: `func (m *MockClient) Respond(id string, approve bool) error`
+- L115: `type InputDecision struct`
+- L121: `func (m *MockClient) RespondInput(id, answer string) error`
+- L129: `type PlanDecision struct`
+- L137: `func (m *MockClient) RespondPlan(id string, approved bool, action, feedback string) error`
+- L145: `type ElicitDecision struct`
+- L152: `func (m *MockClient) RespondElicit(id, action string, content map[string]any) error`
+- L160: `func (m *MockClient) SentCount() int`
+- L167: `func (m *MockClient) SentAt(i int) string`
+- L174: `func (m *MockClient) ListModels(context.Context) ([]ModelInfo, error)`
+- L181: `func (m *MockClient) AuthStatus(context.Context) (AuthStatus, error)`
+- L188: `func (m *MockClient) ListSessions(context.Context) ([]SessionMeta, error)`
+- L195: `func (m *MockClient) ResumeSession(_ context.Context, sessionID string, _ SessionSpec) (string, error)`
+- L206: `func (m *MockClient) SessionHistory(_ context.Context, sessionID string) ([]Event, error)`
+- L216: `func (m *MockClient) DeleteSession(_ context.Context, sessionID string) error`
+- L227: `func (m *MockClient) Events() <-chan Event { return m.events }`
+- L230: `func (m *MockClient) Emit(e Event)`
+- L239: `func (m *MockClient) Close() error`
 
 ### normalize.go (495 LOC)
 - L22: `type toolMeta struct`
@@ -671,7 +685,7 @@ _Last generated: 2026-06-11 (UTC)._
 - L303: `func commandVarRefs(s string) []string`
 - L317: `func hookPreflightResult(pattern, sample string) string`
 
-### hub.go (336 LOC)
+### hub.go (338 LOC)
 - L29: `type Hub struct`
 - L73: `type Options struct`
 - L95: `func New(opts Options) *Hub`
@@ -681,8 +695,8 @@ _Last generated: 2026-06-11 (UTC)._
 - L209: `func (h *Hub) route(copilotID string) *Server`
 - L225: `func (h *Hub) pump()`
 - L235: `func (h *Hub) Handler() http.Handler`
-- L329: `func (s *Server) Handler() http.Handler { return s.hub.Handler() }`
-- L332: `func newID() string`
+- L331: `func (s *Server) Handler() http.Handler { return s.hub.Handler() }`
+- L334: `func newID() string`
 
 ### instructions_import.go (65 LOC)
 - L31: `func importInstructionFiles(dir string) []ctxforge.Instruction`
@@ -731,20 +745,20 @@ _Last generated: 2026-06-11 (UTC)._
 ### palette.go (33 LOC)
 - L15: `func commandPalette() string`
 
-### pause.go (192 LOC)
+### pause.go (215 LOC)
 - L20: `type escalateReq struct`
 - L36: `func (s *Server) escalate(req escalateReq) string`
-- L60: `func (s *Server) parkLane(session, message, pauseID string)`
-- L76: `func (s *Server) resumeLane(session string, res pause.Resolution)`
-- L94: `func (s *Server) laneBySession(session string) *lane`
-- L108: `func (s *Server) pauseFrags() []fragment`
-- L122: `func (s *Server) handlePause(w http.ResponseWriter, r *http.Request)`
-- L142: `func escalateResult(res pause.Resolution) string`
-- L161: `func cancelNote(res pause.Resolution) string`
-- L173: `func renderPauses(pending []pause.Pause) string`
-- L185: `func renderPauseForm(p pause.Pause) string`
+- L84: `func (s *Server) parkLane(session, message, pauseID string)`
+- L101: `func (s *Server) resumeLane(session string, res pause.Resolution)`
+- L117: `func (s *Server) laneBySession(session string) *lane`
+- L131: `func (s *Server) pauseFrags() []fragment`
+- L145: `func (s *Server) handlePause(w http.ResponseWriter, r *http.Request)`
+- L165: `func escalateResult(res pause.Resolution) string`
+- L184: `func cancelNote(res pause.Resolution) string`
+- L196: `func renderPauses(pending []pause.Pause) string`
+- L208: `func renderPauseForm(p pause.Pause) string`
 
-### render.go (598 LOC)
+### render.go (599 LOC)
 - L25: `func esc(s string) string`
 - L31: `func deltaSpan(text string) string { return frag("deltaSpan", text) }`
 - L34: `func renderTurn(t convo.Turn) string`
@@ -767,16 +781,16 @@ _Last generated: 2026-06-11 (UTC)._
 - L324: `func subagentLabel(sa copilot.SubagentInfo) string`
 - L337: `func subagentGlyph(st convo.SubagentStatus) string`
 - L356: `func renderSubagents(entries []convo.SubagentView) string`
-- L389: `func renderStatus(text string, active bool, startMs int64) string`
-- L397: `func renderCtx(cur, limit int64, compacting bool) string`
-- L432: `func renderStatline(s *Server) string`
-- L493: `func statlineForecast(s *Server, now time.Time) (show bool, short string, warn bool, title string)`
-- L507: `func humanTokens(n int64) string`
-- L523: `func renderCostFooter(credits float64, budget telemetry.Budget) string`
-- L543: `func renderActualCostFooter(a telemetry.ActualSpend, budget telemetry.Budget) string`
-- L575: `func renderBudgetForm(projected, capCredits float64) string`
-- L586: `func renderLeashForm(label, reason string) string`
-- L592: `func clampLines(s string, n int) string`
+- L390: `func renderStatus(text string, active bool, startMs int64) string`
+- L398: `func renderCtx(cur, limit int64, compacting bool) string`
+- L433: `func renderStatline(s *Server) string`
+- L494: `func statlineForecast(s *Server, now time.Time) (show bool, short string, warn bool, title string)`
+- L508: `func humanTokens(n int64) string`
+- L524: `func renderCostFooter(credits float64, budget telemetry.Budget) string`
+- L544: `func renderActualCostFooter(a telemetry.ActualSpend, budget telemetry.Budget) string`
+- L576: `func renderBudgetForm(projected, capCredits float64) string`
+- L587: `func renderLeashForm(label, reason string) string`
+- L593: `func clampLines(s string, n int) string`
 
 ### runs.go (195 LOC)
 - L28: `func (s *Server) runsPartial(window int) string`
@@ -850,16 +864,16 @@ _Last generated: 2026-06-11 (UTC)._
 - L943: `func (s *Server) editForge(fn func() error) error`
 - L957: `func (s *Server) writePartial(w http.ResponseWriter, html string)`
 
-### session.go (472 LOC)
+### session.go (497 LOC)
 - L15: `type liveKind int`
 - L28: `func (s *Server) handleEvent(e copilot.Event) []fragment`
 - L305: `type spendTag struct`
 - L328: `func (s *Server) recordUsage(u copilot.UsageData, tag spendTag) telemetry.Cost`
 - L394: `func (s *Server) leashFor(agentID string) (telemetry.Leash, bool)`
 - L410: `func (s *Server) handleSubagentStream(e copilot.Event) []fragment`
-- L438: `func (s *Server) recordSubagentUsage(e copilot.Event) []fragment`
-- L454: `func (s *Server) timelineFragments() []fragment`
-- L467: `func toolID(e copilot.Event) string`
+- L463: `func (s *Server) recordSubagentUsage(e copilot.Event) []fragment`
+- L479: `func (s *Server) timelineFragments() []fragment`
+- L492: `func toolID(e copilot.Event) string`
 
 ### sessions.go (182 LOC)
 - L21: `func (s *Server) sessionsPartial() string`
@@ -901,6 +915,16 @@ _Last generated: 2026-06-11 (UTC)._
 - L21: `func (s *Server) serveEvents(w http.ResponseWriter, r *http.Request)`
 - L62: `func writeSSE(w io.Writer, event, data string)`
 
+### subagent_overlay.go (168 LOC)
+- L29: `func subagentEvent(spawnID string) string { return "subagent-" + spawnID }`
+- L34: `func (s *Server) subagentOverlayFrag(instanceID string) (fragment, bool)`
+- L47: `func (s *Server) handleSubagentOverlay(w http.ResponseWriter, r *http.Request)`
+- L66: `func (s *Server) handleSubagentSteer(w http.ResponseWriter, r *http.Request)`
+- L100: `func (s *Server) subagentTranscriptFrag(v convo.SubagentView) fragment`
+- L111: `func renderSubagentOverlay(v convo.SubagentView, pauses []pause.Pause) string`
+- L142: `func renderSubagentTranscript(v convo.SubagentView) string`
+- L160: `func (s *Server) pausesFor(v convo.SubagentView) []pause.Pause`
+
 ### svg.go (238 LOC)
 - L35: `func svgNum(v float64) string`
 - L41: `func scaleX(i, n int, w, pad float64) float64`
@@ -939,7 +963,7 @@ _Last generated: 2026-06-11 (UTC)._
 - L44: `func trusted(s string) template.HTML { return template.HTML(s) } //nolint:gosec // composed from escaped fragments`
 - L49: `func frag(name string, data any) string`
 
-### workflow.go (1165 LOC)
+### workflow.go (1178 LOC)
 - L30: `type laneStatus int`
 - L46: `func settled(st laneStatus) bool`
 - L52: `type lane struct`
@@ -960,42 +984,42 @@ _Last generated: 2026-06-11 (UTC)._
 - L305: `func (r *workflowRun) finishLane(l *lane, detail string) []int`
 - L317: `func (r *workflowRun) failLane(l *lane, msg string) []int`
 - L333: `func (r *workflowRun) abort() []string`
-- L354: `func (r *workflowRun) advance(l *lane) []int`
-- L379: `func (r *workflowRun) allSettled() bool`
-- L394: `func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request)`
-- L414: `func (s *Server) handleRunRerun(w http.ResponseWriter, r *http.Request)`
-- L429: `func (s *Server) handleRunAbort(w http.ResponseWriter, r *http.Request)`
-- L442: `func (s *Server) abortRun(ctx context.Context)`
-- L473: `func (s *Server) launchWorkflow(id string) bool`
-- L512: `func (s *Server) workflowLaneSpec(cs ctxforge.SessionSpec) copilot.SessionSpec`
-- L523: `func (s *Server) launchLanes(run *workflowRun, idxs []int)`
-- L531: `func (s *Server) startLane(run *workflowRun, idx int)`
-- L561: `func (s *Server) laneError(run *workflowRun, l *lane, err error)`
-- L575: `func (s *Server) handleRunEvent(run *workflowRun, e copilot.Event) []fragment`
-- L682: `func (s *Server) runFrags(run *workflowRun, done bool) []fragment`
-- L715: `func (s *Server) recordRun(run *workflowRun)`
-- L728: `func runRecord(run *workflowRun) telemetry.RunRecord`
-- L748: `func laneStatusName(st laneStatus) string`
-- L766: `func (l *lane) costDetail() string`
-- L774: `func (s *Server) lanesFrag() fragment`
-- L781: `func renderLanes(run *workflowRun) string`
-- L805: `func laneToolsHTML(tools []*convo.ToolView) template.HTML`
-- L816: `func lanePermsHTML(perms []copilot.PermissionRequest) template.HTML`
-- L827: `func laneGlyph(st laneStatus) (glyph, state string)`
-- L834: `func glyphFor(status string) (glyph, state string)`
-- L859: `func streamDemoLane(m *copilot.MockClient, sid, prompt string, escalate func(escalateReq) string)`
-- L918: `func firstLine(s string) string`
-- L929: `func (s *Server) workflowsPartial() string`
-- L985: `func renderWorkflowForm(w ctxforge.Workflow, isNew bool, errMsg string) string`
-- L1006: `func stepsToText(steps []ctxforge.WorkflowStep) string`
-- L1026: `func stepsFromText(raw string) []ctxforge.WorkflowStep`
-- L1055: `func splitStepLine(line string) (head, prompt string)`
-- L1074: `func formatStepCondition(c *ctxforge.StepCondition) string`
-- L1092: `func parseStepCondition(spec string) *ctxforge.StepCondition`
-- L1112: `func workflowFromForm(r *http.Request, id string) ctxforge.Workflow`
-- L1122: `func (s *Server) handleWorkflowNew(w http.ResponseWriter, r *http.Request)`
-- L1126: `func (s *Server) handleWorkflowEdit(w http.ResponseWriter, r *http.Request)`
-- L1141: `func (s *Server) handleWorkflowCreate(w http.ResponseWriter, r *http.Request)`
-- L1150: `func (s *Server) handleWorkflowUpdate(w http.ResponseWriter, r *http.Request)`
-- L1160: `func (s *Server) handleWorkflowDelete(w http.ResponseWriter, r *http.Request)`
+- L357: `func (r *workflowRun) advance(l *lane) []int`
+- L382: `func (r *workflowRun) allSettled() bool`
+- L397: `func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request)`
+- L417: `func (s *Server) handleRunRerun(w http.ResponseWriter, r *http.Request)`
+- L432: `func (s *Server) handleRunAbort(w http.ResponseWriter, r *http.Request)`
+- L445: `func (s *Server) abortRun(ctx context.Context)`
+- L476: `func (s *Server) launchWorkflow(id string) bool`
+- L515: `func (s *Server) workflowLaneSpec(cs ctxforge.SessionSpec) copilot.SessionSpec`
+- L526: `func (s *Server) launchLanes(run *workflowRun, idxs []int)`
+- L534: `func (s *Server) startLane(run *workflowRun, idx int)`
+- L564: `func (s *Server) laneError(run *workflowRun, l *lane, err error)`
+- L578: `func (s *Server) handleRunEvent(run *workflowRun, e copilot.Event) []fragment`
+- L685: `func (s *Server) runFrags(run *workflowRun, done bool) []fragment`
+- L718: `func (s *Server) recordRun(run *workflowRun)`
+- L731: `func runRecord(run *workflowRun) telemetry.RunRecord`
+- L751: `func laneStatusName(st laneStatus) string`
+- L769: `func (l *lane) costDetail() string`
+- L777: `func (s *Server) lanesFrag() fragment`
+- L784: `func renderLanes(run *workflowRun) string`
+- L808: `func laneToolsHTML(tools []*convo.ToolView) template.HTML`
+- L819: `func lanePermsHTML(perms []copilot.PermissionRequest) template.HTML`
+- L830: `func laneGlyph(st laneStatus) (glyph, state string)`
+- L837: `func glyphFor(status string) (glyph, state string)`
+- L868: `func streamDemoLane(m *copilot.MockClient, sid, prompt string, escalate func(escalateReq) string)`
+- L931: `func firstLine(s string) string`
+- L942: `func (s *Server) workflowsPartial() string`
+- L998: `func renderWorkflowForm(w ctxforge.Workflow, isNew bool, errMsg string) string`
+- L1019: `func stepsToText(steps []ctxforge.WorkflowStep) string`
+- L1039: `func stepsFromText(raw string) []ctxforge.WorkflowStep`
+- L1068: `func splitStepLine(line string) (head, prompt string)`
+- L1087: `func formatStepCondition(c *ctxforge.StepCondition) string`
+- L1105: `func parseStepCondition(spec string) *ctxforge.StepCondition`
+- L1125: `func workflowFromForm(r *http.Request, id string) ctxforge.Workflow`
+- L1135: `func (s *Server) handleWorkflowNew(w http.ResponseWriter, r *http.Request)`
+- L1139: `func (s *Server) handleWorkflowEdit(w http.ResponseWriter, r *http.Request)`
+- L1154: `func (s *Server) handleWorkflowCreate(w http.ResponseWriter, r *http.Request)`
+- L1163: `func (s *Server) handleWorkflowUpdate(w http.ResponseWriter, r *http.Request)`
+- L1173: `func (s *Server) handleWorkflowDelete(w http.ResponseWriter, r *http.Request)`
 

@@ -50,7 +50,14 @@ func (s *Server) escalate(req escalateReq) string {
 		AgentID: req.agentID, Kind: req.kind, Message: req.message, Caps: req.caps,
 	})
 	s.parkLane(req.laneSession, req.message, p.ID)
+	// If the escalating agent is a registry sub-agent, flip its row to the
+	// input-required attention state so the list and the overlay agree (S5). A
+	// no-op when AgentID names a lane persona rather than a registry instance.
+	parked := s.subreg.MarkInputRequired(req.agentID)
 	frags := s.pauseFrags()
+	if parked {
+		frags = append(frags, s.subagentsFrag())
+	}
 	s.mu.Unlock()
 	s.broadcast(frags)
 
@@ -58,7 +65,11 @@ func (s *Server) escalate(req escalateReq) string {
 
 	s.mu.Lock()
 	s.resumeLane(req.laneSession, res)
+	resumed := s.subreg.ClearInputRequired(req.agentID)
 	frags = s.pauseFrags()
+	if resumed {
+		frags = append(frags, s.subagentsFrag())
+	}
 	s.mu.Unlock()
 	s.broadcast(frags)
 

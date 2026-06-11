@@ -150,6 +150,37 @@ test.describe("streaming a turn", () => {
     await expect(done).toBeVisible();
     await expect(done.locator(".sa-status")).not.toContainText("unverified");
   });
+
+  test("opening a sub-agent shows its own transcript in a focus-trapped overlay", async ({ page }) => {
+    await gotoApp(page);
+    await send(page, "explore");
+    // The row persists on the roster after the demo sub-agent finishes, and so does
+    // its bounded transcript. Open the drill-down from the row's button (S5): a
+    // native <dialog> with the sub-agent's OWN streamed activity — the demo's
+    // "scanning internal/…" delta and its grep tool call — which never appeared in
+    // the root timeline (asserted above). Structure, not exact wording.
+    const row = page
+      .locator(`${sel.subagents} .subagent-row`)
+      .filter({ hasText: "Explore" })
+      .first();
+    await expect(row).toBeVisible({ timeout: 15_000 });
+    await row.locator(".sa-open").click();
+
+    const dialog = page.locator("dialog#subagent-dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator(".sa-transcript-region")).toContainText("scanning internal/");
+    await expect(dialog.locator(".sa-transcript .sa-tool-name")).toContainText("grep");
+
+    // ⎋ closes the modal (native dialog), and reopening renders the same bounded
+    // transcript — no duplicate turns (idempotent re-render).
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await row.locator(".sa-open").click();
+    await expect(page.locator("dialog#subagent-dialog")).toBeVisible();
+    await expect(
+      page.locator("dialog#subagent-dialog .sa-transcript .sa-t-tool"),
+    ).toHaveCount(1);
+  });
 });
 
 test.describe("inline interaction forms", () => {
