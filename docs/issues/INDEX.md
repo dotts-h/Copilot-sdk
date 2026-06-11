@@ -21,6 +21,7 @@ issues are added or closed.
 | [0045](0045-epic-ui-ux-refresh.md) | Epic: UI/UX refresh — token foundation, theming, navigation IA, telemetry dashboard, motion (roadmap v9) | closed | 0046, 0047, 0048, 0049 |
 | [0069](0069-epic-first-class-subagents.md) | Epic: First-class sub-agents — live view, per-subagent cost, HITL pause/continue/cancel (roadmap v12) | closed | 0070, 0071, 0072, 0073, 0074, 0075 |
 | [0076](0076-epic-designed-agent-output.md) | Epic: Designed agent output — rich, token-styled components from agent markdown (roadmap v13) | open | 0077, 0078, 0079, 0080, 0081, 0082 |
+| [0083](0083-epic-orchestration-robustness-backpressure-replayability-considered-and-rejected-event-bus.md) | Epic: Orchestration robustness — backpressure + replayability (considered-and-rejected event bus) (roadmap v14) | open | 0084, 0085 |
 
 ## Issues
 
@@ -97,3 +98,6 @@ issues are added or closed.
 | [0080](0080-tables.md) | Tables — GFM pipe tables as token-styled table components (R4) | open | medium | 0076 | depends_on: 0077, the missing common block |
 | [0081](0081-container-directives.md) | Container directives — :::card / :::details, allowlisted model-authorable blocks (R5) | open | medium | 0076 | depends_on: 0077+0078, ADR (new) grammar+allowlist |
 | [0082](0082-citation-cards.md) | Citation cards — inline [n] markers + server-rendered source cards (R6, stretch) | open | low | 0076 | depends_on: 0077, Perplexity pattern; needs a source-bearing surface |
+| [0083](0083-epic-orchestration-robustness-backpressure-replayability-considered-and-rejected-event-bus.md) | Epic: Orchestration robustness — backpressure + replayability (considered-and-rejected event bus) | open | medium | | children 0084–0085; NEXT_FEATURES roadmap-v14; event-bus evaluation |
+| [0084](0084-bounded-lane-worker-pool-backpressure-for-wide-parallel-workflows.md) | Bounded lane worker pool — backpressure for wide parallel workflows | open | medium | 0083 | depends_on: —, bounds launchLanes fan-out; no new seam |
+| [0085](0085-per-run-event-log-for-replay-audit-on-appendonlystore.md) | Per-run event log for replay/audit on AppendOnlyStore | open | medium | 0083 | depends_on: —, builds on AppendOnlyStore (0033); replay vs summary |
