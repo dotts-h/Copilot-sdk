@@ -107,6 +107,14 @@ Exact commands CI enforces (`.github/workflows/ci.yml`, `Makefile`):
 - **CI runs once per change.** `ci.yml`/`e2e.yml` trigger on `pull_request` (the open PR)
   and `push: [main]` (merge) — **never** list a feature branch (`claude/**`) under `push`,
   which doubles every run. `pages.yml`/`desktop.yml` are `main`-only and path-filtered.
+- **Docs-only changes skip the heavy pipeline.** `ci.yml`/`e2e.yml` carry
+  `paths-ignore: ["docs/**", "**/*.md"]`, so a pure docs/ADR/issue edit doesn't spin up the
+  6-cell build matrix, race tests, fuzz, or the browser suite. The skip is whole-workflow
+  (safe here: a docs-only PR has merged with `desktop.yml`'s checks already skipped). It's
+  sound because **no committed `.md` is a build/test input** — keep it that way: a test that
+  reads a tracked markdown file would silently lose its gate (synthesize fixtures in a temp
+  dir, as the instruction-import tests do). A PR touching code *and* docs runs in full
+  (`paths-ignore` skips only when every changed path matches).
 - **Workflow guard (self-enforcing):** `scripts/check-workflows.sh` fails if a workflow
   re-introduces a feature-branch `push` trigger (the double-run) or the release
   version-resolution bug (`${GITHUB_REF_NAME:-…}`, which tags a dispatched release after

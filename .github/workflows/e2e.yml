@@ -2,12 +2,16 @@ name: E2E (Playwright)
 
 # Run once per change: `pull_request` for the open PR, `push` only on merge to
 # `main`. A feature branch under `push` would double every run (push + PR events).
-# — see docs/CONVENTIONS.md "Quality gates"
+# `paths-ignore` skips the browser suite for docs-only changes — a markdown edit
+# can't move the UI (paths-ignore skips only when EVERY changed path is docs; a PR
+# that also touches code runs in full). — see docs/CONVENTIONS.md "Quality gates"
 on:
   push:
     branches: [main]
+    paths-ignore: ["docs/**", "**/*.md"]
   pull_request:
     branches: [main]
+    paths-ignore: ["docs/**", "**/*.md"]
   workflow_dispatch:
 
 permissions:

@@ -5,11 +5,22 @@ name: CI
 # under `push` — listing it there ran the whole pipeline TWICE per push (the push
 # event AND the pull_request event, on different `github.ref`s the concurrency group
 # can't dedup). — see docs/CONVENTIONS.md "Quality gates"
+#
+# `paths-ignore` skips the whole pipeline for docs-only changes (the build/test/fuzz
+# suite can't be affected by a markdown edit) — `desktop.yml`/`pages.yml` already
+# path-filter, and a docs-only PR has merged with those checks skipped, so the
+# required-check set tolerates a skipped workflow here. The ignore globs are
+# documentation only: no committed `.md` is a build or test input (the instruction-
+# import tests synthesize their `CLAUDE.md`/`AGENTS.md` fixtures in a temp dir), so
+# nothing under test loses coverage. A PR that also touches code falls through the
+# filter (paths-ignore skips only when EVERY changed path matches) and runs in full.
 on:
   push:
     branches: [main]
+    paths-ignore: ["docs/**", "**/*.md"]
   pull_request:
     branches: [main]
+    paths-ignore: ["docs/**", "**/*.md"]
   workflow_dispatch:
 
 permissions:
