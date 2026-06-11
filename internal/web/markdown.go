@@ -81,8 +81,10 @@ func renderMarkdown(src string) string {
 // parseBlocks recognizes the markdown subset as a typed block list. No HTML is
 // produced here; raw markdown text rides inside the blocks for the renderers.
 func parseBlocks(src string) []Block {
-	lines := strings.Split(src, "\n")
+	return parseLines(strings.Split(src, "\n"))
+}
 
+func parseLines(lines []string) []Block {
 	var blocks []Block
 	i := 0
 	for i < len(lines) {
@@ -131,29 +133,18 @@ func parseBlocks(src string) []Block {
 				inner = append(inner, strings.TrimPrefix(t, " "))
 				i++
 			}
-			blocks = append(blocks, quoteBlock{children: parseBlocks(strings.Join(inner, "\n"))})
+			blocks = append(blocks, quoteBlock{children: parseLines(inner)})
 			continue
 		}
 
-		// Unordered list.
-		if mdULItem.MatchString(line) {
+		// List: a run of consecutive items, unordered (-/*/+) or ordered (1.).
+		if itemRe := listItemRe(line); itemRe != nil {
 			var items []string
-			for i < len(lines) && mdULItem.MatchString(lines[i]) {
-				items = append(items, mdULItem.FindStringSubmatch(lines[i])[1])
+			for i < len(lines) && itemRe.MatchString(lines[i]) {
+				items = append(items, itemRe.FindStringSubmatch(lines[i])[1])
 				i++
 			}
-			blocks = append(blocks, listBlock{ordered: false, items: items})
-			continue
-		}
-
-		// Ordered list.
-		if mdOLItem.MatchString(line) {
-			var items []string
-			for i < len(lines) && mdOLItem.MatchString(lines[i]) {
-				items = append(items, mdOLItem.FindStringSubmatch(lines[i])[1])
-				i++
-			}
-			blocks = append(blocks, listBlock{ordered: true, items: items})
+			blocks = append(blocks, listBlock{ordered: itemRe == mdOLItem, items: items})
 			continue
 		}
 
@@ -172,13 +163,29 @@ func parseBlocks(src string) []Block {
 	return blocks
 }
 
+// listItemRe returns the list-item regex a line matches, or nil. The two
+// regexes are disjoint (a marker can't be both a bullet and a number).
+func listItemRe(line string) *regexp.Regexp {
+	switch {
+	case mdULItem.MatchString(line):
+		return mdULItem
+	case mdOLItem.MatchString(line):
+		return mdOLItem
+	}
+	return nil
+}
+
 // renderBlocks emits the sanitized HTML for a block list.
 func renderBlocks(blocks []Block) string {
 	var b strings.Builder
-	for _, blk := range blocks {
-		blk.renderTo(&b)
-	}
+	renderBlocksTo(&b, blocks)
 	return b.String()
+}
+
+func renderBlocksTo(b *strings.Builder, blocks []Block) {
+	for _, blk := range blocks {
+		blk.renderTo(b)
+	}
 }
 
 func (h headingBlock) renderTo(b *strings.Builder) {
@@ -207,7 +214,9 @@ func (l listBlock) renderTo(b *strings.Builder) {
 }
 
 func (q quoteBlock) renderTo(b *strings.Builder) {
-	b.WriteString("<blockquote>" + renderBlocks(q.children) + "</blockquote>")
+	b.WriteString("<blockquote>")
+	renderBlocksTo(b, q.children)
+	b.WriteString("</blockquote>")
 }
 
 func (hrBlock) renderTo(b *strings.Builder) {
@@ -215,11 +224,14 @@ func (hrBlock) renderTo(b *strings.Builder) {
 }
 
 func (p paragraphBlock) renderTo(b *strings.Builder) {
-	var para []string
-	for _, line := range p.lines {
-		para = append(para, inline(line))
+	b.WriteString("<p>")
+	for j, line := range p.lines {
+		if j > 0 {
+			b.WriteString("<br>")
+		}
+		b.WriteString(inline(line))
 	}
-	b.WriteString("<p>" + strings.Join(para, "<br>") + "</p>")
+	b.WriteString("</p>")
 }
 
 // isBlockStart reports whether a line opens a non-paragraph block, so paragraph
