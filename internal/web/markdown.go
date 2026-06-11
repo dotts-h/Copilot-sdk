@@ -122,11 +122,42 @@ func parseBlocks(src string) []Block {
 	return parseLines(strings.Split(src, "\n"))
 }
 
-func parseLines(lines []string) []Block {
+func parseLines(lines []string) []Block { return parseLinesDepth(lines, 0) }
+
+// parseLinesDepth is parseLines threaded with the current container-directive
+// nesting depth, so directive recursion is bounded (ADR-0047). Blockquote and
+// callout bodies carry the same depth (they don't nest a directive fence);
+// a directive body recurses at depth+1.
+func parseLinesDepth(lines []string, depth int) []Block {
 	var blocks []Block
 	i := 0
 	for i < len(lines) {
 		line := lines[i]
+
+		// Container directive (R5, issue 0081): `:::name{attrs}` … `:::` resolved
+		// against the registry allowlist. Recognized only when the name is
+		// registered and a matching close is found within the depth budget; an
+		// unregistered name / over-depth / unterminated open is not a directive and
+		// falls through to ordinary parsing (degrade to escaped text).
+		if name, attrs, body, next, ok := directiveAt(lines, i, depth); ok {
+			blocks = append(blocks, directiveBlock{
+				name:     name,
+				attrs:    attrs,
+				children: parseLinesDepth(body, depth+1),
+			})
+			i = next
+			continue
+		}
+		// A registered open with no usable close (unterminated, or past the depth
+		// budget) is not a directive: degrade the marker line to escaped text.
+		// Consuming just this line — rather than letting the paragraph loop break
+		// on it forever — keeps the loop progressing and the body after it parses
+		// as normal blocks (ADR-0047).
+		if isDirectiveOpenLine(line) {
+			blocks = append(blocks, paragraphBlock{lines: []string{line}})
+			i++
+			continue
+		}
 
 		// Fenced code block: ``` … ``` — content kept verbatim.
 		if fence := strings.TrimSpace(line); strings.HasPrefix(fence, "```") {
@@ -183,13 +214,13 @@ func parseLines(lines []string) []Block {
 						blocks = append(blocks, calloutBlock{
 							kind:     strings.ToLower(m[1]),
 							title:    title,
-							children: parseLines(inner[1:]),
+							children: parseLinesDepth(inner[1:], depth),
 						})
 						continue
 					}
 				}
 			}
-			blocks = append(blocks, quoteBlock{children: parseLines(inner)})
+			blocks = append(blocks, quoteBlock{children: parseLinesDepth(inner, depth)})
 			continue
 		}
 
@@ -203,7 +234,7 @@ func parseLines(lines []string) []Block {
 			i += 2
 			var rows [][]string
 			for i < len(lines) {
-				if strings.TrimSpace(lines[i]) == "" || !strings.Contains(lines[i], "|") || isBlockStart(lines[i]) {
+				if strings.TrimSpace(lines[i]) == "" || !strings.Contains(lines[i], "|") || isBlockStart(lines[i]) || isDirectiveOpenLine(lines[i]) {
 					break
 				}
 				rows = append(rows, splitTableRow(lines[i]))
@@ -228,7 +259,7 @@ func parseLines(lines []string) []Block {
 		var para []string
 		for i < len(lines) {
 			cur := lines[i]
-			if strings.TrimSpace(cur) == "" || isBlockStart(cur) || startsTable(lines, i) {
+			if strings.TrimSpace(cur) == "" || isBlockStart(cur) || startsTable(lines, i) || isDirectiveOpenLine(cur) {
 				break
 			}
 			para = append(para, cur)

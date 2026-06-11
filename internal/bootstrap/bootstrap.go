@@ -147,7 +147,7 @@ func demoClient(forge *ctxforge.Forge, spec *copilot.SessionSpec) (copilot.Clien
 		"demo-sess-1": {
 			{Type: copilot.EvUserMessage, Text: "Help me refactor the auth flow"},
 			{Type: copilot.EvReasoning, Text: "The login handler mixes parsing and policy; split them."},
-			{Type: copilot.EvMessage, Text: "Done. I extracted `parseCredentials` from the handler and added a `Policy` seam.\n\n```go\nfunc parseCredentials(r *http.Request) (Creds, error) { /* … */ }\n```\n\n> [!NOTE]\n> The `Policy` seam is behind an interface, so the auth flow stays testable.\n\n> [!WARNING]\n> Rotate the signing key before deploying — the old one is in the git history.\n\n| Check | Status |\n| --- | :--: |\n| Tests | pass |\n| Lint | pass |"},
+			{Type: copilot.EvMessage, Text: "Done. I extracted `parseCredentials` from the handler and added a `Policy` seam.\n\n```go\nfunc parseCredentials(r *http.Request) (Creds, error) { /* … */ }\n```\n\n> [!NOTE]\n> The `Policy` seam is behind an interface, so the auth flow stays testable.\n\n> [!WARNING]\n> Rotate the signing key before deploying — the old one is in the git history.\n\n| Check | Status |\n| --- | :--: |\n| Tests | pass |\n| Lint | pass |\n\n:::card\nThe refactor splits parsing from policy, so each is unit-testable in isolation.\n:::\n\n:::details{summary=\"Migration steps\"}\n1. Rotate the signing key.\n2. Deploy behind the `Policy` flag.\n3. Remove the old handler.\n:::"},
 		},
 		"demo-sess-2": {
 			{Type: copilot.EvUserMessage, Text: "Why is the e2e job flaky?"},

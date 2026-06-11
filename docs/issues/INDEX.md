@@ -96,7 +96,7 @@ issues are added or closed.
 | [0078](0078-callouts-admonitions.md) | Callouts / admonitions — GitHub-alert blockquotes as designed callout components (R2) | closed | medium | 0076 | depends_on: 0077, highest visual ROI; ADR-0046 |
 | [0079](0079-designed-code-blocks.md) | Designed code blocks — language label + copy affordance + token-styled frame (R3) | closed | medium | 0076 | depends_on: 0077, no highlighting lib |
 | [0080](0080-tables.md) | Tables — GFM pipe tables as token-styled table components (R4) | closed | medium | 0076 | depends_on: 0077, the missing common block |
-| [0081](0081-container-directives.md) | Container directives — :::card / :::details, allowlisted model-authorable blocks (R5) | open | medium | 0076 | depends_on: 0077+0078, ADR (new) grammar+allowlist |
+| [0081](0081-container-directives.md) | Container directives — :::card / :::details, allowlisted model-authorable blocks (R5) | closed | medium | 0076 | depends_on: 0077+0078, ADR-0047 grammar+allowlist |
 | [0082](0082-citation-cards.md) | Citation cards — inline [n] markers + server-rendered source cards (R6, stretch) | open | low | 0076 | depends_on: 0077, Perplexity pattern; needs a source-bearing surface |
 | [0083](0083-epic-orchestration-robustness-backpressure-replayability-considered-and-rejected-event-bus.md) | Epic: Orchestration robustness — backpressure + replayability (considered-and-rejected event bus) | open | medium | | children 0084–0085; NEXT_FEATURES roadmap-v14; event-bus evaluation |
 | [0084](0084-bounded-lane-worker-pool-backpressure-for-wide-parallel-workflows.md) | Bounded lane worker pool — backpressure for wide parallel workflows | open | medium | 0083 | depends_on: —, bounds launchLanes fan-out; no new seam |

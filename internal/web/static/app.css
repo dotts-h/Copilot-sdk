@@ -475,6 +475,23 @@ button.add, button.abort, .run-head .stop-run, .run-rec-head .rerun,
 .body.md .md-table .ta-center { text-align: center; }
 .body.md .md-table .ta-right { text-align: right; }
 
+/* container directives (R5, issue 0081, ADR-0047): :::card / :::details as
+   designed, model-authorable blocks resolved against the registry allowlist.
+   Both reuse only guarded semantic tokens (the surface ladder + radius ladder)
+   — no new color pair — so the css_tokens AA guard and the both-theme axe scan
+   stay green. :::details is a native <details>, so the collapse is the
+   browser's: no JS, just the token-styled frame. */
+.body.md .directive { margin: 0 0 .5rem; }
+.body.md .dir-card { padding: .6rem .75rem; border: 1px solid var(--subtle);
+  border-radius: var(--radius-3); background: var(--panel); }
+.body.md .dir-card > :last-child, .body.md .dir-body > :last-child { margin-bottom: 0; }
+.body.md .dir-details { border: 1px solid var(--subtle); border-radius: var(--radius-3);
+  background: var(--panel); overflow: hidden; }
+.body.md .dir-summary { cursor: pointer; padding: .4rem .75rem; font-weight: 600;
+  color: var(--fg); }
+.body.md .dir-details[open] .dir-summary { border-bottom: 1px solid var(--subtle); }
+.body.md .dir-body { padding: .6rem .75rem; }
+
 /* reasoning ("thinking") — dim, collapsible */
 .turn.reasoning { background: var(--raised-2); border-left: 3px solid var(--subtle);
   color: var(--dim); font-size: .92rem; }

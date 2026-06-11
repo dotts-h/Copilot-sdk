@@ -240,6 +240,12 @@
   `renderMarkdown` = `parseBlocks` → typed `[]Block` → `renderBlocks`; each block's renderer
   may emit only whitelisted/templated HTML (escape-first), and new rich components (epic 0076)
   attach as new block kinds on this seam. — ADR-0045
+- **directive** — a model-authorable designed block written `:::name{attrs}` … `:::` (the
+  remark-directive *syntax*, no Node toolchain), resolved against a **closed `directiveRegistry`**
+  (`:::card`, `:::details{summary=…}`). The registry — not the parser — is the trust boundary: an
+  **unregistered name is not a directive** (it degrades to escaped text), so shipping a new
+  designed block is adding a registry entry + a `frag`, and forgetting to register fails closed.
+  **allowlist > blocklist**, safe by construction. — ADR-0047
 - **lock order** — **`forgeMu → s.mu`**, never inverted (shared forge/config before
   per-session state). Race-tested. — see `internal/web/sessions.go`
 - **demo / mock mode** — the offline path (`-demo`): a scripted `MockClient` + seeded
