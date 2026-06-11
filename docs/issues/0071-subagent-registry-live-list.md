@@ -8,7 +8,7 @@ depends_on: [0070]
 github: 112
 links:
   adr: [0041]
-  prs: []
+  prs: [120]
   issues: [0069, 0031]
   regression:
 ---
