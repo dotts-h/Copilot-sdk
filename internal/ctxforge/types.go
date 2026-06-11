@@ -55,6 +55,12 @@ type Agent struct {
 	// AllowedTools restricts the session to this set of tool names when the agent
 	// is active (maps to the SDK session's AvailableTools). Empty = all tools.
 	AllowedTools []string `json:"allowedTools,omitempty"`
+	// MaxCredits and MaxTurns are the agent's budget leash: a ceiling on the credits
+	// and/or turns it may spend before the orchestrator pauses for confirmation at
+	// its next pre-dispatch gate (epic 0069 S3, issue 0072). Both are opt-in — zero
+	// (the default) disables that axis, so an unconfigured agent runs unleashed.
+	MaxCredits float64 `json:"maxCredits,omitempty"`
+	MaxTurns   int64   `json:"maxTurns,omitempty"`
 }
 
 // DefaultChatAgentID is the id of the built-in general-purpose agent.
@@ -123,6 +129,12 @@ func (a Agent) Validate() error {
 	}
 	if !validReasoningEfforts[a.ReasoningEffort] {
 		return fmt.Errorf("agent %q: invalid reasoningEffort %q", a.ID, a.ReasoningEffort)
+	}
+	if a.MaxCredits < 0 {
+		return fmt.Errorf("agent %q: maxCredits must not be negative", a.ID)
+	}
+	if a.MaxTurns < 0 {
+		return fmt.Errorf("agent %q: maxTurns must not be negative", a.ID)
 	}
 	return nil
 }

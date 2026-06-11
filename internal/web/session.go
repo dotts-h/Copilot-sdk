@@ -137,6 +137,16 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		// and the drained prompt starts a fresh turn for the elapsed timer.
 		if len(s.queue) > 0 && s.sessionID != "" {
 			next := s.queue[0]
+			// Gate the queued turn on the agent leash too: the just-finished turn
+			// may have pushed the persona over its cap, so re-check before draining
+			// the next one (issue 0072).
+			if g := s.pendingLeashGate(next, nil); g != nil {
+				s.queue = s.queue[1:]
+				s.gate = g
+				s.turnStartMs = 0
+				return append(s.timelineFragments(),
+					s.budgetFrag(), s.statusFrag("agent leash reached — confirm to proceed", false))
+			}
 			// Gate the queued turn too: type-ahead must not slip an over-budget
 			// prompt past the hard cap. The just-finished turn's usage/context is
 			// already folded in, so the projection is fresh. Surface the gate over
@@ -296,6 +306,13 @@ type spendTag struct {
 	agentID    string
 	workflowID string
 	laneIndex  int
+	// subagentID/subagentName attribute the turn to a sub-agent INSTANCE (epic 0069
+	// S3, issue 0072). When set, recordUsage prices the turn and appends a tagged
+	// ledger record but does NOT fold it into the account-wide or per-session token
+	// meters — a sub-agent's tokens are the sub-agent's, never metered as the root's
+	// (the S1 invariant, ADR-0040).
+	subagentID   string
+	subagentName string
 }
 
 // recordUsage folds one metered turn into both meters and appends a SpendRecord
@@ -317,14 +334,25 @@ func (s *Server) recordUsage(u copilot.UsageData, tag spendTag) telemetry.Cost {
 		OutputTokens:     u.OutputTokens,
 		ReasoningTokens:  u.ReasoningTokens,
 	}
-	cost := s.meter.Record(usage)
-	s.sessionMeter.Record(usage)
-	// Fold GitHub's authoritative per-turn cost into BOTH meters: the account-wide
-	// one (Telemetry page) and the per-session one (statusline), so each surface
-	// prefers reported over estimate on its own scope — ADR-0033.
 	aiu := u.NanoAIU * 1e-9
-	s.meter.RecordReportedAIU(aiu)
-	s.sessionMeter.RecordReportedAIU(aiu)
+	var cost telemetry.Cost
+	if tag.subagentID != "" {
+		// A sub-agent's tokens are the sub-agent's, not the root/session's: price the
+		// turn for ledger attribution and the live registry row, but DON'T fold it
+		// into the account-wide or per-session token meters — those are the root's
+		// "this session" gauges and must stay free of sub-agent spend (the S1
+		// invariant, ADR-0040). The ledger record below still carries the spend, so it
+		// counts toward the account-wide budget and the per-sub-agent breakdown.
+		cost = telemetry.Price(s.meter.PriceBook(), usage)
+	} else {
+		cost = s.meter.Record(usage)
+		s.sessionMeter.Record(usage)
+		// Fold GitHub's authoritative per-turn cost into BOTH meters: the account-wide
+		// one (Telemetry page) and the per-session one (statusline), so each surface
+		// prefers reported over estimate on its own scope — ADR-0033.
+		s.meter.RecordReportedAIU(aiu)
+		s.sessionMeter.RecordReportedAIU(aiu)
+	}
 	if s.spend != nil {
 		rec := telemetry.SpendRecord{
 			SessionID:        s.sessionID,
@@ -339,12 +367,36 @@ func (s *Server) recordUsage(u copilot.UsageData, tag spendTag) telemetry.Cost {
 			AgentID:          tag.agentID,
 			WorkflowID:       tag.workflowID,
 			LaneIndex:        tag.laneIndex,
+			SubagentID:       tag.subagentID,
+			SubagentName:     tag.subagentName,
 		}
 		if err := s.spend.Append(rec); err != nil {
 			s.logger.Printf("persist spend: %v", err)
 		}
 	}
+	// Accumulate the persona's running spend for the budget leash (issue 0072): a
+	// persona-tagged turn (root chat or a workflow lane) counts toward its agent's
+	// cap; a sub-agent turn (instance-tagged, persona empty) does not — its cap
+	// rides S4.
+	if tag.subagentID == "" && tag.agentID != "" {
+		s.agentCredits[tag.agentID] += cost.Credits()
+		s.agentTurns[tag.agentID]++
+	}
 	return cost
+}
+
+// leashFor reports the active persona's snapshot leash and whether it has already
+// crossed it this session — the pre-dispatch budget-leash check (issue 0072). It
+// reads the leash SNAPSHOT (`s.agentLeash`, captured under forgeMu at agent
+// selection) rather than the forge, so it never inverts the forge→s.mu lock order.
+// False (never gates) when the persona has no leash or the user raised it this
+// session. Caller holds s.mu.
+func (s *Server) leashFor(agentID string) (telemetry.Leash, bool) {
+	leash := s.agentLeash
+	if agentID == "" || s.leashLifted[agentID] || !leash.Active() {
+		return leash, false
+	}
+	return leash, leash.Breached(s.agentCredits[agentID], s.agentTurns[agentID])
 }
 
 // handleSubagentStream folds one sub-agent-tagged stream event into the
@@ -356,6 +408,9 @@ func (s *Server) recordUsage(u copilot.UsageData, tag spendTag) telemetry.Cost {
 // actually changed, so a delta storm doesn't re-render the list per chunk.
 // Caller holds s.mu.
 func (s *Server) handleSubagentStream(e copilot.Event) []fragment {
+	if e.Type == copilot.EvUsage {
+		return s.recordSubagentUsage(e)
+	}
 	changed := false
 	switch e.Type {
 	case copilot.EvToolStart:
@@ -370,6 +425,28 @@ func (s *Server) handleSubagentStream(e copilot.Event) []fragment {
 		return nil
 	}
 	return []fragment{s.subagentsFrag()}
+}
+
+// recordSubagentUsage meters one sub-agent-tagged turn (epic 0069 S3, issue
+// 0072): it prices the turn and appends a ledger record tagged with the instance
+// id/name (so the per-sub-agent breakdown and the account-wide budget both see
+// it), then folds the priced credits onto the instance's live registry row. The
+// turn is deliberately kept OUT of the root/session token meters — a sub-agent's
+// spend is the sub-agent's, never the root's (the S1 invariant, ADR-0040). The
+// name is resolved from the registry (which the join binds) so the ledger row
+// carries a restart-surviving label. Caller holds s.mu.
+func (s *Server) recordSubagentUsage(e copilot.Event) []fragment {
+	name := s.subreg.NameFor(e.AgentID)
+	cost := s.recordUsage(e.Usage, spendTag{subagentID: e.AgentID, subagentName: name})
+	changed := s.subreg.AddCredits(e.AgentID, cost.Credits())
+	frags := []fragment{
+		{Event: "cost", HTML: renderActualCostFooter(s.monthToDateActual(), s.budget())},
+		s.statFrag(),
+	}
+	if changed {
+		frags = append(frags, s.subagentsFrag())
+	}
+	return frags
 }
 
 // timelineFragments re-renders the whole #timeline and resets the live-kind to

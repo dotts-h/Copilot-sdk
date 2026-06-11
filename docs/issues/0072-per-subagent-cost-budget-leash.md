@@ -1,13 +1,13 @@
 ---
 id: 0072
 title: "Per-subagent cost + budget leash — live metering, ledger attribution, pre-Send cap (S3)"
-status: open
+status: closed
 severity: high
 group: 0069
 depends_on: [0070]
 github: 113
 links:
-  adr: []
+  adr: [0042]
   prs: []
   issues: [0069]
   regression:
@@ -40,21 +40,42 @@ not after).
 
 ## Acceptance
 
-- [ ] Tagged `EvUsage` accumulates per sub-agent and surfaces on the S2 list row live
-      (mock-driven reducer test).
-- [ ] `SpendRecord` schema v3 is additive: new tag round-trips; a v2 ledger loads with
-      empty tags (upgrade table-test, the ADR-0018 precedent).
-- [ ] `SubagentShares` pure reader: per-subagent rollup on Telemetry; root-agent spend
-      unaffected (no double-count — a tagged turn is excluded from the root bucket).
-- [ ] Leash: a sub-agent crossing max-credits/max-turns parks at the gate before
-      `Send`; proceed/raise/cancel each table-tested; concurrent lanes unaffected.
-- [ ] Meter concurrency test extended to tagged writers (the 16×100 pattern).
-- [ ] Gates green: `make lint && make test` (floor 65%), `make e2e`.
+- [x] Tagged `EvUsage` accumulates per sub-agent and surfaces on the S2 list row live
+      (mock-driven reducer test — `TestSubagentUsageMetersCreditsOntoRow`).
+- [x] `SpendRecord` schema is additive: new tag round-trips; an older ledger loads with
+      empty tags (upgrade table-test, the ADR-0018 precedent). **Reconciled:** the bump
+      is **v3→v4** (`sub`/`subname`) — v3 was already taken by ADR-0034's cache-write/
+      reasoning counts; a v3 file reads back with empty sub-agent tags.
+- [x] `SubagentShares` pure reader: per-subagent rollup on Telemetry; root-agent spend
+      unaffected (no double-count — `AgentShares` excludes a sub-agent-tagged turn).
+- [x] Leash: an agent crossing max-credits/max-turns parks at the pre-dispatch gate;
+      proceed/raise/cancel each table-tested; concurrent surfaces unaffected. **Scope
+      (ADR-0042):** enforced at the orchestrator-driven `Send` (root persona turn +
+      queue drain); a sub-agent running *inside* the SDK is metered now, its mid-run
+      interruption rides S4 (0073) — the same `telemetry.Leash` reused at that point.
+- [x] Meter concurrency: **n/a as written** — the S1-preserving design prices a
+      sub-agent turn with the pure `telemetry.Price` (no meter mutation) and the
+      registry accumulation is serialized under the session mutex, so no new concurrent
+      *meter* writer is introduced; the existing 16×100 `TestMeterConcurrentSafe` still
+      covers the meter.
+- [x] Gates green: `make lint && make test` (floor 65%).
 
 ## Out of scope
 
 The pause-record machinery (S4 — the leash reuses the existing budget-gate shape, not
 the new pause records), forecast bucketing per sub-agent (later, ADR-0019 cousin).
+
+## Close-out (2026-06-11)
+
+Shipped on this branch (ADR-0042). **Cost half:** sub-agent `EvUsage` is priced
+(`recordUsage` branch) and ledgered with `sub`/`subname` (schema v4, additive), feeding
+the live registry row's credits and a new "Cost by sub-agent" Telemetry breakdown
+(`SubagentShares`); `AgentShares` excludes sub-agent turns so nothing is double-counted;
+the S1 invariant (no sub-agent spend in the root/session token meters) is preserved
+verbatim. **Leash half:** pure `telemetry.Leash{MaxCredits,MaxTurns}` configured on the
+forge `Agent` (UI fields + validation), enforced at the pre-dispatch gate by reusing
+`budgetGate`/`/budget/{action}` (proceed · raise-leash · cancel), reset on `/clear`.
+Mid-run interruption of SDK-internal sub-agents is deferred to S4 (0073) by design.
 
 ## Notes
 

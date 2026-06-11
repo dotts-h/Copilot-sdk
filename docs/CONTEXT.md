@@ -288,8 +288,14 @@
   child's PR**. Issues mirror to GitHub. — `tracking-issues` skill
 - **gate** (CI) — a required check: lint · race+coverage (floor 65%) · fuzz · build matrix ·
   e2e. Green before merge.
-- **leash** — running an agent change at **lower autonomy**: plan-first, human-approves-plan,
-  then execute. Used for refactors that touch a seam (vs. the default build-and-merge flow).
+- **leash** (process) — running an agent change at **lower autonomy**: plan-first,
+  human-approves-plan, then execute. Used for refactors that touch a seam (vs. the default
+  build-and-merge flow).
+- **budget leash** (`telemetry.Leash`) — a per-agent spend ceiling (max credits and/or
+  turns) configured on a forge agent persona; the orchestrator checks it **before
+  dispatching** that persona's next turn and pauses at the budget gate when crossed
+  (proceed · raise · cancel), so a runaway agent is stopped before the spend, not after.
+  The per-agent sibling of the account-wide hard cap. — issue 0072 / ADR-0042.
 
 ---
 *Seeded 2026-06-07. A term belongs here the moment it appears in two files' comments. When

@@ -271,6 +271,12 @@ hard cap paused before `Send`: **proceed** dispatches the held prompt and keeps 
 cap, **raise** lifts (disables) and persists the cap then dispatches, **cancel**
 drops the turn. It is an **app-level** gate, not an SDK permission — distinct from
 `/perm/{id}` despite reusing the inline-form look. — see [ADR-0008](adr/0008-budget-guardrails-soft-warn-and-hard-cap-gate.md)
+The **same route** also resolves a **per-agent budget leash** gate (issue 0072): when
+the paused turn's gate is tagged with an agent (`leashAgent`), **raise** lifts only
+**that** persona's leash for the session (a transient override, not a forge edit; the
+account cap is untouched), while proceed/cancel behave as above. One pause-resolve
+shape, two ceilings (the account cap and the per-agent `telemetry.Leash`). — see
+[ADR-0042](adr/0042-per-subagent-cost-attribution-and-the-budget-leash.md)
 
 `POST /perm/{id}` answers a file-write permission identically whether it renders
 as the compact form or the **diff review lane** (item 3.1): both post `approve=1|0`
@@ -579,17 +585,22 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   ignore unknown keys; newer readers tolerate a higher `version`) or ship a converting
   migration. **v2** added the additive `agent`/`workflow`/`lane` attribution tags
   (`omitempty`); **v3** added the additive `cw` (cache-write, priced) + `reasoning`
-  (display-only subset of output) token counts (`omitempty`, ADR-0034). Each is additive: an
-  older file loads unchanged (the new fields read back `0`) and an older reader ignores the
-  new keys and tolerates the higher `version`. `agent` is the active persona id (empty =
-  built-in chat); `workflow`+`lane` are set only when a workflow run owned the turn. The pure
-  `AgentShares` / `WorkflowShares` aggregations (cousins of `ModelShares`) roll spend up
-  by tag; `ModelBreakdowns` rolls per-model token counts (incl. cache-write/reasoning) up
-  for the all-time table. The export CSV appends `cacheWrite`,`reasoning` columns at the end
+  (display-only subset of output) token counts (`omitempty`, ADR-0034); **v4** added the
+  additive `sub`/`subname` sub-agent instance id/name tags (`omitempty`, ADR-0042). Each is
+  additive: an older file loads unchanged (the new fields read back `0`/empty) and an older
+  reader ignores the new keys and tolerates the higher `version`. `agent` is the active
+  persona id (empty = built-in chat); `workflow`+`lane` are set only when a workflow run
+  owned the turn; `sub`+`subname` are set only when a sub-agent instance owned the turn. The
+  pure `AgentShares` / `WorkflowShares` / `SubagentShares` aggregations (cousins of
+  `ModelShares`) roll spend up by tag — and `AgentShares` **excludes** sub-agent-tagged turns
+  so a sub-agent's spend is not double-counted into the persona buckets; `ModelBreakdowns`
+  rolls per-model token counts (incl. cache-write/reasoning) up for the all-time table. The
+  export CSV appends `cacheWrite`,`reasoning`,`subagent`,`subagentName` columns at the end
   (legacy column positions unchanged). — see
   [ADR-0009](adr/0009-persisted-spend-history-append-only-ledger.md),
   [ADR-0018](adr/0018-additive-attribution-tags-on-spend-records.md),
-  [ADR-0034](adr/0034-price-cache-write-additive-reasoning-is-output-subset.md)
+  [ADR-0034](adr/0034-price-cache-write-additive-reasoning-is-output-subset.md),
+  [ADR-0042](adr/0042-per-subagent-cost-attribution-and-the-budget-leash.md)
   **Per-session roll-up (G2):** `telemetry.SessionShares(records) []SessionShare` is
   another pure cousin of the `*Shares` readers — it rolls spend up **per copilot session
   id** to `SessionShare{SessionID, Credits, Turns}` (turn count + total credits), sorted

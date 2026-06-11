@@ -91,6 +91,11 @@ func (s *Server) clearConversation() {
 	s.live = liveNone
 	s.sessionStartMs = nowMs()
 	s.messagesSent, s.toolsUsed = 0, 0
+	// A fresh conversation resets the per-agent leash accounting too (issue 0072).
+	s.gate = nil
+	s.agentCredits = map[string]float64{}
+	s.agentTurns = map[string]int64{}
+	s.leashLifted = map[string]bool{}
 }
 
 // clearableRegions are the dynamic chat regions cmdClear empties out-of-band.
@@ -269,7 +274,7 @@ func (s *Server) cmdAgent(arg string) string {
 		// reach the session, just without an agent persona.
 		c := s.compiledSpec("")
 		s.hub.forgeMu.Unlock()
-		s.applyAgentSpec(c, "")
+		s.applyAgentSpec(c, "", telemetry.Leash{}, "")
 		return s.systemNote("agent cleared (new session)")
 	}
 
@@ -280,6 +285,9 @@ func (s *Server) cmdAgent(arg string) string {
 		return s.systemNote("unknown agent: " + arg + " — see the Agents page")
 	}
 	name := agent.Name
+	// Capture the persona's leash under forgeMu (the agent pointer is unsafe to read
+	// after the unlock below) so applyAgentSpec can snapshot it under s.mu (issue 0072).
+	leash := telemetry.Leash{MaxCredits: agent.MaxCredits, MaxTurns: agent.MaxTurns}
 	s.config.DefaultAgent = agent.ID
 	if err := s.config.Save(); err != nil {
 		s.logger.Printf("save config: %v", err)
@@ -288,7 +296,7 @@ func (s *Server) cmdAgent(arg string) string {
 	c := s.compiledSpec(agentID)
 	s.hub.forgeMu.Unlock()
 
-	shown := s.applyAgentSpec(c, agentID)
+	shown := s.applyAgentSpec(c, agentID, leash, name)
 	return s.systemNote("agent → " + name + " (" + shown + ", new session)")
 }
 
@@ -339,7 +347,7 @@ func (s *Server) compiledSpec(agentID string) copilot.SessionSpec {
 // the agent now active (empty = the no-agent / built-in chat case); it is recorded
 // so subsequent turns attribute their spend to it (ADR-0018). Returns the
 // resulting model for status messages.
-func (s *Server) applyAgentSpec(c copilot.SessionSpec, agentID string) string {
+func (s *Server) applyAgentSpec(c copilot.SessionSpec, agentID string, leash telemetry.Leash, leashLabel string) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if c.Model != "" {
@@ -351,6 +359,10 @@ func (s *Server) applyAgentSpec(c copilot.SessionSpec, agentID string) string {
 	s.spec.MCPServers = c.MCPServers
 	s.spec.Hooks = c.Hooks
 	s.agentID = agentID
+	// Snapshot the new persona's budget leash alongside its spec, captured by the
+	// caller under forgeMu, so the pre-dispatch gate reads it under s.mu (issue 0072).
+	s.agentLeash = leash
+	s.agentLeashLabel = leashLabel
 	s.sessionID = ""
 	return s.spec.Model
 }

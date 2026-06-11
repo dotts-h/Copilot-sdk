@@ -276,6 +276,37 @@ func TestBudgetCapExceeded(t *testing.T) {
 	}
 }
 
+func TestLeash(t *testing.T) {
+	if (Leash{}).Active() {
+		t.Error("a zero-value leash must be inert (off by default)")
+	}
+	if (Leash{}).Breached(1e9, 1e9) {
+		t.Error("an inactive leash never gates")
+	}
+	tests := []struct {
+		name    string
+		leash   Leash
+		credits float64
+		turns   int64
+		want    bool
+	}{
+		{"credits under cap", Leash{MaxCredits: 100}, 99.99, 0, false},
+		{"credits at cap is breached (inclusive)", Leash{MaxCredits: 100}, 100, 0, true},
+		{"credits over cap", Leash{MaxCredits: 100}, 100.01, 0, true},
+		{"turns under cap", Leash{MaxTurns: 5}, 0, 4, false},
+		{"turns at cap is breached (inclusive)", Leash{MaxTurns: 5}, 0, 5, true},
+		{"either axis trips it", Leash{MaxCredits: 100, MaxTurns: 5}, 0, 5, true},
+		{"zero credits axis is no-limit", Leash{MaxTurns: 5}, 1e9, 4, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.leash.Breached(tt.credits, tt.turns); got != tt.want {
+				t.Errorf("Breached(%v,%d) = %v, want %v", tt.credits, tt.turns, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestMeterConcurrentSafe(t *testing.T) {
 	m := NewMeter(DefaultPriceBook())
 	var wg sync.WaitGroup

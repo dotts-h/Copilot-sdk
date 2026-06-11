@@ -54,7 +54,7 @@ func (s *Server) telemetryPartial(window int) string {
 	}
 	days, shares, hasHistory := s.spendTrend(window)
 	now := time.Now()
-	agents, workflows := s.spendShares(now)
+	agents, workflows, subagents := s.spendShares(now)
 	var forecast map[string]any
 	if fc, ok := s.forecast(now); ok {
 		forecast = forecastView(fc, budget.AllowanceCredits, now)
@@ -67,7 +67,7 @@ func (s *Server) telemetryPartial(window int) string {
 		"Rows": rows, "Width": fmt.Sprintf("%.1f%%", pct), "Models": models,
 		"Dashboard": s.dashboardView(window, now),
 		"Days":      days, "Shares": shares, "HasHistory": hasHistory,
-		"AgentShares": agents, "WorkflowShares": workflows,
+		"AgentShares": agents, "WorkflowShares": workflows, "SubagentShares": subagents,
 		"Reconcile":     s.workflowReconcile(),
 		"LaneReconcile": s.laneReconcile(),
 		"Drift":         s.estimateDrift(),
@@ -137,14 +137,14 @@ func (s *Server) spendTrend(window int) (days, shares []map[string]any, hasHisto
 // both the per-bucket Forecast and the month projection (the ADR-0019 single-`now`
 // gotcha, per bucket). Both lists are empty when no ledger is wired or it holds no
 // relevant records.
-func (s *Server) spendShares(now time.Time) (agents, workflows []map[string]any) {
-	agents, workflows = []map[string]any{}, []map[string]any{}
+func (s *Server) spendShares(now time.Time) (agents, workflows, subagents []map[string]any) {
+	agents, workflows, subagents = []map[string]any{}, []map[string]any{}, []map[string]any{}
 	if s.spend == nil {
-		return agents, workflows
+		return agents, workflows, subagents
 	}
 	records := s.spend.Records()
 	if len(records) == 0 {
-		return agents, workflows
+		return agents, workflows, subagents
 	}
 	budget := s.budget()
 	agentTraj := bucketTrajectories(telemetry.BucketForecasts(records, budget, now, agentKey, true), now)
@@ -161,7 +161,12 @@ func (s *Server) spendShares(now time.Time) (agents, workflows []map[string]any)
 		row["Traj"] = workflowTraj[w.WorkflowID]
 		workflows = append(workflows, row)
 	}
-	return agents, workflows
+	// Per-sub-agent rollup (issue 0072): the instance's captured name labels the row
+	// (it survives a restart the live registry doesn't), falling back to the raw id.
+	for _, sa := range telemetry.SubagentShares(records) {
+		subagents = append(subagents, shareRow(def(sa.SubagentName, sa.SubagentID), sa.Credits, sa.Fraction))
+	}
+	return agents, workflows, subagents
 }
 
 // agentKey / workflowKey are the bucket keys BucketForecasts projects per (the same

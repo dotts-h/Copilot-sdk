@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
+	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
 
 func TestMCPNewForm(t *testing.T) {
@@ -340,7 +341,7 @@ func TestEnabledMCPServerReachesSessionSpec(t *testing.T) {
 	s.hub.forgeMu.Lock()
 	c := s.compiledSpec("")
 	s.hub.forgeMu.Unlock()
-	s.applyAgentSpec(c, "")
+	s.applyAgentSpec(c, "", telemetry.Leash{}, "")
 
 	s.mu.Lock()
 	got := s.spec.MCPServers
