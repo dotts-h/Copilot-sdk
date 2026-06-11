@@ -158,6 +158,7 @@ for the streaming/turn routes (`/events`, `/send`, the `/perm|ask|plan|elicit/{i
 | Navigation | `GET /page/{name}` · `GET /commands` · `GET /static/…` |
 | Telemetry | `GET /telemetry/export.csv` · `GET /runs/export.csv` |
 | Runs | `POST /runs/rerun/{workflow}` · `POST /run/abort` |
+| Sub-agents | `GET /subagent/{id}` (overlay) · `POST /subagent/{id}/steer` |
 | Skills | `GET /skills/new` · `GET /skills/{id}/edit` · `POST /skills` · `POST /skills/{id}` · `POST /skills/{id}/toggle` · `POST /skills/{id}/delete` |
 | Instructions | `POST /instructions/import` · `GET /instructions/new` · `GET /instructions/{id}/edit` · `POST /instructions` · `POST /instructions/{id}` · `POST /instructions/{id}/toggle` · `POST /instructions/{id}/delete` |
 | Agents | `GET /agents/new` · `GET /agents/{id}/edit` · `POST /agents` · `POST /agents/{id}` · `POST /agents/{id}/select` · `POST /agents/{id}/delete` |
@@ -237,6 +238,20 @@ continue resumes it, cancel arms a cooperative cancel that settles the lane
 perm/ask/plan/elicit forms. The live region is the SSE `pauses` event (idempotent
 `innerHTML` re-render, like `subagents`/`lanes`). — see
 [ADR-0043](adr/0043-pause-ledger-escalate-back-channel-and-input-required-lane-state.md)
+
+`GET /subagent/{id}` (S5, `id` = spawn `ToolCallID`) renders the **per-sub-agent chat
+overlay**: a native `<dialog>` drill-down from the S2 list with the sub-agent's own
+bounded live transcript, any `input-required` pause form addressed to it, and — for a
+**lane-backed** sub-agent only — a steer composer. The transcript region carries its own
+named SSE listener, **`subagent-{spawnID}`** (an idempotent full-fragment `innerHTML`
+re-render, like `subagents`), on the shared `/events` connection — so an open overlay
+streams live while an unopened one's events are a silent no-op. A 404 (unknown/cleared id)
+leaves the page untouched. `POST /subagent/{id}/steer` delivers the `prompt` field into a
+lane-backed sub-agent via `Client.Send(laneSession, …)` (the mission-control contract:
+applied after the current tool call) and annotates it in the transcript; it is **gated** to
+lane-backed sub-agents — an SDK-native (in-session) sub-agent has no `Send` target and is
+**read+pause-only**. — see
+[ADR-0044](adr/0044-per-subagent-chat-overlay-named-sse-listener-and-steer-seam.md)
 
 The **Workflows page** (`GET /page/workflows`) lists each workflow (name + step
 summary) with a run control — and, when history exists, **badges** each row (V4): the

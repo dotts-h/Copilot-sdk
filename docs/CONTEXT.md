@@ -145,6 +145,17 @@
   human resolves it. **Cooperative cancel** then settles the lane `failed (cancelled)` at
   its next idle (the sub-agent wraps up first) — distinct from the hard **abort**
   (ADR-0024), which force-resolves every pending pause. — ADR-0043
+- **overlay** (sub-agent overlay) — the **drill-down** from the registry list into one
+  sub-agent: a native `<dialog>` (`GET /subagent/{spawnID}`) with the instance's own
+  bounded live **transcript** (`SubagentEntry` runs of message/reasoning, tool one-liners,
+  steer annotations — capped, idempotent on reopen), the inline **pause** form, and a
+  **steer** composer. Streams live via the per-instance named SSE event
+  `subagent-{spawnID}` on the shared `/events` connection. — ADR-0044, issue 0074
+- **steer** — delivering a human message into a **lane-backed** sub-agent mid-run
+  (`POST /subagent/{id}/steer` → `Client.Send(laneSession, …)`, the mission-control
+  contract: applied after the current tool call). Gated on the registry entry's
+  `LaneSession`: an **SDK-native** (in-session) sub-agent has no `Send` target and its
+  overlay is **read + pause-only**. — ADR-0044, issue 0074
 
 ## Cost — the meter and the ledger (`internal/telemetry`)
 

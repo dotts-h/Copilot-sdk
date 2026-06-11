@@ -313,6 +313,22 @@
       return !!(o && !o.hidden);
     }
 
+    // openSubagent loads a sub-agent's drill-down overlay (issue 0074 S5) and shows
+    // it as a native modal <dialog>. The GET swaps the dialog (with its own named SSE
+    // listener) into the page-shell host; htmx processes the new content so the
+    // transcript streams live, then showModal() gives the focus-trap, Esc-to-close,
+    // backdrop, and focus-restore for free. A 404 (unknown/cleared sub-agent) leaves
+    // the host untouched, so the guard finds no dialog and does nothing.
+    function openSubagent(id) {
+      if (!id) return;
+      htmx.ajax('GET', '/subagent/' + encodeURIComponent(id), {
+        target: '#subagent-overlay-host', swap: 'innerHTML'
+      }).then(function () {
+        var d = document.getElementById('subagent-dialog');
+        if (d && d.showModal && !d.open) { d.showModal(); }
+      });
+    }
+
     document.addEventListener('keydown', function (e) {
       // ⌘/Ctrl-K toggles the command palette from anywhere — a FIXED modifier
       // chord, handled before the configurable single-key keymap (which is

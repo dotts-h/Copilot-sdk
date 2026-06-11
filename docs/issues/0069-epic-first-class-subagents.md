@@ -68,7 +68,7 @@ governed by the existing third pillar (the pause/permission gates).
       `escalate`/`report_status` custom tool blocking on a one-shot channel;
       `input-required` as a non-terminal lane state; idempotent resolution; SLA
       timeout; cooperative-cancel vs hard-abort.
-- [ ] **S5 · Per-subagent chat overlay** ([0074](0074-subagent-chat-overlay.md), M) —
+- [x] **S5 · Per-subagent chat overlay** ([0074](0074-subagent-chat-overlay.md), M; ADR-0044) —
       `<dialog>` loaded by htmx GET from the list (button + dblclick); per-agent
       transcript region with its own named SSE listener; pause form inside;
       send-into-subagent for lane-backed agents.

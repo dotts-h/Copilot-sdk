@@ -411,20 +411,51 @@ func (s *Server) handleSubagentStream(e copilot.Event) []fragment {
 	if e.Type == copilot.EvUsage {
 		return s.recordSubagentUsage(e)
 	}
-	changed := false
+	// activityChanged drives the list row's current-activity column (S2); content
+	// drives the per-sub-agent transcript the overlay reads (S5). They re-render
+	// independent surfaces, so each fragment is emitted only when its own state moved.
+	activityChanged, content := false, false
 	switch e.Type {
 	case copilot.EvToolStart:
-		changed = s.subreg.Observe(e.AgentID, e.Tool)
-	case copilot.EvToolEnd, copilot.EvMessage, copilot.EvMessageDelta,
-		copilot.EvReasoning, copilot.EvReasoningDelta:
-		changed = s.subreg.Observe(e.AgentID, convo.SubagentThinking)
+		activityChanged = s.subreg.Observe(e.AgentID, e.Tool)
+		// Name from e.Tool (canonical, same value the activity column uses — main
+		// timeline does likewise), args/id from the ToolCall detail; fall back to the
+		// ToolCall name only if e.Tool is empty, so the transcript and the row agree.
+		name, args, id := e.Tool, "", ""
+		if e.ToolCall != nil {
+			args, id = e.ToolCall.Args, e.ToolCall.ID
+			if name == "" {
+				name = e.ToolCall.Name
+			}
+		}
+		content = s.subreg.RecordTool(e.AgentID, id, name, args)
+	case copilot.EvMessageDelta:
+		activityChanged = s.subreg.Observe(e.AgentID, convo.SubagentThinking)
+		content = s.subreg.AppendText(e.AgentID, false, e.Text)
+	case copilot.EvReasoningDelta:
+		activityChanged = s.subreg.Observe(e.AgentID, convo.SubagentThinking)
+		content = s.subreg.AppendText(e.AgentID, true, e.Text)
+	case copilot.EvMessage:
+		activityChanged = s.subreg.Observe(e.AgentID, convo.SubagentThinking)
+		content = s.subreg.CommitText(e.AgentID, false, e.Text)
+	case copilot.EvReasoning:
+		activityChanged = s.subreg.Observe(e.AgentID, convo.SubagentThinking)
+		content = s.subreg.CommitText(e.AgentID, true, e.Text)
+	case copilot.EvToolEnd:
+		activityChanged = s.subreg.Observe(e.AgentID, convo.SubagentThinking)
 	default:
 		s.subreg.Observe(e.AgentID, "")
 	}
-	if !changed {
-		return nil
+	var frags []fragment
+	if activityChanged {
+		frags = append(frags, s.subagentsFrag())
 	}
-	return []fragment{s.subagentsFrag()}
+	if content {
+		if f, ok := s.subagentOverlayFrag(e.AgentID); ok {
+			frags = append(frags, f)
+		}
+	}
+	return frags
 }
 
 // recordSubagentUsage meters one sub-agent-tagged turn (epic 0069 S3, issue

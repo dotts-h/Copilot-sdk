@@ -582,7 +582,46 @@ button.add, button.abort, .run-head .stop-run, .run-rec-head .rerun,
 .subagent-row .sa-activity, .subagent-row .sa-detail { opacity: .75;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 18rem; }
 .subagent-row .sa-credits { margin-left: auto; font-variant-numeric: tabular-nums; opacity: .8; }
+/* Per-row open affordance for the drill-down overlay (S5). Visible (not hover-only,
+   not dblclick-only) so it is discoverable and reachable by keyboard. */
+.subagent-row .sa-open { background: none; border: none; color: var(--dim); cursor: pointer;
+  padding: 0 .15rem; line-height: 1; font-size: .95em; border-radius: var(--radius-1); }
+.subagent-row .sa-open:hover, .subagent-row .sa-open:focus-visible { color: var(--accent); }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Per-sub-agent chat overlay (S5, issue 0074): a native <dialog> drill-down. The
+   ::backdrop is the modal scrim; the card holds a header, a scrolling live
+   transcript, any pause form, and (lane-backed only) a steer composer. */
+.subagent-overlay { width: min(46rem, 92vw); max-height: 82vh; padding: 0;
+  background: var(--overlay); color: var(--fg); border: 1px solid var(--border-glass);
+  border-radius: var(--radius-3); box-shadow: var(--shadow-3, 0 12px 40px rgba(0,0,0,.4));
+  overflow: hidden; }
+.subagent-overlay::backdrop { background: rgba(0,0,0,.5); backdrop-filter: blur(2px); }
+.sa-overlay-head { display: flex; align-items: baseline; gap: .5rem; padding: .7rem 1rem;
+  border-bottom: 1px solid var(--border-glass); }
+.sa-overlay-head .sa-credits { margin-left: auto; font-variant-numeric: tabular-nums; opacity: .8; }
+.sa-overlay-head .overlay-close { margin: 0 0 0 .5rem; padding: .1rem .4rem; }
+.subagent-overlay.sa-working .sa-status { color: var(--accent); }
+.subagent-overlay.sa-input-required .sa-status { color: var(--warn); }
+.subagent-overlay.sa-done .sa-status { color: var(--good); }
+.subagent-overlay.sa-failed .sa-status { color: var(--bad); }
+.sa-overlay-desc { margin: 0; padding: .4rem 1rem 0; opacity: .75; font-size: .85em; }
+.sa-transcript-region { padding: .6rem 1rem; overflow-y: auto; max-height: 56vh; }
+.sa-transcript { list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: .4rem; }
+.sa-transcript .sa-t-reasoning { opacity: .7; font-style: italic; }
+.sa-transcript .sa-t-tool { font-size: .85em; }
+.sa-transcript .sa-tool-name { color: var(--accent2, var(--accent)); }
+.sa-transcript .sa-tool-args { opacity: .7; }
+.sa-transcript .sa-t-steer { border-left: 2px solid var(--warn); padding-left: .5rem; }
+.sa-transcript .sa-steer-label { color: var(--warn); font-size: .76em; text-transform: uppercase;
+  letter-spacing: .04em; margin-right: .35rem; }
+.sa-empty { opacity: .6; margin: 0; font-size: .85em; }
+.sa-overlay-pauses:not(:empty) { padding: 0 1rem .4rem; }
+.sa-steer { display: flex; gap: .5rem; padding: .6rem 1rem; border-top: 1px solid var(--border-glass); }
+.sa-steer input { flex: 1; background: var(--bg); color: var(--fg);
+  border: 1px solid var(--subtle); border-radius: var(--radius-2); padding: .35rem .55rem; }
+.sa-steer input:focus { outline: none; border-color: var(--accent2); }
 
 /* workflow run lanes (item 2.1) */
 .lanes { max-width: 56rem; margin: 0 auto; }

@@ -1,13 +1,13 @@
 ---
 id: 0074
 title: "Per-subagent chat overlay — popup transcript with live stream, pause form, and steer (S5)"
-status: open
+status: closed
 severity: medium
 group: 0069
 depends_on: [0071]
 github: 115
 links:
-  adr: []
+  adr: [0044]
   prs: []
   issues: [0069, 0073]
   regression:
@@ -37,17 +37,25 @@ overlay** showing its full live transcript, with interaction when the agent allo
 
 ## Acceptance
 
-- [ ] Overlay opens from button and dblclick, closes on ⎋/backdrop, returns focus to
-      the row (keyboard + a11y e2e; axe green both themes).
-- [ ] Transcript streams live inside the open overlay against the demo's synthetic
-      sub-agent (Playwright: open mid-run, see deltas + tool cards arrive).
-- [ ] Idempotent re-open: closing and reopening renders the same bounded transcript
-      (no duplicate turns); all model text escaped.
-- [ ] `input-required` pause form renders and resolves from inside the overlay; the
-      list row and overlay agree on state after resolution.
-- [ ] Steer: composer input on a lane-backed sub-agent is delivered via the seam and
-      annotated in the overlay timeline (mock-recorded `Send`).
-- [ ] Gates green: `make lint && make test` (floor 65%), `make e2e`.
+- [x] Overlay opens from button and dblclick, closes on ⎋/backdrop, returns focus to
+      the row (native `<dialog>` `showModal` — focus-trap/restore for free; e2e opens
+      from the row button, asserts the modal, ⎋ closes it).
+- [x] Transcript streams live inside the open overlay against the demo's synthetic
+      sub-agent (per-instance `subagent-{spawnID}` SSE listener on the shared
+      connection; e2e sees the demo's delta + grep tool card in the overlay).
+- [x] Idempotent re-open: closing and reopening renders the same bounded transcript
+      (no duplicate turns — `TestSubagentOverlayIdempotentReopen` + e2e re-open count);
+      all model text escaped (`TestSubagentOverlayEscapesContent`).
+- [x] `input-required` pause form renders and resolves from inside the overlay; the
+      list row and overlay agree on state after resolution (`pausesFor` +
+      `MarkInputRequired`/`ClearInputRequired` wired through escalate;
+      `TestSubagentOverlayRendersPauseForm`).
+- [x] Steer: composer input on a lane-backed sub-agent is delivered via the seam and
+      annotated in the overlay timeline (mock-recorded `Send` —
+      `TestSubagentSteerDeliversToSession`). **Seam built + gated on `LaneSession`** per
+      the agreed scope (ADR-0044): SDK-native sub-agents are read+pause-only, and no
+      production path sets `LaneSession` yet — lighting it end-to-end is a follow-up.
+- [x] Gates green: `make lint && make test` (floor 65%), `make e2e`.
 
 ## Out of scope
 
