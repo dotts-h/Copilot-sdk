@@ -7,7 +7,7 @@ group: 0076
 depends_on: [0077, 0078]
 github: 133
 links:
-  adr: []
+  adr: [0047]
   prs: []
   issues: [0076]
   regression:
@@ -41,5 +41,6 @@ path for a server-rendered stack.
 
 ## Notes
 
-ADR (new): directive grammar + allowlist invariant. Depends on 0077 (seam) and 0078 (shares
-the container shape). Sibling: 0076 (epic).
+ADR [0047](../adr/0047-container-directives-grammar-and-allowlist.md) records the directive
+grammar + allowlist invariant (written ahead of the build). Depends on 0077 (seam) and 0078
+(shares the container shape). Sibling: 0076 (epic).
