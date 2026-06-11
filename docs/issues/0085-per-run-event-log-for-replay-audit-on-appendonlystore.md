@@ -1,13 +1,13 @@
 ---
 id: 0085
 title: "Per-run event log for replay/audit on AppendOnlyStore"
-status: open
+status: closed
 severity: medium
 group: 0083
 depends_on: []
 github: 141
 links:
-  adr:
+  adr: [0048]
   prs: []
   issues: [0083]
   regression:
@@ -43,15 +43,15 @@ No new transport, no eventual consistency, no ordering rework.
 
 ## Acceptance
 
-- [ ] An `AppendOnlyStore`-backed per-run event log records the ordered normalized events of
+- [x] An `AppendOnlyStore`-backed per-run event log records the ordered normalized events of
       a run; reading it back yields the run's event sequence (round-trip + atomic-write +
       ephemeral/empty-dir behavior covered by tests, mirroring the existing store tests).
-- [ ] The log is **optional/additive** — disabling it (or an absent log dir) leaves the
+- [x] The log is **optional/additive** — disabling it (or an absent log dir) leaves the
       existing run/spend recording and SSE path byte-identical; no behavior change to the
       live surface.
-- [ ] Appending is off the hot path's critical section (no new lock-order risk; respects
+- [x] Appending is off the hot path's critical section (no new lock-order risk; respects
       `forgeMu → s.mu`); idempotency preserved (a re-recorded run does not double-log).
-- [ ] On-disk JSON tags are pinned as a stable contract (a `…OnDiskTagsAreStable` test like
+- [x] On-disk JSON tags are pinned as a stable contract (a `…OnDiskTagsAreStable` test like
       the spend/run stores). `make lint && make test` (floor 65%) green.
 
 ## Notes
@@ -60,4 +60,14 @@ M-sized. Builds directly on `telemetry.AppendOnlyStore[T]` (epic 0030 / issue 00
 `Ev*` event vocabulary (CONTRACTS §events). An ADR records the replay-vs-summary semantics
 and that this is the *accepted* slice of the considered-and-rejected event-bus evaluation
 (epic 0083 charter). Sibling: 0084 (worker pool) — independent seam, parallel-safe.
+
+## Resolution (shipped)
+
+Shipped in PR #149 (branch `feat/per-run-event-log`). Key files:
+- `internal/telemetry/eventlog.go` — `RunEvent` type + `RunEventLog` store + `LoadRunEventLog` + `RunEventLogPath`
+- `internal/telemetry/eventlog_test.go` — round-trip, atomic-write, ephemeral, corrupt, newer-schema, on-disk-tags-stable, per-run-isolation tests
+- `internal/web/hub.go` — `EventLogDir` option + seeded to Server + pump wired to `appendRunEvent`
+- `internal/web/eventlog.go` — `appendRunEvent` off the critical section, `normalizeRunEvent`, `eventTypeName`
+- `internal/web/eventlog_test.go` — disabled-leaves-behaviour-identical, appends-run-events, no-active-run, no-subagent-events tests
+- `docs/adr/0048-per-run-event-log-replay-vs-summary.md` — ADR-0048
 </content>
