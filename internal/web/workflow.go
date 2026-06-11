@@ -333,7 +333,10 @@ func (r *workflowRun) failLane(l *lane, msg string) []int {
 func (r *workflowRun) abort() []string {
 	var running []string
 	for _, l := range r.lanes {
-		if l.status == laneRunning && l.sessionID != "" {
+		// Abort every unsettled lane that has a live backing session — a lane parked
+		// as input-required (S4) is non-terminal but still holds an open session, so
+		// it must be aborted too, not just laneRunning ones, or its sub-agent leaks.
+		if !settled(l.status) && l.sessionID != "" {
 			running = append(running, l.sessionID)
 		}
 		if !settled(l.status) {
@@ -848,6 +851,12 @@ func glyphFor(status string) (glyph, state string) {
 	}
 }
 
+// demoEscalateMarker is the phrase in the seeded "Escalation demo" workflow prompt
+// that triggers streamDemoLane's scripted escalation. It is the full clause (not a
+// bare "escalate") so it is specific to that demo and survives the firstLine handoff
+// truncation without tripping unrelated sequential lanes. — S4 / ADR-0043.
+const demoEscalateMarker = "escalate if the requirements are ambiguous"
+
 // streamDemoLane emits a scripted sub-run for one workflow lane so the lanes
 // surface is exercised offline. Every event is tagged with the lane's backing
 // session id (sid) so a PARALLEL run drives concurrent lanes that the reducer
@@ -873,8 +882,12 @@ func streamDemoLane(m *copilot.MockClient, sid, prompt string, escalate func(esc
 	// back-channel and BLOCKS until the human resolves the pause — driving the pause
 	// surface offline (the e2e clicks continue/cancel). The human's answer (or the
 	// cancel directive) is folded into the lane's reply so the round-trip is visible.
+	// The trigger is the seeded "Escalation demo" prompt's full marker phrase, not a
+	// bare "escalate" substring: a sequential handoff echoes only firstLine(prompt)
+	// (truncated before "ambiguous"), so an upstream lane's output can't accidentally
+	// trip a downstream lane, and an ordinary user prompt mentioning "escalate" won't.
 	steer := ""
-	if escalate != nil && strings.Contains(strings.ToLower(prompt), "escalate") {
+	if escalate != nil && strings.Contains(strings.ToLower(prompt), demoEscalateMarker) {
 		steer = escalate(escalateReq{
 			laneSession: sid, agentID: sid, kind: pause.KindIssue,
 			message: "The task is ambiguous — continue with a hint, or cancel?",

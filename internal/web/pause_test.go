@@ -238,6 +238,54 @@ func TestAbortCancelsPendingPause(t *testing.T) {
 	}
 }
 
+// Aborting a run while a lane is parked settles the lane failed with the abort
+// detail — the resuming escalate goroutine must not overwrite "⏹ aborted" with a
+// "cancelled" note (the abort-vs-escalate display race).
+func TestAbortParkedLaneKeepsAbortedDetail(t *testing.T) {
+	s, _ := newTestServer()
+	run := startParallelRun(s) // lanes s0, s1 running with session ids
+	result := make(chan string, 1)
+	go func() {
+		result <- s.escalate(escalateReq{laneSession: "s0", agentID: "s0",
+			message: "blocked", caps: []pause.Cap{pause.CapContinue, pause.CapCancel}})
+	}()
+	waitForPause(t, s)
+
+	s.abortRun(t.Context())
+	if got := <-result; !strings.Contains(got, "cancelled") {
+		t.Fatalf("escalate should return a wrap-up directive after abort, got %q", got)
+	}
+	s.mu.Lock()
+	st0, detail0 := run.lanes[0].status, run.lanes[0].detail
+	s.mu.Unlock()
+	if st0 != laneFailed {
+		t.Fatalf("an aborted parked lane should settle failed, got %v", st0)
+	}
+	if !strings.Contains(detail0, "aborted") {
+		t.Fatalf("the abort detail must survive the resuming goroutine, got %q", detail0)
+	}
+}
+
+// Escalating into a run that already settled returns a cancel directive immediately
+// without registering a pause — a pause nothing would resolve would block the handler
+// goroutine forever and render a phantom form.
+func TestEscalateOnDoneRunReturnsCancelWithoutBlocking(t *testing.T) {
+	s, _ := newTestServer()
+	run := startParallelRun(s)
+	s.mu.Lock()
+	run.done = true // the run settled in the window before escalate registered
+	s.mu.Unlock()
+
+	got := s.escalate(escalateReq{laneSession: "s0", agentID: "s0", message: "late",
+		caps: []pause.Cap{pause.CapContinue, pause.CapCancel}})
+	if !strings.Contains(got, "cancelled") {
+		t.Fatalf("escalate into a done run should return cancel, got %q", got)
+	}
+	if p := s.pauses.Pending(); len(p) != 0 {
+		t.Fatalf("escalate into a done run must not register a pause, have %d", len(p))
+	}
+}
+
 // AC4: a pause form renders only the capability-flagged buttons, posts to /pause/{id},
 // and escapes the model-originated message.
 func TestRenderPauseFormCapabilityFlagged(t *testing.T) {

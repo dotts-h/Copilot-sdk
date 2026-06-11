@@ -35,6 +35,17 @@ type escalateReq struct {
 // permission bridge already uses, generalized. — epic 0069 S4, ADR-0043.
 func (s *Server) escalate(req escalateReq) string {
 	s.mu.Lock()
+	// A lane escalating into a run that already settled (a concurrent abort, or its
+	// lane force-failed) must NOT register a pause: nothing would resolve it, the
+	// handler goroutine would block on Wait forever, and a phantom form would render
+	// for a finished run. Tell the caller to wrap up instead. (A non-lane pause,
+	// laneSession == "", has no run to be done — it always registers.)
+	if req.laneSession != "" {
+		if l := s.laneBySession(req.laneSession); l == nil || l.status != laneRunning || (s.run != nil && s.run.done) {
+			s.mu.Unlock()
+			return escalateResult(pause.Resolution{Action: pause.ActCancel})
+		}
+	}
 	p := s.pauses.Register(pause.Pause{
 		AgentID: req.agentID, Kind: req.kind, Message: req.message, Caps: req.caps,
 	})
@@ -54,17 +65,17 @@ func (s *Server) escalate(req escalateReq) string {
 	return escalateResult(res)
 }
 
-// parkLane flips the lane backing session to input-required (non-terminal) and
-// records the pause so the lane card renders amber with the wait message. Caller
-// holds s.mu; a no-op when no active-run lane owns the session (a non-lane pause).
+// parkLane flips a RUNNING lane to input-required (non-terminal) and records the
+// pause so the lane card renders amber with the wait message. Caller holds s.mu; a
+// no-op when no active-run lane owns the session (a non-lane pause) or the lane is
+// no longer running — so it never stamps a pauseID/detail on an already-settled lane
+// (the abort-vs-escalate race).
 func (s *Server) parkLane(session, message, pauseID string) {
 	l := s.laneBySession(session)
-	if l == nil {
+	if l == nil || l.status != laneRunning {
 		return
 	}
-	if l.status == laneRunning {
-		l.status = laneInputRequired
-	}
+	l.status = laneInputRequired
 	l.pauseID = pauseID
 	l.detail = "⏸ " + message
 }
@@ -72,17 +83,18 @@ func (s *Server) parkLane(session, message, pauseID string) {
 // resumeLane returns a parked lane to running on continue, or arms its cooperative
 // cancel on cancel/timeout (the lane keeps running so the sub-agent wraps up, then
 // settles failed(cancelled) at its next idle — workflow.go EvIdle). Caller holds
-// s.mu; a no-op for a non-lane pause.
+// s.mu. A no-op unless the lane is still parked: if a concurrent abort already
+// force-failed it (run.abort marks unsettled lanes laneFailed before CancelAll
+// unblocks this goroutine), leave its terminal status and "⏹ aborted" detail
+// untouched rather than overwriting them.
 func (s *Server) resumeLane(session string, res pause.Resolution) {
 	l := s.laneBySession(session)
-	if l == nil {
+	if l == nil || l.status != laneInputRequired {
 		return
 	}
 	l.pauseID = ""
 	l.detail = ""
-	if l.status == laneInputRequired {
-		l.status = laneRunning
-	}
+	l.status = laneRunning
 	if res.Action == pause.ActCancel || res.Action == pause.ActTimeout {
 		l.cancelReason = cancelNote(res)
 	}
