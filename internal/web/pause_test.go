@@ -98,12 +98,16 @@ func TestRunRecordsLanePauseCountAndDuration(t *testing.T) {
 
 // Aborting a paused run still attributes the lane's pause (count + the time it was
 // parked up to the abort), and the pause resolves exactly once — the S4 idempotency
-// invariant, asserted on the attention-recording path.
+// invariant. Asserts the PERSISTED record (what abortRun writes), not a hand-rolled
+// runRecord after the fact: abort is the one completion path that records while a lane
+// is still parked, so the open span must be folded in BEFORE recordRun runs (the
+// escalate goroutine's closeLanePause can't re-acquire s.mu until abortRun returns).
 func TestAbortedPausedLaneStillRecordsPause(t *testing.T) {
 	s, _ := newTestServer()
+	rs := withRunStore(s)
 	clk := newFakeClock(time.Date(2026, 6, 11, 9, 0, 0, 0, time.UTC))
 	s.now = clk.now
-	run := startParallelRun(s)
+	startParallelRun(s)
 
 	result := make(chan string, 1)
 	go func() {
@@ -113,20 +117,23 @@ func TestAbortedPausedLaneStillRecordsPause(t *testing.T) {
 	waitForPause(t, s)
 
 	clk.advance(10 * time.Second)
-	s.abortRun(t.Context())
+	s.abortRun(t.Context()) // records the run synchronously, with the span closed
 	if got := <-result; !strings.Contains(got, "cancelled") {
 		t.Fatalf("abort should cancel the pause, got %q", got)
 	}
 
 	s.mu.Lock()
-	rec := runRecord(run)
 	pending := len(s.pauses.Pending())
 	s.mu.Unlock()
 	if pending != 0 {
 		t.Fatalf("abort should resolve the pause exactly once, %d still pending", pending)
 	}
-	if rec.Lanes[0].Pauses != 1 || rec.Lanes[0].PausedMs != 10_000 {
-		t.Fatalf("an aborted-while-parked lane should still record its pause: %+v", rec.Lanes[0])
+	recs := rs.Records()
+	if len(recs) != 1 {
+		t.Fatalf("abort should persist exactly one run, got %d", len(recs))
+	}
+	if l := recs[0].Lanes[0]; l.Pauses != 1 || l.PausedMs != 10_000 {
+		t.Fatalf("an aborted-while-parked lane should record its pause (full span): %+v", l)
 	}
 }
 

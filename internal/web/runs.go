@@ -140,8 +140,10 @@ func (s *Server) runRow(r telemetry.RunRecord, window int) map[string]any {
 			"Credits": telemetry.FormatCredits(l.Credits), "HasCredits": l.Credits > 0,
 			// Attention attribution (S6): a lane that parked on a human shows its
 			// pause count and the time it waited — where humans were the bottleneck.
+			// PausedFor drops a sub-second span (humanDuration rounds it to "0s"): the
+			// "⏸ N" count still shows, but "· 0s" would read as broken.
 			"HasPauses": l.Pauses > 0, "Pauses": l.Pauses,
-			"PausedFor": humanDuration(time.Duration(l.PausedMs) * time.Millisecond),
+			"PausedFor": pausedFor(l.PausedMs),
 		}
 	}
 	credits := r.Credits()
@@ -154,6 +156,18 @@ func (s *Server) runRow(r telemetry.RunRecord, window int) map[string]any {
 		"WorkflowID": r.WorkflowID, "CanRerun": s.forge != nil && s.forge.Workflow(r.WorkflowID) != nil,
 		"Window": window,
 	}
+}
+
+// pausedFor renders a lane's total paused wall-clock for the Runs indicator, "" for a
+// sub-second span — humanDuration rounds <1s to "0s", which beside the "⏸ N" count
+// would read as broken; an empty string lets the template omit the "· …" part so a
+// brief pause shows just its count. Pure.
+func pausedFor(ms int64) string {
+	d := humanDuration(time.Duration(ms) * time.Millisecond)
+	if d == "0s" {
+		return ""
+	}
+	return d
 }
 
 // humanDuration renders a run's wall-clock span compactly: "" for zero (an

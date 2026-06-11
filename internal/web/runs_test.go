@@ -203,6 +203,20 @@ func TestRunsPartialRendersLanePauses(t *testing.T) {
 	}
 }
 
+// A sub-second pause still counts ("⏸ N") but drops the duration — humanDuration
+// rounds <1s to "0s", which beside the count reads as broken.
+func TestPausedForDropsSubSecond(t *testing.T) {
+	if got := pausedFor(400); got != "" {
+		t.Errorf("a sub-second span should render no duration, got %q", got)
+	}
+	if got := pausedFor(90_000); got != "1m 30s" {
+		t.Errorf("a multi-second span should render, got %q", got)
+	}
+	if got := pausedFor(0); got != "" {
+		t.Errorf("zero should render no duration, got %q", got)
+	}
+}
+
 func TestRunsSummaryShowsTotalAndAvgCredits(t *testing.T) {
 	// The per-workflow summary surfaces a workflow's CUMULATIVE orchestrated spend
 	// (TotalCredits) beside its average (V13). Two runs of one workflow make total ≠

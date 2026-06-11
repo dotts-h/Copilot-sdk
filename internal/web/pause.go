@@ -98,15 +98,19 @@ func (s *Server) parkLane(session, message, pauseID string) {
 	l.pausedAt = s.now()
 }
 
-// closeLanePause settles the lane's currently-open park, accumulating the
-// wall-clock it spent input-required into pausedDur (the S6 attention attribution).
-// Called from the escalate goroutine once the pause resolves — by a human answer, a
-// cooperative cancel, or a run abort's CancelAll — so the time is attributed on
-// EVERY resolution path, independent of the lane's terminal status (an aborted lane
-// is already laneFailed by the time this runs). A no-op when no park is open. Caller
-// holds s.mu.
-func (s *Server) closeLanePause(session string) {
-	l := s.laneBySession(session)
+// closeLanePause settles the lane (resolved by session) currently-open park —
+// see closeLanePauseLane. Caller holds s.mu.
+func (s *Server) closeLanePause(session string) { s.closeLanePauseLane(s.laneBySession(session)) }
+
+// closeLanePauseLane accumulates the wall-clock a lane spent input-required into
+// pausedDur (the S6 attention attribution) and clears the open mark. Idempotent: a
+// no-op when no park is open, so it is safe to call on every resolution path.
+// The escalate goroutine calls it (via closeLanePause) once a pause resolves — a
+// human answer, a cooperative cancel, or a run abort's CancelAll — but on **abort**
+// the run is recorded before that goroutine can re-acquire s.mu, so abortRun closes
+// the open spans itself first; the later goroutine call then finds the mark cleared
+// and is a no-op (no double count). Caller holds s.mu.
+func (s *Server) closeLanePauseLane(l *lane) {
 	if l == nil || l.pausedAt.IsZero() {
 		return
 	}
