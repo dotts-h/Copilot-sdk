@@ -29,6 +29,16 @@
      width by the renderer, so the grid is always rectangular. */}}
 {{define "table"}}<table class="md-table"><thead><tr>{{range .Head}}<th{{if .Class}} class="{{.Class}}"{{end}}>{{.HTML}}</th>{{end}}</tr></thead><tbody>{{range .Rows}}<tr>{{range .Cells}}<td{{if .Class}} class="{{.Class}}"{{end}}>{{.HTML}}</td>{{end}}</tr>{{end}}</tbody></table>{{end}}
 
+{{/* container directives (R5, issue 0081, ADR-0047): :::card / :::details as
+     designed, model-authorable blocks resolved against the registry allowlist.
+     The component name (hence its CSS class) comes from the validated registry
+     key — never attacker-controlled. .Body is already-escaped trusted HTML from
+     the block renderers; .Summary rides the inline escape pass. :::details is a
+     native <details>, so the collapse is the browser's — no JS, no new stylesheet
+     beyond the token-styled frame. */}}
+{{define "dirCard"}}<div class="directive dir-card">{{.Body}}</div>{{end}}
+{{define "dirDetails"}}<details class="directive dir-details"><summary class="dir-summary">{{.Summary}}</summary><div class="dir-body">{{.Body}}</div></details>{{end}}
+
 {{define "toolCard"}}<div{{if .ID}} id="tool-{{.ID}}"{{end}} class="turn tool {{.State}}"><div class="tool-head"><span class="glyph">{{.Glyph}}</span> <span class="tool-name">{{.Name}}</span>{{if .Args}} <span class="tool-args">{{richtext .Args}}</span>{{end}}</div>{{if .ShowProgress}}<div class="tool-progress">… {{richtext .Progress}}</div>{{end}}{{if .Pending}}<div class="tool-pending skeleton" aria-hidden="true"></div>{{end}}{{if .ShowResult}}<pre class="tool-result">{{richtext .Result}}</pre>{{end}}</div>{{end}}
 
 {{define "cur"}}<div id="cur" class="{{.Class}}">{{if .Has}}<span>{{richtext .Text}}</span>{{end}}</div>{{end}}

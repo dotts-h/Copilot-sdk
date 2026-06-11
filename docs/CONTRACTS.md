@@ -807,7 +807,10 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
 - **Escaping:** all model-originated text is HTML-escaped before reaching the browser; only
   server-rendered markdown for committed turns emits HTML, via the sanitized renderer. The
   renderer is a block AST (`parseBlocks` → `[]Block` → `renderBlocks`); each block renderer
-  emits only whitelisted/templated HTML. — see [ADR-0001](adr/0001-render-markdown-server-side-for-committed-agent-turns.md), [ADR-0045](adr/0045-block-ast-seam-for-markdown-rendering.md)
+  emits only whitelisted/templated HTML. Container directives (`:::name{attrs}` … `:::`) resolve
+  against a **closed `directiveRegistry`** — an unregistered name is not a directive (degrades to
+  escaped text), so the renderer never emits markup for a component it does not own. — see
+  [ADR-0001](adr/0001-render-markdown-server-side-for-committed-agent-turns.md), [ADR-0045](adr/0045-block-ast-seam-for-markdown-rendering.md), [ADR-0047](adr/0047-container-directives-grammar-and-allowlist.md)
 - **Seam purity:** no SDK import outside `SDKClient`; `telemetry`/`ctxforge`/`config` stay
   dependency-free.
 - **Persistence atomicity:** config/forge writes are temp-file + rename, validated before save.

@@ -857,6 +857,19 @@ test.describe("sessions", () => {
     await expect(table.locator("thead th").first()).toHaveText("Check");
     await expect(table.locator("thead th.ta-center")).toHaveText("Status");
     await expect(table.locator("tbody tr")).toHaveCount(2);
+    // Container directives (R5) render as designed, model-authorable blocks
+    // resolved against the registry allowlist: :::card is a token-styled surface,
+    // :::details a native (JS-free) collapsible whose summary comes from the attr.
+    const card = page.locator(`${sel.agentTurn} .directive.dir-card`).first();
+    await expect(card).toBeVisible();
+    await expect(card).toContainText("parsing from policy");
+    const details = page.locator(`${sel.agentTurn} details.dir-details`).first();
+    await expect(details.locator("summary.dir-summary")).toHaveText("Migration steps");
+    // Native <details> is collapsed by default; the body shows once toggled open.
+    await expect(details).not.toHaveAttribute("open", /.*/);
+    await details.locator("summary").click();
+    await expect(details).toHaveAttribute("open", /.*/);
+    await expect(details.locator(".dir-body")).toContainText("Rotate the signing key");
   });
 
   test("starts a fresh chat from the sessions page", async ({ page }) => {

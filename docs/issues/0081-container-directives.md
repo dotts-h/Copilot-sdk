@@ -1,7 +1,7 @@
 ---
 id: 0081
 title: "Container directives — :::card / :::details as an allowlisted model-authorable block vocabulary (R5)"
-status: open
+status: closed
 severity: medium
 group: 0076
 depends_on: [0077, 0078]
@@ -30,14 +30,27 @@ path for a server-rendered stack.
 
 ## Acceptance
 
-- [ ] `Directive{Name, Attrs, Body}` block; **unregistered names degrade** to escaped text /
-      plain blocks (never render unknown markup). Attribute parsing is escape-first and
-      bounded.
-- [ ] Registry maps name → `frag` template; `:::card` and `:::details{summary=…}` ship, both
-      token-styled, both-theme axe green; `:::details` collapsible via native `<details>`
-      (no JS).
-- [ ] ADR records the directive grammar + the allowlist invariant. New golden + XSS/fuzz
-      cases. `make lint && make test` + `make e2e` green.
+- [x] `directiveBlock{name, attrs, children}` block; **unregistered names degrade** to escaped
+      text / plain blocks (never render unknown markup). Attribute parsing is escape-first and
+      bounded (space-separated `key=value` / `key="quoted value"`, span-capped).
+- [x] `directiveRegistry` maps name → `frag` template + projector; `:::card` and
+      `:::details{summary=…}` ship, both token-styled (guarded semantic tokens only, no new
+      color pair → css_tokens AA guard + both-theme axe stay green); `:::details` collapsible
+      via native `<details>` (no JS).
+- [x] ADR-0047 records the directive grammar + the allowlist invariant. New golden +
+      parse/render + attribute + XSS/fuzz cases. `make lint && make test` + `make e2e` green.
+
+## Close-out note
+
+Built on the ADR-0045 block-AST seam: `directiveAt` finds a fence-balanced `:::name` …
+`:::` only when the name is in `directiveRegistry` (the trust boundary), and `parseLinesDepth`
+threads a bounded nesting depth so a pathological nest degrades to text rather than blowing the
+parse stack. Unregistered / over-depth / unterminated all degrade to ordinary escaped markdown.
+The demo `demo-sess-1` transcript now seeds a `:::card` + `:::details{summary=…}` so the
+resumed-session e2e covers both rendered components (and the native collapse). Attribute grammar
+is intentionally small: unquoted values are a single space-delimited token — multi-word needs
+quotes (the ADR's normative "space-separated list" rule; the unquoted `summary=Build steps`
+example in the ADR prose is informal). Fuzzed 20s over the new fence surface, no crashers.
 
 ## Notes
 

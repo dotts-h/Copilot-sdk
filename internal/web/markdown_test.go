@@ -148,6 +148,8 @@ func TestRenderMarkdownXSS(t *testing.T) {
 		{"callout body html", "> [!WARNING]\n> <img src=x onerror=alert(1)>", []string{"<img"}},
 		{"table cell html", "| h |\n| --- |\n| <img src=x onerror=alert(1)> |", []string{"<img"}},
 		{"table header html", "| <script>alert(1)</script> |\n| --- |\n| x |", []string{"<script"}},
+		{"directive summary html", `:::details{summary="<script>alert(1)</script>"}` + "\nx\n:::", []string{"<script"}},
+		{"directive body html", ":::card\n<img src=x onerror=alert(1)>\n:::", []string{"<img"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -186,6 +188,10 @@ var allowedTags = map[string]bool{
 	// designed tables (R4, issue 0080): the table frag emits a fixed table/section/
 	// row/cell skeleton; cells carry only inline-escaped content + alignment classes.
 	"table": true, "thead": true, "tbody": true, "tr": true, "th": true, "td": true,
+	// container directives (R5, issue 0081): :::details renders a native, JS-free
+	// <details>/<summary>; :::card reuses div. Names come from the registry
+	// allowlist, so the tag set is fixed — never attacker-named markup.
+	"details": true, "summary": true,
 }
 
 // assertOnlyAllowedTags fails if the rendered HTML contains any tag outside the
@@ -222,6 +228,9 @@ func FuzzRenderMarkdown(f *testing.F) {
 		"> [!NOTE]\n> body", "> [!WARNING] <script>\n> <img onerror=x>", "> [!FOO]\n> x",
 		"| a | b |\n| --- | :-: |\n| 1 | 2 |", "| h |\n| --- |\n| <img onerror=x> |",
 		"|\n|\n|", "a|b\n-|-\n*c*|`d`",
+		":::card\nbody\n:::", `:::details{summary="<x>"}` + "\n<img onerror=y>\n:::",
+		":::mystery\nx\n:::", ":::card\n:::card\n:::\n:::", ":::card\nunterminated",
+		":::\n:::", ":::card{" + strings.Repeat("a", 600) + "}\nx\n:::",
 	} {
 		f.Add(s)
 	}
