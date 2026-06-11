@@ -1,13 +1,13 @@
 ---
 id: 0076
 title: "Epic: Designed agent output — rich, token-styled components from agent markdown (roadmap v13, R1–R6)"
-status: open
+status: closed
 severity: medium
 group:
 depends_on: []
 github: 128
 links:
-  adr: []
+  adr: [0045, 0046, 0047, 0049]
   prs: []
   issues: [0077, 0078, 0079, 0080, 0081, 0082]
   regression:
@@ -67,23 +67,23 @@ markdown string → parseBlocks() → []Block{Para, Heading, Code, Callout, Tabl
       already parse but ignore. No highlighting lib — server-side only.
 - [x] **R4 · Tables** ([0080](0080-tables.md), M) — GFM pipe tables → token-styled table
       component. The one common block genuinely missing.
-- [ ] **R5 · Container directives → cards / collapsibles** ([0081](0081-container-directives.md), M/L; ADR) —
+- [x] **R5 · Container directives → cards / collapsibles** ([0081](0081-container-directives.md), M/L; ADR) —
       in-house `:::card` / `:::details{summary=…}` block parser → fragment; an allowlisted,
       model-authorable designed-block vocabulary (safe by construction).
-- [ ] **R6 · Citation cards** ([0082](0082-citation-cards.md), M; stretch) — inline `[n]`
+- [x] **R6 · Citation cards** ([0082](0082-citation-cards.md), M; stretch) — inline `[n]`
       markers + server-rendered source cards (Perplexity pattern); pairs with future
       tool-result/RAG surfaces.
 
 ## Acceptance (epic)
 
-- [ ] R1 lands with byte-identical output for the current subset (golden + fuzz + XSS
+- [x] R1 lands with byte-identical output for the current subset (golden + fuzz + XSS
       suites unchanged), establishing the block-AST as the single render path.
-- [ ] Each new block type is escape-first (every input byte escaped before markup),
+- [x] Each new block type is escape-first (every input byte escaped before markup),
       renders only whitelisted/templated HTML, and adds no dependency, no JS, no second
       stylesheet.
-- [ ] Every added color pair passes WCAG-AA in both themes (`css_tokens_test`); geometry
+- [x] Every added color pair passes WCAG-AA in both themes (`css_tokens_test`); geometry
       uses only the radius/space/type ladders.
-- [ ] Each child: failing test first, ADR where it sets semantics, `make lint && make
+- [x] Each child: failing test first, ADR where it sets semantics, `make lint && make
       test` (floor 65%) + `make e2e` green, born in its PR, SemVer minor.
 
 ## Out of scope (fights the stack)

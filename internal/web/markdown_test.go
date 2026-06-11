@@ -150,6 +150,8 @@ func TestRenderMarkdownXSS(t *testing.T) {
 		{"table header html", "| <script>alert(1)</script> |\n| --- |\n| x |", []string{"<script"}},
 		{"directive summary html", `:::details{summary="<script>alert(1)</script>"}` + "\nx\n:::", []string{"<script"}},
 		{"directive body html", ":::card\n<img src=x onerror=alert(1)>\n:::", []string{"<img"}},
+		{"citation title html", "x[1]\n\n[1]: https://e.com \"<script>alert(1)</script>\"", []string{"<script"}},
+		{"citation unsafe url dropped", "x[1]\n\n[1]: javascript:alert(1) \"y\"", []string{`href="javascript`, "<a "}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -192,6 +194,9 @@ var allowedTags = map[string]bool{
 	// <details>/<summary>; :::card reuses div. Names come from the registry
 	// allowlist, so the tag set is fixed — never attacker-named markup.
 	"details": true, "summary": true,
+	// citation cards (R6, issue 0082): the inline marker is a <sup> anchor; the
+	// source-card list reuses ol/li/a/span. The only new tag is <sup>.
+	"sup": true,
 }
 
 // assertOnlyAllowedTags fails if the rendered HTML contains any tag outside the
@@ -231,6 +236,9 @@ func FuzzRenderMarkdown(f *testing.F) {
 		":::card\nbody\n:::", `:::details{summary="<x>"}` + "\n<img onerror=y>\n:::",
 		":::mystery\nx\n:::", ":::card\n:::card\n:::\n:::", ":::card\nunterminated",
 		":::\n:::", ":::card{" + strings.Repeat("a", 600) + "}\nx\n:::",
+		"see [1] and [2]\n\n[1]: https://a.dev \"A\"\n[2]: /local",
+		"[1]: javascript:alert(1) \"x\"\nuse [1]", "[1]: https://e.com \"<img onerror=x>\"\n[1]",
+		"[0] [1] [99]\n\n[1]: https://e.com", "[1]:not-a-def\n[1]",
 	} {
 		f.Add(s)
 	}

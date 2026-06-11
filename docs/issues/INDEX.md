@@ -20,7 +20,7 @@ issues are added or closed.
 | [0042](0042-epic-interactive-orchestration.md) | Epic: interactive orchestration — the Runs surface goes actionable (roadmap v8) | closed | 0043, 0044 |
 | [0045](0045-epic-ui-ux-refresh.md) | Epic: UI/UX refresh — token foundation, theming, navigation IA, telemetry dashboard, motion (roadmap v9) | closed | 0046, 0047, 0048, 0049 |
 | [0069](0069-epic-first-class-subagents.md) | Epic: First-class sub-agents — live view, per-subagent cost, HITL pause/continue/cancel (roadmap v12) | closed | 0070, 0071, 0072, 0073, 0074, 0075 |
-| [0076](0076-epic-designed-agent-output.md) | Epic: Designed agent output — rich, token-styled components from agent markdown (roadmap v13) | open | 0077, 0078, 0079, 0080, 0081, 0082 |
+| [0076](0076-epic-designed-agent-output.md) | Epic: Designed agent output — rich, token-styled components from agent markdown (roadmap v13) | closed | 0077, 0078, 0079, 0080, 0081, 0082 |
 | [0083](0083-epic-orchestration-robustness-backpressure-replayability-considered-and-rejected-event-bus.md) | Epic: Orchestration robustness — backpressure + replayability (considered-and-rejected event bus) (roadmap v14) | closed | 0084, 0085 |
 
 ## Issues
@@ -91,13 +91,13 @@ issues are added or closed.
 | [0073](0073-pause-continue-cancel-escalate.md) | Pause / continue / cancel — typed pause records + the orchestrator escalate tool (S4) | closed | high | 0069 | depends_on: 0070, permBridge/ADR-0008/ADR-0024, SUBAGENTS_RESEARCH §1–2, ADR-0043 |
 | [0074](0074-subagent-chat-overlay.md) | Per-subagent chat overlay — popup transcript with live stream, pause form, and steer (S5) | closed | medium | 0069 | depends_on: 0071, see also 0073, SUBAGENTS_RESEARCH §3/§5, ADR-0044 |
 | [0075](0075-subagent-attention-surface.md) | Attention surface — needs-you badging, title/favicon dot, Runs integration (S6) | closed | medium | 0069 | depends_on: 0071+0073, ADR-0022 run store — closes the epic |
-| [0076](0076-epic-designed-agent-output.md) | Epic: Designed agent output — block-AST + token-styled components from markdown (roadmap v13) | open | medium | | children 0077–0082; NEXT_FEATURES roadmap-v13; ADR-0001 doctrine |
+| [0076](0076-epic-designed-agent-output.md) | Epic: Designed agent output — block-AST + token-styled components from markdown (roadmap v13) | closed | medium | | children 0077–0082 all shipped; ADR-0045/0046/0047/0049; ADR-0001 doctrine |
 | [0077](0077-block-ast-seam.md) | Block-AST seam — parse markdown to a typed []Block, render byte-identically (R1) | closed | medium | 0076 | depends_on: —, keystone; ADR-0045, builds on ADR-0001 |
 | [0078](0078-callouts-admonitions.md) | Callouts / admonitions — GitHub-alert blockquotes as designed callout components (R2) | closed | medium | 0076 | depends_on: 0077, highest visual ROI; ADR-0046 |
 | [0079](0079-designed-code-blocks.md) | Designed code blocks — language label + copy affordance + token-styled frame (R3) | closed | medium | 0076 | depends_on: 0077, no highlighting lib |
 | [0080](0080-tables.md) | Tables — GFM pipe tables as token-styled table components (R4) | closed | medium | 0076 | depends_on: 0077, the missing common block |
 | [0081](0081-container-directives.md) | Container directives — :::card / :::details, allowlisted model-authorable blocks (R5) | closed | medium | 0076 | depends_on: 0077+0078, ADR-0047 grammar+allowlist |
-| [0082](0082-citation-cards.md) | Citation cards — inline [n] markers + server-rendered source cards (R6, stretch) | open | low | 0076 | depends_on: 0077, Perplexity pattern; needs a source-bearing surface |
+| [0082](0082-citation-cards.md) | Citation cards — inline [n] markers + server-rendered source cards (R6, stretch) | closed | low | 0076 | depends_on: 0077, Perplexity pattern; ADR-0049 |
 | [0083](0083-epic-orchestration-robustness-backpressure-replayability-considered-and-rejected-event-bus.md) | Epic: Orchestration robustness — backpressure + replayability (considered-and-rejected event bus) | closed | medium | | children 0084–0085; NEXT_FEATURES roadmap-v14; event-bus evaluation |
 | [0084](0084-bounded-lane-worker-pool-backpressure-for-wide-parallel-workflows.md) | Bounded lane worker pool — backpressure for wide parallel workflows | closed | medium | 0083 | depends_on: —, bounds launchLanes fan-out; no new seam; PR #148 |
 | [0085](0085-per-run-event-log-for-replay-audit-on-appendonlystore.md) | Per-run event log for replay/audit on AppendOnlyStore | closed | medium | 0083 | depends_on: —, ADR-0048, builds on AppendOnlyStore (0033); replay vs summary |

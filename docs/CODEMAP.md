@@ -570,6 +570,16 @@ _Last generated: 2026-06-11 (UTC)._
 - L100: `func (s *Server) forecast(now time.Time) (telemetry.Projection, bool)`
 - L110: `func (s *Server) overCap() (projected float64, capped bool)`
 
+### citations.go (162 LOC)
+- L43: `type citeSource struct`
+- L54: `type sourcesBlock struct`
+- L62: `type citeScope struct`
+- L69: `func scopeOf(blocks []Block) *citeScope`
+- L88: `func extractCitations(lines []string) ([]string, []citeSource)`
+- L121: `func citeOrigin(rawURL string) string`
+- L136: `func renderCiteRef(src citeSource) string`
+- L145: `func (s sourcesBlock) renderTo(b *strings.Builder, _ *citeScope)`
+
 ### commands.go (440 LOC)
 - L23: `func parseCommand(input string) (name, args string, ok bool)`
 - L34: `func (s *Server) runCommand(input string) string`
@@ -620,13 +630,13 @@ _Last generated: 2026-06-11 (UTC)._
 - L134: `func leadingInt(s string) int`
 - L147: `func isFileHeader(s string) bool`
 
-### directives.go (205 LOC)
+### directives.go (206 LOC)
 - L35: `type directiveSpec struct`
 - L76: `type directiveBlock struct`
-- L82: `func (d directiveBlock) renderTo(b *strings.Builder)`
-- L102: `func directiveAt(lines []string, i, depth int) (name string, attrs map[string]string, body []string, next int, ok bool)`
-- L146: `func isDirectiveOpenLine(line string) bool`
-- L160: `func parseDirectiveAttrs(raw string) map[string]string`
+- L82: `func (d directiveBlock) renderTo(b *strings.Builder, cs *citeScope)`
+- L103: `func directiveAt(lines []string, i, depth int) (name string, attrs map[string]string, body []string, next int, ok bool)`
+- L147: `func isDirectiveOpenLine(line string) bool`
+- L161: `func parseDirectiveAttrs(raw string) map[string]string`
 
 ### entities.go (95 LOC)
 - L11: `func (s *Server) skillsPartial() string`
@@ -725,40 +735,41 @@ _Last generated: 2026-06-11 (UTC)._
 - L31: `func importInstructionFiles(dir string) []ctxforge.Instruction`
 - L51: `func (s *Server) handleInstructionImport(w http.ResponseWriter, r *http.Request)`
 
-### markdown.go (610 LOC)
-- L51: `type Block interface`
-- L56: `type headingBlock struct`
-- L63: `type codeBlock struct`
-- L69: `type listBlock struct`
-- L76: `type quoteBlock struct`
-- L83: `type calloutBlock struct`
-- L95: `type tableBlock struct`
-- L102: `type hrBlock struct{}`
-- L106: `type paragraphBlock struct`
-- L113: `func renderMarkdown(src string) string`
-- L121: `func parseBlocks(src string) []Block`
-- L125: `func parseLines(lines []string) []Block { return parseLinesDepth(lines, 0) }`
-- L131: `func parseLinesDepth(lines []string, depth int) []Block`
-- L275: `func listItemRe(line string) *regexp.Regexp`
-- L289: `func startsTable(lines []string, i int) bool`
-- L301: `func splitTableRow(line string) []string`
-- L316: `func isTableDelimiter(line string) bool`
-- L334: `func isDelimCell(c string) bool`
-- L350: `func tableAligns(line string) []string`
-- L369: `func renderBlocks(blocks []Block) string`
-- L375: `func renderBlocksTo(b *strings.Builder, blocks []Block)`
-- L381: `func (h headingBlock) renderTo(b *strings.Builder)`
-- L386: `func (c codeBlock) renderTo(b *strings.Builder)`
-- L402: `func (l listBlock) renderTo(b *strings.Builder)`
-- L414: `func (q quoteBlock) renderTo(b *strings.Builder)`
-- L420: `func (c calloutBlock) renderTo(b *strings.Builder)`
-- L437: `func (t tableBlock) renderTo(b *strings.Builder)`
-- L483: `func (hrBlock) renderTo(b *strings.Builder)`
-- L487: `func (p paragraphBlock) renderTo(b *strings.Builder)`
-- L500: `func isBlockStart(line string) bool`
-- L517: `func isHR(line string) bool`
-- L537: `func inline(s string) string`
-- L602: `func safeURL(url string) bool`
+### markdown.go (654 LOC)
+- L53: `type Block interface`
+- L58: `type headingBlock struct`
+- L65: `type codeBlock struct`
+- L71: `type listBlock struct`
+- L78: `type quoteBlock struct`
+- L85: `type calloutBlock struct`
+- L97: `type tableBlock struct`
+- L104: `type hrBlock struct{}`
+- L108: `type paragraphBlock struct`
+- L115: `func renderMarkdown(src string) string`
+- L128: `func parseBlocks(src string) []Block`
+- L137: `func parseLines(lines []string) []Block { return parseLinesDepth(lines, 0) }`
+- L143: `func parseLinesDepth(lines []string, depth int) []Block`
+- L287: `func listItemRe(line string) *regexp.Regexp`
+- L301: `func startsTable(lines []string, i int) bool`
+- L313: `func splitTableRow(line string) []string`
+- L328: `func isTableDelimiter(line string) bool`
+- L346: `func isDelimCell(c string) bool`
+- L362: `func tableAligns(line string) []string`
+- L385: `func renderBlocks(blocks []Block) string`
+- L392: `func renderBlocksScoped(blocks []Block, cs *citeScope) string`
+- L398: `func renderBlocksTo(b *strings.Builder, blocks []Block, cs *citeScope)`
+- L404: `func (h headingBlock) renderTo(b *strings.Builder, cs *citeScope)`
+- L409: `func (c codeBlock) renderTo(b *strings.Builder, _ *citeScope)`
+- L425: `func (l listBlock) renderTo(b *strings.Builder, cs *citeScope)`
+- L437: `func (q quoteBlock) renderTo(b *strings.Builder, cs *citeScope)`
+- L443: `func (c calloutBlock) renderTo(b *strings.Builder, cs *citeScope)`
+- L461: `func (t tableBlock) renderTo(b *strings.Builder, cs *citeScope)`
+- L507: `func (hrBlock) renderTo(b *strings.Builder, _ *citeScope)`
+- L511: `func (p paragraphBlock) renderTo(b *strings.Builder, cs *citeScope)`
+- L524: `func isBlockStart(line string) bool`
+- L541: `func isHR(line string) bool`
+- L563: `func inline(s string, cs *citeScope) string`
+- L646: `func safeURL(url string) bool`
 
 ### mcp.go (344 LOC)
 - L27: `func MCPServerSpecs(servers []ctxforge.MCPServer, lookupEnv func(string) string) []copilot.MCPServer`

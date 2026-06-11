@@ -47,9 +47,11 @@ var calloutKinds = map[string]struct{ label, glyph string }{
 // Block is one structural element of the markdown subset (ADR 0045). The
 // interface is sealed: every implementation lives in this file, and each
 // renderer may emit only whitelisted or templated HTML, with every dynamic
-// string escape-first via inline()/html.EscapeString.
+// string escape-first via inline()/html.EscapeString. The citation scope (ADR
+// 0049) is threaded in so an inline [n] resolves against the document's defined
+// sources; a nil scope means no citations (every [n] stays literal).
 type Block interface {
-	renderTo(b *strings.Builder)
+	renderTo(b *strings.Builder, cs *citeScope)
 }
 
 // headingBlock is an ATX heading; text is raw markdown for the inline pass.
@@ -118,8 +120,18 @@ func renderMarkdown(src string) string {
 
 // parseBlocks recognizes the markdown subset as a typed block list. No HTML is
 // produced here; raw markdown text rides inside the blocks for the renderers.
+// Reference-style citation definitions (ADR 0049) are lifted out first — they
+// never render as prose — and, when any resolve, a single sourcesBlock is
+// appended so the rendered source cards close the document and the citation
+// scope can be derived from the block list (keeping renderMarkdown exactly
+// renderBlocks∘parseBlocks).
 func parseBlocks(src string) []Block {
-	return parseLines(strings.Split(src, "\n"))
+	lines, sources := extractCitations(strings.Split(src, "\n"))
+	blocks := parseLines(lines)
+	if len(sources) > 0 {
+		blocks = append(blocks, sourcesBlock{sources: sources})
+	}
+	return blocks
 }
 
 func parseLines(lines []string) []Block { return parseLinesDepth(lines, 0) }
@@ -365,25 +377,36 @@ func tableAligns(line string) []string {
 	return aligns
 }
 
-// renderBlocks emits the sanitized HTML for a block list.
+// renderBlocks emits the sanitized HTML for a block list. The citation scope is
+// derived from the blocks themselves (the sourcesBlock parseBlocks appended), so
+// this stays a pure []Block→string seam — renderMarkdown is exactly its
+// composition with parseBlocks, and a caller passing hand-built blocks gets
+// citation resolution iff those blocks carry a sourcesBlock.
 func renderBlocks(blocks []Block) string {
+	return renderBlocksScoped(blocks, scopeOf(blocks))
+}
+
+// renderBlocksScoped renders a block list under an explicit citation scope, so a
+// nested container (quote/callout/directive body) resolves markers against the
+// document's sources rather than re-deriving an empty scope from its children.
+func renderBlocksScoped(blocks []Block, cs *citeScope) string {
 	var b strings.Builder
-	renderBlocksTo(&b, blocks)
+	renderBlocksTo(&b, blocks, cs)
 	return b.String()
 }
 
-func renderBlocksTo(b *strings.Builder, blocks []Block) {
+func renderBlocksTo(b *strings.Builder, blocks []Block, cs *citeScope) {
 	for _, blk := range blocks {
-		blk.renderTo(b)
+		blk.renderTo(b, cs)
 	}
 }
 
-func (h headingBlock) renderTo(b *strings.Builder) {
+func (h headingBlock) renderTo(b *strings.Builder, cs *citeScope) {
 	lv := strconv.Itoa(h.level)
-	b.WriteString("<h" + lv + ">" + inline(h.text) + "</h" + lv + ">")
+	b.WriteString("<h" + lv + ">" + inline(h.text, cs) + "</h" + lv + ">")
 }
 
-func (c codeBlock) renderTo(b *strings.Builder) {
+func (c codeBlock) renderTo(b *strings.Builder, _ *citeScope) {
 	// Designed code-block frame (R3, issue 0079): the language label + a copy
 	// affordance over a token-styled surface, rendered through the frag() template
 	// the rest of the UI uses instead of hand-built <pre> string concat. The code
@@ -399,28 +422,29 @@ func (c codeBlock) renderTo(b *strings.Builder) {
 	}))
 }
 
-func (l listBlock) renderTo(b *strings.Builder) {
+func (l listBlock) renderTo(b *strings.Builder, cs *citeScope) {
 	tag := "ul"
 	if l.ordered {
 		tag = "ol"
 	}
 	b.WriteString("<" + tag + ">")
 	for _, item := range l.items {
-		b.WriteString("<li>" + inline(item) + "</li>")
+		b.WriteString("<li>" + inline(item, cs) + "</li>")
 	}
 	b.WriteString("</" + tag + ">")
 }
 
-func (q quoteBlock) renderTo(b *strings.Builder) {
+func (q quoteBlock) renderTo(b *strings.Builder, cs *citeScope) {
 	b.WriteString("<blockquote>")
-	renderBlocksTo(b, q.children)
+	renderBlocksTo(b, q.children, cs)
 	b.WriteString("</blockquote>")
 }
 
-func (c calloutBlock) renderTo(b *strings.Builder) {
+func (c calloutBlock) renderTo(b *strings.Builder, cs *citeScope) {
 	// Kind is validated against calloutKinds at parse time, so the glyph lookup
 	// always hits; the title rides the inline pass (escape-first), the body is
-	// already-rendered trusted HTML. All dynamic parts are escaped before assembly.
+	// already-rendered trusted HTML under the document citation scope. All dynamic
+	// parts are escaped before assembly.
 	b.WriteString(frag("callout", struct {
 		Kind  string
 		Glyph string
@@ -429,12 +453,12 @@ func (c calloutBlock) renderTo(b *strings.Builder) {
 	}{
 		Kind:  c.kind,
 		Glyph: calloutKinds[c.kind].glyph,
-		Title: template.HTML(inline(c.title)),          //nolint:gosec // inline() escapes first, whitelist-only tags
-		Body:  template.HTML(renderBlocks(c.children)), //nolint:gosec // composed from escaped block renderers
+		Title: template.HTML(inline(c.title, cs)),                //nolint:gosec // inline() escapes first, whitelist-only tags
+		Body:  template.HTML(renderBlocksScoped(c.children, cs)), //nolint:gosec // composed from escaped block renderers
 	}))
 }
 
-func (t tableBlock) renderTo(b *strings.Builder) {
+func (t tableBlock) renderTo(b *strings.Builder, cs *citeScope) {
 	// Each cell rides the inline pass (escape-first) before it enters the
 	// template as trusted HTML; the alignment class is one of a fixed set keyed
 	// off the parsed delimiter, so no dynamic attribute is attacker-controlled.
@@ -459,7 +483,7 @@ func (t tableBlock) renderTo(b *strings.Builder) {
 	}
 	head := make([]tcell, len(t.headers))
 	for i, h := range t.headers {
-		head[i] = tcell{Class: alignClass(i), HTML: template.HTML(inline(h))} //nolint:gosec // inline() escapes first, whitelist-only tags
+		head[i] = tcell{Class: alignClass(i), HTML: template.HTML(inline(h, cs))} //nolint:gosec // inline() escapes first, whitelist-only tags
 	}
 	type trow struct{ Cells []tcell }
 	rows := make([]trow, 0, len(t.rows))
@@ -470,7 +494,7 @@ func (t tableBlock) renderTo(b *strings.Builder) {
 			if i < len(r) {
 				raw = r[i]
 			}
-			cells[i] = tcell{Class: alignClass(i), HTML: template.HTML(inline(raw))} //nolint:gosec // inline() escapes first, whitelist-only tags
+			cells[i] = tcell{Class: alignClass(i), HTML: template.HTML(inline(raw, cs))} //nolint:gosec // inline() escapes first, whitelist-only tags
 		}
 		rows = append(rows, trow{Cells: cells})
 	}
@@ -480,17 +504,17 @@ func (t tableBlock) renderTo(b *strings.Builder) {
 	}{Head: head, Rows: rows}))
 }
 
-func (hrBlock) renderTo(b *strings.Builder) {
+func (hrBlock) renderTo(b *strings.Builder, _ *citeScope) {
 	b.WriteString("<hr>")
 }
 
-func (p paragraphBlock) renderTo(b *strings.Builder) {
+func (p paragraphBlock) renderTo(b *strings.Builder, cs *citeScope) {
 	b.WriteString("<p>")
 	for j, line := range p.lines {
 		if j > 0 {
 			b.WriteString("<br>")
 		}
-		b.WriteString(inline(line))
+		b.WriteString(inline(line, cs))
 	}
 	b.WriteString("</p>")
 }
@@ -531,10 +555,12 @@ func isHR(line string) bool {
 	return true
 }
 
-// inline escapes a line of text and layers inline markup (code, links, emphasis)
-// on top. Code spans are extracted to placeholders first so their contents are
-// never re-processed by the emphasis/link passes.
-func inline(s string) string {
+// inline escapes a line of text and layers inline markup (code, links,
+// citations, emphasis) on top. Code spans are extracted to placeholders first so
+// their contents are never re-processed by the later passes. The citation scope
+// (ADR 0049) is consulted only when non-nil: an inline [n] whose number has a
+// defined source becomes a marker, otherwise it stays literal escaped text.
+func inline(s string, cs *citeScope) string {
 	s = html.EscapeString(s)
 
 	var ph []string
@@ -558,6 +584,24 @@ func inline(s string) string {
 		}
 		return stash(`<a href="` + url + `">` + text + `</a>`)
 	})
+
+	// Citation markers — after code/links are stashed, so only bare [n] in prose
+	// remain. A number with a defined source becomes a stashed marker fragment;
+	// any other [n] is left as escaped literal text (a broken citation degrades,
+	// never fabricates). Skipped entirely when the document has no sources.
+	if cs != nil {
+		s = mdCiteRef.ReplaceAllStringFunc(s, func(m string) string {
+			n, err := strconv.Atoi(mdCiteRef.FindStringSubmatch(m)[1])
+			if err != nil {
+				return m
+			}
+			src, ok := cs.byNum[n]
+			if !ok {
+				return m // no matching source: degrade to literal
+			}
+			return stash(renderCiteRef(src))
+		})
+	}
 
 	// Emphasis: bold before italic so ** wins over *.
 	s = mdBold.ReplaceAllString(s, "<strong>$1$2</strong>")

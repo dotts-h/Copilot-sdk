@@ -93,6 +93,21 @@ the most *differentiating* and the best fit for the stack.
 > that R2 is in; needs its own grammar/allowlist ADR) → **R6** citation cards (0082,
 > stretch). All four are unblocked children of epic 0076.
 
+> **v13 update (after R6 — epic 0076 closes):** **R6 shipped** (issue 0082, ADR-0049), the
+> last (stretch) child. Reference-style `[n]: url "title"` definitions register sources
+> (lifted out of the prose by `extractCitations`); an inline `[n]` resolves to a `<sup>`
+> anchor to a server-rendered source card *only when a matching source exists* — every other
+> `[n]` degrades to escaped text, and an unsafe URL registers no source. The defined-number
+> set travels inside the block list (a `sourcesBlock` closing the document, read by
+> `scopeOf`) and threads through the renderers, so the seam identity holds and citation-free
+> input stays byte-identical. Progressive disclosure is a CSS-only hover/focus preview; the
+> only new tag is `<sup>`; all styling reuses guarded tokens (no new color pair).
+> **Epic 0076 is now complete** (R1–R6 all shipped: block-AST seam, callouts, code blocks,
+> tables, container directives, citation cards) — the designed-output pipeline turns agent
+> markdown into token-styled components server-side with zero client JS. The natural next
+> consumer is a source-bearing producer (tool-result / RAG / web-search) that emits sources
+> for the citation layer; scope epic v14+ from a fresh value×fit pass.
+
 ---
 
 ## Where the product is now
