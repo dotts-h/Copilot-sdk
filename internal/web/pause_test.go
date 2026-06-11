@@ -272,8 +272,10 @@ func TestRenderPausesIdempotent(t *testing.T) {
 		{ID: "pause-1", Message: "a", Caps: []pause.Cap{pause.CapContinue, pause.CapCancel}},
 		{ID: "pause-2", Message: "b", Caps: []pause.Cap{pause.CapCancel}},
 	}
-	if renderPauses(pending) != renderPauses(pending) {
-		t.Error("renderPauses should be deterministic for the same input")
+	first := renderPauses(pending)
+	second := renderPauses(pending)
+	if first != second {
+		t.Errorf("renderPauses should be deterministic for the same input:\n%q\n%q", first, second)
 	}
 }
 
