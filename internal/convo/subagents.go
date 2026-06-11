@@ -80,8 +80,11 @@ type SubagentView struct {
 // sub-agent roster, not a transient busy indicator).
 type Subagents struct {
 	entries []SubagentView
-	seen    map[string]bool // spawn id -> a tagged stream event was observed
 }
+
+// SubagentThinking is the between-tools activity label — the registry's only
+// non-tool activity vocabulary, shared with the reducer that feeds it.
+const SubagentThinking = "thinking…"
 
 // Start registers a spawned sub-agent as a working entry. A duplicate spawn id
 // is ignored (the entry already exists).
@@ -92,24 +95,21 @@ func (r *Subagents) Start(spawnID, name, displayName, description, model string)
 	r.entries = append(r.entries, SubagentView{
 		SpawnID: spawnID, Name: name, DisplayName: displayName,
 		Description: description, Model: model,
-		Status: SubagentWorking, Activity: "thinking…",
+		Status: SubagentWorking, Activity: SubagentThinking,
 	})
 }
 
 // Observe folds one tagged stream event into the instance's entry, joining the
-// instance to its spawn on first sight, and records that the instance's stream
-// was actually seen doing work (the completion cross-check). activity is the
-// tool now running, "thinking…" between tools, or "" to record the observation
-// without touching the display. It reports whether anything displayable changed.
+// instance to its spawn on first sight — the join itself is the record that
+// the instance's stream was seen doing work (the completion cross-check).
+// activity is the tool now running, SubagentThinking between tools, or "" to
+// record the observation without touching the display. It reports whether
+// anything displayable changed.
 func (r *Subagents) Observe(instanceID, activity string) bool {
 	e := r.join(instanceID)
 	if e == nil {
 		return false
 	}
-	if r.seen == nil {
-		r.seen = map[string]bool{}
-	}
-	r.seen[e.SpawnID] = true
 	if activity == "" || activity == e.Activity {
 		return false
 	}
@@ -122,14 +122,7 @@ func (r *Subagents) Observe(instanceID, activity string) bool {
 // and reports whether the displayed value changed.
 func (r *Subagents) AddCredits(instanceID string, credits float64) bool {
 	e := r.join(instanceID)
-	if e == nil {
-		return false
-	}
-	if r.seen == nil {
-		r.seen = map[string]bool{}
-	}
-	r.seen[e.SpawnID] = true
-	if credits == 0 {
+	if e == nil || credits == 0 {
 		return false
 	}
 	e.Credits += credits
@@ -138,9 +131,10 @@ func (r *Subagents) AddCredits(instanceID string, credits float64) bool {
 
 // End settles the spawn's entry as done or failed, keeping it listed. A
 // successful completion that reported zero tokens AND whose stream we never
-// observed is marked Unverified — sub-agents are known to die early yet report
-// completed (claude-code#47936), so "done" is only trusted when the tokens or
-// the watched stream corroborate it. Unknown spawns are ignored gracefully.
+// observed (no instance ever joined the entry) is marked Unverified —
+// sub-agents are known to die early yet report completed (claude-code#47936),
+// so "done" is only trusted when the tokens or the watched stream corroborate
+// it. Unknown spawns are ignored gracefully.
 func (r *Subagents) End(spawnID string, success bool, detail string, totalTokens int64) bool {
 	e := r.bySpawn(spawnID)
 	if e == nil {
@@ -148,7 +142,7 @@ func (r *Subagents) End(spawnID string, success bool, detail string, totalTokens
 	}
 	if success {
 		e.Status = SubagentDone
-		e.Unverified = totalTokens == 0 && !r.seen[spawnID]
+		e.Unverified = totalTokens == 0 && e.InstanceID == ""
 	} else {
 		e.Status = SubagentFailed
 	}
@@ -168,7 +162,7 @@ func (r *Subagents) Entries() []SubagentView {
 func (r *Subagents) Empty() bool { return len(r.entries) == 0 }
 
 // Reset empties the registry (a /clear).
-func (r *Subagents) Reset() { r.entries, r.seen = nil, nil }
+func (r *Subagents) Reset() { r.entries = nil }
 
 // bySpawn returns the entry with the given spawn id, or nil.
 func (r *Subagents) bySpawn(spawnID string) *SubagentView {

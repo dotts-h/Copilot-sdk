@@ -362,7 +362,7 @@ func (s *Server) handleSubagentStream(e copilot.Event) []fragment {
 		changed = s.subreg.Observe(e.AgentID, e.Tool)
 	case copilot.EvToolEnd, copilot.EvMessage, copilot.EvMessageDelta,
 		copilot.EvReasoning, copilot.EvReasoningDelta:
-		changed = s.subreg.Observe(e.AgentID, "thinking…")
+		changed = s.subreg.Observe(e.AgentID, convo.SubagentThinking)
 	default:
 		s.subreg.Observe(e.AgentID, "")
 	}

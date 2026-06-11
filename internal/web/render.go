@@ -366,13 +366,7 @@ func renderSubagents(entries []convo.SubagentView) string {
 			// (claude-code#47936) — say so in the label itself.
 			label += " (unverified)"
 		}
-		name := sa.DisplayName
-		if name == "" {
-			name = sa.Name
-		}
-		if name == "" {
-			name = "sub-agent"
-		}
+		name := firstNonEmpty([]string{sa.DisplayName, sa.Name, "sub-agent"})
 		// Name/Description/Activity/Detail are model/SDK-originated text → they
 		// flow through html/template auto-escaping, never trusted() raw (ADR-0001).
 		// An empty Description omits the title attribute entirely.
