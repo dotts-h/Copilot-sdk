@@ -91,6 +91,42 @@ func TestRenderMarkdownCallout(t *testing.T) {
 	}
 }
 
+func TestRenderMarkdownTable(t *testing.T) {
+	// GFM pipe tables render as a token-styled <table> component: a header row,
+	// a delimiter row that sets per-column alignment, then body rows. Cells ride
+	// the inline pass (escape-first). A pipe-bearing line not followed by a valid
+	// delimiter degrades to plain text.
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			"aligned table with inline markup",
+			"| Name | Qty |\n| --- | ---: |\n| **Apples** | 3 |",
+			`<table class="md-table"><thead><tr><th>Name</th><th class="ta-right">Qty</th></tr></thead>` +
+				`<tbody><tr><td><strong>Apples</strong></td><td class="ta-right">3</td></tr></tbody></table>`,
+		},
+		{
+			"header only, empty body",
+			"| a | b |\n| --- | --- |",
+			`<table class="md-table"><thead><tr><th>a</th><th>b</th></tr></thead><tbody></tbody></table>`,
+		},
+		{
+			"second line not a delimiter degrades to paragraph",
+			"| a | b |\njust text",
+			"<p>| a | b |<br>just text</p>",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := renderMarkdown(c.in); got != c.want {
+				t.Errorf("renderMarkdown(%q)\n  got:  %q\n  want: %q", c.in, got, c.want)
+			}
+		})
+	}
+}
+
 func TestRenderMarkdownXSS(t *testing.T) {
 	// Inputs that must never produce *live* markup. The invariant is structural:
 	// no dangerous opening tag and no href with an executable scheme. Escaped text
@@ -110,6 +146,8 @@ func TestRenderMarkdownXSS(t *testing.T) {
 		{"html in fence", "```\n<img onerror=alert(1)>\n```", []string{"<img"}},
 		{"callout title html", "> [!NOTE] <script>alert(1)</script>\n> hi", []string{"<script"}},
 		{"callout body html", "> [!WARNING]\n> <img src=x onerror=alert(1)>", []string{"<img"}},
+		{"table cell html", "| h |\n| --- |\n| <img src=x onerror=alert(1)> |", []string{"<img"}},
+		{"table header html", "| <script>alert(1)</script> |\n| --- |\n| x |", []string{"<script"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -145,6 +183,9 @@ var allowedTags = map[string]bool{
 	// designed code blocks (R3, issue 0079): the codeBlock frag wraps <pre> in a
 	// framed component whose head carries the language label + a copy <button>.
 	"button": true,
+	// designed tables (R4, issue 0080): the table frag emits a fixed table/section/
+	// row/cell skeleton; cells carry only inline-escaped content + alignment classes.
+	"table": true, "thead": true, "tbody": true, "tr": true, "th": true, "td": true,
 }
 
 // assertOnlyAllowedTags fails if the rendered HTML contains any tag outside the
@@ -179,6 +220,8 @@ func FuzzRenderMarkdown(f *testing.F) {
 		"[x](javascript:alert(1))", "<script>x</script>", "```\n<b>\n```",
 		"*\x00*", "[a](b)[c](d)", "###### \x00 # nested",
 		"> [!NOTE]\n> body", "> [!WARNING] <script>\n> <img onerror=x>", "> [!FOO]\n> x",
+		"| a | b |\n| --- | :-: |\n| 1 | 2 |", "| h |\n| --- |\n| <img onerror=x> |",
+		"|\n|\n|", "a|b\n-|-\n*c*|`d`",
 	} {
 		f.Add(s)
 	}

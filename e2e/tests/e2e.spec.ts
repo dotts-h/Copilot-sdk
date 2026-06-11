@@ -850,6 +850,13 @@ test.describe("sessions", () => {
     await expect(note.locator(".callout-title")).toHaveText("Note");
     await expect(note.locator(".callout-glyph")).toBeVisible();
     await expect(page.locator(`${sel.agentTurn} .callout.callout-warning .callout-title`)).toHaveText("Warning");
+    // GFM pipe tables render as a token-styled table component (R4): a header
+    // row + body rows, with per-column alignment carried on a fixed class.
+    const table = page.locator(`${sel.agentTurn} table.md-table`).first();
+    await expect(table).toBeVisible();
+    await expect(table.locator("thead th").first()).toHaveText("Check");
+    await expect(table.locator("thead th.ta-center")).toHaveText("Status");
+    await expect(table.locator("tbody tr")).toHaveCount(2);
   });
 
   test("starts a fresh chat from the sessions page", async ({ page }) => {

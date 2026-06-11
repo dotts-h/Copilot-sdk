@@ -65,7 +65,7 @@ markdown string → parseBlocks() → []Block{Para, Heading, Code, Callout, Tabl
 - [x] **R3 · Designed code blocks** ([0079](0079-designed-code-blocks.md), S/M) —
       language label + copy affordance + token-styled frame, using the language hint we
       already parse but ignore. No highlighting lib — server-side only.
-- [ ] **R4 · Tables** ([0080](0080-tables.md), M) — GFM pipe tables → token-styled table
+- [x] **R4 · Tables** ([0080](0080-tables.md), M) — GFM pipe tables → token-styled table
       component. The one common block genuinely missing.
 - [ ] **R5 · Container directives → cards / collapsibles** ([0081](0081-container-directives.md), M/L; ADR) —
       in-house `:::card` / `:::details{summary=…}` block parser → fragment; an allowlisted,

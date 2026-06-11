@@ -86,6 +86,18 @@ type calloutBlock struct {
 	children []Block
 }
 
+// tableBlock is a GFM pipe table (ADR 0045 / R4, issue 0080). headers and the
+// cells in rows are raw markdown for the inline pass; aligns holds the
+// per-column alignment ("", "left", "center", "right") parsed from the
+// delimiter row. Rendered to a token-styled <table> via frag("table", …);
+// ragged rows are padded/truncated to the header width so the grid stays
+// rectangular and never leaks markup.
+type tableBlock struct {
+	headers []string
+	aligns  []string
+	rows    [][]string
+}
+
 // hrBlock is a horizontal rule.
 type hrBlock struct{}
 
@@ -181,6 +193,26 @@ func parseLines(lines []string) []Block {
 			continue
 		}
 
+		// GFM pipe table: a pipe-bearing header row followed by a delimiter row
+		// with a matching cell count. The delimiter sets per-column alignment;
+		// body rows continue until a blank line, a non-pipe line, or another
+		// block start.
+		if startsTable(lines, i) {
+			headers := splitTableRow(lines[i])
+			aligns := tableAligns(lines[i+1])
+			i += 2
+			var rows [][]string
+			for i < len(lines) {
+				if strings.TrimSpace(lines[i]) == "" || !strings.Contains(lines[i], "|") || isBlockStart(lines[i]) {
+					break
+				}
+				rows = append(rows, splitTableRow(lines[i]))
+				i++
+			}
+			blocks = append(blocks, tableBlock{headers: headers, aligns: aligns, rows: rows})
+			continue
+		}
+
 		// List: a run of consecutive items, unordered (-/*/+) or ordered (1.).
 		if itemRe := listItemRe(line); itemRe != nil {
 			var items []string
@@ -196,7 +228,7 @@ func parseLines(lines []string) []Block {
 		var para []string
 		for i < len(lines) {
 			cur := lines[i]
-			if strings.TrimSpace(cur) == "" || isBlockStart(cur) {
+			if strings.TrimSpace(cur) == "" || isBlockStart(cur) || startsTable(lines, i) {
 				break
 			}
 			para = append(para, cur)
@@ -217,6 +249,89 @@ func listItemRe(line string) *regexp.Regexp {
 		return mdOLItem
 	}
 	return nil
+}
+
+// startsTable reports whether lines[i] opens a GFM pipe table: a pipe-bearing
+// header row whose next line is a delimiter row with a matching cell count.
+// The cell-count match is GFM's own rule — a mismatched delimiter is not a
+// table — and it keeps pipe-bearing prose from being misread as a header.
+func startsTable(lines []string, i int) bool {
+	if i+1 >= len(lines) || !strings.Contains(lines[i], "|") {
+		return false
+	}
+	if !isTableDelimiter(lines[i+1]) {
+		return false
+	}
+	return len(splitTableRow(lines[i])) == len(splitTableRow(lines[i+1]))
+}
+
+// splitTableRow splits a pipe-table row into trimmed cells, tolerating the
+// optional leading/trailing pipes GFM allows.
+func splitTableRow(line string) []string {
+	s := strings.TrimSpace(line)
+	s = strings.TrimPrefix(s, "|")
+	s = strings.TrimSuffix(s, "|")
+	parts := strings.Split(s, "|")
+	cells := make([]string, len(parts))
+	for i, p := range parts {
+		cells[i] = strings.TrimSpace(p)
+	}
+	return cells
+}
+
+// isTableDelimiter reports whether a line is a GFM table delimiter row: a
+// pipe-separated run of cells, each dashes with optional leading/trailing
+// colons (the alignment markers).
+func isTableDelimiter(line string) bool {
+	if !strings.Contains(line, "|") {
+		return false
+	}
+	cells := splitTableRow(line)
+	if len(cells) == 0 {
+		return false
+	}
+	for _, c := range cells {
+		if !isDelimCell(c) {
+			return false
+		}
+	}
+	return true
+}
+
+// isDelimCell reports whether a delimiter cell is `:?-+:?` — at least one dash,
+// optional alignment colons.
+func isDelimCell(c string) bool {
+	c = strings.TrimPrefix(c, ":")
+	c = strings.TrimSuffix(c, ":")
+	if c == "" {
+		return false
+	}
+	for i := 0; i < len(c); i++ {
+		if c[i] != '-' {
+			return false
+		}
+	}
+	return true
+}
+
+// tableAligns maps each delimiter cell to its column alignment: ":-:" center,
+// "-:" right, ":-" left, "-" none ("").
+func tableAligns(line string) []string {
+	cells := splitTableRow(line)
+	aligns := make([]string, len(cells))
+	for i, c := range cells {
+		left := strings.HasPrefix(c, ":")
+		right := strings.HasSuffix(c, ":")
+		switch {
+		case left && right:
+			aligns[i] = "center"
+		case right:
+			aligns[i] = "right"
+		case left:
+			aligns[i] = "left"
+		}
+	}
+	return aligns
 }
 
 // renderBlocks emits the sanitized HTML for a block list.
@@ -286,6 +401,52 @@ func (c calloutBlock) renderTo(b *strings.Builder) {
 		Title: template.HTML(inline(c.title)),          //nolint:gosec // inline() escapes first, whitelist-only tags
 		Body:  template.HTML(renderBlocks(c.children)), //nolint:gosec // composed from escaped block renderers
 	}))
+}
+
+func (t tableBlock) renderTo(b *strings.Builder) {
+	// Each cell rides the inline pass (escape-first) before it enters the
+	// template as trusted HTML; the alignment class is one of a fixed set keyed
+	// off the parsed delimiter, so no dynamic attribute is attacker-controlled.
+	// Rows are padded/truncated to the header width — a ragged row can never
+	// emit a cell outside the templated grid.
+	type tcell struct {
+		Class string
+		HTML  template.HTML
+	}
+	alignClass := func(i int) string {
+		if i < len(t.aligns) {
+			switch t.aligns[i] {
+			case "left":
+				return "ta-left"
+			case "center":
+				return "ta-center"
+			case "right":
+				return "ta-right"
+			}
+		}
+		return ""
+	}
+	head := make([]tcell, len(t.headers))
+	for i, h := range t.headers {
+		head[i] = tcell{Class: alignClass(i), HTML: template.HTML(inline(h))} //nolint:gosec // inline() escapes first, whitelist-only tags
+	}
+	type trow struct{ Cells []tcell }
+	rows := make([]trow, 0, len(t.rows))
+	for _, r := range t.rows {
+		cells := make([]tcell, len(t.headers))
+		for i := range t.headers {
+			var raw string
+			if i < len(r) {
+				raw = r[i]
+			}
+			cells[i] = tcell{Class: alignClass(i), HTML: template.HTML(inline(raw))} //nolint:gosec // inline() escapes first, whitelist-only tags
+		}
+		rows = append(rows, trow{Cells: cells})
+	}
+	b.WriteString(frag("table", struct {
+		Head []tcell
+		Rows []trow
+	}{Head: head, Rows: rows}))
 }
 
 func (hrBlock) renderTo(b *strings.Builder) {

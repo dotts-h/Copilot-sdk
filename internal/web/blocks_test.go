@@ -77,6 +77,58 @@ func TestParseBlocksCallout(t *testing.T) {
 	}
 }
 
+func TestParseBlocksTable(t *testing.T) {
+	// A GFM pipe table is a header row, a delimiter row (which sets per-column
+	// alignment), then body rows. A header line that contains a pipe but is NOT
+	// followed by a valid, cell-count-matching delimiter degrades to text.
+	cases := []struct {
+		name string
+		src  string
+		want []Block
+	}{
+		{
+			"aligned table",
+			"| h1 | h2 | h3 |\n| :-- | :--: | --: |\n| a | b | c |\n| d | e | f |",
+			[]Block{tableBlock{
+				headers: []string{"h1", "h2", "h3"},
+				aligns:  []string{"left", "center", "right"},
+				rows:    [][]string{{"a", "b", "c"}, {"d", "e", "f"}},
+			}},
+		},
+		{
+			"no leading/trailing pipes",
+			"a | b\n--- | ---\n1 | 2",
+			[]Block{tableBlock{
+				headers: []string{"a", "b"},
+				aligns:  []string{"", ""},
+				rows:    [][]string{{"1", "2"}},
+			}},
+		},
+		{
+			"header only, no body rows",
+			"| a | b |\n| --- | --- |",
+			[]Block{tableBlock{headers: []string{"a", "b"}, aligns: []string{"", ""}, rows: nil}},
+		},
+		{
+			"non-delimiter second line is not a table",
+			"| a | b |\njust prose",
+			[]Block{paragraphBlock{lines: []string{"| a | b |", "just prose"}}},
+		},
+		{
+			"cell-count mismatch degrades to paragraph",
+			"| a | b |\n| --- |\n| 1 | 2 |",
+			[]Block{paragraphBlock{lines: []string{"| a | b |", "| --- |", "| 1 | 2 |"}}},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := parseBlocks(c.src); !reflect.DeepEqual(got, c.want) {
+				t.Errorf("parseBlocks(%q)\n  got:  %#v\n  want: %#v", c.src, got, c.want)
+			}
+		})
+	}
+}
+
 func TestParseBlocksNestedQuote(t *testing.T) {
 	got := parseBlocks("> # h\n> - x")
 	want := []Block{
@@ -140,6 +192,51 @@ func TestRenderCodeBlockDesigned(t *testing.T) {
 		{"with language", codeBlock{lang: "go", code: "x := 1"}, wantCodeBlock("go", "go", "x := 1")},
 		{"no language", codeBlock{lang: "", code: "plain"}, wantCodeBlock("", "", "plain")},
 		{"body escaped", codeBlock{lang: "html", code: "<img onerror=x>"}, wantCodeBlock("html", "html", "&lt;img onerror=x&gt;")},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := renderBlocks([]Block{c.blk}); got != c.want {
+				t.Errorf("renderBlocks(%#v)\n  got:  %q\n  want: %q", c.blk, got, c.want)
+			}
+		})
+	}
+}
+
+// TestRenderTableDesigned pins the R4 frame (issue 0080): a table renders
+// through the table frag as a token-styled component — header/body sections
+// with per-column alignment classes — with every cell escaped through the
+// inline pass before it rides into the template. Ragged rows are padded and
+// truncated to the header width so the grid stays rectangular and never leaks.
+func TestRenderTableDesigned(t *testing.T) {
+	cases := []struct {
+		name string
+		blk  tableBlock
+		want string
+	}{
+		{
+			"aligned columns",
+			tableBlock{headers: []string{"a", "b"}, aligns: []string{"", "center"}, rows: [][]string{{"1", "2"}}},
+			`<table class="md-table"><thead><tr><th>a</th><th class="ta-center">b</th></tr></thead>` +
+				`<tbody><tr><td>1</td><td class="ta-center">2</td></tr></tbody></table>`,
+		},
+		{
+			"inline markup in cells",
+			tableBlock{headers: []string{"**h**"}, aligns: []string{""}, rows: [][]string{{"`c`"}}},
+			`<table class="md-table"><thead><tr><th><strong>h</strong></th></tr></thead>` +
+				`<tbody><tr><td><code>c</code></td></tr></tbody></table>`,
+		},
+		{
+			"cell html escaped",
+			tableBlock{headers: []string{"<b>"}, aligns: []string{"right"}, rows: [][]string{{"<img onerror=x>"}}},
+			`<table class="md-table"><thead><tr><th class="ta-right">&lt;b&gt;</th></tr></thead>` +
+				`<tbody><tr><td class="ta-right">&lt;img onerror=x&gt;</td></tr></tbody></table>`,
+		},
+		{
+			"ragged rows padded and truncated",
+			tableBlock{headers: []string{"a", "b"}, aligns: []string{"", ""}, rows: [][]string{{"only"}, {"x", "y", "z"}}},
+			`<table class="md-table"><thead><tr><th>a</th><th>b</th></tr></thead>` +
+				`<tbody><tr><td>only</td><td></td></tr><tr><td>x</td><td>y</td></tr></tbody></table>`,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

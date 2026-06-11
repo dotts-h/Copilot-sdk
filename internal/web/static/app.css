@@ -460,6 +460,21 @@ button.add, button.abort, .run-head .stop-run, .run-rec-head .rerun,
 .body.md .code-block pre { margin: 0; padding: .6rem .75rem; border: none;
   border-radius: 0; background: none; overflow-x: auto; }
 
+/* tables (R4, issue 0080): GFM pipe tables rendered as a token-styled table
+   component. Border + header/zebra fills come from the guarded surface ladder
+   (--subtle border, --panel raised fill), so no new color pair — both themes
+   stay AA (cell text is the default --fg on --bg/--panel, already in the axe
+   matrix). Numerals are tabular so columns of figures align. */
+.body.md .md-table { width: 100%; margin: 0 0 .5rem; border-collapse: collapse;
+  font-size: .95em; font-variant-numeric: tabular-nums; }
+.body.md .md-table th, .body.md .md-table td { padding: .3rem .6rem;
+  border: 1px solid var(--subtle); text-align: left; }
+.body.md .md-table th { background: var(--panel); font-weight: 600; }
+.body.md .md-table tbody tr:nth-child(even) { background: var(--panel); }
+.body.md .md-table .ta-left { text-align: left; }
+.body.md .md-table .ta-center { text-align: center; }
+.body.md .md-table .ta-right { text-align: right; }
+
 /* reasoning ("thinking") — dim, collapsible */
 .turn.reasoning { background: var(--raised-2); border-left: 3px solid var(--subtle);
   color: var(--dim); font-size: .92rem; }

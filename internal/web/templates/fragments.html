@@ -22,6 +22,13 @@
      textContent client-side (copyCode), so the block stays selectable without JS. */}}
 {{define "codeBlock"}}<div class="code-block"><div class="code-head"><span class="code-lang">{{.Lang}}</span><button type="button" class="code-copy" onclick="copyCode(this)" aria-label="Copy code"><span class="code-copy-label">Copy</span></button></div><pre><code{{if .Lang}} class="language-{{.Lang}}"{{end}}>{{.Code}}</code></pre></div>{{end}}
 
+{{/* table (R4, issue 0080): a GFM pipe table as a designed component. .Head and
+     each row's .Cells carry already-escaped trusted HTML (the inline pass) plus
+     a fixed alignment class (ta-left/center/right) keyed off the parsed
+     delimiter — no attacker-controlled attribute. Rows are padded to the header
+     width by the renderer, so the grid is always rectangular. */}}
+{{define "table"}}<table class="md-table"><thead><tr>{{range .Head}}<th{{if .Class}} class="{{.Class}}"{{end}}>{{.HTML}}</th>{{end}}</tr></thead><tbody>{{range .Rows}}<tr>{{range .Cells}}<td{{if .Class}} class="{{.Class}}"{{end}}>{{.HTML}}</td>{{end}}</tr>{{end}}</tbody></table>{{end}}
+
 {{define "toolCard"}}<div{{if .ID}} id="tool-{{.ID}}"{{end}} class="turn tool {{.State}}"><div class="tool-head"><span class="glyph">{{.Glyph}}</span> <span class="tool-name">{{.Name}}</span>{{if .Args}} <span class="tool-args">{{richtext .Args}}</span>{{end}}</div>{{if .ShowProgress}}<div class="tool-progress">… {{richtext .Progress}}</div>{{end}}{{if .Pending}}<div class="tool-pending skeleton" aria-hidden="true"></div>{{end}}{{if .ShowResult}}<pre class="tool-result">{{richtext .Result}}</pre>{{end}}</div>{{end}}
 
 {{define "cur"}}<div id="cur" class="{{.Class}}">{{if .Has}}<span>{{richtext .Text}}</span>{{end}}</div>{{end}}
