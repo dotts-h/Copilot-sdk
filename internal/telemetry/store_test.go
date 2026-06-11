@@ -161,7 +161,7 @@ func TestRunStoreOnDiskTagsAreStable(t *testing.T) {
 		t.Fatal(err)
 	}
 	body := string(data)
-	for _, want := range []string{`"version": 1`, `"runs": [`, `"workflow": "build-and-harden"`, `"lanes": [`, `"status": "done"`} {
+	for _, want := range []string{`"version": 2`, `"runs": [`, `"workflow": "build-and-harden"`, `"lanes": [`, `"status": "done"`} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("runs.json missing stable tag %q in:\n%s", want, body)
 		}

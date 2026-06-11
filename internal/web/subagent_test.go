@@ -36,6 +36,38 @@ func subEnd(tc, name string, ok bool, detail string, tokens int64) copilot.Event
 	}}
 }
 
+// The list header carries an attention badge (S6): a count of the sub-agents
+// parked on a human-in-the-loop pause. It appears only when something needs the
+// human, carries the amber warn class, and — never color-only (a11y) — exposes an
+// accessible name describing what the count means.
+func TestSubagentListHeaderAttentionBadge(t *testing.T) {
+	s, _ := newTestServer()
+	s.handleEvent(subStart("tc-1", "Explore"))
+	s.handleEvent(subStart("tc-2", "Audit"))
+
+	// Two working entries, none parked → a list, but no attention badge.
+	if html := renderSubagents(s.subreg.Entries()); strings.Contains(html, "sa-badge") {
+		t.Fatalf("no parked sub-agent should mean no attention badge: %q", html)
+	}
+
+	// One parks → the header badge appears with the count and an accessible name.
+	s.subreg.MarkInputRequired("tc-1")
+	html := renderSubagents(s.subreg.Entries())
+	if !strings.Contains(html, "sa-badge") || !strings.Contains(html, "warn") {
+		t.Fatalf("a parked sub-agent should raise an amber attention badge: %q", html)
+	}
+	if !strings.Contains(html, `aria-label="1 sub-agent needs your input"`) {
+		t.Errorf("the badge needs an accessible name (not color-only): %q", html)
+	}
+
+	// A second parks → the count pluralizes.
+	s.subreg.MarkInputRequired("tc-2")
+	html = renderSubagents(s.subreg.Entries())
+	if !strings.Contains(html, `aria-label="2 sub-agents need your input"`) {
+		t.Errorf("the badge count should reflect both parked sub-agents: %q", html)
+	}
+}
+
 func TestSubagentStartShowsWorkingRow(t *testing.T) {
 	s, _ := newTestServer()
 	html := fragFor(s, subStart("tc-1", "Explore"), "subagents")

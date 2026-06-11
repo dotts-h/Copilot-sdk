@@ -27,6 +27,15 @@ type RunLane struct {
 	AgentID string  `json:"agentId,omitempty"`
 	Status  string  `json:"status"`
 	Credits float64 `json:"credits,omitempty"`
+	// Pauses and PausedMs are the per-lane attention attribution (S6): how many
+	// times this lane parked on a human-in-the-loop pause (input-required) during
+	// the run, and the total wall-clock it spent parked, in milliseconds. They
+	// answer "where were humans the bottleneck?" — the orchestration history's
+	// view of attended cost. Additive (schema v2, the ADR-0018/0022 discipline);
+	// omitempty so a lane that never parked stays byte-identical to a v1 record and
+	// a v1 file read by this build leaves them zero.
+	Pauses   int   `json:"pauses,omitempty"`
+	PausedMs int64 `json:"pausedMs,omitempty"`
 }
 
 // RunRecord is one append-only entry: a completed workflow run. It names the run, the
@@ -70,12 +79,36 @@ func (r RunRecord) Duration() time.Duration {
 	return 0
 }
 
+// TotalPauses sums the run's per-lane human-in-the-loop pause count — how many
+// times, across every lane, a sub-agent parked waiting on the human (S6). Pure.
+func (r RunRecord) TotalPauses() int {
+	var n int
+	for _, l := range r.Lanes {
+		n += l.Pauses
+	}
+	return n
+}
+
+// TotalPausedDuration sums the wall-clock the run spent parked on human input
+// across its lanes (S6) — the run's "waiting on a human" time, the orchestration
+// history's measure of where attention was the bottleneck. Pure: same record →
+// same result.
+func (r RunRecord) TotalPausedDuration() time.Duration {
+	var ms int64
+	for _, l := range r.Lanes {
+		ms += l.PausedMs
+	}
+	return time.Duration(ms) * time.Millisecond
+}
+
 const (
 	runFile = "runs.json"
 	// RunSchemaVersion is the on-disk schema version. Bumps must keep the "runs"
 	// array readable by older code (additive fields only) or ship a migration — see
-	// CONTRACTS.md §4 and docs/REGRESSIONS.md.
-	RunSchemaVersion = 1
+	// CONTRACTS.md §4 and docs/REGRESSIONS.md. v2 added the additive per-lane
+	// RunLane.Pauses/PausedMs attention fields (S6); a v1 file reads back with them
+	// zero (the loader ignores the version tag and decodes the array).
+	RunSchemaVersion = 2
 )
 
 // RunStore is the persisted workflow-run history: a thin typed wrapper over the

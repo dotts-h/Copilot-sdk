@@ -1,7 +1,7 @@
 ---
 id: 0075
 title: "Attention surface — needs-you badging, title/favicon dot, Runs integration (S6)"
-status: open
+status: closed
 severity: medium
 group: 0069
 depends_on: [0071, 0073]
@@ -10,7 +10,7 @@ links:
   adr: []
   prs: []
   issues: [0069]
-  regression:
+  regression: "SSE-swapped marker reacts via an inline script in the fragment, not an htmx:afterSwap listener"
 ---
 
 ## Summary
@@ -33,17 +33,32 @@ favicon dot, GitHub's "jump in when Copilot needs your input").
 
 ## Acceptance
 
-- [ ] Badge count on the sub-agent list header and Chat nav reflects pending
-      `input-required` pauses live (mock-driven; e2e on the demo escalate).
-- [ ] Title/favicon dot appears while a pause is pending and clears on resolution
-      (Playwright asserts `document.title`; reduced to title-only where favicon swap
-      is flaky).
-- [ ] Lanes panel + Runs page render `input-required` distinctly; aborting a paused
-      run resolves its pauses exactly once (S4's idempotency, asserted here too).
-- [ ] `RunRecord` gains pause count/duration additively; old run stores read back
-      (upgrade table-test, the ADR-0022 discipline).
-- [ ] a11y: badge has an accessible name; not color-only (axe green both themes).
-- [ ] Gates green: `make lint && make test` (floor 65%), `make e2e` — closes the epic.
+- [x] Badge count on the sub-agent list header and Chat nav reflects pending
+      `input-required` live. The **list-header badge** counts the registry's parked
+      sub-agents (the S2 roster rollup — `subagentHeader`, `TestSubagentListHeaderAttentionBadge`);
+      the **Chat nav badge + out-of-band dot** count *pending pauses* (the inclusive
+      "needs you" signal, so a lane escalation with no registry sub-agent still raises
+      it — `attentionFrag`/`attentionMarker`, `TestAttentionMarkerCountsPendingPauses`).
+- [x] Title/favicon dot appears while a pause is pending and clears on resolution
+      (e2e asserts `document.title` `(1) my-orchestra` ⇄ `my-orchestra` on the demo
+      escalate, plus the favicon-dot href swap — `e2e.spec.ts` "parks a lane as
+      input-required"). Client-side, an inline script in the SSE-swapped marker (no
+      new route).
+- [x] Lanes panel + Runs page render `input-required`/pauses distinctly — the lanes
+      panel already renders `lane-input-required` amber (S4); the Runs page now shows a
+      per-lane `lane-paused` indicator with count + waited time
+      (`TestRunsPartialRendersLanePauses`). Aborting a paused run resolves its pauses
+      exactly once AND still attributes the lane's pause
+      (`TestAbortedPausedLaneStillRecordsPause`).
+- [x] `RunRecord`/`RunLane` gain `pauses`/`pausedMs` additively (schema **v2**); a v1
+      file reads back with them zero (`TestRunStoreReadsBackPrePauseSchema`,
+      `TestRunRecordPauseFields` — the ADR-0022 discipline).
+- [x] a11y: the list-header badge and nav badge carry an accessible name
+      (`aria-label="N sub-agent(s) need(s) your input"`, `role=status`) and convey
+      state by text + the `--warn` token, never color alone; the both-theme axe suite
+      (`a11y.spec.ts`) stays green.
+- [x] Gates green: `make lint && make test` (floor 65%, web 90.1%), `make e2e` (152
+      passing) — closes the epic.
 
 ## Out of scope
 

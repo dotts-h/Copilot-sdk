@@ -347,6 +347,33 @@ func subagentGlyph(st convo.SubagentStatus) string {
 	}
 }
 
+// subagentHeader renders the list header with the attention rollup badge (S6): an
+// amber chip counting the sub-agents parked on a human-in-the-loop pause, shown only
+// when at least one needs the human. The badge carries a text count AND an accessible
+// name (never color-only — a11y, ADR-0041's discipline), so a screen reader announces
+// "N sub-agents need your input". The header itself is always present (a stable
+// landmark), so the count can appear/clear via the idempotent fragment re-render.
+func subagentHeader(entries []convo.SubagentView) string {
+	n := 0
+	for _, sa := range entries {
+		if sa.Status == convo.SubagentInputRequired {
+			n++
+		}
+	}
+	var b strings.Builder
+	b.WriteString(`<div class="subagent-head"><span class="subagent-title">Sub-agents</span>`)
+	if n > 0 {
+		noun := "sub-agents need"
+		if n == 1 {
+			noun = "sub-agent needs"
+		}
+		b.WriteString(`<span class="sa-badge warn" role="status" aria-label="` +
+			strconv.Itoa(n) + ` ` + noun + ` your input">` + strconv.Itoa(n) + `</span>`)
+	}
+	b.WriteString(`</div>`)
+	return b.String()
+}
+
 // renderSubagents renders the live sub-agent list (issue 0071): one row per
 // registry entry — status glyph + text label, name, current activity, and live
 // credits (0.00 until S3 wires the value). Finished entries stay listed with
@@ -358,6 +385,7 @@ func renderSubagents(entries []convo.SubagentView) string {
 		return ""
 	}
 	var b strings.Builder
+	b.WriteString(subagentHeader(entries))
 	b.WriteString(`<ul class="subagent-list" aria-label="Sub-agents">`)
 	for _, sa := range entries {
 		label := sa.Status.Label()

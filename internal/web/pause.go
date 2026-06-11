@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/dotts-h/copilot-sdk/internal/pause"
 )
@@ -64,6 +65,7 @@ func (s *Server) escalate(req escalateReq) string {
 	res := p.Wait() // block until the human resolves (or a run abort cancels)
 
 	s.mu.Lock()
+	s.closeLanePause(req.laneSession)
 	s.resumeLane(req.laneSession, res)
 	resumed := s.subreg.ClearInputRequired(req.agentID)
 	frags = s.pauseFrags()
@@ -89,6 +91,31 @@ func (s *Server) parkLane(session, message, pauseID string) {
 	l.status = laneInputRequired
 	l.pauseID = pauseID
 	l.detail = "⏸ " + message
+	// Open the attention accounting: count this park and stamp its start, so the
+	// finished run can attribute how often and how long the lane waited on a human
+	// (S6). closeLanePause settles the span when the pause resolves or the run aborts.
+	l.pauses++
+	l.pausedAt = s.now()
+}
+
+// closeLanePause settles the lane (resolved by session) currently-open park —
+// see closeLanePauseLane. Caller holds s.mu.
+func (s *Server) closeLanePause(session string) { s.closeLanePauseLane(s.laneBySession(session)) }
+
+// closeLanePauseLane accumulates the wall-clock a lane spent input-required into
+// pausedDur (the S6 attention attribution) and clears the open mark. Idempotent: a
+// no-op when no park is open, so it is safe to call on every resolution path.
+// The escalate goroutine calls it (via closeLanePause) once a pause resolves — a
+// human answer, a cooperative cancel, or a run abort's CancelAll — but on **abort**
+// the run is recorded before that goroutine can re-acquire s.mu, so abortRun closes
+// the open spans itself first; the later goroutine call then finds the mark cleared
+// and is a no-op (no double count). Caller holds s.mu.
+func (s *Server) closeLanePauseLane(l *lane) {
+	if l == nil || l.pausedAt.IsZero() {
+		return
+	}
+	l.pausedDur += s.now().Sub(l.pausedAt)
+	l.pausedAt = time.Time{}
 }
 
 // resumeLane returns a parked lane to running on continue, or arms its cooperative
@@ -126,10 +153,15 @@ func (s *Server) laneBySession(session string) *lane {
 	return nil
 }
 
-// pauseFrags re-renders the inline #pauses region and, when a run is active, the
-// lane strip (a park/resume changes a lane glyph). Caller holds s.mu.
+// pauseFrags re-renders the inline #pauses region, the out-of-band attention marker
+// (the pending-pause count drives the title/favicon dot + Chat nav badge, S6), and —
+// when a run is active — the lane strip (a park/resume changes a lane glyph). Caller
+// holds s.mu.
 func (s *Server) pauseFrags() []fragment {
-	frags := []fragment{{Event: "pauses", HTML: renderPauses(s.pauses.Pending())}}
+	frags := []fragment{
+		{Event: "pauses", HTML: renderPauses(s.pauses.Pending())},
+		s.attentionFrag(),
+	}
 	if s.run != nil {
 		frags = append(frags, s.lanesFrag())
 	}

@@ -25,6 +25,74 @@ func sampleRun() RunRecord {
 	}
 }
 
+// The per-lane pause attribution (S6) is an ADDITIVE schema bump (v1→v2, the
+// ADR-0022 discipline): a lane records how many times the human was the bottleneck
+// and for how long, and a record sums them. The store ignores the version tag and
+// decodes the array, so a v1 file written before these fields existed must read back
+// cleanly with the new fields zero-valued — never a parse error.
+func TestRunRecordPauseFields(t *testing.T) {
+	r := RunRecord{
+		Lanes: []RunLane{
+			{Index: 0, Pauses: 2, PausedMs: 30_000},
+			{Index: 1, Pauses: 1, PausedMs: 5_000},
+			{Index: 2, Pauses: 0, PausedMs: 0}, // never parked
+		},
+	}
+	if got := r.TotalPauses(); got != 3 {
+		t.Errorf("TotalPauses = %d, want 3", got)
+	}
+	if got := r.TotalPausedDuration(); got != 35*time.Second {
+		t.Errorf("TotalPausedDuration = %v, want 35s", got)
+	}
+}
+
+// A run store written by an older build (schema v1, before the pause fields) must
+// still load — the loader reads the records array and ignores the version, so the
+// new RunLane fields decode to their zero value. New records round-trip the fields.
+func TestRunStoreReadsBackPrePauseSchema(t *testing.T) {
+	dir := t.TempDir()
+	// A v1 envelope: version 1, a lane with no pauses/pausedMs keys at all.
+	legacy := `{"version":1,"runs":[{"id":"old","workflow":"wf","name":"Old","mode":"sequential","startedAt":"2026-06-06T10:00:00Z","finishedAt":"2026-06-06T10:01:00Z","outcome":"finished","lanes":[{"index":0,"agentId":"a","status":"done","credits":1.5}]}]}`
+	if err := os.WriteFile(filepath.Join(dir, "runs.json"), []byte(legacy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s, err := LoadRunStore(dir)
+	if err != nil {
+		t.Fatalf("a pre-pause-schema run store must read back, got error: %v", err)
+	}
+	runs := s.Records()
+	if len(runs) != 1 {
+		t.Fatalf("reloaded %d runs, want 1", len(runs))
+	}
+	if got := runs[0]; got.Lanes[0].Pauses != 0 || got.Lanes[0].PausedMs != 0 {
+		t.Fatalf("missing pause fields should read back zero, got %+v", got.Lanes[0])
+	}
+	if got := runs[0]; got.Lanes[0].Credits != 1.5 || got.Lanes[0].Status != "done" {
+		t.Fatalf("legacy fields lost on read-back: %+v", got.Lanes[0])
+	}
+
+	// A new record with pause fields set persists and round-trips.
+	if err := s.Append(RunRecord{
+		ID: "new", WorkflowID: "wf", Name: "New", Mode: "sequential",
+		StartedAt:  time.Date(2026, 6, 7, 10, 0, 0, 0, time.UTC),
+		FinishedAt: time.Date(2026, 6, 7, 10, 5, 0, 0, time.UTC), Outcome: "finished",
+		Lanes: []RunLane{{Index: 0, AgentID: "a", Status: "done", Credits: 2, Pauses: 1, PausedMs: 12_000}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := LoadRunStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := reloaded.Records()
+	if len(got) != 2 {
+		t.Fatalf("reloaded %d runs, want 2", len(got))
+	}
+	if l := got[1].Lanes[0]; l.Pauses != 1 || l.PausedMs != 12_000 {
+		t.Fatalf("new pause fields not round-tripped: %+v", l)
+	}
+}
+
 func TestLoadRunStoreMissingIsEmpty(t *testing.T) {
 	s, err := LoadRunStore(t.TempDir())
 	if err != nil {

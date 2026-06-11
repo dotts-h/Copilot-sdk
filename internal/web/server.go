@@ -64,6 +64,11 @@ type Server struct {
 	setEnv func(string, string) error
 	logger *log.Logger
 	demo   bool
+	// now is the session's clock seam (defaults to time.Now). It times how long a
+	// lane spends parked on a human-in-the-loop pause (the S6 attention attribution
+	// recorded on the run), behind a seam so that accounting is deterministic under
+	// test — mirroring the pause ledger's clock-injected Sweep (ADR-0043).
+	now func() time.Time
 
 	mu          sync.Mutex
 	spec        copilot.SessionSpec // per-session model/effort (mutable via /model, /agent)
@@ -171,6 +176,10 @@ type indexData struct {
 	// KeymapJSON is the action→key map the frontend dispatcher reads from
 	// <body data-keymap>; html/template escapes it in the attribute context.
 	KeymapJSON string
+	// Attention is the initial parked-sub-agent count rendered into the #attention
+	// marker, so a full page load (or a reconnect) restores the title prefix +
+	// favicon dot from current state before the first live SSE swap arrives (S6).
+	Attention int
 }
 
 type navItem struct {
@@ -213,6 +222,9 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	s.hub.forgeMu.Lock()
 	keymap := s.config.Keymap()
 	s.hub.forgeMu.Unlock()
+	s.mu.Lock()
+	attention := len(s.pauses.Pending())
+	s.mu.Unlock()
 	data := indexData{
 		Nav:        navGroups(),
 		Cost:       template.HTML(renderActualCostFooter(s.monthToDateActual(), s.budget())), //nolint:gosec // internally rendered, escaped via esc()
@@ -220,6 +232,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		Overlay:    template.HTML(helpOverlay(keymap)),                                       //nolint:gosec // internally rendered, escaped via esc()
 		Palette:    template.HTML(commandPalette()),                                          //nolint:gosec // internally rendered, escaped via esc()
 		KeymapJSON: keymapJSON(keymap),                                                       // shared with the Settings live-apply OOB swap
+		Attention:  attention,
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := pageTemplates.ExecuteTemplate(w, "index", data); err != nil {
@@ -876,6 +889,29 @@ func (s *Server) oobStat() string {
 // idempotent full-fragment re-render (issue 0071). Caller must hold s.mu.
 func (s *Server) subagentsFrag() fragment {
 	return fragment{Event: "subagents", HTML: renderSubagents(s.subreg.Entries())}
+}
+
+// attentionFrag carries the out-of-band attention marker (S6): how many
+// human-in-the-loop pauses are pending — every parked lane or sub-agent that needs
+// the human (the inclusive "when any pause is pending" trigger, so a lane escalation
+// with no registry sub-agent still raises it). It is swapped into the shell's hidden
+// #attention element so the client script can prefix the title (`(N) …`), raise the
+// favicon dot, and badge the Chat nav while the human is needed — and clear them when
+// the queue drains. Emitted on every pause change (pauseFrags). Caller must hold s.mu.
+func (s *Server) attentionFrag() fragment {
+	return fragment{Event: "attention", HTML: attentionMarker(len(s.pauses.Pending()))}
+}
+
+// attentionMarker renders the count marker swapped into #attention, carrying the
+// integer count on a data-attribute AND an inline script that applies it — htmx runs
+// scripts in swapped content, so the out-of-band signals (title prefix + favicon dot
+// + Chat nav badge) update the moment the marker lands, the same live-apply idiom the
+// keymap OOB swap uses (help.go). The data-count rides along so a full page load (or a
+// reconnect) can re-read current state without an event. Presentation lives
+// client-side — no new route, degrades silently — the theme-toggle precedent.
+func attentionMarker(n int) string {
+	c := strconv.Itoa(n)
+	return `<i data-count="` + c + `"></i><script>applyAttention(` + c + `)</script>`
 }
 
 // nowMs returns the current time in epoch milliseconds.

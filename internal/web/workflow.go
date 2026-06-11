@@ -70,6 +70,14 @@ type lane struct {
 	// wraps up, then settles failed(cancelled) at its next idle rather than done.
 	pauseID      string
 	cancelReason string
+	// pauses counts how many times this lane parked on a human-in-the-loop pause
+	// over the run, pausedDur accumulates the wall-clock it spent parked, and
+	// pausedAt holds the start of the currently-open park (zero when not parked).
+	// These feed the per-lane attention attribution recorded on the finished run
+	// (RunLane.Pauses/PausedMs, S6) — "where humans were the bottleneck".
+	pauses    int
+	pausedDur time.Duration
+	pausedAt  time.Time
 }
 
 // toolStart records a tool-execution start on the lane's own timeline. Mirrors
@@ -450,6 +458,15 @@ func (s *Server) abortRun(ctx context.Context) {
 		return
 	}
 	running := run.abort()
+	// Close any open pause span BEFORE recording the run: abort is the one completion
+	// path that records while a lane is still parked, and the escalate goroutine that
+	// would otherwise fold the span in (closeLanePause) can't re-acquire s.mu until we
+	// release it below — after runFrags has already persisted the run. Fold it here so
+	// an abort-while-parked attributes the full wait; the goroutine's later call finds
+	// the mark cleared and no-ops (S6).
+	for _, l := range run.lanes {
+		s.closeLanePauseLane(l)
+	}
 	// Force-resolve any pending pause so a blocked escalate goroutine unblocks and
 	// its lane settles (ADR-0024 + S4): an abort that left a pause open would leak
 	// the tool-handler goroutine and the run would never clear busy.
@@ -734,6 +751,7 @@ func runRecord(run *workflowRun) telemetry.RunRecord {
 		lanes[i] = telemetry.RunLane{
 			Index: l.Index, AgentID: l.AgentID,
 			Status: laneStatusName(l.status), Credits: l.credits,
+			Pauses: l.pauses, PausedMs: l.pausedDur.Milliseconds(),
 		}
 	}
 	outcome := "finished"
