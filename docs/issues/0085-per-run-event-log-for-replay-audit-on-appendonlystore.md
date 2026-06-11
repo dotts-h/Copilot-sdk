@@ -63,7 +63,7 @@ and that this is the *accepted* slice of the considered-and-rejected event-bus e
 
 ## Resolution (shipped)
 
-Shipped in PR #N (branch `feat/per-run-event-log`). Key files:
+Shipped in PR #149 (branch `feat/per-run-event-log`). Key files:
 - `internal/telemetry/eventlog.go` — `RunEvent` type + `RunEventLog` store + `LoadRunEventLog` + `RunEventLogPath`
 - `internal/telemetry/eventlog_test.go` — round-trip, atomic-write, ephemeral, corrupt, newer-schema, on-disk-tags-stable, per-run-isolation tests
 - `internal/web/hub.go` — `EventLogDir` option + seeded to Server + pump wired to `appendRunEvent`
