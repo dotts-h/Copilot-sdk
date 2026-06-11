@@ -1,18 +1,21 @@
 ---
 name: get-next
-description: Starts the next unit of work cleanly — verifies the base and branches fresh from a trustworthy main, then picks the next roadmap item (the next open child of an open epic, or the next epic to break down) from docs/issues/ and NEXT_FEATURES.md, and sets up the build. Use at the start of a session when asked to "get the next item", "start fresh", "pick up the next issue/feature", "what's next", or to begin the next epic child.
+description: Does the next unit of work end-to-end — verifies the base and branches fresh from a trustworthy main, picks the next roadmap item (the next open child of an open epic, or the next epic to break down) from docs/issues/ and NEXT_FEATURES.md, builds it test-first, then opens the PR, code-reviews it (applying fixes), and merges once CI is green. Use at the start of a session when asked to "get the next item", "start fresh", "pick up the next issue/feature", "what's next", or to begin the next epic child.
 allowed-tools: Read, Bash, Grep, Glob, Edit, Write
 ---
 
-# Get next (start fresh, pick the next item)
+# Get next (start fresh, pick the next item, drive it to merged)
 
 The cost of getting this wrong is silent and expensive: work cut from a **stale `origin/main`**
 (or from the repo's **`main` *tag*** that shadows the branch) lands on the wrong base, and a
 half-finished branch reused for a new item smuggles unrelated changes into a PR. This skill makes
 the session-start ritual **deterministic**: verify the base, branch fresh, pick the next item from
-the single source of truth, then hand off to the build. It does **not** build the feature (that's
-`practicing-tdd` + the normal loop) and it does **not** file or restructure issues (that's
-`tracking-issues`) — it *selects* and *sets up*.
+the single source of truth — then **carry the item all the way to a merged PR**. Invoking
+`/get-next` means "do the next unit of work", not "tell me what it would be": after setup,
+continue straight into the build (`practicing-tdd`), then PR → code review (+fixes) → CI-green →
+merge, without stopping to ask between steps. Stop mid-ritual only for the genuine ambiguities
+listed below. It does **not** file or restructure issues (that's `tracking-issues`) — it
+*selects*, *sets up*, *builds, and lands*.
 
 ## Workflow (copy this checklist into your reply and tick it off)
 
@@ -47,7 +50,22 @@ the single source of truth, then hand off to the build. It does **not** build th
       wrong; do not branch over it. — CONVENTIONS "Verify the base before branching", RETROS 0002.
 - [ ] **5. Set up the build.** Confirm the Go toolchain is on PATH
       (`export PATH=$PATH:/home/ori913/go-install/go/bin`), run `make lint && make test` once to
-      confirm a green base, then hand off to `practicing-tdd`: write the failing test first.
+      confirm a green base.
+- [ ] **6. Build the item** (`practicing-tdd`): failing test first, then the implementation, with
+      the item's ADR/CONTRACTS/CONTEXT/CODEMAP/issue-close-out folded into the **same** branch
+      (ADR-0004). **Do not stop after step 5 to ask whether to build** — selecting the item WAS
+      the instruction to build it. Gates before pushing: `make lint && make test` (floor 65%) +
+      `make e2e` when the UI changed.
+- [ ] **7. Open the PR.** Push with `git push -u origin <branch>` and open a PR against `main`
+      titled from the item (reference the issue id + epic/slice label). The PR body carries the
+      what/how and the item's acceptance boxes, ticked.
+- [ ] **8. Code-review the PR (+ apply fixes).** Run `/code-review --fix` on the diff. Apply
+      confirmed correctness/reuse/simplification findings, note refuted/deferred ones in the
+      review summary, re-run the gates, and push the fix commit to the same branch.
+- [ ] **9. Merge when CI is green.** Wait for ALL checks on the PR head (lint, test, fuzz, e2e) —
+      CI green is a hard precondition (CONVENTIONS). Then merge the PR (merge commit, matching the
+      repo's `Merge PR #N: <title>` history) and confirm `origin/main` advanced. If a check fails:
+      diagnose, fix on the branch, re-push, re-wait — a red check is never merged around.
 
 ## Batching in parallel
 
@@ -76,13 +94,24 @@ The recommender flags, it doesn't decide. **Ask the user** (don't guess) when:
   research pass** (re-read the code + `TECH_DEBT.md` + the differentiators, propose roadmap vN+1)
   is the next move — say so and offer to run it.
 
+## Harness/session branches are plumbing
+
+A remote harness (Claude Code on the web, a GitHub Action) may designate an auto-generated
+session branch (e.g. `claude/<old-epic-slug>-<hash>`) and a session title. **Neither carries
+product intent** (RETROS 0003): the item comes from `docs/issues/` via `next-issue.sh`, and the
+work happens on the **scope-prefixed feature branch from step 3/4** — never infer the item from
+the session branch name, and never develop on it when it contradicts the picker. If the harness
+requires its branch to be pushed, push the feature branch as the real PR head and say so; flag
+the mismatch once in the reply rather than asking.
+
 ## Boundaries (what this skill does NOT do)
 
-- **Doesn't build.** Feature work is `practicing-tdd` + the normal lint/test/PR loop.
 - **Doesn't file/restructure issues.** Creating, grouping, or closing issues is `tracking-issues`;
-  this skill only *reads* the store to pick and *delegates* a needed file to it.
-- **Doesn't write ADRs.** A decision the item needs is `recording-decisions` (written first).
-- **Doesn't open or merge the PR.** That's the end of the build loop (CONVENTIONS workflow).
+  this skill only *reads* the store to pick and *delegates* a needed file to it (the **close-out**
+  of the built item rides the feature branch per ADR-0004).
+- **Doesn't write ADRs itself.** A decision the item needs is `recording-decisions` (written
+  first, on the same branch).
+- **Doesn't cut releases.** Tagging/publishing is `cut-release`, run separately when asked.
 
 ## This repo (facts the scripts rely on)
 
