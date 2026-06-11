@@ -441,6 +441,13 @@ _Last generated: 2026-06-11 (UTC)._
 - L38: `func (d ModelDrift) Drifted(epsilon float64) bool { return math.Abs(d.Delta) >= epsilon }`
 - L49: `func ModelDrifts(records []SpendRecord) []ModelDrift`
 
+### eventlog.go (109 LOC)
+- L32: `type RunEvent struct`
+- L66: `type RunEventLog struct`
+- L72: `func RunEventLogPath(dir, runID string) string`
+- L80: `func LoadRunEventLog(dir, runID string) (*RunEventLog, error)`
+- L104: `func stampRunEvent(e RunEvent) RunEvent`
+
 ### forecast.go (142 LOC)
 - L24: `type ProjectionStatus int`
 - L45: `type Projection struct`
@@ -563,29 +570,29 @@ _Last generated: 2026-06-11 (UTC)._
 - L100: `func (s *Server) forecast(now time.Time) (telemetry.Projection, bool)`
 - L110: `func (s *Server) overCap() (projected float64, capped bool)`
 
-### commands.go (436 LOC)
+### commands.go (440 LOC)
 - L23: `func parseCommand(input string) (name, args string, ok bool)`
 - L34: `func (s *Server) runCommand(input string) string`
 - L66: `func (s *Server) systemNote(text string) string`
 - L75: `func (s *Server) clearConversation()`
-- L105: `func (s *Server) cmdClear() string`
-- L123: `func (s *Server) setMode(target, args string) bool`
-- L147: `func (s *Server) cmdPlan(args string) string`
-- L157: `func (s *Server) cmdAuto(args string) string`
-- L166: `func (s *Server) cmdAsk(args string) string`
-- L176: `func (s *Server) cmdEffort(arg string) string`
-- L198: `func (s *Server) setEffort(effort string)`
-- L215: `func (s *Server) cmdModel(name string) string`
-- L230: `func (s *Server) setModel(name string)`
-- L249: `func (s *Server) cmdAgent(arg string) string`
-- L318: `func SeamSpec(cs ctxforge.SessionSpec, defModel, defEffort string, lookupEnv func(string) string, workspace string, autoApprove bool) copilot.SessionSpec`
-- L336: `func (s *Server) compiledSpec(agentID string) copilot.SessionSpec`
-- L350: `func (s *Server) applyAgentSpec(c copilot.SessionSpec, agentID string, leash telemetry.Leash, leashLabel string) string`
-- L371: `func (s *Server) cmdCost() string`
-- L392: `func (s *Server) cmdAttach(path string) string`
-- L406: `func (s *Server) cmdNav(slug string) string`
-- L411: `func isNavSlug(slug string) bool`
-- L422: `func commandHelp() string`
+- L109: `func (s *Server) cmdClear() string`
+- L127: `func (s *Server) setMode(target, args string) bool`
+- L151: `func (s *Server) cmdPlan(args string) string`
+- L161: `func (s *Server) cmdAuto(args string) string`
+- L170: `func (s *Server) cmdAsk(args string) string`
+- L180: `func (s *Server) cmdEffort(arg string) string`
+- L202: `func (s *Server) setEffort(effort string)`
+- L219: `func (s *Server) cmdModel(name string) string`
+- L234: `func (s *Server) setModel(name string)`
+- L253: `func (s *Server) cmdAgent(arg string) string`
+- L322: `func SeamSpec(cs ctxforge.SessionSpec, defModel, defEffort string, lookupEnv func(string) string, workspace string, autoApprove bool) copilot.SessionSpec`
+- L340: `func (s *Server) compiledSpec(agentID string) copilot.SessionSpec`
+- L354: `func (s *Server) applyAgentSpec(c copilot.SessionSpec, agentID string, leash telemetry.Leash, leashLabel string) string`
+- L375: `func (s *Server) cmdCost() string`
+- L396: `func (s *Server) cmdAttach(path string) string`
+- L410: `func (s *Server) cmdNav(slug string) string`
+- L415: `func isNavSlug(slug string) bool`
+- L426: `func commandHelp() string`
 
 ### connection.go (145 LOC)
 - L22: `type authRung struct`
@@ -627,6 +634,11 @@ _Last generated: 2026-06-11 (UTC)._
 - L36: `func (s *Server) agentsPartial() string`
 - L63: `func (s *Server) modelsPartial() string`
 - L93: `func (s *Server) settingsPartial() string`
+
+### eventlog.go (168 LOC)
+- L22: `func (s *Server) appendRunEvent(e copilot.Event)`
+- L85: `func normalizeRunEvent(e copilot.Event, runID string, laneIndex int) telemetry.RunEvent`
+- L117: `func eventTypeName(t copilot.EventType) string`
 
 ### forgecrud.go (120 LOC)
 - L19: `type forgeCRUD[T any] struct`
@@ -696,18 +708,18 @@ _Last generated: 2026-06-11 (UTC)._
 - L303: `func commandVarRefs(s string) []string`
 - L317: `func hookPreflightResult(pattern, sample string) string`
 
-### hub.go (340 LOC)
+### hub.go (352 LOC)
 - L30: `type Hub struct`
-- L74: `type Options struct`
-- L96: `func New(opts Options) *Hub`
-- L136: `func (h *Hub) newSession(id string) *Server`
-- L173: `func (h *Hub) session(w http.ResponseWriter, r *http.Request) *Server`
-- L202: `func (h *Hub) bind(copilotID string, s *Server)`
-- L211: `func (h *Hub) route(copilotID string) *Server`
-- L227: `func (h *Hub) pump()`
-- L237: `func (h *Hub) Handler() http.Handler`
-- L333: `func (s *Server) Handler() http.Handler { return s.hub.Handler() }`
-- L336: `func newID() string`
+- L78: `type Options struct`
+- L104: `func New(opts Options) *Hub`
+- L144: `func (h *Hub) newSession(id string) *Server`
+- L182: `func (h *Hub) session(w http.ResponseWriter, r *http.Request) *Server`
+- L211: `func (h *Hub) bind(copilotID string, s *Server)`
+- L220: `func (h *Hub) route(copilotID string) *Server`
+- L238: `func (h *Hub) pump()`
+- L249: `func (h *Hub) Handler() http.Handler`
+- L345: `func (s *Server) Handler() http.Handler { return s.hub.Handler() }`
+- L348: `func newID() string`
 
 ### instructions_import.go (65 LOC)
 - L31: `func importInstructionFiles(dir string) []ctxforge.Instruction`
@@ -844,70 +856,70 @@ _Last generated: 2026-06-11 (UTC)._
 - L180: `func humanDuration(d time.Duration) string`
 - L208: `func runOutcomeGlyph(outcome string) (glyph, state string)`
 
-### server.go (996 LOC)
+### server.go (1006 LOC)
 - L28: `type Server struct`
-- L126: `func (s *Server) subscribe() chan fragment`
-- L135: `func (s *Server) unsubscribe(ch chan fragment)`
-- L146: `func (s *Server) broadcast(frags []fragment)`
-- L165: `func (s *Server) broadcastSendFailure(err error)`
-- L170: `type indexData struct`
-- L185: `type navItem struct`
-- L193: `type navGroup struct`
-- L203: `func navGroups() []navGroup`
-- L221: `func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request)`
-- L244: `func (s *Server) ensureSession(ctx context.Context) (string, error)`
-- L263: `func (s *Server) handleSend(w http.ResponseWriter, r *http.Request)`
-- L377: `type budgetGate struct`
-- L393: `func (s *Server) pendingLeashGate(prompt string, attachments []string) *budgetGate`
-- L401: `func (s *Server) leashGate(prompt string, attachments []string, agentID string, leash telemetry.Leash) *budgetGate`
-- L414: `func leashReason(leash telemetry.Leash, credits float64, turns int64) string`
-- L427: `func (s *Server) handleBudget(w http.ResponseWriter, r *http.Request)`
-- L495: `func (s *Server) dispatch(ctx context.Context, sessionID, prompt string, attachments []string) error`
-- L514: `func (s *Server) sendFailedOOB(err error) string`
-- L526: `func queuedStatus(n int) string`
-- L533: `func (s *Server) handleAbort(w http.ResponseWriter, r *http.Request)`
-- L554: `func (s *Server) handlePerm(w http.ResponseWriter, r *http.Request)`
-- L584: `func (s *Server) dropLanePerm(id string) string`
-- L601: `func (s *Server) handleAsk(w http.ResponseWriter, r *http.Request)`
-- L621: `func (s *Server) handlePlanReview(w http.ResponseWriter, r *http.Request)`
-- L654: `func (s *Server) handleElicit(w http.ResponseWriter, r *http.Request)`
-- L692: `func elicitContent(fields []copilot.ElicitField, form url.Values) map[string]any`
-- L722: `func (s *Server) handlePage(w http.ResponseWriter, r *http.Request)`
-- L735: `func (s *Server) handleSkillToggle(w http.ResponseWriter, r *http.Request)`
-- L741: `func (s *Server) handleSkillDelete(w http.ResponseWriter, r *http.Request)`
-- L745: `func (s *Server) handleInstructionToggle(w http.ResponseWriter, r *http.Request)`
-- L751: `func (s *Server) handleInstructionDelete(w http.ResponseWriter, r *http.Request)`
-- L755: `func (s *Server) handleAgentSelect(w http.ResponseWriter, r *http.Request)`
-- L787: `func (s *Server) handleModelSelect(w http.ResponseWriter, r *http.Request)`
-- L794: `func (s *Server) handleEffortSelect(w http.ResponseWriter, r *http.Request)`
-- L803: `func (s *Server) handleAgentDelete(w http.ResponseWriter, r *http.Request)`
-- L826: `func (s *Server) oobTimeline() string`
-- L831: `func oobStatus(text string, active bool, startMs int64) string`
-- L837: `func (s *Server) oobBudget() string`
-- L843: `func (s *Server) budgetFrag() fragment`
-- L849: `func (s *Server) renderGate() string`
-- L861: `func (s *Server) statusFrag(text string, active bool) fragment`
-- L871: `func (s *Server) ctxFrag() fragment`
-- L877: `func (s *Server) statFrag() fragment`
-- L884: `func (s *Server) oobStat() string`
-- L890: `func (s *Server) subagentsFrag() fragment`
-- L901: `func (s *Server) attentionFrag() fragment`
-- L912: `func attentionMarker(n int) string`
-- L918: `func nowMs() int64 { return time.Now().UnixMilli() }`
-- L923: `func dropByID[T any](sl []T, id string, key func(T) string) []T`
-- L934: `func findByID[T any](sl []T, id string, key func(T) string) (T, bool)`
-- L944: `func permID(p copilot.PermissionRequest) string { return p.ID }`
-- L945: `func inputID(p copilot.InputRequest) string     { return p.ID }`
-- L946: `func planID(p copilot.PlanRequest) string       { return p.ID }`
-- L947: `func elicitID(e copilot.ElicitRequest) string   { return e.ID }`
-- L952: `func (s *Server) dropPerm(id string)  { s.perms = dropByID(s.perms, id, permID) }`
-- L953: `func (s *Server) dropInput(id string) { s.inputs = dropByID(s.inputs, id, inputID) }`
-- L954: `func (s *Server) dropPlan(id string)  { s.plans = dropByID(s.plans, id, planID) }`
-- L955: `func (s *Server) dropElicit(id string)`
-- L961: `func (s *Server) findElicit(id string) (copilot.ElicitRequest, bool)`
-- L966: `func firstNonEmpty(vals []string) string`
-- L979: `func (s *Server) editForge(fn func() error) error`
-- L993: `func (s *Server) writePartial(w http.ResponseWriter, html string)`
+- L136: `func (s *Server) subscribe() chan fragment`
+- L145: `func (s *Server) unsubscribe(ch chan fragment)`
+- L156: `func (s *Server) broadcast(frags []fragment)`
+- L175: `func (s *Server) broadcastSendFailure(err error)`
+- L180: `type indexData struct`
+- L195: `type navItem struct`
+- L203: `type navGroup struct`
+- L213: `func navGroups() []navGroup`
+- L231: `func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request)`
+- L254: `func (s *Server) ensureSession(ctx context.Context) (string, error)`
+- L273: `func (s *Server) handleSend(w http.ResponseWriter, r *http.Request)`
+- L387: `type budgetGate struct`
+- L403: `func (s *Server) pendingLeashGate(prompt string, attachments []string) *budgetGate`
+- L411: `func (s *Server) leashGate(prompt string, attachments []string, agentID string, leash telemetry.Leash) *budgetGate`
+- L424: `func leashReason(leash telemetry.Leash, credits float64, turns int64) string`
+- L437: `func (s *Server) handleBudget(w http.ResponseWriter, r *http.Request)`
+- L505: `func (s *Server) dispatch(ctx context.Context, sessionID, prompt string, attachments []string) error`
+- L524: `func (s *Server) sendFailedOOB(err error) string`
+- L536: `func queuedStatus(n int) string`
+- L543: `func (s *Server) handleAbort(w http.ResponseWriter, r *http.Request)`
+- L564: `func (s *Server) handlePerm(w http.ResponseWriter, r *http.Request)`
+- L594: `func (s *Server) dropLanePerm(id string) string`
+- L611: `func (s *Server) handleAsk(w http.ResponseWriter, r *http.Request)`
+- L631: `func (s *Server) handlePlanReview(w http.ResponseWriter, r *http.Request)`
+- L664: `func (s *Server) handleElicit(w http.ResponseWriter, r *http.Request)`
+- L702: `func elicitContent(fields []copilot.ElicitField, form url.Values) map[string]any`
+- L732: `func (s *Server) handlePage(w http.ResponseWriter, r *http.Request)`
+- L745: `func (s *Server) handleSkillToggle(w http.ResponseWriter, r *http.Request)`
+- L751: `func (s *Server) handleSkillDelete(w http.ResponseWriter, r *http.Request)`
+- L755: `func (s *Server) handleInstructionToggle(w http.ResponseWriter, r *http.Request)`
+- L761: `func (s *Server) handleInstructionDelete(w http.ResponseWriter, r *http.Request)`
+- L765: `func (s *Server) handleAgentSelect(w http.ResponseWriter, r *http.Request)`
+- L797: `func (s *Server) handleModelSelect(w http.ResponseWriter, r *http.Request)`
+- L804: `func (s *Server) handleEffortSelect(w http.ResponseWriter, r *http.Request)`
+- L813: `func (s *Server) handleAgentDelete(w http.ResponseWriter, r *http.Request)`
+- L836: `func (s *Server) oobTimeline() string`
+- L841: `func oobStatus(text string, active bool, startMs int64) string`
+- L847: `func (s *Server) oobBudget() string`
+- L853: `func (s *Server) budgetFrag() fragment`
+- L859: `func (s *Server) renderGate() string`
+- L871: `func (s *Server) statusFrag(text string, active bool) fragment`
+- L881: `func (s *Server) ctxFrag() fragment`
+- L887: `func (s *Server) statFrag() fragment`
+- L894: `func (s *Server) oobStat() string`
+- L900: `func (s *Server) subagentsFrag() fragment`
+- L911: `func (s *Server) attentionFrag() fragment`
+- L922: `func attentionMarker(n int) string`
+- L928: `func nowMs() int64 { return time.Now().UnixMilli() }`
+- L933: `func dropByID[T any](sl []T, id string, key func(T) string) []T`
+- L944: `func findByID[T any](sl []T, id string, key func(T) string) (T, bool)`
+- L954: `func permID(p copilot.PermissionRequest) string { return p.ID }`
+- L955: `func inputID(p copilot.InputRequest) string     { return p.ID }`
+- L956: `func planID(p copilot.PlanRequest) string       { return p.ID }`
+- L957: `func elicitID(e copilot.ElicitRequest) string   { return e.ID }`
+- L962: `func (s *Server) dropPerm(id string)  { s.perms = dropByID(s.perms, id, permID) }`
+- L963: `func (s *Server) dropInput(id string) { s.inputs = dropByID(s.inputs, id, inputID) }`
+- L964: `func (s *Server) dropPlan(id string)  { s.plans = dropByID(s.plans, id, planID) }`
+- L965: `func (s *Server) dropElicit(id string)`
+- L971: `func (s *Server) findElicit(id string) (copilot.ElicitRequest, bool)`
+- L976: `func firstNonEmpty(vals []string) string`
+- L989: `func (s *Server) editForge(fn func() error) error`
+- L1003: `func (s *Server) writePartial(w http.ResponseWriter, html string)`
 
 ### session.go (503 LOC)
 - L15: `type liveKind int`
@@ -1008,7 +1020,7 @@ _Last generated: 2026-06-11 (UTC)._
 - L44: `func trusted(s string) template.HTML { return template.HTML(s) } //nolint:gosec // composed from escaped fragments`
 - L49: `func frag(name string, data any) string`
 
-### workflow.go (1196 LOC)
+### workflow.go (1222 LOC)
 - L30: `type laneStatus int`
 - L46: `func settled(st laneStatus) bool`
 - L52: `type lane struct`
@@ -1037,34 +1049,34 @@ _Last generated: 2026-06-11 (UTC)._
 - L453: `func (s *Server) abortRun(ctx context.Context)`
 - L493: `func (s *Server) launchWorkflow(id string) bool`
 - L532: `func (s *Server) workflowLaneSpec(cs ctxforge.SessionSpec) copilot.SessionSpec`
-- L543: `func (s *Server) launchLanes(run *workflowRun, idxs []int)`
-- L551: `func (s *Server) startLane(run *workflowRun, idx int)`
-- L581: `func (s *Server) laneError(run *workflowRun, l *lane, err error)`
-- L595: `func (s *Server) handleRunEvent(run *workflowRun, e copilot.Event) []fragment`
-- L702: `func (s *Server) runFrags(run *workflowRun, done bool) []fragment`
-- L735: `func (s *Server) recordRun(run *workflowRun)`
-- L748: `func runRecord(run *workflowRun) telemetry.RunRecord`
-- L769: `func laneStatusName(st laneStatus) string`
-- L787: `func (l *lane) costDetail() string`
-- L795: `func (s *Server) lanesFrag() fragment`
-- L802: `func renderLanes(run *workflowRun) string`
-- L826: `func laneToolsHTML(tools []*convo.ToolView) template.HTML`
-- L837: `func lanePermsHTML(perms []copilot.PermissionRequest) template.HTML`
-- L848: `func laneGlyph(st laneStatus) (glyph, state string)`
-- L855: `func glyphFor(status string) (glyph, state string)`
-- L886: `func streamDemoLane(m *copilot.MockClient, sid, prompt string, escalate func(escalateReq) string)`
-- L949: `func firstLine(s string) string`
-- L960: `func (s *Server) workflowsPartial() string`
-- L1016: `func renderWorkflowForm(w ctxforge.Workflow, isNew bool, errMsg string) string`
-- L1037: `func stepsToText(steps []ctxforge.WorkflowStep) string`
-- L1057: `func stepsFromText(raw string) []ctxforge.WorkflowStep`
-- L1086: `func splitStepLine(line string) (head, prompt string)`
-- L1105: `func formatStepCondition(c *ctxforge.StepCondition) string`
-- L1123: `func parseStepCondition(spec string) *ctxforge.StepCondition`
-- L1143: `func workflowFromForm(r *http.Request, id string) ctxforge.Workflow`
-- L1153: `func (s *Server) handleWorkflowNew(w http.ResponseWriter, r *http.Request)`
-- L1157: `func (s *Server) handleWorkflowEdit(w http.ResponseWriter, r *http.Request)`
-- L1172: `func (s *Server) handleWorkflowCreate(w http.ResponseWriter, r *http.Request)`
-- L1181: `func (s *Server) handleWorkflowUpdate(w http.ResponseWriter, r *http.Request)`
-- L1191: `func (s *Server) handleWorkflowDelete(w http.ResponseWriter, r *http.Request)`
+- L555: `func (s *Server) launchLanes(run *workflowRun, idxs []int)`
+- L577: `func (s *Server) startLane(run *workflowRun, idx int)`
+- L607: `func (s *Server) laneError(run *workflowRun, l *lane, err error)`
+- L621: `func (s *Server) handleRunEvent(run *workflowRun, e copilot.Event) []fragment`
+- L728: `func (s *Server) runFrags(run *workflowRun, done bool) []fragment`
+- L761: `func (s *Server) recordRun(run *workflowRun)`
+- L774: `func runRecord(run *workflowRun) telemetry.RunRecord`
+- L795: `func laneStatusName(st laneStatus) string`
+- L813: `func (l *lane) costDetail() string`
+- L821: `func (s *Server) lanesFrag() fragment`
+- L828: `func renderLanes(run *workflowRun) string`
+- L852: `func laneToolsHTML(tools []*convo.ToolView) template.HTML`
+- L863: `func lanePermsHTML(perms []copilot.PermissionRequest) template.HTML`
+- L874: `func laneGlyph(st laneStatus) (glyph, state string)`
+- L881: `func glyphFor(status string) (glyph, state string)`
+- L912: `func streamDemoLane(m *copilot.MockClient, sid, prompt string, escalate func(escalateReq) string)`
+- L975: `func firstLine(s string) string`
+- L986: `func (s *Server) workflowsPartial() string`
+- L1042: `func renderWorkflowForm(w ctxforge.Workflow, isNew bool, errMsg string) string`
+- L1063: `func stepsToText(steps []ctxforge.WorkflowStep) string`
+- L1083: `func stepsFromText(raw string) []ctxforge.WorkflowStep`
+- L1112: `func splitStepLine(line string) (head, prompt string)`
+- L1131: `func formatStepCondition(c *ctxforge.StepCondition) string`
+- L1149: `func parseStepCondition(spec string) *ctxforge.StepCondition`
+- L1169: `func workflowFromForm(r *http.Request, id string) ctxforge.Workflow`
+- L1179: `func (s *Server) handleWorkflowNew(w http.ResponseWriter, r *http.Request)`
+- L1183: `func (s *Server) handleWorkflowEdit(w http.ResponseWriter, r *http.Request)`
+- L1198: `func (s *Server) handleWorkflowCreate(w http.ResponseWriter, r *http.Request)`
+- L1207: `func (s *Server) handleWorkflowUpdate(w http.ResponseWriter, r *http.Request)`
+- L1217: `func (s *Server) handleWorkflowDelete(w http.ResponseWriter, r *http.Request)`
 
