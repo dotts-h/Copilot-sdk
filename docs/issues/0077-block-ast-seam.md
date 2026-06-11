@@ -1,0 +1,44 @@
+---
+id: 0077
+title: "Block-AST seam — parse markdown to a typed []Block, render byte-identically (R1)"
+status: open
+severity: medium
+group: 0076
+depends_on: []
+github: 129
+links:
+  adr: []
+  prs: []
+  issues: [0076]
+  regression:
+---
+
+## Summary
+
+The keystone. Refactor `internal/web/markdown.go` `renderMarkdown` from a direct
+`string→HTML` regex transform into **parse → typed `[]Block` → render**, with
+**byte-identical** output for today's subset (headings, lists, code fences, blockquotes,
+paragraphs, hr; inline emphasis/code/links unchanged). No new block types yet — this slice
+only introduces the seam every later slice (R2–R6) attaches to.
+
+## Why now
+
+There is no per-block extension point today; each rich block would otherwise bolt more
+regex onto a monolith. A typed block list lets each block map to a `frag()` template — the
+data→template→token-styled-HTML pattern the rest of the UI already uses.
+
+## Acceptance
+
+- [ ] `parseBlocks(src) []Block` + `renderBlocks([]Block) string`; `renderMarkdown` becomes
+      their composition.
+- [ ] Output is **byte-identical** for the existing corpus — `markdown_test.go`
+      golden/table cases, `TestRenderMarkdownXSS`, and `FuzzRenderMarkdown` pass unchanged
+      (escape-first preserved: every input byte escaped before markup).
+- [ ] No new dependency, no JS, no CSS change. `make lint && make test` (floor 65%) green.
+- [ ] ADR records the block model and the invariant that block renderers emit only
+      whitelisted/templated HTML.
+
+## Notes
+
+Builds on ADR-0001 (server-side escape-first subset). ADR (new) sets the block-AST
+contract. Sibling: 0076 (epic).
