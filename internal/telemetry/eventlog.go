@@ -37,10 +37,12 @@ type RunEvent struct {
 	RunID string `json:"runId"`
 	// Type is the normalized event type name (e.g. "EvMessage", "EvToolStart").
 	Type string `json:"type"`
-	// LaneIndex is the lane within the run that this event belongs to; -1 when
-	// the event is not lane-specific (e.g. a run-level idle). Omitted (zero) for
-	// lane 0 events to stay compact. The display "step N" is LaneIndex+1.
-	LaneIndex int `json:"laneIndex,omitempty"`
+	// LaneIndex is the lane within the run that this event belongs to. -1 means
+	// the event could not be attributed to any lane (run-level or ambiguous).
+	// Lane 0 is stored as 0 — distinguishable from -1 (unattributed). The display
+	// "step N" is LaneIndex+1. Always present in the JSON (no omitempty) so lane 0
+	// events are never confused with unattributed events.
+	LaneIndex int `json:"laneIndex"`
 	// Text carries streamed/committed message or reasoning text.
 	Text string `json:"text,omitempty"`
 	// Tool is the tool name for EvToolStart/EvToolEnd events.

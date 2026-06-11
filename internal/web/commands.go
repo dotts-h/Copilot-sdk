@@ -80,6 +80,10 @@ func (s *Server) clearConversation() {
 	s.elicits = nil
 	s.subreg.Reset()
 	s.run = nil
+	// Release the per-run event log so the old AppendOnlyStore (and its in-memory
+	// records slice) can be GC'd. A new log is created lazily on the next run.
+	s.runEventLog = nil
+	s.runEventLogID = ""
 	s.mode = ""
 	s.pending = nil
 	s.queue = nil

@@ -132,11 +132,12 @@ func TestRunEventLogOnDiskTagsAreStable(t *testing.T) {
 		t.Fatal(err)
 	}
 	ev := RunEvent{
-		At:    time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC),
-		RunID: "run-pin",
-		Type:  "EvToolStart",
-		Tool:  "bash",
-		Args:  "echo hi",
+		At:        time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC),
+		RunID:     "run-pin",
+		Type:      "EvToolStart",
+		LaneIndex: 2, // non-zero to pin the laneIndex tag explicitly
+		Tool:      "bash",
+		Args:      "echo hi",
 	}
 	if err := log.Append(ev); err != nil {
 		t.Fatal(err)
@@ -151,6 +152,7 @@ func TestRunEventLogOnDiskTagsAreStable(t *testing.T) {
 		`"events": [`,
 		`"runId": "run-pin"`,
 		`"type": "EvToolStart"`,
+		`"laneIndex": 2`,
 		`"tool": "bash"`,
 		`"args": "echo hi"`,
 	} {

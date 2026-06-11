@@ -14,10 +14,11 @@ import (
 // The actual disk append runs in a background goroutine, so the pump never blocks
 // on IO. — ADR-0048.
 //
-// Lock order: this method takes s.mu only to snapshot the run ID and get/create
-// the log pointer; it never holds s.mu while doing IO (the goroutine does IO
-// without any lock). The AppendOnlyStore[RunEvent] is goroutine-safe for concurrent
-// Append calls. This respects the forgeMu → s.mu order: no forgeMu is needed here.
+// Lock order: this method takes s.mu to snapshot the run ID, lane attribution,
+// and log pointer (creating the log lazily when the run ID changes). It releases
+// s.mu before the background goroutine does any IO. The AppendOnlyStore[RunEvent]
+// is goroutine-safe for concurrent Append calls. This respects the forgeMu → s.mu
+// order: no forgeMu is needed here.
 func (s *Server) appendRunEvent(e copilot.Event) {
 	if s.eventLogDir == "" {
 		return // event log disabled — no-op
@@ -28,16 +29,27 @@ func (s *Server) appendRunEvent(e copilot.Event) {
 		return
 	}
 
-	// Snapshot under s.mu: get the active run's ID and the log pointer,
-	// creating the log if the run id changed (new run).
+	// Snapshot under s.mu: get the active run's ID, lane attribution, and the
+	// log pointer, creating the log if the run id changed (new run).
+	// We do NOT skip run.done here: the terminal event (EvIdle / EvError that
+	// flips done) is already recorded in handleEvent before appendRunEvent is
+	// called, so run.done==true at this point means we are logging that final
+	// event — it belongs in the log.
 	s.mu.Lock()
 	run := s.run
-	if run == nil || run.done {
+	if run == nil {
 		// No active run — nothing to log.
 		s.mu.Unlock()
 		return
 	}
 	runID := run.runID
+	// Resolve lane attribution while holding s.mu, so laneFor reads lane.sessionID
+	// and lane.status consistently (both are mutated under s.mu by launchLane and
+	// the run state machine). This keeps laneFor off any concurrent mutation path.
+	laneIndex := -1 // -1 = unattributed (no lane resolved for this event)
+	if l := run.laneFor(e.SessionID); l != nil {
+		laneIndex = l.Index
+	}
 	// Lazily create or re-create the log when the run ID changes (a new run).
 	if s.runEventLog == nil || s.runEventLogID != runID {
 		log, err := telemetry.LoadRunEventLog(s.eventLogDir, runID)
@@ -52,12 +64,7 @@ func (s *Server) appendRunEvent(e copilot.Event) {
 	log := s.runEventLog
 	s.mu.Unlock()
 
-	// Determine the lane index for the event (for attribution). laneFor is a
-	// pure method on the run — safe to call without s.mu, because we already hold
-	// a reference to the run and the log; laneFor only reads lane sessionIDs
-	// (set before the run starts and never changed while running).
-	// NOTE: we do NOT hold s.mu here — the IO must stay off the critical section.
-	ev := normalizeRunEvent(e, run, runID)
+	ev := normalizeRunEvent(e, runID, laneIndex)
 
 	// Append in a goroutine so the pump never blocks on disk IO.
 	go func() {
@@ -69,17 +76,18 @@ func (s *Server) appendRunEvent(e copilot.Event) {
 
 // normalizeRunEvent maps a copilot.Event to a telemetry.RunEvent for the log.
 // It extracts the fields relevant for replay/audit, keyed by runID and
-// optionally lane index. Pure: no IO, no locking.
-func normalizeRunEvent(e copilot.Event, run *workflowRun, runID string) telemetry.RunEvent {
+// the pre-resolved laneIndex (computed under s.mu by the caller). Pure: no IO,
+// no locking.
+//
+// laneIndex is -1 when the event could not be attributed to any lane (no lane
+// resolved), which round-trips as -1 in JSON. Lane 0 is stored as laneIndex=0
+// so lane 0 events are distinguishable from unattributed events.
+func normalizeRunEvent(e copilot.Event, runID string, laneIndex int) telemetry.RunEvent {
 	ev := telemetry.RunEvent{
-		At:    time.Now(),
-		RunID: runID,
-		Type:  eventTypeName(e.Type),
-	}
-
-	// Attribute to a lane when we can resolve it from the session id.
-	if l := run.laneFor(e.SessionID); l != nil {
-		ev.LaneIndex = l.Index
+		At:        time.Now(),
+		RunID:     runID,
+		Type:      eventTypeName(e.Type),
+		LaneIndex: laneIndex,
 	}
 
 	switch e.Type {
@@ -144,6 +152,16 @@ func eventTypeName(t copilot.EventType) string {
 		return "EvToolDecision"
 	case copilot.EvHookRun:
 		return "EvHookRun"
+	case copilot.EvUserInput:
+		return "EvUserInput"
+	case copilot.EvPlanReview:
+		return "EvPlanReview"
+	case copilot.EvPlanChanged:
+		return "EvPlanChanged"
+	case copilot.EvElicitation:
+		return "EvElicitation"
+	case copilot.EvUserMessage:
+		return "EvUserMessage"
 	default:
 		return "EvUnknown"
 	}
