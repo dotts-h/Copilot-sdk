@@ -805,7 +805,9 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
 - **Totality:** pricing returns a value for every model (unknown → default rate, never panics);
   event normalization is total (`EvUnknown` fallback).
 - **Escaping:** all model-originated text is HTML-escaped before reaching the browser; only
-  server-rendered markdown for committed turns emits HTML, via the sanitized renderer. — see [ADR-0001](adr/0001-render-markdown-server-side-for-committed-agent-turns.md)
+  server-rendered markdown for committed turns emits HTML, via the sanitized renderer. The
+  renderer is a block AST (`parseBlocks` → `[]Block` → `renderBlocks`); each block renderer
+  emits only whitelisted/templated HTML. — see [ADR-0001](adr/0001-render-markdown-server-side-for-committed-agent-turns.md), [ADR-0045](adr/0045-block-ast-seam-for-markdown-rendering.md)
 - **Seam purity:** no SDK import outside `SDKClient`; `telemetry`/`ctxforge`/`config` stay
   dependency-free.
 - **Persistence atomicity:** config/forge writes are temp-file + rename, validated before save.
