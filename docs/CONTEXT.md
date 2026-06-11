@@ -235,6 +235,11 @@
 - **partial / fragment** — an `html/template`-rendered HTML chunk, swapped via **htmx**
   (`hx-get` into `#main`) or streamed over **SSE** (`/events`). Model-originated text is
   escaped (ADR-0001).
+- **block** — one structural element of the markdown subset a committed agent turn renders
+  through (`internal/web` `Block`: heading, code fence, list, blockquote, hr, paragraph).
+  `renderMarkdown` = `parseBlocks` → typed `[]Block` → `renderBlocks`; each block's renderer
+  may emit only whitelisted/templated HTML (escape-first), and new rich components (epic 0076)
+  attach as new block kinds on this seam. — ADR-0045
 - **lock order** — **`forgeMu → s.mu`**, never inverted (shared forge/config before
   per-session state). Race-tested. — see `internal/web/sessions.go`
 - **demo / mock mode** — the offline path (`-demo`): a scripted `MockClient` + seeded

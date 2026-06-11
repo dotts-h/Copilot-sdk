@@ -1,13 +1,13 @@
 ---
 id: 0077
 title: "Block-AST seam — parse markdown to a typed []Block, render byte-identically (R1)"
-status: open
+status: closed
 severity: medium
 group: 0076
 depends_on: []
 github: 129
 links:
-  adr: []
+  adr: [0045]
   prs: []
   issues: [0076]
   regression:
@@ -29,14 +29,21 @@ data→template→token-styled-HTML pattern the rest of the UI already uses.
 
 ## Acceptance
 
-- [ ] `parseBlocks(src) []Block` + `renderBlocks([]Block) string`; `renderMarkdown` becomes
+- [x] `parseBlocks(src) []Block` + `renderBlocks([]Block) string`; `renderMarkdown` becomes
       their composition.
-- [ ] Output is **byte-identical** for the existing corpus — `markdown_test.go`
+- [x] Output is **byte-identical** for the existing corpus — `markdown_test.go`
       golden/table cases, `TestRenderMarkdownXSS`, and `FuzzRenderMarkdown` pass unchanged
-      (escape-first preserved: every input byte escaped before markup).
-- [ ] No new dependency, no JS, no CSS change. `make lint && make test` (floor 65%) green.
-- [ ] ADR records the block model and the invariant that block renderers emit only
-      whitelisted/templated HTML.
+      (escape-first preserved: every input byte escaped before markup). Also verified by a
+      differential dump against the pre-refactor renderer over an 80-input corpus.
+- [x] No new dependency, no JS, no CSS change. `make lint && make test` (floor 65%) green.
+- [x] ADR records the block model and the invariant that block renderers emit only
+      whitelisted/templated HTML. — ADR-0045
+
+## Close-out note
+
+Fuzzing the seam surfaced a latent pre-refactor bug: `inline()`'s placeholder restore
+could leak NUL sentinels (REGRESSIONS #22). Fixed on the same branch; the two crashers
+are committed as fuzz seed corpus under `internal/web/testdata/fuzz/FuzzRenderMarkdown/`.
 
 ## Notes
 

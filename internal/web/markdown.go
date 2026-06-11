@@ -27,19 +27,68 @@ var (
 	mdItalic = regexp.MustCompile(`\*([^*]+)\*|\b_([^_]+)_\b`)
 )
 
+// Block is one structural element of the markdown subset (ADR 0045). The
+// interface is sealed: every implementation lives in this file, and each
+// renderer may emit only whitelisted or templated HTML, with every dynamic
+// string escape-first via inline()/html.EscapeString.
+type Block interface {
+	renderTo(b *strings.Builder)
+}
+
+// headingBlock is an ATX heading; text is raw markdown for the inline pass.
+type headingBlock struct {
+	level int
+	text  string
+}
+
+// codeBlock is a fenced code block; code is rendered verbatim (escaped, no
+// inline pass), lang becomes the language-* class when present.
+type codeBlock struct {
+	lang string
+	code string
+}
+
+// listBlock is a run of consecutive list items; items are raw markdown.
+type listBlock struct {
+	ordered bool
+	items   []string
+}
+
+// quoteBlock is a blockquote; its inner lines are parsed recursively, so the
+// AST is a tree.
+type quoteBlock struct {
+	children []Block
+}
+
+// hrBlock is a horizontal rule.
+type hrBlock struct{}
+
+// paragraphBlock is consecutive non-blank, non-block lines joined by soft
+// breaks; lines are raw markdown for the inline pass.
+type paragraphBlock struct {
+	lines []string
+}
+
 // renderMarkdown turns a markdown subset into sanitized HTML. The output is a
-// trusted HTML string (every dynamic part is escaped before assembly).
+// trusted HTML string (every dynamic part is escaped before assembly). It is
+// exactly the composition of the block-AST seam: parse, then render.
 func renderMarkdown(src string) string {
 	// Strip the placeholder sentinel so input can never forge a placeholder.
 	src = strings.ReplaceAll(src, "\x00", "")
+	return renderBlocks(parseBlocks(src))
+}
+
+// parseBlocks recognizes the markdown subset as a typed block list. No HTML is
+// produced here; raw markdown text rides inside the blocks for the renderers.
+func parseBlocks(src string) []Block {
 	lines := strings.Split(src, "\n")
 
-	var b strings.Builder
+	var blocks []Block
 	i := 0
 	for i < len(lines) {
 		line := lines[i]
 
-		// Fenced code block: ``` … ``` — content escaped verbatim, no inline pass.
+		// Fenced code block: ``` … ``` — content kept verbatim.
 		if fence := strings.TrimSpace(line); strings.HasPrefix(fence, "```") {
 			lang := strings.TrimSpace(strings.TrimPrefix(fence, "```"))
 			var code []string
@@ -49,11 +98,7 @@ func renderMarkdown(src string) string {
 				i++
 			}
 			i++ // consume closing fence (or run past EOF)
-			b.WriteString("<pre><code")
-			if lang != "" {
-				b.WriteString(` class="language-` + html.EscapeString(lang) + `"`)
-			}
-			b.WriteString(">" + html.EscapeString(strings.Join(code, "\n")) + "</code></pre>")
+			blocks = append(blocks, codeBlock{lang: lang, code: strings.Join(code, "\n")})
 			continue
 		}
 
@@ -65,20 +110,19 @@ func renderMarkdown(src string) string {
 
 		// Horizontal rule.
 		if isHR(line) {
-			b.WriteString("<hr>")
+			blocks = append(blocks, hrBlock{})
 			i++
 			continue
 		}
 
 		// ATX heading.
 		if m := mdHeading.FindStringSubmatch(line); m != nil {
-			level := len(m[1])
-			b.WriteString("<h" + strconv.Itoa(level) + ">" + inline(m[2]) + "</h" + strconv.Itoa(level) + ">")
+			blocks = append(blocks, headingBlock{level: len(m[1]), text: m[2]})
 			i++
 			continue
 		}
 
-		// Blockquote: gather consecutive `>` lines, render the inner block.
+		// Blockquote: gather consecutive `>` lines, parse the inner block.
 		if strings.HasPrefix(strings.TrimSpace(line), ">") {
 			var inner []string
 			for i < len(lines) && strings.HasPrefix(strings.TrimSpace(lines[i]), ">") {
@@ -87,48 +131,95 @@ func renderMarkdown(src string) string {
 				inner = append(inner, strings.TrimPrefix(t, " "))
 				i++
 			}
-			b.WriteString("<blockquote>" + renderMarkdown(strings.Join(inner, "\n")) + "</blockquote>")
+			blocks = append(blocks, quoteBlock{children: parseBlocks(strings.Join(inner, "\n"))})
 			continue
 		}
 
 		// Unordered list.
 		if mdULItem.MatchString(line) {
-			b.WriteString("<ul>")
+			var items []string
 			for i < len(lines) && mdULItem.MatchString(lines[i]) {
-				item := mdULItem.FindStringSubmatch(lines[i])[1]
-				b.WriteString("<li>" + inline(item) + "</li>")
+				items = append(items, mdULItem.FindStringSubmatch(lines[i])[1])
 				i++
 			}
-			b.WriteString("</ul>")
+			blocks = append(blocks, listBlock{ordered: false, items: items})
 			continue
 		}
 
 		// Ordered list.
 		if mdOLItem.MatchString(line) {
-			b.WriteString("<ol>")
+			var items []string
 			for i < len(lines) && mdOLItem.MatchString(lines[i]) {
-				item := mdOLItem.FindStringSubmatch(lines[i])[1]
-				b.WriteString("<li>" + inline(item) + "</li>")
+				items = append(items, mdOLItem.FindStringSubmatch(lines[i])[1])
 				i++
 			}
-			b.WriteString("</ol>")
+			blocks = append(blocks, listBlock{ordered: true, items: items})
 			continue
 		}
 
-		// Paragraph: consecutive non-blank lines that don't start another block,
-		// joined with soft <br> breaks.
+		// Paragraph: consecutive non-blank lines that don't start another block.
 		var para []string
 		for i < len(lines) {
 			cur := lines[i]
 			if strings.TrimSpace(cur) == "" || isBlockStart(cur) {
 				break
 			}
-			para = append(para, inline(cur))
+			para = append(para, cur)
 			i++
 		}
-		b.WriteString("<p>" + strings.Join(para, "<br>") + "</p>")
+		blocks = append(blocks, paragraphBlock{lines: para})
+	}
+	return blocks
+}
+
+// renderBlocks emits the sanitized HTML for a block list.
+func renderBlocks(blocks []Block) string {
+	var b strings.Builder
+	for _, blk := range blocks {
+		blk.renderTo(&b)
 	}
 	return b.String()
+}
+
+func (h headingBlock) renderTo(b *strings.Builder) {
+	lv := strconv.Itoa(h.level)
+	b.WriteString("<h" + lv + ">" + inline(h.text) + "</h" + lv + ">")
+}
+
+func (c codeBlock) renderTo(b *strings.Builder) {
+	b.WriteString("<pre><code")
+	if c.lang != "" {
+		b.WriteString(` class="language-` + html.EscapeString(c.lang) + `"`)
+	}
+	b.WriteString(">" + html.EscapeString(c.code) + "</code></pre>")
+}
+
+func (l listBlock) renderTo(b *strings.Builder) {
+	tag := "ul"
+	if l.ordered {
+		tag = "ol"
+	}
+	b.WriteString("<" + tag + ">")
+	for _, item := range l.items {
+		b.WriteString("<li>" + inline(item) + "</li>")
+	}
+	b.WriteString("</" + tag + ">")
+}
+
+func (q quoteBlock) renderTo(b *strings.Builder) {
+	b.WriteString("<blockquote>" + renderBlocks(q.children) + "</blockquote>")
+}
+
+func (hrBlock) renderTo(b *strings.Builder) {
+	b.WriteString("<hr>")
+}
+
+func (p paragraphBlock) renderTo(b *strings.Builder) {
+	var para []string
+	for _, line := range p.lines {
+		para = append(para, inline(line))
+	}
+	b.WriteString("<p>" + strings.Join(para, "<br>") + "</p>")
 }
 
 // isBlockStart reports whether a line opens a non-paragraph block, so paragraph
@@ -199,11 +290,38 @@ func inline(s string) string {
 	s = mdBold.ReplaceAllString(s, "<strong>$1$2</strong>")
 	s = mdItalic.ReplaceAllString(s, "<em>$1$2</em>")
 
-	// Restore stashed fragments.
-	for idx := len(ph) - 1; idx >= 0; idx-- {
-		s = strings.ReplaceAll(s, "\x00"+strconv.Itoa(idx)+"\x00", ph[idx])
+	// Restore stashed fragments with a single left-to-right scan. Every NUL in s
+	// is structural (input NULs are stripped before parsing), so NULs alternate
+	// open/close around an index; a global ReplaceAll instead matched fake
+	// placeholders spanning two real ones when literal digits sat between them.
+	// A stashed fragment can itself hold placeholders (a link whose text/url
+	// captured a code span), always with smaller indices, so expansion recurses
+	// and terminates.
+	var restore func(s string) string
+	restore = func(s string) string {
+		var out strings.Builder
+		for {
+			open := strings.IndexByte(s, '\x00')
+			if open < 0 {
+				out.WriteString(s)
+				return out.String()
+			}
+			out.WriteString(s[:open])
+			rest := s[open+1:]
+			end := strings.IndexByte(rest, '\x00')
+			if end < 0 {
+				// Unreachable by construction (stash emits balanced pairs); if a
+				// caller ever violates it, drop the sentinel rather than leak it.
+				out.WriteString(rest)
+				return out.String()
+			}
+			if idx, err := strconv.Atoi(rest[:end]); err == nil && idx >= 0 && idx < len(ph) {
+				out.WriteString(restore(ph[idx]))
+			}
+			s = rest[end+1:]
+		}
 	}
-	return s
+	return restore(s)
 }
 
 // safeURL rejects any scheme that can execute script. Escaping has already run,
