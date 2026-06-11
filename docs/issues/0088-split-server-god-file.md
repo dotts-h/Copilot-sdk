@@ -1,7 +1,7 @@
 ---
 id: 0088
 title: "Split server.go — lift the interaction + forge-mutation handlers out of the god file"
-status: open
+status: closed
 severity: low
 group: 0086
 depends_on: []
@@ -37,10 +37,13 @@ Pure cleanup; second-biggest navigation risk after `workflow.go` (0087). No beha
 
 ## Acceptance
 
-- [ ] The interaction + forge-mutation handlers move to focused same-package files; the
+- [x] The interaction + forge-mutation handlers move to focused same-package files; the
       `Server` struct + send/budget core stay; no symbol renamed, no behavior changed.
-- [ ] `make lint && make test` (floor 65%) green; CODEMAP regenerated.
-- [ ] No ADR.
+      → `interactions.go` (perm/ask/plan/elicit + `elicitContent`/`dropLanePerm`),
+      `forge_handlers.go` (skill/instruction toggle+delete, agent select+delete,
+      model/effort select). `server.go` shrank 1015→741 LOC.
+- [x] `make lint && make test` (floor 65%) green; CODEMAP regenerated. (web stayed at 89.8%.)
+- [x] No ADR.
 
 ## Notes
 

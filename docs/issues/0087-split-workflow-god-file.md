@@ -1,7 +1,7 @@
 ---
 id: 0087
 title: "Split workflow.go — separate the run engine, seam adapter, renderer, demo, and CRUD"
-status: open
+status: closed
 severity: low
 group: 0086
 depends_on: []
@@ -48,12 +48,14 @@ unit tests, so the split is low-risk — those tests pin behavior byte-for-byte.
 
 ## Acceptance
 
-- [ ] `workflow.go` is split into focused same-package files along the seams above; no symbol
-      renamed, no behavior changed.
-- [ ] The pure `workflowRun` zero-client tests pass **byte-identically** (no test edits
+- [x] `workflow.go` is split into focused same-package files along the seams above; no symbol
+      renamed, no behavior changed. → `run_engine.go` (pure state machine), `run_adapter.go`
+      (Server seam adapter + `streamDemoLane`), `run_render.go` (lane render + status/glyph/cost),
+      `workflow_crud.go` (Workflows page).
+- [x] The pure `workflowRun` zero-client tests pass **byte-identically** (no test edits
       beyond none — they don't reference file paths).
-- [ ] `make lint && make test` (floor 65%) green; CODEMAP regenerated.
-- [ ] No ADR (mechanical split, no decision).
+- [x] `make lint && make test` (floor 65%) green; CODEMAP regenerated. (web stayed at 89.8%.)
+- [x] No ADR (mechanical split, no decision).
 
 ## Notes
 

@@ -1,7 +1,7 @@
 ---
 id: 0086
 title: "Epic: Code-health follow-ups — structural splits + a normalize map-leak sweep (RETROS 0005)"
-status: open
+status: closed
 severity: low
 group:
 depends_on: []
@@ -26,12 +26,12 @@ Recorded in TECH_DEBT #17 (the two god files) and #18 (the map leak).
 
 ## Children
 
-- [ ] **0087 · Split `workflow.go`** ([0087](0087-split-workflow-god-file.md), M) — the
+- [x] **0087 · Split `workflow.go`** ([0087](0087-split-workflow-god-file.md), M) — the
       1222-LOC file bundles five responsibilities (pure run engine, seam adapter, demo lane
       simulator, lane renderer, Workflows CRUD); split into `run_engine.go` /
       `run_adapter.go` / `run_render.go` along the audit's named seams. Same-package move,
       no behavior change; the pure `workflowRun` zero-client tests must pass byte-identically.
-- [ ] **0088 · Split `server.go`** ([0088](0088-split-server-god-file.md), M) — lift the
+- [x] **0088 · Split `server.go`** ([0088](0088-split-server-god-file.md), M) — lift the
       perm/ask/plan/elicit interaction handlers into `interactions.go` and the forge
       toggle/delete handlers into `forge_handlers.go`; the `Server` struct + send/budget
       gating stay. Same-package move, no behavior change.
