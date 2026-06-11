@@ -418,9 +418,15 @@ func (s *Server) handleSubagentStream(e copilot.Event) []fragment {
 	switch e.Type {
 	case copilot.EvToolStart:
 		activityChanged = s.subreg.Observe(e.AgentID, e.Tool)
+		// Name from e.Tool (canonical, same value the activity column uses — main
+		// timeline does likewise), args/id from the ToolCall detail; fall back to the
+		// ToolCall name only if e.Tool is empty, so the transcript and the row agree.
 		name, args, id := e.Tool, "", ""
 		if e.ToolCall != nil {
-			name, args, id = e.ToolCall.Name, e.ToolCall.Args, e.ToolCall.ID
+			args, id = e.ToolCall.Args, e.ToolCall.ID
+			if name == "" {
+				name = e.ToolCall.Name
+			}
 		}
 		content = s.subreg.RecordTool(e.AgentID, id, name, args)
 	case copilot.EvMessageDelta:

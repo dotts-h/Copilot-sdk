@@ -361,6 +361,25 @@ func TestSubagentTranscript(t *testing.T) {
 		}
 	})
 
+	t.Run("two back-to-back committed messages are both kept, not overwritten", func(t *testing.T) {
+		var r Subagents
+		r.Start("tc-1", "a", "A", "", "")
+		// Two non-streaming full messages with nothing between them: the second must
+		// NOT clobber the first (a committed run belongs to a prior message).
+		r.CommitText("sub-1", false, "first message")
+		r.CommitText("sub-1", false, "second message")
+		v, _ := r.ByID("tc-1")
+		if len(v.Transcript) != 2 || v.Transcript[0].Text != "first message" || v.Transcript[1].Text != "second message" {
+			t.Fatalf("both committed messages should survive: %+v", v.Transcript)
+		}
+		// Deltas after a commit start a fresh run rather than appending to the sealed one.
+		r.AppendText("sub-1", false, "third ")
+		r.AppendText("sub-1", false, "streamed")
+		if v, _ := r.ByID("tc-1"); len(v.Transcript) != 3 || v.Transcript[2].Text != "third streamed" {
+			t.Fatalf("post-commit deltas should open a new run: %+v", v.Transcript)
+		}
+	})
+
 	t.Run("a sub-agent can be marked lane-backed for steering", func(t *testing.T) {
 		var r Subagents
 		r.Start("tc-1", "a", "A", "", "")

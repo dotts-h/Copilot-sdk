@@ -83,36 +83,37 @@ _Last generated: 2026-06-11 (UTC)._
 - L220: `func (c *State) Committed() []Turn`
 - L229: `func (c *State) Pending() (Role, string)`
 
-### subagents.go (439 LOC)
+### subagents.go (454 LOC)
 - L23: `type SubagentStatus int`
 - L34: `func (st SubagentStatus) Label() string`
 - L48: `func (st SubagentStatus) Class() string`
 - L64: `type SubagentEntryKind int`
 - L77: `type SubagentEntry struct`
-- L93: `type SubagentView struct`
-- L117: `type Subagents struct`
-- L127: `func (r *Subagents) Start(spawnID, name, displayName, description, model string)`
-- L144: `func (r *Subagents) Observe(instanceID, activity string) bool`
-- L159: `func (r *Subagents) AddCredits(instanceID string, credits float64) bool`
-- L174: `func (r *Subagents) AppendText(instanceID string, reasoning bool, text string) bool`
-- L202: `func (r *Subagents) CommitText(instanceID string, reasoning bool, text string) bool`
-- L233: `func (r *Subagents) RecordTool(instanceID, toolID, name, args string) bool`
-- L254: `func (r *Subagents) capTranscript(e *SubagentView)`
-- L264: `func (r *Subagents) MarkInputRequired(id string) bool`
-- L276: `func (r *Subagents) ClearInputRequired(id string) bool`
-- L288: `func (r *Subagents) byAnyID(id string) *SubagentView`
-- L304: `func (r *Subagents) RecordSteer(spawnID, text string) bool`
-- L319: `func (r *Subagents) SetLaneSession(spawnID, session string)`
-- L328: `func (r *Subagents) ByID(spawnID string) (SubagentView, bool)`
-- L339: `func (r *Subagents) ViewByInstance(instanceID string) (SubagentView, bool)`
-- L353: `func copyView(e *SubagentView) SubagentView`
-- L364: `func (r *Subagents) NameFor(instanceID string) string`
-- L381: `func (r *Subagents) End(spawnID string, success bool, detail string, totalTokens int64) bool`
-- L398: `func (r *Subagents) Entries() []SubagentView`
-- L405: `func (r *Subagents) Empty() bool { return len(r.entries) == 0 }`
-- L408: `func (r *Subagents) Reset() { r.entries = nil }`
-- L411: `func (r *Subagents) bySpawn(spawnID string) *SubagentView`
-- L423: `func (r *Subagents) join(instanceID string) *SubagentView`
+- L94: `type SubagentView struct`
+- L118: `type Subagents struct`
+- L128: `func (r *Subagents) Start(spawnID, name, displayName, description, model string)`
+- L145: `func (r *Subagents) Observe(instanceID, activity string) bool`
+- L160: `func (r *Subagents) AddCredits(instanceID string, credits float64) bool`
+- L175: `func (r *Subagents) AppendText(instanceID string, reasoning bool, text string) bool`
+- L205: `func (r *Subagents) CommitText(instanceID string, reasoning bool, text string) bool`
+- L246: `func (r *Subagents) RecordTool(instanceID, toolID, name, args string) bool`
+- L267: `func (r *Subagents) capTranscript(e *SubagentView)`
+- L277: `func (r *Subagents) MarkInputRequired(id string) bool`
+- L289: `func (r *Subagents) ClearInputRequired(id string) bool`
+- L301: `func (r *Subagents) byAnyID(id string) *SubagentView`
+- L310: `func (r *Subagents) byInstance(instanceID string) *SubagentView`
+- L326: `func (r *Subagents) RecordSteer(spawnID, text string) bool`
+- L341: `func (r *Subagents) SetLaneSession(spawnID, session string)`
+- L350: `func (r *Subagents) ByID(spawnID string) (SubagentView, bool)`
+- L361: `func (r *Subagents) ViewByInstance(instanceID string) (SubagentView, bool)`
+- L370: `func copyView(e *SubagentView) SubagentView`
+- L381: `func (r *Subagents) NameFor(instanceID string) string`
+- L398: `func (r *Subagents) End(spawnID string, success bool, detail string, totalTokens int64) bool`
+- L415: `func (r *Subagents) Entries() []SubagentView`
+- L422: `func (r *Subagents) Empty() bool { return len(r.entries) == 0 }`
+- L425: `func (r *Subagents) Reset() { r.entries = nil }`
+- L428: `func (r *Subagents) bySpawn(spawnID string) *SubagentView`
+- L440: `func (r *Subagents) join(instanceID string) *SubagentView`
 
 ## internal/copilot
 
@@ -864,16 +865,16 @@ _Last generated: 2026-06-11 (UTC)._
 - L943: `func (s *Server) editForge(fn func() error) error`
 - L957: `func (s *Server) writePartial(w http.ResponseWriter, html string)`
 
-### session.go (497 LOC)
+### session.go (503 LOC)
 - L15: `type liveKind int`
 - L28: `func (s *Server) handleEvent(e copilot.Event) []fragment`
 - L305: `type spendTag struct`
 - L328: `func (s *Server) recordUsage(u copilot.UsageData, tag spendTag) telemetry.Cost`
 - L394: `func (s *Server) leashFor(agentID string) (telemetry.Leash, bool)`
 - L410: `func (s *Server) handleSubagentStream(e copilot.Event) []fragment`
-- L463: `func (s *Server) recordSubagentUsage(e copilot.Event) []fragment`
-- L479: `func (s *Server) timelineFragments() []fragment`
-- L492: `func toolID(e copilot.Event) string`
+- L469: `func (s *Server) recordSubagentUsage(e copilot.Event) []fragment`
+- L485: `func (s *Server) timelineFragments() []fragment`
+- L498: `func toolID(e copilot.Event) string`
 
 ### sessions.go (182 LOC)
 - L21: `func (s *Server) sessionsPartial() string`
@@ -915,15 +916,15 @@ _Last generated: 2026-06-11 (UTC)._
 - L21: `func (s *Server) serveEvents(w http.ResponseWriter, r *http.Request)`
 - L62: `func writeSSE(w io.Writer, event, data string)`
 
-### subagent_overlay.go (168 LOC)
+### subagent_overlay.go (176 LOC)
 - L29: `func subagentEvent(spawnID string) string { return "subagent-" + spawnID }`
 - L34: `func (s *Server) subagentOverlayFrag(instanceID string) (fragment, bool)`
 - L47: `func (s *Server) handleSubagentOverlay(w http.ResponseWriter, r *http.Request)`
 - L66: `func (s *Server) handleSubagentSteer(w http.ResponseWriter, r *http.Request)`
-- L100: `func (s *Server) subagentTranscriptFrag(v convo.SubagentView) fragment`
-- L111: `func renderSubagentOverlay(v convo.SubagentView, pauses []pause.Pause) string`
-- L142: `func renderSubagentTranscript(v convo.SubagentView) string`
-- L160: `func (s *Server) pausesFor(v convo.SubagentView) []pause.Pause`
+- L108: `func (s *Server) subagentTranscriptFrag(v convo.SubagentView) fragment`
+- L119: `func renderSubagentOverlay(v convo.SubagentView, pauses []pause.Pause) string`
+- L150: `func renderSubagentTranscript(v convo.SubagentView) string`
+- L168: `func (s *Server) pausesFor(v convo.SubagentView) []pause.Pause`
 
 ### svg.go (238 LOC)
 - L35: `func svgNum(v float64) string`

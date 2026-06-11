@@ -36,7 +36,7 @@ func (s *Server) subagentOverlayFrag(instanceID string) (fragment, bool) {
 	if !ok {
 		return fragment{}, false
 	}
-	return fragment{Event: subagentEvent(v.SpawnID), HTML: renderSubagentTranscript(v)}, true
+	return s.subagentTranscriptFrag(v), true
 }
 
 // handleSubagentOverlay (GET /subagent/{id}) renders the drill-down dialog for one
@@ -70,29 +70,37 @@ func (s *Server) handleSubagentSteer(w http.ResponseWriter, r *http.Request) {
 
 	s.mu.Lock()
 	v, ok := s.subreg.ByID(id)
-	if !ok || v.LaneSession == "" || prompt == "" {
+	session := v.LaneSession
+	s.mu.Unlock()
+	if !ok || session == "" || prompt == "" {
 		// Nothing to steer into (unknown, SDK-native, or empty) — re-render the
 		// current overlay transcript so the composer just resets, no Send.
 		var html string
 		if ok {
 			html = renderSubagentTranscript(v)
 		}
-		s.mu.Unlock()
 		s.writePartial(w, html)
 		return
 	}
-	session := v.LaneSession
-	s.subreg.RecordSteer(id, prompt)
-	v, _ = s.subreg.ByID(id)
-	frag := s.subagentTranscriptFrag(v)
-	s.mu.Unlock()
 
-	// Send outside the lock — it may block on the runtime. Offline/mock records it.
+	// Deliver FIRST, outside the lock (Send may block on the runtime). Only annotate
+	// the transcript once the steer actually went out — a failed Send must not show
+	// the human's message as delivered. On failure, return the unchanged transcript.
 	if err := s.client.Send(r.Context(), session, prompt, nil, ""); err != nil {
 		s.logger.Printf("steer sub-agent %s: %v", id, err)
+		s.mu.Lock()
+		v, _ = s.subreg.ByID(id)
+		s.mu.Unlock()
+		s.writePartial(w, renderSubagentTranscript(v))
+		return
 	}
-	s.broadcast([]fragment{frag})
-	s.writePartial(w, renderSubagentTranscript(v))
+	s.mu.Lock()
+	s.subreg.RecordSteer(id, prompt)
+	v, _ = s.subreg.ByID(id)
+	tf := s.subagentTranscriptFrag(v) // the annotated transcript — rendered once, reused below
+	s.mu.Unlock()
+	s.broadcast([]fragment{tf})
+	s.writePartial(w, tf.HTML)
 }
 
 // subagentTranscriptFrag wraps a view's transcript as its per-sub-agent SSE

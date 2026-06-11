@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -194,6 +195,30 @@ func TestSubagentSteerNonLaneNoSend(t *testing.T) {
 	}
 	if len(mock.Sent) != 0 {
 		t.Fatalf("an SDK-native sub-agent has no Send target: %+v", mock.Sent)
+	}
+}
+
+// A failed Send must NOT annotate the transcript as delivered — the human's steer
+// is only recorded once it actually reaches the runtime.
+func TestSubagentSteerNotAnnotatedOnSendFailure(t *testing.T) {
+	s, mock := newTestServer()
+	mock.SendErr = errors.New("runtime down")
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+	s.handleEvent(subStart("tc-2", "Builder"))
+	s.mu.Lock()
+	s.subreg.SetLaneSession("tc-2", "mock-session-7")
+	s.mu.Unlock()
+
+	resp, err := http.PostForm(srv.URL+"/subagent/tc-2/steer", url.Values{"prompt": {"lost message"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body := readBody(t, resp); strings.Contains(body, "lost message") {
+		t.Errorf("a failed steer must not show as delivered in the transcript: %q", body)
+	}
+	if v, _ := s.subreg.ByID("tc-2"); len(v.Transcript) != 0 {
+		t.Errorf("a failed steer must not be recorded: %+v", v.Transcript)
 	}
 }
 

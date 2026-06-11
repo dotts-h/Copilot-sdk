@@ -75,10 +75,11 @@ const (
 // name, Args = its one-line arguments). All fields are model/SDK-originated and
 // MUST flow through html/template escaping at the render seam (ADR-0001).
 type SubagentEntry struct {
-	Kind   SubagentEntryKind
-	Text   string // prose/reasoning text, or the tool name for a tool call
-	Args   string // tool arguments (tool calls only)
-	ToolID string // tool-call id (tool calls only) — dedupes a repeated start event
+	Kind      SubagentEntryKind
+	Text      string // prose/reasoning text, or the tool name for a tool call
+	Args      string // tool arguments (tool calls only)
+	ToolID    string // tool-call id (tool calls only) — dedupes a repeated start event
+	committed bool   // a finalized text run (CommitText) — a new message starts a fresh entry, never overwrites it
 }
 
 // subagentTranscriptCap bounds the retained per-sub-agent transcript: the full
@@ -183,7 +184,9 @@ func (r *Subagents) AppendText(instanceID string, reasoning bool, text string) b
 	if reasoning {
 		kind = SubagentReasoning
 	}
-	if n := len(e.Transcript); n > 0 && e.Transcript[n-1].Kind == kind {
+	// Coalesce into the trailing run only while it is still open (uncommitted); a
+	// finalized run belongs to a prior message, so a new delta starts a fresh entry.
+	if n := len(e.Transcript); n > 0 && e.Transcript[n-1].Kind == kind && !e.Transcript[n-1].committed {
 		e.Transcript[n-1].Text += text
 	} else {
 		e.Transcript = append(e.Transcript, SubagentEntry{Kind: kind, Text: text})
@@ -211,14 +214,24 @@ func (r *Subagents) CommitText(instanceID string, reasoning bool, text string) b
 	if reasoning {
 		kind = SubagentReasoning
 	}
+	// The commit finalizes the run the deltas streamed — replace the trailing
+	// same-kind run IF it is still open (uncommitted). An identical text is an
+	// idempotent no-op (but still seals the run). A trailing run that is already
+	// committed belongs to a PRIOR message, so a distinct commit appends a fresh
+	// entry instead of overwriting it (no silent loss of back-to-back messages).
 	if n := len(e.Transcript); n > 0 && e.Transcript[n-1].Kind == kind {
-		if e.Transcript[n-1].Text == text {
+		last := &e.Transcript[n-1]
+		if last.Text == text {
+			last.committed = true
 			return false
 		}
-		e.Transcript[n-1].Text = text
-		return true
+		if !last.committed {
+			last.Text = text
+			last.committed = true
+			return true
+		}
 	}
-	e.Transcript = append(e.Transcript, SubagentEntry{Kind: kind, Text: text})
+	e.Transcript = append(e.Transcript, SubagentEntry{Kind: kind, Text: text, committed: true})
 	r.capTranscript(e)
 	return true
 }
@@ -286,15 +299,24 @@ func (r *Subagents) ClearInputRequired(id string) bool {
 // is tagged with, or the spawn ToolCallID the overlay/list row carries. Instance
 // first (the more specific key), then spawn.
 func (r *Subagents) byAnyID(id string) *SubagentView {
-	if id == "" {
+	if e := r.byInstance(id); e != nil {
+		return e
+	}
+	return r.bySpawn(id)
+}
+
+// byInstance returns the entry currently bound to the instance AgentID key, or
+// nil — the read-only instance lookup shared by join, byAnyID, and ViewByInstance.
+func (r *Subagents) byInstance(instanceID string) *SubagentView {
+	if instanceID == "" {
 		return nil
 	}
 	for i := range r.entries {
-		if r.entries[i].InstanceID == id {
+		if r.entries[i].InstanceID == instanceID {
 			return &r.entries[i]
 		}
 	}
-	return r.bySpawn(id)
+	return nil
 }
 
 // RecordSteer annotates the spawn's transcript with a human-authored steer
@@ -337,13 +359,8 @@ func (r *Subagents) ByID(spawnID string) (SubagentView, bool) {
 // one exists. The server uses it to address a just-updated sub-agent's overlay
 // fragment by its spawn id after folding a tagged event.
 func (r *Subagents) ViewByInstance(instanceID string) (SubagentView, bool) {
-	if instanceID == "" {
-		return SubagentView{}, false
-	}
-	for i := range r.entries {
-		if r.entries[i].InstanceID == instanceID {
-			return copyView(&r.entries[i]), true
-		}
+	if e := r.byInstance(instanceID); e != nil {
+		return copyView(e), true
 	}
 	return SubagentView{}, false
 }
@@ -424,10 +441,8 @@ func (r *Subagents) join(instanceID string) *SubagentView {
 	if instanceID == "" {
 		return nil
 	}
-	for i := range r.entries {
-		if r.entries[i].InstanceID == instanceID {
-			return &r.entries[i]
-		}
+	if e := r.byInstance(instanceID); e != nil {
+		return e
 	}
 	for i := range r.entries {
 		if r.entries[i].InstanceID == "" && r.entries[i].Status == SubagentWorking {

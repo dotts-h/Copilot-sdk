@@ -87,6 +87,15 @@ sub-agent (`pausesFor`, matched by instance **or** spawn id).
 - **Follow-up:** no path sets `LaneSession`. A later slice can register a workflow lane's
   sub-run as a steerable registry entry to light the composer end-to-end; until then
   steering is unit-covered but not user-reachable.
+- **Only the transcript region streams live; the header, pause form, and steer composer
+  are snapshotted at open time.** This is deliberate: those regions carry **input fields**
+  (the pause reply, the steer prompt), and an `innerHTML` re-render on every transcript
+  delta would wipe a half-typed value. A pause that arrives *after* the overlay is open is
+  therefore not shown inside it live — but it is **not lost**: it renders on the main
+  `#pauses` region and flips the list row amber, so the user opens (or reopens) the overlay
+  to act on it (the `GET` renders it via `pausesFor`). A future slice can give the pause
+  region its own narrowly-scoped SSE event (fired only on pause register/resolve, never on
+  a delta) to update it live without the input-wipe hazard.
 - All model/SDK/human text is escaped at the template seam (ADR-0001); the transcript is
   capped (no unbounded growth); the overlay is a labelled modal with glyph+text status
   (a11y, not color-only).
