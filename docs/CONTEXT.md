@@ -222,6 +222,12 @@
 - **AppendOnlyStore[T]** — the **generic** persisted store both `SpendStore` and `RunStore`
   embed: atomic temp-file+rename, missing=empty, invalid=error, `dir==""`-ephemeral.
   — ADR-0009/0022, H1
+- **run event log** — the **optional, per-run append-only log** of normalized `Ev*` events
+  (`telemetry.RunEventLog`, `internal/telemetry/eventlog.go`), built on
+  `AppendOnlyStore[RunEvent]`, keyed by run id. Disabling it (empty `EventLogDir`) leaves
+  the existing run/spend recording and SSE path byte-identical. Enables step-by-step replay
+  and audit of a multi-lane run — the accepted replayability slice of the considered-and-
+  rejected event-bus evaluation (epic 0083). — ADR-0048, issue 0085
 
 ## The web layer — serving and rendering (`internal/web`)
 

@@ -46,10 +46,20 @@ type Server struct {
 	spend        *telemetry.SpendStore
 	// runs is the persisted workflow-run history (sibling of the spend ledger);
 	// a completed run is appended once on finish (ADR-0022). nil disables it.
-	runs         *telemetry.RunStore
-	allowance    float64
-	warnFraction float64 // soft-warn threshold as a fraction of the allowance
-	hardCap      float64 // hard credit ceiling; 0 disables the gate
+	runs *telemetry.RunStore
+	// eventLogDir is the directory that holds per-run event logs. Empty disables
+	// the log — leaving the existing recording + SSE path byte-identical (ADR-0048).
+	eventLogDir string
+	// runEventLog is the active run's per-run event log, lazily created when the
+	// first event for a run arrives. Guarded by s.mu for creation; the underlying
+	// AppendOnlyStore[RunEvent] is goroutine-safe for concurrent Append calls.
+	runEventLog *telemetry.RunEventLog
+	// runEventLogID is the run id for which runEventLog was created; used to detect
+	// when a new run starts so the log is re-created for the new run id.
+	runEventLogID string
+	allowance     float64
+	warnFraction  float64 // soft-warn threshold as a fraction of the allowance
+	hardCap       float64 // hard credit ceiling; 0 disables the gate
 	// lookPath resolves an MCP server command on PATH for the MCP page preflight,
 	// isolating the one impurity behind a seam (defaults to exec.LookPath; tests
 	// inject a fake).

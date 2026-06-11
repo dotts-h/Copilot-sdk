@@ -122,6 +122,19 @@ are disambiguated by `SessionID` (`web.workflowRun.laneFor`) — paired with
 `MockClient.CreateSession` now returning a **distinct** id per call. — see
 [ADR-0017](adr/0017-per-lane-tool-and-permission-surface-for-parallel-workflow-lanes.md)
 
+**Per-run event log (issue 0085, ADR-0048):** when `web.Options.EventLogDir` is set,
+the Hub's `pump` additionally appends each `Ev*` event flowing during an active
+workflow run to a per-run `telemetry.RunEventLog` (`<EventLogDir>/eventlogs/<runID>.json`),
+built on the generic `AppendOnlyStore[RunEvent]` (H1, issue 0033). The log is
+**optional/additive** — an absent or empty `EventLogDir` leaves the existing run/spend
+recording and SSE path byte-identical. Sub-agent-tagged events (`AgentID != ""`) are not
+logged (they route to the registry only, ADR-0040/0041). The on-disk envelope is
+`{"version":1,"events":[…]}`; each `RunEvent` carries `at`, `runId`, `type` (stable name,
+e.g. `"EvMessage"`), `laneIndex` (omitted for lane 0), and type-specific payload (`text`,
+`tool`, `args`, `result`, `success`, `err`). Tags are the stable contract, pinned by
+`TestRunEventLogOnDiskTagsAreStable`. — see
+[ADR-0048](adr/0048-per-run-event-log-replay-vs-summary.md)
+
 **`PermissionRequest`** (`copilot.go:50`): `ID, Kind, Detail` plus the write-only
 `FileName, Intention, Diff` — set from `sdk.PermissionRequestWrite` for file-write
 requests, empty for every other kind. The `Diff` (a unified diff) feeds the diff

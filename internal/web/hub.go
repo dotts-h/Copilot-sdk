@@ -48,6 +48,10 @@ type Hub struct {
 	logger         *log.Logger
 	demo           bool
 	workdir        string // base dir scanned by "import project instructions"
+	// eventLogDir is the directory that holds per-run event logs
+	// (<eventLogDir>/eventlogs/<runID>.json). An empty string disables the event log
+	// so the existing recording + SSE path is byte-identical (ADR-0048).
+	eventLogDir string
 	// lookPath resolves an MCP server command on PATH for the page preflight. It is
 	// the one impurity in the otherwise-pure forge rendering, isolated behind this
 	// seam so tests can inject a fake; defaults to exec.LookPath.
@@ -81,9 +85,13 @@ type Options struct {
 	Spend *telemetry.SpendStore
 	// Runs is the persisted workflow-run history; nil disables it (the Runs page
 	// renders empty). — ADR-0022.
-	Runs   *telemetry.RunStore
-	Spec   copilot.SessionSpec
-	Logger *log.Logger
+	Runs *telemetry.RunStore
+	// EventLogDir is the directory that holds per-run event logs
+	// (<EventLogDir>/eventlogs/<runID>.json). An empty string disables the event log
+	// — disabling it leaves the existing recording + SSE path byte-identical. — ADR-0048.
+	EventLogDir string
+	Spec        copilot.SessionSpec
+	Logger      *log.Logger
 	// Demo drives a scripted streaming reply through a MockClient so the UI can
 	// be exercised offline (WEB_UI_PLAN.md step 1).
 	Demo bool
@@ -123,7 +131,7 @@ func New(opts Options) *Hub {
 		client: opts.Client, forge: opts.Forge, config: opts.Config, meter: opts.Meter, spend: opts.Spend, runs: opts.Runs,
 		allowance: allowance, warnFraction: warnFraction, hardCap: hardCap,
 		baseSpec: opts.Spec, baseAgentID: baseAgentID, baseLeash: baseLeash, baseLeashLabel: baseLeashLabel,
-		logger: lg, demo: opts.Demo, workdir: workdir,
+		logger: lg, demo: opts.Demo, workdir: workdir, eventLogDir: opts.EventLogDir,
 		lookPath: exec.LookPath, lookupEnv: os.Getenv, setEnv: os.Setenv,
 		sessions: map[string]*Server{}, byCopilot: map[string]*Server{},
 	}
@@ -137,6 +145,7 @@ func (h *Hub) newSession(id string) *Server {
 	s := &Server{
 		hub: h, id: id,
 		client: h.client, forge: h.forge, config: h.config, meter: h.meter, spend: h.spend, runs: h.runs,
+		eventLogDir: h.eventLogDir,
 		// A per-session meter on the account-wide meter's price book, so the
 		// statusline scopes to this conversation while staying penny-consistent
 		// with the global gauge (item 3.2 / TECH_DEBT #2). h.meter is non-nil by
@@ -223,11 +232,14 @@ func (h *Hub) route(copilotID string) *Server {
 }
 
 // pump consumes the client's single event stream and fans each event out to the
-// originating session, rendering it through that session's reducer.
+// originating session, rendering it through that session's reducer. When the
+// server has an active run and the event log is enabled, it also appends the
+// event to the per-run event log off the critical section (ADR-0048).
 func (h *Hub) pump() {
 	for e := range h.client.Events() {
 		if sv := h.route(e.SessionID); sv != nil {
 			sv.broadcast(sv.handleEvent(e))
+			sv.appendRunEvent(e) // off the hot-path critical section — ADR-0048
 		}
 	}
 }
