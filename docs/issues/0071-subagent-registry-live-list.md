@@ -1,13 +1,13 @@
 ---
 id: 0071
 title: "Sub-agent registry + live list — status, current activity, live credits beside the chat (S2)"
-status: open
+status: closed
 severity: high
 group: 0069
 depends_on: [0070]
 github: 112
 links:
-  adr: []
+  adr: [0041]
   prs: []
   issues: [0069, 0031]
   regression:

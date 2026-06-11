@@ -332,24 +332,53 @@ func subagentLabel(sa copilot.SubagentInfo) string {
 	}
 }
 
-// renderSubagents renders the background-activity strip: one animated chip per
-// running sub-agent. Empty when nothing is running, so the strip is ambient.
-// Each chip surfaces the sub-agent's Description as a title= tooltip so that,
-// during a parallel run, concurrent sub-agents say *what* they are doing.
-func renderSubagents(active []copilot.SubagentInfo) string {
-	if len(active) == 0 {
+// subagentGlyph is the status glyph rendered beside the textual label (glyph
+// PLUS text, never icon-only — status must survive without color or symbols).
+func subagentGlyph(st convo.SubagentStatus) string {
+	switch st {
+	case convo.SubagentInputRequired:
+		return "⚠"
+	case convo.SubagentDone:
+		return "✓"
+	case convo.SubagentFailed:
+		return "✗"
+	default:
+		return "◐"
+	}
+}
+
+// renderSubagents renders the live sub-agent list (issue 0071): one row per
+// registry entry — status glyph + text label, name, current activity, and live
+// credits (0.00 until S3 wires the value). Finished entries stay listed with
+// their terminal status; the list collapses to nothing while the registry is
+// empty, so the region is ambient. Always a full-fragment, idempotent
+// re-render: the same registry state yields byte-identical HTML.
+func renderSubagents(entries []convo.SubagentView) string {
+	if len(entries) == 0 {
 		return ""
 	}
 	var b strings.Builder
-	for _, sa := range active {
-		// Description is model/SDK-originated text → it flows through html/template
-		// auto-escaping (attribute context) exactly like Label, never trusted() raw
-		// (ADR-0001). Empty descriptions render the prior chip shape: the template
-		// omits the title attribute entirely.
-		b.WriteString(frag("subagentChip", map[string]any{
-			"Label": subagentLabel(sa), "Model": sa.Model, "Description": sa.Description,
+	b.WriteString(`<ul class="subagent-list" aria-label="Sub-agents">`)
+	for _, sa := range entries {
+		label := sa.Status.Label()
+		if sa.Unverified {
+			// A zero-token, unobserved "completed" is not trusted as plain done
+			// (claude-code#47936) — say so in the label itself.
+			label += " (unverified)"
+		}
+		name := firstNonEmpty([]string{sa.DisplayName, sa.Name, "sub-agent"})
+		// Name/Description/Activity/Detail are model/SDK-originated text → they
+		// flow through html/template auto-escaping, never trusted() raw (ADR-0001).
+		// An empty Description omits the title attribute entirely.
+		b.WriteString(frag("subagentRow", map[string]any{
+			"Class": sa.Status.Class(), "Glyph": subagentGlyph(sa.Status),
+			"Working": sa.Status == convo.SubagentWorking, "Label": label,
+			"Name": name, "Model": sa.Model, "Description": sa.Description,
+			"Activity": sa.Activity, "Detail": sa.Detail,
+			"Credits": telemetry.FormatCredits(sa.Credits),
 		}))
 	}
+	b.WriteString(`</ul>`)
 	return b.String()
 }
 

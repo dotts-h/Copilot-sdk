@@ -93,14 +93,26 @@ test.describe("streaming a turn", () => {
     await expect.poll(msgs, { timeout: 15_000 }).toBeGreaterThan(before);
   });
 
-  test("the sub-agent activity strip surfaces each agent's description", async ({ page }) => {
+  test("the sub-agent list surfaces each agent's description", async ({ page }) => {
     await gotoApp(page);
     await send(page, "explore");
-    // While the scripted sub-agent runs, its chip carries the agent's description
+    // While the scripted sub-agent runs, its row carries the agent's description
     // as a title tooltip so a watcher can see WHAT each concurrent agent is doing.
     // Assert STRUCTURE (a non-empty title attribute), never the exact text.
-    const chip = page.locator(`${sel.subagents} .subagent-chip`).first();
-    await expect(chip).toHaveAttribute("title", /\S/, { timeout: 15_000 });
+    const row = page.locator(`${sel.subagents} .subagent-row`).first();
+    await expect(row).toHaveAttribute("title", /\S/, { timeout: 15_000 });
+  });
+
+  test("the sub-agent list shows a status label and live credits per row", async ({ page }) => {
+    await gotoApp(page);
+    await send(page, "explore");
+    // The live list (issue 0071): each row carries a TEXTUAL status label
+    // (working / done / failed — never color or icon alone), the agent's name,
+    // and a credits cell (0.00 cr until S3 prices the tagged usage).
+    const row = page.locator(`${sel.subagents} .subagent-row`).first();
+    await expect(row).toBeVisible({ timeout: 15_000 });
+    await expect(row.locator(".sa-status")).toContainText(/working|done/);
+    await expect(row.locator(".sa-credits")).toContainText("cr");
   });
 
   test("a sub-agent's tagged stream is parked, not leaked into the root transcript", async ({ page }) => {
@@ -117,12 +129,13 @@ test.describe("streaming a turn", () => {
     await expect(page.locator(sel.timeline)).not.toContainText("scanning internal/");
   });
 
-  test("the sub-agent activity strip does not leak a chip after the turn settles", async ({ page }) => {
+  test("a finished sub-agent stays listed with a done status", async ({ page }) => {
     await gotoApp(page);
     await send(page, "explore");
-    // The scripted sub-agent starts and finishes before the answer streams, so
-    // by the time the assistant turn lands the activity strip must be empty —
-    // the indicator is transient and never leaks once the work is done.
+    // The scripted sub-agent starts and finishes before the answer streams. The
+    // live list REPLACES the transient strip (issue 0071): once the turn lands,
+    // the row stays on the roster with its terminal textual status — done, and
+    // verified (the demo completion reports tokens), so no "(unverified)" flag.
     // Target the committed turn (`:not(#cur)`), not `.last()` which also matches
     // the transient `#cur` streaming buffer: once the turn commits, the reply
     // moves out of #cur and #cur resets empty, so `.last()` races the commit (the
@@ -130,7 +143,12 @@ test.describe("streaming a turn", () => {
     await expect(
       page.locator(`${sel.agentTurn}:not(#cur)`).filter({ hasText: "You said: explore" }),
     ).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator(`${sel.subagents} .subagent-chip`)).toHaveCount(0);
+    const done = page
+      .locator(`${sel.subagents} .subagent-row.sa-done`)
+      .filter({ hasText: "Explore" })
+      .first();
+    await expect(done).toBeVisible();
+    await expect(done.locator(".sa-status")).not.toContainText("unverified");
   });
 });
 

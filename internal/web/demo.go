@@ -1,6 +1,7 @@
 package web
 
 import (
+	"strconv"
 	"strings"
 	"time"
 
@@ -84,20 +85,24 @@ func streamDemoReply(m *copilot.MockClient, prompt string) {
 	}})
 	time.Sleep(120 * time.Millisecond)
 
-	// 5. A sub-agent runs in the background, shown as an activity indicator that
-	// appears while it works and clears when it finishes.
+	// 5. A sub-agent runs in the background, registered as a live-list row that
+	// shows working → done as it progresses (issue 0071). The demo session is
+	// shared across turns and finished rows persist on the roster, so both ids
+	// are unique per turn — exactly like the real SDK's per-invocation ids (a
+	// reused spawn id would be swallowed by the registry's duplicate guard).
 	model := "claude-sonnet-4-6"
+	spawn := "demo-sa-" + strconv.FormatInt(time.Now().UnixNano(), 36)
 	m.Emit(copilot.Event{Type: copilot.EvSubagentStart, Subagent: &copilot.SubagentInfo{
-		ToolCallID: "demo-sa-1", Name: "explorer", DisplayName: "Explore",
+		ToolCallID: spawn, Name: "explorer", DisplayName: "Explore",
 		Description: "search the repo", Model: model,
 	}})
 	// While the sub-agent works it streams its OWN deltas/tool/usage, each tagged
-	// with its instance AgentID (epic 0069 S1). The reducer PARKS these — they must
-	// not interleave into the root transcript or meter the root agent's spend — so
-	// the strip shows the sub-agent busy while its stream is held back for S2 to
-	// render. The synthetic instance id ("sub-explorer-1") is distinct from the
-	// spawn's ToolCallID ("demo-sa-1"): the two join per ADR-0040.
-	const subAgent = "sub-explorer-1"
+	// with its instance AgentID (epic 0069 S1). The reducer routes these to the
+	// sub-agent registry — the list row's current activity — and NEVER into the
+	// root transcript or the root agent's meter (ADR-0040's invariant). The
+	// synthetic instance id is distinct from the spawn's ToolCallID: the two join
+	// per ADR-0040.
+	subAgent := "sub-explorer-" + spawn
 	tagged := func(e copilot.Event) copilot.Event { e.AgentID = subAgent; return e }
 	m.Emit(tagged(copilot.Event{Type: copilot.EvMessageDelta, Text: "scanning internal/… "}))
 	m.Emit(tagged(copilot.Event{Type: copilot.EvToolStart, Tool: "grep",
@@ -107,12 +112,12 @@ func streamDemoReply(m *copilot.MockClient, prompt string) {
 		ToolCall: &copilot.ToolCall{ID: "sub-grep-1", Result: "normalize.go:71", Success: true}}))
 	m.Emit(tagged(copilot.Event{Type: copilot.EvUsage, Usage: copilot.UsageData{
 		Model: model, InputTokens: 900, OutputTokens: 120, NanoAIU: 80_000_000}}))
-	// Dwell long enough that the activity strip (and its description tooltip) is
-	// observably visible before the sub-agent finishes — see the e2e strip spec.
+	// Dwell long enough that the working row (and its description tooltip) is
+	// observably visible before the sub-agent finishes — see the e2e list spec.
 	time.Sleep(300 * time.Millisecond)
 	m.Emit(copilot.Event{Type: copilot.EvSubagentEnd, Subagent: &copilot.SubagentInfo{
-		ToolCallID: "demo-sa-1", Name: "explorer", DisplayName: "Explore", Model: model,
-		Success: true, Detail: "1.2s · 3.4k tok",
+		ToolCallID: spawn, Name: "explorer", DisplayName: "Explore", Model: model,
+		Success: true, Detail: "1.2s · 3.4k tok", TotalTokens: 3400,
 	}})
 
 	// 6. The streamed answer.

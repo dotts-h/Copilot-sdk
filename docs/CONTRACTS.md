@@ -106,12 +106,12 @@ the matching event type (e.g. `Permission` for `EvPermission`, `Decision` for `E
 `HookRun` for `EvHookRun`). **`AgentID`** (epic 0069 S1, [ADR-0040](adr/0040-subagent-identity-instance-agentid-vs-spawn-toolcallid.md))
 is the **sub-agent instance** tag, threaded from the SDK envelope (`sdk.SessionEvent.AgentID`) onto
 **every** normalized event type — **empty for the root/main agent and session-level events, i.e. every
-pre-existing path (additive, no consumer breaks)**. The reducer **filters** on it: an event with a
-non-empty `AgentID` is **parked** (dropped in both `web.handleEvent` and the workflow-lane path) so a
-sub-agent's deltas/tools/usage never mutate the root transcript or meter the root agent's spend —
-until S2 gives them their own surface. It is the **instance** key; `SubagentInfo.ToolCallID` is the
-**spawn** key; the two join at the registry (ADR-0040). The lifecycle strip (`EvSubagentStart`/`End`,
-`AgentID` empty) is unaffected. **`HookRun`** (`copilot.go`): `HookID, Command, Output, ExitCode,
+pre-existing path (additive, no consumer breaks)**. The reducer **routes** on it: an event with a
+non-empty `AgentID` reaches ONLY the **sub-agent registry** (`convo.Subagents`, issue 0071 S2) —
+its live list is the sub-agent's surface — and never mutates the root transcript or meters the root
+agent's spend (the S1 invariant). It is the **instance** key; `SubagentInfo.ToolCallID` is the
+**spawn** key; the two join at the registry by chronological first-tag-after-start (ADR-0040). The
+lifecycle events (`EvSubagentStart`/`End`, `AgentID` empty) register/settle the entry. **`HookRun`** (`copilot.go`): `HookID, Command, Output, ExitCode,
 TimedOut, Failed` — the resolved command line + its bounded untrusted output; `Output` is rendered
 through `html/template` auto-escaping (ADR-0001), never `trusted()` raw.
 `PermissionRequest` gained a `Reason` (the gating hook's message, shown on the gate). `SessionID` is empty for
@@ -130,13 +130,16 @@ diff parses, falling back to the compact form otherwise. Additive/backward-compa
 — see [ADR-0012](adr/0012-diff-review-lane-for-file-write-permissions.md)
 
 **`SubagentInfo`** (`copilot.go:79`): `ToolCallID, Name, DisplayName, Description, Model,
-Success, Detail` — carried by `EvSubagentStart`/`EvSubagentEnd`. The web layer's
-sub-agent activity strip (`web.renderSubagents` → `subagentChip`) shows one chip per
-running sub-agent (`DisplayName` + `Model`) and surfaces `Description` as the chip's
-`title=` tooltip so concurrent sub-agents in a parallel run say *what* they are doing;
-an empty `Description` renders the prior chip (no `title`). The description is
-model/SDK-originated text and flows through `html/template` auto-escaping like every
-other chip value (ADR-0001), never `trusted()` raw.
+Success, Detail, TotalTokens` — carried by `EvSubagentStart`/`EvSubagentEnd`. `TotalTokens` is the
+completion's raw reported token count beside the display-formatted `Detail`: the registry
+cross-checks it (with the observed stream) before trusting a "completed", so a zero-token,
+unobserved success renders **done (unverified)** (claude-code#47936). The web layer's sub-agent
+**live list** (`web.renderSubagents` → `subagentRow`, issue 0071) shows one row per registry entry —
+textual status label (working / input required / done / failed) + glyph, `DisplayName` + `Model`,
+current activity, and credits — and surfaces `Description` as the row's `title=` tooltip; an empty
+`Description` renders no `title`. Finished entries STAY listed with their terminal status. All
+row values are model/SDK-originated text and flow through `html/template` auto-escaping
+(ADR-0001), never `trusted()` raw.
 
 **Invariant:** every SDK-event → normalized-`Event` mapping has a test; `EvUnknown` is the
 total fallback (no SDK event is dropped silently).
