@@ -45,3 +45,9 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0039 | [Connection page — auth method via config (applies at next launch), live credential via `auth.getStatus`, no secret at rest](0039-connection-page-auth-method-via-config-status-via-auth-getstatus.md) | accepted |
 | 0040 | [Sub-agent identity through the seam — instance `AgentID` vs spawn `ToolCallID`, joined at the registry](0040-subagent-identity-instance-agentid-vs-spawn-toolcallid.md) | accepted |
 | 0041 | [The sub-agent registry — a persistent roster in `convo`, the 4-state status vocabulary, the first-tag-after-start join, and the unverified-done rule](0041-subagent-registry-roster-semantics-status-vocabulary-unverified-done.md) | accepted |
+| 0042 | [Per-sub-agent cost attribution (ledger v4 + SubagentShares, the S1-meter exclusion) and the budget leash enforced at the pre-dispatch gate](0042-per-subagent-cost-attribution-and-the-budget-leash.md) | accepted |
+| 0043 | [The pause ledger (typed records + idempotent resolution), the escalate back-channel custom tool, and `input-required` as a non-terminal lane state](0043-pause-ledger-escalate-back-channel-and-input-required-lane-state.md) | accepted |
+| 0044 | [The per-sub-agent chat overlay: a per-instance named SSE listener for the live transcript, and a steer seam gated on a lane-backed flag](0044-per-subagent-chat-overlay-named-sse-listener-and-steer-seam.md) | accepted |
+| 0045 | [Block-AST seam for markdown rendering](0045-block-ast-seam-for-markdown-rendering.md) | accepted |
+| 0046 | [Callout blocks — GitHub-alert syntax, in-house, mapped to semantic tokens](0046-callout-blocks-token-mapping.md) | accepted |
+| 0047 | [Container directives — in-house `:::name{attrs}` grammar, resolved against a registry allowlist](0047-container-directives-grammar-and-allowlist.md) | accepted |
