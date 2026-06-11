@@ -35,10 +35,11 @@ Recorded in TECH_DEBT #17 (the two god files) and #18 (the map leak).
       perm/ask/plan/elicit interaction handlers into `interactions.go` and the forge
       toggle/delete handlers into `forge_handlers.go`; the `Server` struct + send/budget
       gating stay. Same-package move, no behavior change.
-- [ ] **0089 · Sweep orphaned tool maps in `normalize.go`** ([0089](0089-normalize-toolmap-leak-sweep.md), S) —
+- [x] **0089 · Sweep orphaned tool maps in `normalize.go`** ([0089](0089-normalize-toolmap-leak-sweep.md), S) —
       `c.toolNames`/`c.toolMeta` orphan an entry on a mid-tool error (start with no matching
       complete); add a sweep in `DeleteSession`/`Close` so a long-lived multi-session
-      instance doesn't accumulate. Different package (`copilot`).
+      instance doesn't accumulate. Different package (`copilot`). **Done** — a `toolSession`
+      reverse index + `sweepToolMaps(sid)` reclaim a session's orphans on teardown (TECH_DEBT #18 paid).
 
 ## Sequencing & parallelism
 

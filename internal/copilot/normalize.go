@@ -110,6 +110,7 @@ func (c *SDKClient) makeHandler(sid string) func(sdk.SessionEvent) {
 			c.mu.Lock()
 			c.toolNames[d.ToolCallID] = d.ToolName
 			c.toolMeta[d.ToolCallID] = postToolMeta(d, argsSummary)
+			c.toolSession[d.ToolCallID] = sid // so teardown can reclaim an orphan (issue 0089)
 			c.mu.Unlock()
 			tc := &ToolCall{ID: d.ToolCallID, Name: d.ToolName, Args: argsSummary}
 			if d.MCPServerName != nil {
@@ -126,6 +127,7 @@ func (c *SDKClient) makeHandler(sid string) func(sdk.SessionEvent) {
 			delete(c.toolNames, d.ToolCallID)
 			meta := c.toolMeta[d.ToolCallID]
 			delete(c.toolMeta, d.ToolCallID)
+			delete(c.toolSession, d.ToolCallID)
 			pol := c.policies[sid]
 			c.mu.Unlock()
 			emit(Event{Type: EvToolEnd, Tool: name, ToolCall: &ToolCall{

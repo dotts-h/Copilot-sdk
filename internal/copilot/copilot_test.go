@@ -102,17 +102,18 @@ func TestCreateSessionReturnsDistinctIDs(t *testing.T) {
 // runtime, so the pure event-translation logic can be tested without the CLI.
 func newTestSDKClient() *SDKClient {
 	return &SDKClient{
-		perms:     newPermBridge(),
-		inputs:    newInputBridge(),
-		plans:     newPlanBridge(),
-		elicits:   newElicitBridge(),
-		sessions:  map[string]*sdk.Session{},
-		unsubs:    map[string]func(){},
-		toolNames: map[string]string{},
-		toolMeta:  map[string]toolMeta{},
-		reasoned:  map[string]bool{},
-		events:    make(chan Event, 64),
-		done:      make(chan struct{}),
+		perms:       newPermBridge(),
+		inputs:      newInputBridge(),
+		plans:       newPlanBridge(),
+		elicits:     newElicitBridge(),
+		sessions:    map[string]*sdk.Session{},
+		unsubs:      map[string]func(){},
+		toolNames:   map[string]string{},
+		toolMeta:    map[string]toolMeta{},
+		toolSession: map[string]string{},
+		reasoned:    map[string]bool{},
+		events:      make(chan Event, 64),
+		done:        make(chan struct{}),
 	}
 }
 

@@ -33,11 +33,15 @@ type SDKClient struct {
 	mu        sync.Mutex
 	sessions  map[string]*sdk.Session
 	unsubs    map[string]func()
-	toolNames map[string]string        // toolCallID -> toolName, for matching end events
-	toolMeta  map[string]toolMeta      // toolCallID -> {kind, target}, for PostToolUse matching (ADR-0032)
-	reasoned  map[string]bool          // sid -> reasoning deltas streamed in the current segment
-	policies  map[string]sessionPolicy // sid -> compiled governance policy (ADR-0029/0030)
-	closed    bool
+	toolNames map[string]string   // toolCallID -> toolName, for matching end events
+	toolMeta  map[string]toolMeta // toolCallID -> {kind, target}, for PostToolUse matching (ADR-0032)
+	// toolSession reverse-indexes the live toolCallID -> sid so session teardown can
+	// reclaim toolNames/toolMeta entries orphaned by a tool that started but never
+	// completed (a mid-tool SDK error). Issue 0089.
+	toolSession map[string]string
+	reasoned    map[string]bool          // sid -> reasoning deltas streamed in the current segment
+	policies    map[string]sessionPolicy // sid -> compiled governance policy (ADR-0029/0030)
+	closed      bool
 
 	// modelEfforts caches each model's supported reasoning efforts (from
 	// ListModels) so CreateSession can avoid sending an effort to a model that
@@ -159,21 +163,22 @@ func NewSDKClient(ctx context.Context, opts Options) (*SDKClient, error) {
 		return nil, fmt.Errorf("start copilot runtime: %w", err)
 	}
 	return &SDKClient{
-		client:    c,
-		perms:     newPermBridge(),
-		inputs:    newInputBridge(),
-		plans:     newPlanBridge(),
-		elicits:   newElicitBridge(),
-		sessions:  make(map[string]*sdk.Session),
-		unsubs:    make(map[string]func()),
-		toolNames: make(map[string]string),
-		toolMeta:  make(map[string]toolMeta),
-		reasoned:  make(map[string]bool),
-		policies:  make(map[string]sessionPolicy),
-		runCmd:    execCommand,
-		lookupEnv: os.Getenv,
-		events:    make(chan Event, 256),
-		done:      make(chan struct{}),
+		client:      c,
+		perms:       newPermBridge(),
+		inputs:      newInputBridge(),
+		plans:       newPlanBridge(),
+		elicits:     newElicitBridge(),
+		sessions:    make(map[string]*sdk.Session),
+		unsubs:      make(map[string]func()),
+		toolNames:   make(map[string]string),
+		toolMeta:    make(map[string]toolMeta),
+		toolSession: make(map[string]string),
+		reasoned:    make(map[string]bool),
+		policies:    make(map[string]sessionPolicy),
+		runCmd:      execCommand,
+		lookupEnv:   os.Getenv,
+		events:      make(chan Event, 256),
+		done:        make(chan struct{}),
 	}, nil
 }
 
@@ -320,8 +325,23 @@ func (c *SDKClient) DeleteSession(ctx context.Context, sessionID string) error {
 	delete(c.sessions, sessionID)
 	delete(c.unsubs, sessionID)
 	delete(c.policies, sessionID)
+	c.sweepToolMaps(sessionID)
 	c.mu.Unlock()
 	return nil
+}
+
+// sweepToolMaps drops any toolNames/toolMeta entries owned by sid that a tool
+// completion never reclaimed — a tool that started but never completed (a
+// mid-tool SDK error) would otherwise leak its entry until Close. The caller
+// must hold c.mu. Issue 0089.
+func (c *SDKClient) sweepToolMaps(sid string) {
+	for id, owner := range c.toolSession {
+		if owner == sid {
+			delete(c.toolNames, id)
+			delete(c.toolMeta, id)
+			delete(c.toolSession, id)
+		}
+	}
 }
 
 // shouldDropReasoningEffort reports whether a requested reasoning effort must be
@@ -511,6 +531,11 @@ func (c *SDKClient) Close() error {
 		c.sessions = map[string]*sdk.Session{}
 		c.unsubs = map[string]func(){}
 		c.policies = map[string]sessionPolicy{}
+		// Drop any tool entries orphaned by tools that never completed (issue 0089);
+		// the whole client is going away, so reset rather than per-session sweep.
+		c.toolNames = map[string]string{}
+		c.toolMeta = map[string]toolMeta{}
+		c.toolSession = map[string]string{}
 		c.mu.Unlock()
 
 		for _, s := range sessions {
