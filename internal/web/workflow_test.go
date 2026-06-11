@@ -1,6 +1,8 @@
 package web
 
 import (
+	"context"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -8,6 +10,8 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1004,5 +1008,148 @@ func TestWorkflowFormRoundTripsCondition(t *testing.T) {
 	edit := renderWorkflowForm(*wf, false, "")
 	if !strings.Contains(edit, "[step 1 output-contains issues]") {
 		t.Errorf("edit form should render the predicate prefix so it isn't lost: %q", edit)
+	}
+}
+
+// --- worker pool / backpressure (issue 0084) ---
+
+// blockingClient is a counting stub that controls when each CreateSession call
+// returns. It lets the test measure peak concurrency against the worker cap.
+type blockingClient struct {
+	copilot.Client // embed for methods we don't need to override
+
+	mu       sync.Mutex
+	inflight int32         // atomic; tracks sessions currently in CreateSession
+	peak     int32         // atomic; highest observed inflight
+	unblock  chan struct{} // close to let ALL blocked CreateSession calls return
+	sessions int
+	sent     []string
+}
+
+func newBlockingClient() *blockingClient {
+	return &blockingClient{
+		Client:  copilot.NewMockClient(),
+		unblock: make(chan struct{}),
+	}
+}
+
+func (c *blockingClient) CreateSession(_ context.Context, _ copilot.SessionSpec) (string, error) {
+	cur := atomic.AddInt32(&c.inflight, 1)
+	for {
+		p := atomic.LoadInt32(&c.peak)
+		if cur <= p || atomic.CompareAndSwapInt32(&c.peak, p, cur) {
+			break
+		}
+	}
+	// Block until the test signals "go".
+	<-c.unblock
+	atomic.AddInt32(&c.inflight, -1)
+	c.mu.Lock()
+	c.sessions++
+	id := fmt.Sprintf("blk-session-%d", c.sessions)
+	c.mu.Unlock()
+	return id, nil
+}
+
+func (c *blockingClient) Send(_ context.Context, _ string, prompt string, _ []string, _ string) error {
+	c.mu.Lock()
+	c.sent = append(c.sent, prompt)
+	c.mu.Unlock()
+	return nil
+}
+
+func (c *blockingClient) SentCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.sent)
+}
+
+// Events/Close are forwarded to the embedded mock so the hub pump can drain events.
+func (c *blockingClient) Events() <-chan copilot.Event { return c.Client.Events() }
+func (c *blockingClient) Close() error                 { return c.Client.Close() }
+
+// TestLaunchLanesWorkerPoolCapsConcurrency drives a parallel workflow whose lane
+// count (laneWorkerCount+3) exceeds the fixed worker cap and asserts:
+//
+//  1. concurrent in-flight CreateSession calls never exceed laneWorkerCount, and
+//  2. every lane still completes (all prompts are sent after unblocking).
+//
+// The pure run engine is not touched — this exercises only the launchLanes adapter.
+func TestLaunchLanesWorkerPoolCapsConcurrency(t *testing.T) {
+	const cap = laneWorkerCount
+	const total = cap + 3 // intentionally more than the cap
+
+	bc := newBlockingClient()
+
+	forge := &ctxforge.Forge{}
+	_ = forge.AddAgent(ctxforge.Agent{ID: "ag", Name: "Agent", Model: "gpt-5"})
+	steps := make([]ctxforge.WorkflowStep, total)
+	for i := range steps {
+		steps[i] = ctxforge.WorkflowStep{AgentID: "ag", Prompt: fmt.Sprintf("lane-%d", i)}
+	}
+	_ = forge.AddWorkflow(ctxforge.Workflow{
+		ID: "wide", Name: "Wide", Mode: ctxforge.WorkflowParallel, Steps: steps,
+	})
+	hub := New(Options{
+		Client: bc, Forge: forge,
+		Config: &config.Config{DefaultModel: "gpt-5"},
+		Meter:  telemetry.NewMeter(telemetry.DefaultPriceBook()),
+		Logger: log.New(io.Discard, "", 0),
+	})
+	s := hub.newSession("t")
+
+	// Build and launch the run via launchLanes directly so we avoid the HTTP layer.
+	wf, compiled, err := forge.CompileWorkflow("wide")
+	if err != nil {
+		t.Fatalf("compile: %v", err)
+	}
+	specs := make([]copilot.SessionSpec, len(compiled))
+	run := newWorkflowRun(wf, compiled, specs)
+	idxs := run.start() // returns all lane indices (parallel mode)
+
+	// Start launchLanes (it returns as soon as the worker goroutines are spinning).
+	s.launchLanes(run, idxs)
+
+	// Wait until cap workers are blocked inside CreateSession — this proves that
+	// exactly cap goroutines entered the seam simultaneously and the rest are queued.
+	// We require inflight to actually reach cap; a silent timeout would let the
+	// assertion pass vacuously (peak==0 satisfies peak≤cap even with a broken pool).
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if atomic.LoadInt32(&bc.inflight) >= int32(cap) {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if atomic.LoadInt32(&bc.inflight) < int32(cap) {
+		t.Fatalf("timed out waiting for %d workers to block in CreateSession (inflight=%d); pool may not be starting workers",
+			cap, atomic.LoadInt32(&bc.inflight))
+	}
+
+	// Assert concurrency at the cap: no more than laneWorkerCount concurrent sessions.
+	peak := atomic.LoadInt32(&bc.peak)
+	if peak > int32(cap) {
+		t.Errorf("peak concurrent in-flight sessions = %d, want ≤ %d (the worker cap)", peak, cap)
+	}
+
+	// Unblock all workers and wait for every lane to send its prompt.
+	close(bc.unblock)
+	deadline = time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if bc.SentCount() >= total {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// All lanes must complete.
+	if got := bc.SentCount(); got != total {
+		t.Errorf("want %d prompts sent (all lanes), got %d", total, got)
+	}
+
+	// Re-check peak after all workers have passed through.
+	peak = atomic.LoadInt32(&bc.peak)
+	if peak > int32(cap) {
+		t.Errorf("final peak concurrent in-flight sessions = %d, want ≤ %d", peak, cap)
 	}
 }

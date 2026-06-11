@@ -539,10 +539,36 @@ func (s *Server) workflowLaneSpec(cs ctxforge.SessionSpec) copilot.SessionSpec {
 	return SeamSpec(cs, defModel, defEffort, s.lookupEnv, s.hub.baseSpec.Workspace, autoApprove)
 }
 
-// launchLanes starts each given lane's sub-run concurrently.
+// laneWorkerCount is the fixed size of the worker pool that bounds concurrent
+// in-flight lane sessions. Excess lanes wait in the queue until a worker is free
+// (backpressure). The value is large enough for typical parallel workflows (a few
+// agents) while preventing unbounded fan-out on wide workflows (issue 0084).
+const laneWorkerCount = 8
+
+// launchLanes starts each given lane via a bounded worker pool so that at most
+// laneWorkerCount lanes are in-flight concurrently. Lanes beyond the cap queue and
+// start as workers free up — no lane is dropped. Result ordering is still driven by
+// finishLane/evalPending, not by the order lanes are dispatched here.
+//
+// Lock order: workers call startLane, which may acquire s.mu and s.hub.forgeMu
+// internally (forgeMu → s.mu, never inverted). launchLanes itself holds no lock.
 func (s *Server) launchLanes(run *workflowRun, idxs []int) {
+	if len(idxs) == 0 {
+		return
+	}
+
+	queue := make(chan int, len(idxs))
 	for _, i := range idxs {
-		go s.startLane(run, i)
+		queue <- i
+	}
+	close(queue)
+
+	for range min(laneWorkerCount, len(idxs)) {
+		go func() {
+			for i := range queue {
+				s.startLane(run, i)
+			}
+		}()
 	}
 }
 
