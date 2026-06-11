@@ -439,6 +439,23 @@ button.add, button.abort, .run-head .stop-run, .run-rec-head .rerun,
 .body.md .callout-warning   { --callout-tone: var(--warn);    --callout-soft: var(--warn-soft); }
 .body.md .callout-caution   { --callout-tone: var(--bad);     --callout-soft: var(--bad-soft); }
 
+/* designed code blocks (R3, issue 0079): a fenced block rendered as a framed
+   component — a header carrying the language label + a copy affordance over the
+   token-styled <pre> body. The frame owns the surface/border/radius (from the
+   ladders); the inner <pre> drops its own chrome so the two never double-frame.
+   All colors reuse guarded semantic tokens (no new pair), so both themes stay AA.
+   The copy button is progressive: the <pre> is selectable without it. */
+.body.md .code-block { margin: 0 0 .5rem; border: 1px solid var(--panel);
+  border-radius: var(--radius-3); background: var(--bg); overflow: hidden; }
+.body.md .code-head { display: flex; align-items: center; justify-content: space-between;
+  gap: .5rem; padding: .2rem .6rem; background: var(--panel); }
+.body.md .code-lang { font: var(--text-1)/1.4 var(--font-mono); color: var(--dim);
+  text-transform: uppercase; letter-spacing: var(--tracking-caps); }
+.body.md .code-copy { border: none; background: none; cursor: pointer; color: var(--dim);
+  font: var(--text-1) var(--font-sans); padding: .1rem .4rem; border-radius: var(--radius-1); }
+.body.md .code-copy:hover { color: var(--fg); background: var(--overlay); }
+.body.md .code-block pre { margin: 0; border: none; border-radius: 0; background: none; }
+
 /* reasoning ("thinking") — dim, collapsible */
 .turn.reasoning { background: var(--raised-2); border-left: 3px solid var(--subtle);
   color: var(--dim); font-size: .92rem; }

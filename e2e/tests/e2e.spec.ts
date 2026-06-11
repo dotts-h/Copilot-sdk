@@ -835,8 +835,14 @@ test.describe("sessions", () => {
     // Resume the first session; its history rehydrates into the chat timeline.
     await page.locator(`#main button[hx-post="/sessions/demo-sess-1/resume"]`).click();
     await expect(page.locator(sel.userTurn).filter({ hasText: "Help me refactor the auth flow" })).toBeVisible();
-    // The committed agent turn is markdown-rendered: the fenced code becomes a <pre>.
-    await expect(page.locator(`${sel.agentTurn} pre`)).toContainText("parseCredentials");
+    // The committed agent turn is markdown-rendered: the fenced code becomes a
+    // designed code block (R3) — a token-styled frame whose head carries the
+    // language label + a progressive copy affordance, over the <pre> body.
+    const codeBlock = page.locator(`${sel.agentTurn} .code-block`).first();
+    await expect(codeBlock).toBeVisible();
+    await expect(codeBlock.locator(".code-lang")).toHaveText("go");
+    await expect(codeBlock.locator(".code-copy")).toBeVisible();
+    await expect(codeBlock.locator("pre code.language-go")).toContainText("parseCredentials");
     // GitHub-alert blockquotes render as designed callout components (R2): the
     // kind-classed surface carries a glyph + text label (never color alone).
     const note = page.locator(`${sel.agentTurn} .callout.callout-note`);

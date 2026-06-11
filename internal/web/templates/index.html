@@ -170,6 +170,28 @@
       input.focus();
     }
 
+    // copyCode copies a designed code block's source to the clipboard (R3, issue
+    // 0079). It reads textContent from the block's <code> — the browser un-escapes
+    // the server-escaped entities, so the copy is the original source — and briefly
+    // swaps the button label to confirm. Progressive: the <pre> is selectable
+    // without this, and a clipboard rejection (or an engine without the async API)
+    // is swallowed rather than thrown.
+    function copyCode(btn) {
+      var block = btn.closest('.code-block');
+      var code = block && block.querySelector('code');
+      if (!code) return;
+      var text = code.textContent || '';
+      var confirm = function () {
+        var label = btn.querySelector('.code-copy-label') || btn;
+        var prev = label.textContent;
+        label.textContent = 'Copied';
+        setTimeout(function () { label.textContent = prev; }, 1200);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(confirm, function () { /* denied: leave the block to manual select */ });
+      }
+    }
+
     // mcpToggleSecret flips an Env row's value input between masked (password)
     // and plain text when its "secret" checkbox toggles, so a secret reference is
     // entered masked. Persistence is server-side: a secret row stores only the

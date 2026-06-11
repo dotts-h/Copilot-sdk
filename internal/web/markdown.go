@@ -238,11 +238,19 @@ func (h headingBlock) renderTo(b *strings.Builder) {
 }
 
 func (c codeBlock) renderTo(b *strings.Builder) {
-	b.WriteString("<pre><code")
-	if c.lang != "" {
-		b.WriteString(` class="language-` + html.EscapeString(c.lang) + `"`)
-	}
-	b.WriteString(">" + html.EscapeString(c.code) + "</code></pre>")
+	// Designed code-block frame (R3, issue 0079): the language label + a copy
+	// affordance over a token-styled surface, rendered through the frag() template
+	// the rest of the UI uses instead of hand-built <pre> string concat. The code
+	// stays escape-first — html.EscapeString runs before it rides into the template
+	// as trusted HTML — so the <pre> can never carry live markup; .Lang is escaped
+	// contextually by html/template in both the label and the language-* class.
+	b.WriteString(frag("codeBlock", struct {
+		Lang string
+		Code template.HTML
+	}{
+		Lang: c.lang,
+		Code: template.HTML(html.EscapeString(c.code)), //nolint:gosec // EscapeString escapes first; verbatim code only
+	}))
 }
 
 func (l listBlock) renderTo(b *strings.Builder) {
