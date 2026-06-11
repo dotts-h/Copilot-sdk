@@ -97,8 +97,8 @@ func TestRenderBlocks(t *testing.T) {
 		want   string
 	}{
 		{"heading", []Block{headingBlock{level: 2, text: "**hi**"}}, "<h2><strong>hi</strong></h2>"},
-		{"code escapes", []Block{codeBlock{lang: "", code: "<b>"}}, "<pre><code>&lt;b&gt;</code></pre>"},
-		{"code lang escaped", []Block{codeBlock{lang: `x"y`, code: "c"}}, `<pre><code class="language-x&#34;y">c</code></pre>`},
+		{"code escapes", []Block{codeBlock{lang: "", code: "<b>"}}, wantCodeBlock("", "", "&lt;b&gt;")},
+		{"code lang escaped", []Block{codeBlock{lang: `x"y`, code: "c"}}, wantCodeBlock(`x&#34;y`, `x&#34;y`, "c")},
 		{"paragraph soft break", []Block{paragraphBlock{lines: []string{"a", "b"}}}, "<p>a<br>b</p>"},
 		{"ordered list", []Block{listBlock{ordered: true, items: []string{"a"}}}, "<ol><li>a</li></ol>"},
 		{"quote wraps children", []Block{quoteBlock{children: []Block{hrBlock{}}}}, "<blockquote><hr></blockquote>"},
@@ -107,6 +107,44 @@ func TestRenderBlocks(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			if got := renderBlocks(c.blocks); got != c.want {
 				t.Errorf("renderBlocks(%#v)\n  got:  %q\n  want: %q", c.blocks, got, c.want)
+			}
+		})
+	}
+}
+
+// wantCodeBlock builds the expected designed-code-block HTML (R3, issue 0079):
+// the token-styled frame with a language label, a progressive copy affordance,
+// and the escape-first <pre><code> body. langAttr is the escaped language hint
+// for the `language-*` class (empty → no class), langLabel its escaped visible
+// label, and code the already-escaped source.
+func wantCodeBlock(langAttr, langLabel, code string) string {
+	cls := ""
+	if langAttr != "" {
+		cls = ` class="language-` + langAttr + `"`
+	}
+	return `<div class="code-block"><div class="code-head"><span class="code-lang">` + langLabel +
+		`</span><button type="button" class="code-copy" onclick="copyCode(this)" aria-label="Copy code">` +
+		`<span class="code-copy-label">Copy</span></button></div><pre><code` + cls + `>` + code + `</code></pre></div>`
+}
+
+// TestRenderCodeBlockDesigned pins the R3 frame: a code block renders through the
+// codeBlock frag as a designed component (header with language label + copy
+// button, token-styled body), with the code escaped before it rides into the
+// template — never hand-built <pre> string concat.
+func TestRenderCodeBlockDesigned(t *testing.T) {
+	cases := []struct {
+		name string
+		blk  codeBlock
+		want string
+	}{
+		{"with language", codeBlock{lang: "go", code: "x := 1"}, wantCodeBlock("go", "go", "x := 1")},
+		{"no language", codeBlock{lang: "", code: "plain"}, wantCodeBlock("", "", "plain")},
+		{"body escaped", codeBlock{lang: "html", code: "<img onerror=x>"}, wantCodeBlock("html", "html", "&lt;img onerror=x&gt;")},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := renderBlocks([]Block{c.blk}); got != c.want {
+				t.Errorf("renderBlocks(%#v)\n  got:  %q\n  want: %q", c.blk, got, c.want)
 			}
 		})
 	}

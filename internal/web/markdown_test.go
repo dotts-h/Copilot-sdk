@@ -43,9 +43,9 @@ func TestRenderMarkdown(t *testing.T) {
 		{"hr stars", "***", "<hr>"},
 		{"link http", "[x](https://e.com)", `<p><a href="https://e.com">x</a></p>`},
 		{"link relative", "[x](/local)", `<p><a href="/local">x</a></p>`},
-		{"fenced code", "```go\nx := 1\n```", `<pre><code class="language-go">x := 1</code></pre>`},
-		{"fenced code no lang", "```\nplain\n```", "<pre><code>plain</code></pre>"},
-		{"fenced code escapes html", "```\n<b>hi</b>\n```", "<pre><code>&lt;b&gt;hi&lt;/b&gt;</code></pre>"},
+		{"fenced code", "```go\nx := 1\n```", wantCodeBlock("go", "go", "x := 1")},
+		{"fenced code no lang", "```\nplain\n```", wantCodeBlock("", "", "plain")},
+		{"fenced code escapes html", "```\n<b>hi</b>\n```", wantCodeBlock("", "", "&lt;b&gt;hi&lt;/b&gt;")},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -142,6 +142,9 @@ var allowedTags = map[string]bool{
 	// callout components (R2, issue 0078): the callout frag emits div/span with
 	// fixed classes derived from a validated kind set — never attacker markup.
 	"div": true, "span": true,
+	// designed code blocks (R3, issue 0079): the codeBlock frag wraps <pre> in a
+	// framed component whose head carries the language label + a copy <button>.
+	"button": true,
 }
 
 // assertOnlyAllowedTags fails if the rendered HTML contains any tag outside the

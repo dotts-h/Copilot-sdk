@@ -14,6 +14,14 @@
      .Body already-escaped trusted HTML from the markdown renderer. */}}
 {{define "callout"}}<div class="callout callout-{{.Kind}}"><div class="callout-head"><span class="callout-glyph" aria-hidden="true">{{.Glyph}}</span><span class="callout-title">{{.Title}}</span></div><div class="callout-body">{{.Body}}</div></div>{{end}}
 
+{{/* codeBlock (R3, issue 0079): a fenced code block as a designed component — a
+     head carrying the language label (the hint we already parse) + a progressive
+     copy affordance, over the token-styled <pre> body. .Lang is the raw language
+     hint (auto-escaped here, in the label and the language-* class); .Code is the
+     already-escaped source as trusted HTML. The copy button reads the <code>
+     textContent client-side (copyCode), so the block stays selectable without JS. */}}
+{{define "codeBlock"}}<div class="code-block"><div class="code-head"><span class="code-lang">{{.Lang}}</span><button type="button" class="code-copy" onclick="copyCode(this)" aria-label="Copy code"><span class="code-copy-label">Copy</span></button></div><pre><code{{if .Lang}} class="language-{{.Lang}}"{{end}}>{{.Code}}</code></pre></div>{{end}}
+
 {{define "toolCard"}}<div{{if .ID}} id="tool-{{.ID}}"{{end}} class="turn tool {{.State}}"><div class="tool-head"><span class="glyph">{{.Glyph}}</span> <span class="tool-name">{{.Name}}</span>{{if .Args}} <span class="tool-args">{{richtext .Args}}</span>{{end}}</div>{{if .ShowProgress}}<div class="tool-progress">… {{richtext .Progress}}</div>{{end}}{{if .Pending}}<div class="tool-pending skeleton" aria-hidden="true"></div>{{end}}{{if .ShowResult}}<pre class="tool-result">{{richtext .Result}}</pre>{{end}}</div>{{end}}
 
 {{define "cur"}}<div id="cur" class="{{.Class}}">{{if .Has}}<span>{{richtext .Text}}</span>{{end}}</div>{{end}}
