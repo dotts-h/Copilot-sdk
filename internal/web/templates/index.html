@@ -181,14 +181,14 @@
       var code = block && block.querySelector('code');
       if (!code) return;
       var text = code.textContent || '';
-      var confirm = function () {
+      var flash = function () {
         var label = btn.querySelector('.code-copy-label') || btn;
         var prev = label.textContent;
         label.textContent = 'Copied';
         setTimeout(function () { label.textContent = prev; }, 1200);
       };
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(confirm, function () { /* denied: leave the block to manual select */ });
+        navigator.clipboard.writeText(text).then(flash, function () { /* denied: leave the block to manual select */ });
       }
     }
 

@@ -454,7 +454,11 @@ button.add, button.abort, .run-head .stop-run, .run-rec-head .rerun,
 .body.md .code-copy { border: none; background: none; cursor: pointer; color: var(--dim);
   font: var(--text-1) var(--font-sans); padding: .1rem .4rem; border-radius: var(--radius-1); }
 .body.md .code-copy:hover { color: var(--fg); background: var(--overlay); }
-.body.md .code-block pre { margin: 0; border: none; border-radius: 0; background: none; }
+/* The inner <pre> fully owns its presentation (padding/scroll) rather than
+   inheriting it from the base .body.md pre rule, so the frame and the body have
+   one owner each — no partial override to keep in sync. */
+.body.md .code-block pre { margin: 0; padding: .6rem .75rem; border: none;
+  border-radius: 0; background: none; overflow-x: auto; }
 
 /* reasoning ("thinking") — dim, collapsible */
 .turn.reasoning { background: var(--raised-2); border-left: 3px solid var(--subtle);
