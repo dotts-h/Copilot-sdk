@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/dotts-h/copilot-sdk/internal/convo"
@@ -557,11 +556,6 @@ func (s *Server) launchLanes(run *workflowRun, idxs []int) {
 	if len(idxs) == 0 {
 		return
 	}
-	// For a single lane skip the channel overhead — the common case in sequential mode.
-	if len(idxs) == 1 {
-		go s.startLane(run, idxs[0])
-		return
-	}
 
 	queue := make(chan int, len(idxs))
 	for _, i := range idxs {
@@ -569,23 +563,13 @@ func (s *Server) launchLanes(run *workflowRun, idxs []int) {
 	}
 	close(queue)
 
-	workers := laneWorkerCount
-	if len(idxs) < workers {
-		workers = len(idxs)
-	}
-	var wg sync.WaitGroup
-	wg.Add(workers)
-	for w := 0; w < workers; w++ {
+	for range min(laneWorkerCount, len(idxs)) {
 		go func() {
-			defer wg.Done()
 			for i := range queue {
 				s.startLane(run, i)
 			}
 		}()
 	}
-	// Block in a separate goroutine so the caller (the HTTP handler goroutine or a
-	// startLane goroutine from laneError) is not held while workers run.
-	go wg.Wait()
 }
 
 // startLane opens a backing session for a lane and sends its (handoff) prompt.

@@ -1112,12 +1112,18 @@ func TestLaunchLanesWorkerPoolCapsConcurrency(t *testing.T) {
 
 	// Wait until cap workers are blocked inside CreateSession — this proves that
 	// exactly cap goroutines entered the seam simultaneously and the rest are queued.
+	// We require inflight to actually reach cap; a silent timeout would let the
+	// assertion pass vacuously (peak==0 satisfies peak≤cap even with a broken pool).
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		if atomic.LoadInt32(&bc.inflight) >= int32(cap) {
 			break
 		}
 		time.Sleep(5 * time.Millisecond)
+	}
+	if atomic.LoadInt32(&bc.inflight) < int32(cap) {
+		t.Fatalf("timed out waiting for %d workers to block in CreateSession (inflight=%d); pool may not be starting workers",
+			cap, atomic.LoadInt32(&bc.inflight))
 	}
 
 	// Assert concurrency at the cap: no more than laneWorkerCount concurrent sessions.
