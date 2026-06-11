@@ -22,7 +22,7 @@ issues are added or closed.
 | [0069](0069-epic-first-class-subagents.md) | Epic: First-class sub-agents — live view, per-subagent cost, HITL pause/continue/cancel (roadmap v12) | closed | 0070, 0071, 0072, 0073, 0074, 0075 |
 | [0076](0076-epic-designed-agent-output.md) | Epic: Designed agent output — rich, token-styled components from agent markdown (roadmap v13) | closed | 0077, 0078, 0079, 0080, 0081, 0082 |
 | [0083](0083-epic-orchestration-robustness-backpressure-replayability-considered-and-rejected-event-bus.md) | Epic: Orchestration robustness — backpressure + replayability (considered-and-rejected event bus) (roadmap v14) | closed | 0084, 0085 |
-| [0086](0086-epic-code-health-followups.md) | Epic: Code-health follow-ups — structural splits + a normalize map-leak sweep (RETROS 0005) | open | 0087, 0088, 0089 |
+| [0086](0086-epic-code-health-followups.md) | Epic: Code-health follow-ups — structural splits + a normalize map-leak sweep (RETROS 0005) | closed | 0087, 0088, 0089 |
 
 ## Issues
 
@@ -103,5 +103,5 @@ issues are added or closed.
 | [0084](0084-bounded-lane-worker-pool-backpressure-for-wide-parallel-workflows.md) | Bounded lane worker pool — backpressure for wide parallel workflows | closed | medium | 0083 | depends_on: —, bounds launchLanes fan-out; no new seam; PR #148 |
 | [0085](0085-per-run-event-log-for-replay-audit-on-appendonlystore.md) | Per-run event log for replay/audit on AppendOnlyStore | closed | medium | 0083 | depends_on: —, ADR-0048, builds on AppendOnlyStore (0033); replay vs summary |
 | [0087](0087-split-workflow-god-file.md) | Split workflow.go — separate the run engine, seam adapter, renderer, demo, and CRUD | closed | low | 0086 | depends_on: —, RETROS 0005, TECH_DEBT #17; parallel-safe w/ 0089 |
-| [0088](0088-split-server-god-file.md) | Split server.go — lift the interaction + forge-mutation handlers out of the god file | open | low | 0086 | depends_on: —, RETROS 0005, TECH_DEBT #17; same package as 0087 |
+| [0088](0088-split-server-god-file.md) | Split server.go — lift the interaction + forge-mutation handlers out of the god file | closed | low | 0086 | depends_on: —, RETROS 0005, TECH_DEBT #17; same package as 0087 |
 | [0089](0089-normalize-toolmap-leak-sweep.md) | Sweep orphaned toolNames/toolMeta entries in normalize.go on session teardown | closed | low | 0086 | depends_on: —, RETROS 0005, TECH_DEBT #18 (paid); toolSession index + sweepToolMaps |
