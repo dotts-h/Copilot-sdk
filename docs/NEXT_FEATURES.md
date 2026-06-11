@@ -10,6 +10,79 @@
 > are promoted to `docs/issues/` under epic **0022**; the rest stay candidates here
 > until promoted. Architectural choices are recorded as ADRs.
 
+---
+
+## Roadmap v13 pass — designed agent output (2026-06-11)
+
+> Latest pass. Promoted to `docs/issues/` as epic **0076** (children 0077–0082, R1–R6);
+> GitHub #128 / #129–#134. Grounded in an internal render-pipeline map + an external scan
+> of how leading agent UIs turn model output into components (Claude Artifacts, Vercel v0
+> generative-UI, Raycast/Linear/Geist tokens, Perplexity citations, GitHub alerts).
+
+**Thesis (the differentiator).** We own the entire server-side render pipeline, so we can
+translate agent markdown output into *designed* components — callouts, designed code
+blocks, tables, cards/collapsibles, citations — instead of plain markdown. The external
+scan's load-bearing finding: **~80% of the perceived "richness" of Artifacts/Canvas/v0 is
+achievable server-side with zero client JS**; the remaining 20% (live-executing artifacts,
+Mermaid) is exactly the part that needs a build chain + sandboxed iframes — i.e. the part
+that fights this stack — so it stays out of scope.
+
+**The doctrine shapes the build.** The external research recommends
+`goldmark + Chroma + bluemonday`. We **reject** that: ADR-0001 + REGRESSIONS already
+rejected `gomarkdown`+`bluemonday` (transitive deps vs. one audited escape path). The
+*design vocabulary* (GitHub alerts `> [!NOTE]`, container directives `:::card`, citation
+cards, elevation-by-lightness tokens) is adoptable; the *libraries* are not. Every slice is
+an **in-house** extension of the existing escape-first renderer (zero deps, one CSS file,
+both-theme axe, no build chain, no new JS, unit-testable without a browser).
+
+**The architectural move.** Today `renderMarkdown` (`internal/web/markdown.go`) is a
+monolithic line-by-line regex `string→HTML` transform with **no per-block extension
+point** — while the UI's *designed* surfaces (tool cards, diff review, lane cards,
+sub-agent rows) are built data→`frag()`→token-styled HTML. R1 bridges them by introducing a
+typed **block-AST** between parse and render, so each rich block becomes a `frag()`
+template:
+
+```
+markdown → parseBlocks() → []Block{Para,Heading,Code,Callout,Table,Card…} → renderBlock() → frag() → trusted HTML
+```
+
+**Slices (see epic 0076):** R1 block-AST seam (keystone, byte-identical refactor) · R2
+callouts/admonitions (highest visual ROI; the model already emits the syntax) · R3 designed
+code blocks (language label + copy, no highlighting lib) · R4 tables (the missing common
+block) · R5 container directives → allowlisted cards/collapsibles (the safe generative-UI
+mechanism) · R6 citation cards (stretch). **Out of scope:** live-executing artifacts,
+Mermaid.
+
+**Other live candidates (not chosen this pass):** persist pause records
+(TECH_DEBT — the one gap epic 0069 explicitly deferred, needed once unattended/autopilot
+runs matter) · embedded MCP server · async ledger flush. The rendering epic was picked as
+the most *differentiating* and the best fit for the stack.
+
+### Sources (cited research, roadmap-v13)
+- Generative UI / structured-output → components: vercel.com/blog/ai-sdk-3-generative-ui;
+  ai-sdk.dev/docs/ai-sdk-rsc/streaming-react-components (RSC path **paused** — pattern, not
+  toolchain); assistant-ui.com/docs/tools/generative-ui; infoq.com/news/2026/03/vercel-json-render
+  (JSON component-tree allowlist).
+- Rich server-side rendering & syntaxes: github.blog/changelog (GitHub alerts
+  `> [!NOTE]`); github.com/remarkjs/remark-directive (`:::` container grammar — syntax only,
+  reimplemented in-house); github.com/zmtcreative/gm-alert-callouts and
+  yuin/goldmark-highlighting + alecthomas/chroma (*reference for the vocabulary; deps
+  rejected here*).
+- Component UX & citations: mindstudio.ai/blog (Claude generative-UI vs Canvas/Artifacts);
+  shapeof.ai/patterns/citations (citation UX variants + progressive disclosure).
+- Tokens / design: vercel.com/geist; muz.li (dark-mode elevation-by-lightness); seedflip.co
+  (Geist teardown). Internal: ADR-0025/0036/0038 (token ladder, layer contract, dual-channel
+  elevation).
+- Safety: cheatsheetseries.owasp.org (XSS — sanitize when authoring HTML); github.com/microcosm-cc/bluemonday
+  (UGCPolicy as *reference*; we keep the in-house escape-first whitelist of ADR-0001 instead).
+
+> **Confidence:** the internal render-pipeline map is first-party (exact files/funcs/lines,
+> high). External patterns are corroborated across primary vendor docs; the "doctrine
+> conflict" (deps recommended externally vs. rejected here) is resolved in favor of this
+> repo's own ADR-0001 + REGRESSIONS — high. Effort/impact rankings are indicative.
+
+---
+
 ## Where the product is now
 
 Both differentiators are now **deep**, not shallow. **Cost** is accountable *across
