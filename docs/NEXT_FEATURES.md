@@ -1057,3 +1057,74 @@ Epics 0001 (cost), 0005 (orchestration), 0007 (polish) — all **closed**.
 > global-VT breaking OOB/SSE) are from primary sources (MDN/web.dev/Chrome/caniuse) **and**
 > independently corroborated by this repo's own ADR-0028 / REGRESSIONS — high. Raycast exact
 > hex/timings come from community/auto-extracted teardowns — treat as *indicative reference*, not gospel.
+
+---
+
+## Roadmap v14 — orchestration robustness (considered-and-rejected event bus, evaluation 2026-06-11)
+
+An evaluation asked whether a **web-style event-driven architecture** (a pub/sub event bus, a
+message queue with at-least-once delivery, reactive streams with backpressure between in-process
+components) would benefit the orchestration core. **It was rejected** — but it surfaced two small,
+local wins worth landing. Both live under epic
+**[0083](issues/0083-epic-orchestration-robustness-backpressure-replayability-considered-and-rejected-event-bus.md)**.
+
+### Why the bus was rejected (the framing)
+
+The project already runs the *right amount* of event-driven for its scale: one normalized SDK event
+channel (`copilot.Client.Events()`) pumped through a single fan-in/fan-out loop (`internal/web/hub.go`
+`pump`, routed by `SessionID`), a **pure, synchronous, deterministic** run engine
+(`internal/web/workflow.go` `workflowRun` — unit-testable with zero client), goroutine-per-lane
+fan-out (`launchLanes`), and one-shot **channel bridges** for human-in-the-loop
+(`internal/copilot/bridge.go` + the pause ledger `internal/pause/pause.go`).
+
+- **No scale driver** — single local user, one in-memory session per cookie, in-process; no network
+  boundary, no multi-node fan-out, no throughput problem a queue solves.
+- **It would undermine the test rigor** — the run engine's purity/determinism is the source of its
+  snapshot-testability; a bus adds eventual consistency, ordering concerns, and scatters the
+  currently *local & explicit* idempotency (`run.recorded`; the ledger's single `deliver`).
+- **The egress is already webhook-shaped (SSE)** — pushing that inward re-solves with more moving
+  parts what one Go channel + the pure state machine + the channel bridges already do cleanly.
+
+The full bus/queue is **considered and rejected**; an ADR (written first by whichever child touches
+the orchestration seam) records the rejection so the decision has one home, rather than reopening it
+as a roadmap item.
+
+### Tier N — the two honest wins (independent seams, parallel-safe)
+
+#### N1 — Bounded lane worker pool — **S** · **BUILD FIRST** · *first child of epic 0083*
+- **What:** `launchLanes` (`internal/web/workflow.go`, ~L543) fans out **one goroutine per
+  launchable lane** with no upper bound. Replace it with a fixed-size **worker pool** draining a
+  lane queue, so a wide parallel workflow gets backpressure (concurrency capped; excess lanes wait)
+  instead of launching unbounded concurrent sessions.
+- **Why now:** the *only* place the current design fans out unbounded work; a cheap, local guard. The
+  pure run engine still decides *which* lanes to launch (`evalPending`) — only the concurrency
+  **adapter** changes, so the state machine and its zero-client tests are untouched.
+- **Touches:** `internal/web` (`workflow.go` `launchLanes`; `startLane` unchanged).
+- Likely **no ADR** (a concurrency bound on an existing adapter, no new seam).
+  **Issue [0084](issues/0084-bounded-lane-worker-pool-backpressure-for-wide-parallel-workflows.md).**
+
+#### N2 — Per-run event log for replay/audit — **M** · candidate · *second child of epic 0083*
+- **What:** today only the run **outcome** persists (`RunStore`, ADR-0022). Add an *optional*
+  append-only log of the normalized `Ev*` run events (the stream `hub.go` `pump` already routes),
+  beside the existing store, built on the shipped `telemetry.AppendOnlyStore[T]`
+  (`internal/telemetry/store.go`) — so a run can be reconstructed **step-by-step**, not just
+  summarized. Delivers the single genuine benefit a full event store would give (replayability)
+  *without* a bus: purely additive `Append` over machinery already present.
+- **Why now:** fits the cost⋈run reconciliation differentiator (audit/replay of multi-lane runs);
+  no new transport, no eventual consistency, no ordering rework.
+- **Touches:** `internal/telemetry` (a new `AppendOnlyStore[RunEvent]`), `internal/web` (`hub.go`
+  `pump` / the run reducer as the event source).
+- **Takes an ADR** (replay-vs-summary semantics; records this as the *accepted* slice of the
+  rejected-bus evaluation).
+  **Issue [0085](issues/0085-per-run-event-log-for-replay-audit-on-appendonlystore.md).**
+
+### Recommended sequencing (v14)
+
+1. **N1 — bounded lane worker pool** *(BUILD FIRST)*. S; local; no new seam; the cheapest robustness
+   win. → issue **0084**, epic **0083**.
+2. **N2 — per-run event log**. M; additive over `AppendOnlyStore[T]`; takes an ADR (which also
+   records the considered-and-rejected bus). → issue **0085**, epic **0083**.
+
+N1 and N2 touch **disjoint seams** (the concurrency adapter vs. a new telemetry store fed from the
+event loop) and have no edge between them — they belong in the same parallel batch. On both merges,
+epic 0083 closes; then scope v15 from a fresh value×fit pass.
