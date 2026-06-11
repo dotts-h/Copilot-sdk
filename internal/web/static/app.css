@@ -506,6 +506,21 @@ button.add, button.abort, .run-head .stop-run, .run-rec-head .rerun,
   border: 1px solid var(--panel); padding: .3rem .5rem; font: inherit; background: var(--bg); color: inherit; }
 .ask .ask-send { border: none; border-radius: var(--radius-2); padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--good); color: var(--on-bright); }
 
+/* human-in-the-loop pause (S4): a sub-agent parked as input-required, awaiting
+   continue(payload) / cancel. Amber (the attention state) to match the lane glyph. */
+.pauses { max-width: 56rem; width: 100%; margin: 0 auto; padding: 0 1rem; }
+.pause { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: .4rem 0;
+  padding: .5rem .75rem; border-radius: var(--radius-3);
+  background: var(--warn-soft); border-left: 3px solid var(--warn); }
+.pause .pause-q { flex: 1 1 100%; }
+.pause .pause-kind { color: var(--dim); font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; }
+.pause .pause-input { display: flex; flex: 1 1 auto; }
+.pause .pause-input input { flex: 1 1 auto; min-width: 8rem; border-radius: var(--radius-2);
+  border: 1px solid var(--panel); padding: .3rem .5rem; font: inherit; background: var(--bg); color: inherit; }
+.pause .pause-actions { display: flex; gap: .4rem; }
+.pause .pause-continue { border: none; border-radius: var(--radius-2); padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--good); color: var(--on-bright); }
+.pause .pause-cancel { border: none; border-radius: var(--radius-2); padding: .3rem .8rem; cursor: pointer; font: inherit; background: var(--bad); color: var(--on-bright); }
+
 /* plan mode (exit-plan-mode review) */
 .plans { max-width: 56rem; width: 100%; margin: 0 auto; padding: 0 1rem; }
 .plan { display: flex; flex-direction: column; gap: .5rem; margin: .4rem 0;
@@ -590,6 +605,7 @@ button.add, button.abort, .run-head .stop-run, .run-rec-head .rerun,
 .lane { border-left: 3px solid var(--subtle); padding: .3rem .6rem; margin: .3rem 0;
   background: var(--raised); border-radius: 0 var(--radius-2) var(--radius-2) 0; }
 .lane-running { border-left-color: var(--accent2); }
+.lane-input-required { border-left-color: var(--warn); }
 .lane-done { border-left-color: var(--good); }
 .lane-failed { border-left-color: var(--bad); }
 .lane-skipped { border-left-color: var(--dim); opacity: .7; }
@@ -597,6 +613,7 @@ button.add, button.abort, .run-head .stop-run, .run-rec-head .rerun,
 .lane-glyph { color: var(--dim); }
 .lane-running .lane-glyph { color: var(--accent2); display: inline-block;
   animation: spin 1.1s linear infinite; }
+.lane-input-required .lane-glyph { color: var(--warn); }
 .lane-done .lane-glyph { color: var(--good); }
 .lane-failed .lane-glyph { color: var(--bad); }
 .lane-skipped .lane-glyph { color: var(--dim); }

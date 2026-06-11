@@ -23,6 +23,7 @@ export const sel = {
   budget: "#budget",
   subagents: "#subagents",
   lanes: "#lanes",
+  pauses: "#pauses",
   cmdMenu: "#cmd-menu",
   rows: ".rows .row",
 } as const;

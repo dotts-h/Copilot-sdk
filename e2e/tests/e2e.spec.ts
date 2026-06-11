@@ -411,6 +411,37 @@ test.describe("multi-agent workflows", () => {
     await expect(page.locator(`${sel.lanes} .lane-done`)).toHaveCount(2);
   });
 
+  // The demo seeds an "Escalation demo" workflow (S4 / ADR-0043): the Builder lane
+  // hits an ambiguity and ESCALATES, parking as input-required until the human
+  // resolves the pause. Running it drives the orchestrator's escalate back-channel
+  // offline — the lane goes amber, the inline pause form appears, and clicking
+  // continue (with a hint) resumes the lane to completion.
+  test("parks a lane as input-required and resumes it from the pause form", async ({ page }) => {
+    await gotoApp(page);
+    await navTo(page, "Workflows");
+    const row = page.locator(sel.rows, { hasText: "Escalation demo" });
+    await expect(row).toBeVisible();
+    await row.locator("button.run").click();
+
+    // The run lands on the chat page; the lane parks input-required (amber) and the
+    // inline pause form appears with only the declared buttons.
+    await expect(page.locator(`${sel.lanes} .workflow-run`)).toBeVisible();
+    await expect(page.locator(`${sel.lanes} .lane-input-required`)).toBeVisible({ timeout: 30_000 });
+    const pause = page.locator(`${sel.pauses} form.pause`);
+    await expect(pause).toBeVisible();
+    await expect(pause.locator("button.pause-continue")).toBeVisible();
+    await expect(pause.locator("button.pause-cancel")).toBeVisible();
+
+    // The human continues with a hint; the pause clears and the lane finishes,
+    // folding the hint into the lane output.
+    await pause.locator("input[name=payload]").fill("use the default branch");
+    await pause.locator("button.pause-continue").click();
+    await expect(page.locator(`${sel.pauses} form.pause`)).toHaveCount(0);
+    await expect(page.locator(`${sel.lanes} .run-status.done`)).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator(`${sel.lanes} .lane-done`).first()).toBeVisible();
+    await expect(page.locator(sel.lanes)).toContainText("use the default branch");
+  });
+
   // The Runs page (B3 / ADR-0022) lists persisted workflow runs, most recent first,
   // each with a per-lane breakdown. The demo seeds a couple, and running a workflow
   // appends one. Assert structure (a run-record row appears after a run), never
