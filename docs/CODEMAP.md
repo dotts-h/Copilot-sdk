@@ -6,7 +6,7 @@
 > this first; jump straight to `file:symbol`. The source is the source of
 > truth — if this looks stale, re-run `make codemap`.
 
-_Last generated: 2026-06-10 (UTC)._
+_Last generated: 2026-06-11 (UTC)._
 
 ## cmd/my-orchestra
 
@@ -83,21 +83,22 @@ _Last generated: 2026-06-10 (UTC)._
 - L220: `func (c *State) Committed() []Turn`
 - L229: `func (c *State) Pending() (Role, string)`
 
-### subagents.go (202 LOC)
+### subagents.go (212 LOC)
 - L23: `type SubagentStatus int`
 - L34: `func (st SubagentStatus) Label() string`
 - L48: `func (st SubagentStatus) Class() string`
 - L64: `type SubagentView struct`
 - L81: `type Subagents struct`
-- L88: `func (r *Subagents) Start(spawnID, name, displayName, description, model string)`
-- L104: `func (r *Subagents) Observe(instanceID, activity string) bool`
+- L91: `func (r *Subagents) Start(spawnID, name, displayName, description, model string)`
+- L108: `func (r *Subagents) Observe(instanceID, activity string) bool`
 - L123: `func (r *Subagents) AddCredits(instanceID string, credits float64) bool`
-- L144: `func (r *Subagents) End(spawnID string, success bool, detail string, totalTokens int64) bool`
-- L161: `func (r *Subagents) Entries() []SubagentView`
-- L168: `func (r *Subagents) Empty() bool { return len(r.entries) == 0 }`
-- L171: `func (r *Subagents) Reset() { r.entries, r.seen = nil, nil }`
-- L174: `func (r *Subagents) bySpawn(spawnID string) *SubagentView`
-- L186: `func (r *Subagents) join(instanceID string) *SubagentView`
+- L137: `func (r *Subagents) NameFor(instanceID string) string`
+- L154: `func (r *Subagents) End(spawnID string, success bool, detail string, totalTokens int64) bool`
+- L171: `func (r *Subagents) Entries() []SubagentView`
+- L178: `func (r *Subagents) Empty() bool { return len(r.entries) == 0 }`
+- L181: `func (r *Subagents) Reset() { r.entries = nil }`
+- L184: `func (r *Subagents) bySpawn(spawnID string) *SubagentView`
+- L196: `func (r *Subagents) join(instanceID string) *SubagentView`
 
 ## internal/copilot
 
@@ -314,17 +315,17 @@ _Last generated: 2026-06-10 (UTC)._
 - L64: `func (f *Forge) UpdateSnippet(id string, s Snippet) error`
 - L77: `func (f *Forge) RemoveSnippet(id string) error`
 
-### types.go (146 LOC)
+### types.go (158 LOC)
 - L22: `type Skill struct`
 - L35: `type Instruction struct`
 - L45: `type Agent struct`
-- L67: `func DefaultChatAgent() Agent`
-- L77: `type MCPServer struct`
-- L92: `func (s Skill) Validate() error`
-- L106: `func (i Instruction) Validate() error`
-- L117: `func (a Agent) Validate() error`
-- L131: `func (m MCPServer) Validate() error`
-- L141: `func validateID(kind, id string) error`
+- L73: `func DefaultChatAgent() Agent`
+- L83: `type MCPServer struct`
+- L98: `func (s Skill) Validate() error`
+- L112: `func (i Instruction) Validate() error`
+- L123: `func (a Agent) Validate() error`
+- L143: `func (m MCPServer) Validate() error`
+- L153: `func validateID(kind, id string) error`
 
 ### workflow.go (234 LOC)
 - L14: `type Workflow struct`
@@ -353,7 +354,7 @@ _Last generated: 2026-06-10 (UTC)._
 - L39: `func DailyTotalsBy(records []SpendRecord, keyOf func(SpendRecord) string, includeEmpty bool) map[string][]DayTotal`
 - L68: `func BucketForecasts(records []SpendRecord, budget Budget, now time.Time, keyOf func(SpendRecord) string, includeEmpty bool) []BucketProjection`
 
-### credits.go (324 LOC)
+### credits.go (356 LOC)
 - L11: `type Usage struct`
 - L28: `func (u Usage) TotalTokens() int64`
 - L33: `type Cost struct`
@@ -383,8 +384,11 @@ _Last generated: 2026-06-10 (UTC)._
 - L289: `func (b Budget) FractionUsed(used float64) float64`
 - L302: `func (b Budget) Warned(used float64) bool`
 - L312: `func (b Budget) CapExceeded(projected float64) bool`
-- L321: `func FormatUSD(v float64) string { return fmt.Sprintf("$%.4f", v) }`
-- L324: `func FormatCredits(v float64) string { return fmt.Sprintf("%.2f cr", v) }`
+- L325: `type Leash struct`
+- L334: `func (l Leash) Active() bool { return l.MaxCredits > 0 || l.MaxTurns > 0 }`
+- L341: `func (l Leash) Breached(credits float64, turns int64) bool`
+- L353: `func FormatUSD(v float64) string { return fmt.Sprintf("$%.4f", v) }`
+- L356: `func FormatCredits(v float64) string { return fmt.Sprintf("%.2f cr", v) }`
 
 ### dashboard.go (157 LOC)
 - L18: `type DayPoint struct`
@@ -406,31 +410,34 @@ _Last generated: 2026-06-10 (UTC)._
 - L45: `type Projection struct`
 - L76: `func Forecast(daily []DayTotal, budget Budget, now time.Time) Projection`
 
-### history.go (361 LOC)
+### history.go (428 LOC)
 - L24: `type SpendRecord struct`
-- L61: `func (r SpendRecord) Credits() float64 { return r.USD / USDPerCredit }`
-- L65: `func (r SpendRecord) EstimateCredits() float64 { return r.Credits() }`
-- L69: `func (r SpendRecord) HasReported() bool { return HasReported(r.AIU) }`
-- L74: `func (r SpendRecord) ActualCredits() float64 { return ActualCredits(r.EstimateCredits(), r.AIU) }`
-- L77: `func (r SpendRecord) Day() string { return r.At.UTC().Format("2006-01-02") }`
-- L97: `type SpendStore struct`
-- L107: `func LoadSpendStore(dir string) (*SpendStore, error)`
-- L117: `func stampSpend(r SpendRecord) SpendRecord`
-- L125: `type DayTotal struct`
-- L134: `func DailyTotals(records []SpendRecord) []DayTotal`
-- L172: `func MonthToDate(records []SpendRecord, now time.Time) Cost`
-- L186: `type share struct`
-- L200: `func shareBy(records []SpendRecord, keyOf func(SpendRecord) string, includeEmpty bool) []share`
-- L231: `type ModelShare struct`
-- L241: `func ModelShares(records []SpendRecord) []ModelShare`
-- L253: `type AgentShare struct`
-- L264: `func AgentShares(records []SpendRecord) []AgentShare`
-- L275: `type WorkflowShare struct`
-- L287: `func WorkflowShares(records []SpendRecord) []WorkflowShare`
-- L298: `type SessionShare struct`
-- L311: `func SessionShares(records []SpendRecord) []SessionShare`
-- L323: `func WriteCSV(w io.Writer, records []SpendRecord) error`
-- L359: `func csvFloat(v float64) string`
+- L71: `func (r SpendRecord) Credits() float64 { return r.USD / USDPerCredit }`
+- L75: `func (r SpendRecord) EstimateCredits() float64 { return r.Credits() }`
+- L79: `func (r SpendRecord) HasReported() bool { return HasReported(r.AIU) }`
+- L84: `func (r SpendRecord) ActualCredits() float64 { return ActualCredits(r.EstimateCredits(), r.AIU) }`
+- L87: `func (r SpendRecord) Day() string { return r.At.UTC().Format("2006-01-02") }`
+- L108: `type SpendStore struct`
+- L118: `func LoadSpendStore(dir string) (*SpendStore, error)`
+- L128: `func stampSpend(r SpendRecord) SpendRecord`
+- L136: `type DayTotal struct`
+- L145: `func DailyTotals(records []SpendRecord) []DayTotal`
+- L183: `func MonthToDate(records []SpendRecord, now time.Time) Cost`
+- L197: `type share struct`
+- L211: `func shareBy(records []SpendRecord, keyOf func(SpendRecord) string, includeEmpty bool) []share`
+- L242: `type ModelShare struct`
+- L252: `func ModelShares(records []SpendRecord) []ModelShare`
+- L264: `type AgentShare struct`
+- L278: `func AgentShares(records []SpendRecord) []AgentShare`
+- L290: `func rootTurns(records []SpendRecord) []SpendRecord`
+- L302: `type WorkflowShare struct`
+- L314: `func WorkflowShares(records []SpendRecord) []WorkflowShare`
+- L326: `type SubagentShare struct`
+- L340: `func SubagentShares(records []SpendRecord) []SubagentShare`
+- L363: `type SessionShare struct`
+- L376: `func SessionShares(records []SpendRecord) []SessionShare`
+- L388: `func WriteCSV(w io.Writer, records []SpendRecord) error`
+- L426: `func csvFloat(v float64) string`
 
 ### pricing.go (226 LOC)
 - L27: `type ModelRate struct`
@@ -518,29 +525,29 @@ _Last generated: 2026-06-10 (UTC)._
 - L100: `func (s *Server) forecast(now time.Time) (telemetry.Projection, bool)`
 - L110: `func (s *Server) overCap() (projected float64, capped bool)`
 
-### commands.go (424 LOC)
+### commands.go (436 LOC)
 - L23: `func parseCommand(input string) (name, args string, ok bool)`
 - L34: `func (s *Server) runCommand(input string) string`
 - L66: `func (s *Server) systemNote(text string) string`
 - L75: `func (s *Server) clearConversation()`
-- L100: `func (s *Server) cmdClear() string`
-- L118: `func (s *Server) setMode(target, args string) bool`
-- L142: `func (s *Server) cmdPlan(args string) string`
-- L152: `func (s *Server) cmdAuto(args string) string`
-- L161: `func (s *Server) cmdAsk(args string) string`
-- L171: `func (s *Server) cmdEffort(arg string) string`
-- L193: `func (s *Server) setEffort(effort string)`
-- L210: `func (s *Server) cmdModel(name string) string`
-- L225: `func (s *Server) setModel(name string)`
-- L244: `func (s *Server) cmdAgent(arg string) string`
-- L310: `func SeamSpec(cs ctxforge.SessionSpec, defModel, defEffort string, lookupEnv func(string) string, workspace string, autoApprove bool) copilot.SessionSpec`
-- L328: `func (s *Server) compiledSpec(agentID string) copilot.SessionSpec`
-- L342: `func (s *Server) applyAgentSpec(c copilot.SessionSpec, agentID string) string`
-- L359: `func (s *Server) cmdCost() string`
-- L380: `func (s *Server) cmdAttach(path string) string`
-- L394: `func (s *Server) cmdNav(slug string) string`
-- L399: `func isNavSlug(slug string) bool`
-- L410: `func commandHelp() string`
+- L105: `func (s *Server) cmdClear() string`
+- L123: `func (s *Server) setMode(target, args string) bool`
+- L147: `func (s *Server) cmdPlan(args string) string`
+- L157: `func (s *Server) cmdAuto(args string) string`
+- L166: `func (s *Server) cmdAsk(args string) string`
+- L176: `func (s *Server) cmdEffort(arg string) string`
+- L198: `func (s *Server) setEffort(effort string)`
+- L215: `func (s *Server) cmdModel(name string) string`
+- L230: `func (s *Server) setModel(name string)`
+- L249: `func (s *Server) cmdAgent(arg string) string`
+- L318: `func SeamSpec(cs ctxforge.SessionSpec, defModel, defEffort string, lookupEnv func(string) string, workspace string, autoApprove bool) copilot.SessionSpec`
+- L336: `func (s *Server) compiledSpec(agentID string) copilot.SessionSpec`
+- L350: `func (s *Server) applyAgentSpec(c copilot.SessionSpec, agentID string, leash telemetry.Leash, leashLabel string) string`
+- L371: `func (s *Server) cmdCost() string`
+- L392: `func (s *Server) cmdAttach(path string) string`
+- L406: `func (s *Server) cmdNav(slug string) string`
+- L411: `func isNavSlug(slug string) bool`
+- L422: `func commandHelp() string`
 
 ### connection.go (145 LOC)
 - L22: `type authRung struct`
@@ -583,7 +590,7 @@ _Last generated: 2026-06-10 (UTC)._
 - L66: `func (c forgeCRUD[T]) Update(s *Server, w http.ResponseWriter, r *http.Request)`
 - L78: `func (c forgeCRUD[T]) Delete(s *Server, w http.ResponseWriter, r *http.Request)`
 
-### forms.go (199 LOC)
+### forms.go (231 LOC)
 - L22: `func textField(label, name, value string, required bool) string`
 - L26: `func textArea(label, name, value string, required bool) string`
 - L30: `func numberField(label, name string, value int) string`
@@ -604,12 +611,15 @@ _Last generated: 2026-06-10 (UTC)._
 - L135: `func (s *Server) handleInstructionCreate(w http.ResponseWriter, r *http.Request)`
 - L138: `func (s *Server) handleInstructionUpdate(w http.ResponseWriter, r *http.Request)`
 - L146: `func renderAgentForm(a ctxforge.Agent, isNew bool, errMsg string) string`
-- L167: `func (s *Server) handleAgentNew(w http.ResponseWriter, r *http.Request)  { agentCRUD.New(s, w, r) }`
-- L168: `func (s *Server) handleAgentEdit(w http.ResponseWriter, r *http.Request) { agentCRUD.Edit(s, w, r) }`
-- L170: `func agentFromForm(r *http.Request, id string) ctxforge.Agent`
-- L183: `func (s *Server) handleAgentCreate(w http.ResponseWriter, r *http.Request) { agentCRUD.Create(s, w, r) }`
-- L184: `func (s *Server) handleAgentUpdate(w http.ResponseWriter, r *http.Request) { agentCRUD.Update(s, w, r) }`
-- L187: `func parseCSV(s string) []string`
+- L171: `func leashCreditsStr(v float64) string`
+- L178: `func (s *Server) handleAgentNew(w http.ResponseWriter, r *http.Request)  { agentCRUD.New(s, w, r) }`
+- L179: `func (s *Server) handleAgentEdit(w http.ResponseWriter, r *http.Request) { agentCRUD.Edit(s, w, r) }`
+- L181: `func agentFromForm(r *http.Request, id string) ctxforge.Agent`
+- L199: `func parseLeashFloat(s string) float64`
+- L207: `func parseLeashInt(s string) int`
+- L215: `func (s *Server) handleAgentCreate(w http.ResponseWriter, r *http.Request) { agentCRUD.Create(s, w, r) }`
+- L216: `func (s *Server) handleAgentUpdate(w http.ResponseWriter, r *http.Request) { agentCRUD.Update(s, w, r) }`
+- L219: `func parseCSV(s string) []string`
 
 ### help.go (123 LOC)
 - L14: `func renderShortcuts(keymap []config.ResolvedKey) string`
@@ -640,18 +650,18 @@ _Last generated: 2026-06-10 (UTC)._
 - L303: `func commandVarRefs(s string) []string`
 - L317: `func hookPreflightResult(pattern, sample string) string`
 
-### hub.go (312 LOC)
+### hub.go (333 LOC)
 - L28: `type Hub struct`
-- L66: `type Options struct`
-- L88: `func New(opts Options) *Hub`
-- L118: `func (h *Hub) newSession(id string) *Server`
-- L148: `func (h *Hub) session(w http.ResponseWriter, r *http.Request) *Server`
-- L177: `func (h *Hub) bind(copilotID string, s *Server)`
-- L186: `func (h *Hub) route(copilotID string) *Server`
-- L202: `func (h *Hub) pump()`
-- L212: `func (h *Hub) Handler() http.Handler`
-- L305: `func (s *Server) Handler() http.Handler { return s.hub.Handler() }`
-- L308: `func newID() string`
+- L72: `type Options struct`
+- L94: `func New(opts Options) *Hub`
+- L134: `func (h *Hub) newSession(id string) *Server`
+- L169: `func (h *Hub) session(w http.ResponseWriter, r *http.Request) *Server`
+- L198: `func (h *Hub) bind(copilotID string, s *Server)`
+- L207: `func (h *Hub) route(copilotID string) *Server`
+- L223: `func (h *Hub) pump()`
+- L233: `func (h *Hub) Handler() http.Handler`
+- L326: `func (s *Server) Handler() http.Handler { return s.hub.Handler() }`
+- L329: `func newID() string`
 
 ### instructions_import.go (65 LOC)
 - L31: `func importInstructionFiles(dir string) []ctxforge.Instruction`
@@ -700,7 +710,7 @@ _Last generated: 2026-06-10 (UTC)._
 ### palette.go (33 LOC)
 - L15: `func commandPalette() string`
 
-### render.go (596 LOC)
+### render.go (598 LOC)
 - L25: `func esc(s string) string`
 - L31: `func deltaSpan(text string) string { return frag("deltaSpan", text) }`
 - L34: `func renderTurn(t convo.Turn) string`
@@ -723,15 +733,16 @@ _Last generated: 2026-06-10 (UTC)._
 - L324: `func subagentLabel(sa copilot.SubagentInfo) string`
 - L337: `func subagentGlyph(st convo.SubagentStatus) string`
 - L356: `func renderSubagents(entries []convo.SubagentView) string`
-- L395: `func renderStatus(text string, active bool, startMs int64) string`
-- L403: `func renderCtx(cur, limit int64, compacting bool) string`
-- L438: `func renderStatline(s *Server) string`
-- L499: `func statlineForecast(s *Server, now time.Time) (show bool, short string, warn bool, title string)`
-- L513: `func humanTokens(n int64) string`
-- L529: `func renderCostFooter(credits float64, budget telemetry.Budget) string`
-- L549: `func renderActualCostFooter(a telemetry.ActualSpend, budget telemetry.Budget) string`
-- L581: `func renderBudgetForm(projected, capCredits float64) string`
-- L590: `func clampLines(s string, n int) string`
+- L389: `func renderStatus(text string, active bool, startMs int64) string`
+- L397: `func renderCtx(cur, limit int64, compacting bool) string`
+- L432: `func renderStatline(s *Server) string`
+- L493: `func statlineForecast(s *Server, now time.Time) (show bool, short string, warn bool, title string)`
+- L507: `func humanTokens(n int64) string`
+- L523: `func renderCostFooter(credits float64, budget telemetry.Budget) string`
+- L543: `func renderActualCostFooter(a telemetry.ActualSpend, budget telemetry.Budget) string`
+- L575: `func renderBudgetForm(projected, capCredits float64) string`
+- L586: `func renderLeashForm(label, reason string) string`
+- L592: `func clampLines(s string, n int) string`
 
 ### runs.go (195 LOC)
 - L28: `func (s *Server) runsPartial(window int) string`
@@ -742,74 +753,79 @@ _Last generated: 2026-06-10 (UTC)._
 - L162: `func humanDuration(d time.Duration) string`
 - L190: `func runOutcomeGlyph(outcome string) (glyph, state string)`
 
-### server.go (857 LOC)
+### server.go (954 LOC)
 - L27: `type Server struct`
-- L98: `func (s *Server) subscribe() chan fragment`
-- L107: `func (s *Server) unsubscribe(ch chan fragment)`
-- L118: `func (s *Server) broadcast(frags []fragment)`
-- L137: `func (s *Server) broadcastSendFailure(err error)`
-- L142: `type indexData struct`
-- L153: `type navItem struct`
-- L161: `type navGroup struct`
-- L171: `func navGroups() []navGroup`
-- L189: `func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request)`
-- L208: `func (s *Server) ensureSession(ctx context.Context) (string, error)`
-- L227: `func (s *Server) handleSend(w http.ResponseWriter, r *http.Request)`
-- L324: `type budgetGate struct`
-- L334: `func (s *Server) handleBudget(w http.ResponseWriter, r *http.Request)`
-- L390: `func (s *Server) dispatch(ctx context.Context, sessionID, prompt string, attachments []string) error`
-- L409: `func (s *Server) sendFailedOOB(err error) string`
-- L421: `func queuedStatus(n int) string`
-- L428: `func (s *Server) handleAbort(w http.ResponseWriter, r *http.Request)`
-- L449: `func (s *Server) handlePerm(w http.ResponseWriter, r *http.Request)`
-- L479: `func (s *Server) dropLanePerm(id string) string`
-- L496: `func (s *Server) handleAsk(w http.ResponseWriter, r *http.Request)`
-- L516: `func (s *Server) handlePlanReview(w http.ResponseWriter, r *http.Request)`
-- L549: `func (s *Server) handleElicit(w http.ResponseWriter, r *http.Request)`
-- L587: `func elicitContent(fields []copilot.ElicitField, form url.Values) map[string]any`
-- L617: `func (s *Server) handlePage(w http.ResponseWriter, r *http.Request)`
-- L630: `func (s *Server) handleSkillToggle(w http.ResponseWriter, r *http.Request)`
-- L636: `func (s *Server) handleSkillDelete(w http.ResponseWriter, r *http.Request)`
-- L640: `func (s *Server) handleInstructionToggle(w http.ResponseWriter, r *http.Request)`
-- L646: `func (s *Server) handleInstructionDelete(w http.ResponseWriter, r *http.Request)`
-- L650: `func (s *Server) handleAgentSelect(w http.ResponseWriter, r *http.Request)`
-- L674: `func (s *Server) handleModelSelect(w http.ResponseWriter, r *http.Request)`
-- L681: `func (s *Server) handleEffortSelect(w http.ResponseWriter, r *http.Request)`
-- L690: `func (s *Server) handleAgentDelete(w http.ResponseWriter, r *http.Request)`
-- L713: `func (s *Server) oobTimeline() string`
-- L718: `func oobStatus(text string, active bool, startMs int64) string`
-- L724: `func (s *Server) oobBudget() string`
-- L730: `func (s *Server) budgetFrag() fragment`
-- L736: `func (s *Server) renderGate() string`
-- L745: `func (s *Server) statusFrag(text string, active bool) fragment`
-- L755: `func (s *Server) ctxFrag() fragment`
-- L761: `func (s *Server) statFrag() fragment`
-- L768: `func (s *Server) oobStat() string`
-- L774: `func (s *Server) subagentsFrag() fragment`
-- L779: `func nowMs() int64 { return time.Now().UnixMilli() }`
-- L784: `func dropByID[T any](sl []T, id string, key func(T) string) []T`
-- L795: `func findByID[T any](sl []T, id string, key func(T) string) (T, bool)`
-- L805: `func permID(p copilot.PermissionRequest) string { return p.ID }`
-- L806: `func inputID(p copilot.InputRequest) string     { return p.ID }`
-- L807: `func planID(p copilot.PlanRequest) string       { return p.ID }`
-- L808: `func elicitID(e copilot.ElicitRequest) string   { return e.ID }`
-- L813: `func (s *Server) dropPerm(id string)  { s.perms = dropByID(s.perms, id, permID) }`
-- L814: `func (s *Server) dropInput(id string) { s.inputs = dropByID(s.inputs, id, inputID) }`
-- L815: `func (s *Server) dropPlan(id string)  { s.plans = dropByID(s.plans, id, planID) }`
-- L816: `func (s *Server) dropElicit(id string)`
-- L822: `func (s *Server) findElicit(id string) (copilot.ElicitRequest, bool)`
-- L827: `func firstNonEmpty(vals []string) string`
-- L840: `func (s *Server) editForge(fn func() error) error`
-- L854: `func (s *Server) writePartial(w http.ResponseWriter, html string)`
+- L115: `func (s *Server) subscribe() chan fragment`
+- L124: `func (s *Server) unsubscribe(ch chan fragment)`
+- L135: `func (s *Server) broadcast(frags []fragment)`
+- L154: `func (s *Server) broadcastSendFailure(err error)`
+- L159: `type indexData struct`
+- L170: `type navItem struct`
+- L178: `type navGroup struct`
+- L188: `func navGroups() []navGroup`
+- L206: `func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request)`
+- L225: `func (s *Server) ensureSession(ctx context.Context) (string, error)`
+- L244: `func (s *Server) handleSend(w http.ResponseWriter, r *http.Request)`
+- L358: `type budgetGate struct`
+- L374: `func (s *Server) pendingLeashGate(prompt string, attachments []string) *budgetGate`
+- L382: `func (s *Server) leashGate(prompt string, attachments []string, agentID string, leash telemetry.Leash) *budgetGate`
+- L395: `func leashReason(leash telemetry.Leash, credits float64, turns int64) string`
+- L408: `func (s *Server) handleBudget(w http.ResponseWriter, r *http.Request)`
+- L476: `func (s *Server) dispatch(ctx context.Context, sessionID, prompt string, attachments []string) error`
+- L495: `func (s *Server) sendFailedOOB(err error) string`
+- L507: `func queuedStatus(n int) string`
+- L514: `func (s *Server) handleAbort(w http.ResponseWriter, r *http.Request)`
+- L535: `func (s *Server) handlePerm(w http.ResponseWriter, r *http.Request)`
+- L565: `func (s *Server) dropLanePerm(id string) string`
+- L582: `func (s *Server) handleAsk(w http.ResponseWriter, r *http.Request)`
+- L602: `func (s *Server) handlePlanReview(w http.ResponseWriter, r *http.Request)`
+- L635: `func (s *Server) handleElicit(w http.ResponseWriter, r *http.Request)`
+- L673: `func elicitContent(fields []copilot.ElicitField, form url.Values) map[string]any`
+- L703: `func (s *Server) handlePage(w http.ResponseWriter, r *http.Request)`
+- L716: `func (s *Server) handleSkillToggle(w http.ResponseWriter, r *http.Request)`
+- L722: `func (s *Server) handleSkillDelete(w http.ResponseWriter, r *http.Request)`
+- L726: `func (s *Server) handleInstructionToggle(w http.ResponseWriter, r *http.Request)`
+- L732: `func (s *Server) handleInstructionDelete(w http.ResponseWriter, r *http.Request)`
+- L736: `func (s *Server) handleAgentSelect(w http.ResponseWriter, r *http.Request)`
+- L768: `func (s *Server) handleModelSelect(w http.ResponseWriter, r *http.Request)`
+- L775: `func (s *Server) handleEffortSelect(w http.ResponseWriter, r *http.Request)`
+- L784: `func (s *Server) handleAgentDelete(w http.ResponseWriter, r *http.Request)`
+- L807: `func (s *Server) oobTimeline() string`
+- L812: `func oobStatus(text string, active bool, startMs int64) string`
+- L818: `func (s *Server) oobBudget() string`
+- L824: `func (s *Server) budgetFrag() fragment`
+- L830: `func (s *Server) renderGate() string`
+- L842: `func (s *Server) statusFrag(text string, active bool) fragment`
+- L852: `func (s *Server) ctxFrag() fragment`
+- L858: `func (s *Server) statFrag() fragment`
+- L865: `func (s *Server) oobStat() string`
+- L871: `func (s *Server) subagentsFrag() fragment`
+- L876: `func nowMs() int64 { return time.Now().UnixMilli() }`
+- L881: `func dropByID[T any](sl []T, id string, key func(T) string) []T`
+- L892: `func findByID[T any](sl []T, id string, key func(T) string) (T, bool)`
+- L902: `func permID(p copilot.PermissionRequest) string { return p.ID }`
+- L903: `func inputID(p copilot.InputRequest) string     { return p.ID }`
+- L904: `func planID(p copilot.PlanRequest) string       { return p.ID }`
+- L905: `func elicitID(e copilot.ElicitRequest) string   { return e.ID }`
+- L910: `func (s *Server) dropPerm(id string)  { s.perms = dropByID(s.perms, id, permID) }`
+- L911: `func (s *Server) dropInput(id string) { s.inputs = dropByID(s.inputs, id, inputID) }`
+- L912: `func (s *Server) dropPlan(id string)  { s.plans = dropByID(s.plans, id, planID) }`
+- L913: `func (s *Server) dropElicit(id string)`
+- L919: `func (s *Server) findElicit(id string) (copilot.ElicitRequest, bool)`
+- L924: `func firstNonEmpty(vals []string) string`
+- L937: `func (s *Server) editForge(fn func() error) error`
+- L951: `func (s *Server) writePartial(w http.ResponseWriter, html string)`
 
-### session.go (395 LOC)
+### session.go (472 LOC)
 - L15: `type liveKind int`
 - L28: `func (s *Server) handleEvent(e copilot.Event) []fragment`
-- L295: `type spendTag struct`
-- L311: `func (s *Server) recordUsage(u copilot.UsageData, tag spendTag) telemetry.Cost`
-- L358: `func (s *Server) handleSubagentStream(e copilot.Event) []fragment`
-- L377: `func (s *Server) timelineFragments() []fragment`
-- L390: `func toolID(e copilot.Event) string`
+- L305: `type spendTag struct`
+- L328: `func (s *Server) recordUsage(u copilot.UsageData, tag spendTag) telemetry.Cost`
+- L394: `func (s *Server) leashFor(agentID string) (telemetry.Leash, bool)`
+- L410: `func (s *Server) handleSubagentStream(e copilot.Event) []fragment`
+- L438: `func (s *Server) recordSubagentUsage(e copilot.Event) []fragment`
+- L454: `func (s *Server) timelineFragments() []fragment`
+- L467: `func toolID(e copilot.Event) string`
 
 ### sessions.go (182 LOC)
 - L21: `func (s *Server) sessionsPartial() string`
@@ -864,26 +880,26 @@ _Last generated: 2026-06-10 (UTC)._
 - L163: `func trendBandSVG(actual, forecast []float64, label string) string`
 - L216: `func bulletSVG(value, target, scaleMax float64, overTarget bool, label string) string`
 
-### telemetry_render.go (426 LOC)
+### telemetry_render.go (431 LOC)
 - L12: `func (s *Server) telemetryPartial(window int) string`
 - L83: `func (s *Server) spendTrend(window int) (days, shares []map[string]any, hasHistory bool)`
-- L140: `func (s *Server) spendShares(now time.Time) (agents, workflows []map[string]any)`
-- L170: `func agentKey(r telemetry.SpendRecord) string { return r.AgentID }`
-- L172: `func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }`
-- L190: `func (s *Server) workflowReconcile() []map[string]any`
-- L211: `func (s *Server) reconcileRow(r telemetry.WorkflowRecon) map[string]any`
-- L228: `func (s *Server) laneReconcile() []map[string]any`
-- L250: `func (s *Server) laneReconcileRow(r telemetry.LaneRecon) map[string]any`
-- L267: `func (s *Server) estimateDrift() []map[string]any`
-- L293: `func bucketTrajectories(bs []telemetry.BucketProjection, now time.Time) map[string]string`
-- L309: `func bucketTrajectoryText(p telemetry.Projection, now time.Time) string`
-- L328: `func daysLeftInMonth(now time.Time) int`
-- L339: `func shareRow(label string, credits, fraction float64) map[string]any`
-- L351: `func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any`
-- L375: `func forecastSoon(exhaust, now time.Time) bool`
-- L385: `func plural(n int, one, many string) string`
-- L395: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
-- L412: `func (s *Server) handleReconcileExport(w http.ResponseWriter, r *http.Request)`
+- L140: `func (s *Server) spendShares(now time.Time) (agents, workflows, subagents []map[string]any)`
+- L175: `func agentKey(r telemetry.SpendRecord) string { return r.AgentID }`
+- L177: `func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }`
+- L195: `func (s *Server) workflowReconcile() []map[string]any`
+- L216: `func (s *Server) reconcileRow(r telemetry.WorkflowRecon) map[string]any`
+- L233: `func (s *Server) laneReconcile() []map[string]any`
+- L255: `func (s *Server) laneReconcileRow(r telemetry.LaneRecon) map[string]any`
+- L272: `func (s *Server) estimateDrift() []map[string]any`
+- L298: `func bucketTrajectories(bs []telemetry.BucketProjection, now time.Time) map[string]string`
+- L314: `func bucketTrajectoryText(p telemetry.Projection, now time.Time) string`
+- L333: `func daysLeftInMonth(now time.Time) int`
+- L344: `func shareRow(label string, credits, fraction float64) map[string]any`
+- L356: `func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any`
+- L380: `func forecastSoon(exhaust, now time.Time) bool`
+- L390: `func plural(n int, one, many string) string`
+- L400: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
+- L417: `func (s *Server) handleReconcileExport(w http.ResponseWriter, r *http.Request)`
 
 ### tmpl.go (55 LOC)
 - L44: `func trusted(s string) template.HTML { return template.HTML(s) } //nolint:gosec // composed from escaped fragments`

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/dotts-h/copilot-sdk/internal/copilot"
+	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
 
 func fragFor(s *Server, e copilot.Event, name string) string {
@@ -231,6 +232,35 @@ func TestSubagentRowRendersCreditsPlaceholder(t *testing.T) {
 	html := fragFor(s, subStart("tc-1", "Explore"), "subagents")
 	if !strings.Contains(html, "0.00 cr") {
 		t.Errorf("row should render the credits cell (0.00 cr until S3): %q", html)
+	}
+}
+
+// S3 (issue 0072): a sub-agent's tagged usage is priced, folded onto the live
+// registry row's credits, and attributed to the instance in the ledger — but
+// kept OUT of the root/session token meters (the S1 invariant stays green).
+func TestSubagentUsageMetersCreditsOntoRow(t *testing.T) {
+	s, _ := newTestServer()
+	s.spend, _ = telemetry.LoadSpendStore("") // ephemeral ledger for the assertion
+	s.handleEvent(subStart("tc-1", "Explore"))
+	html := fragFor(s, tagSub("sub-1", copilot.Event{Type: copilot.EvUsage, Usage: copilot.UsageData{
+		Model: "gpt-5", InputTokens: 100_000, OutputTokens: 50_000}}), "subagents")
+	if html == "" || strings.Contains(html, "0.00 cr") {
+		t.Fatalf("sub-agent usage should fold live credits onto the row: %q", html)
+	}
+	// The spend is attributed to the instance in the ledger (SubagentShares input).
+	recs := s.spend.Records()
+	if len(recs) != 1 || recs[0].SubagentID != "sub-1" {
+		t.Fatalf("usage should append a sub-agent-tagged ledger record: %+v", recs)
+	}
+	if recs[0].SubagentName != "Explore" {
+		t.Errorf("ledger record should carry the display name for a restart-surviving label: %+v", recs[0])
+	}
+	if recs[0].USD <= 0 {
+		t.Errorf("the turn should be priced: %+v", recs[0])
+	}
+	// S1: a sub-agent's tokens are never metered as the root agent's spend.
+	if in, _, out := s.meter.TotalTokens(); in != 0 || out != 0 {
+		t.Fatalf("sub-agent usage leaked into the root meter: in=%d out=%d", in, out)
 	}
 }
 

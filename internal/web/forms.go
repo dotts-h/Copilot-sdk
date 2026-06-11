@@ -161,7 +161,18 @@ func renderAgentForm(a ctxforge.Agent, isNew bool, errMsg string) string {
 		textArea("System message", "systemMessage", a.SystemMessage, false),
 		textField("Skills (comma-separated IDs)", "skills", strings.Join(a.Skills, ", "), false),
 		textField("Allowed tools (comma-separated; blank = all)", "allowedTools", strings.Join(a.AllowedTools, ", "), false),
+		textField("Max credits (budget leash; blank/0 = unleashed)", "maxCredits", leashCreditsStr(a.MaxCredits), false),
+		numberField("Max turns (budget leash; 0 = unleashed)", "maxTurns", int(a.MaxTurns)),
 	)
+}
+
+// leashCreditsStr renders a leash credit ceiling for the form: blank for the
+// unleashed default (0), so the field reads empty rather than "0".
+func leashCreditsStr(v float64) string {
+	if v <= 0 {
+		return ""
+	}
+	return strconv.FormatFloat(v, 'f', -1, 64)
 }
 
 func (s *Server) handleAgentNew(w http.ResponseWriter, r *http.Request)  { agentCRUD.New(s, w, r) }
@@ -177,7 +188,28 @@ func agentFromForm(r *http.Request, id string) ctxforge.Agent {
 		SystemMessage:   strings.TrimSpace(r.FormValue("systemMessage")),
 		Skills:          parseCSV(r.FormValue("skills")),
 		AllowedTools:    parseCSV(r.FormValue("allowedTools")),
+		MaxCredits:      parseLeashFloat(r.FormValue("maxCredits")),
+		MaxTurns:        int64(parseLeashInt(r.FormValue("maxTurns"))),
 	}
+}
+
+// parseLeashFloat/parseLeashInt read a leash ceiling from the form: a blank or
+// unparseable value is the unleashed default (0). Negative values are clamped to
+// 0 so the form can't smuggle an invalid leash past Agent.Validate.
+func parseLeashFloat(s string) float64 {
+	v, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	if err != nil || v < 0 {
+		return 0
+	}
+	return v
+}
+
+func parseLeashInt(s string) int {
+	v, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil || v < 0 {
+		return 0
+	}
+	return v
 }
 
 func (s *Server) handleAgentCreate(w http.ResponseWriter, r *http.Request) { agentCRUD.Create(s, w, r) }

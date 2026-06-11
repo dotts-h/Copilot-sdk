@@ -137,7 +137,7 @@ func TestSpendStoreOnDiskTagsAreStable(t *testing.T) {
 		t.Fatal(err)
 	}
 	body := string(data)
-	for _, want := range []string{`"version": 3`, `"records": [`, `"model": "gpt-5"`, `"agent": "builder"`, `"workflow": "ship"`, `"lane": 2`} {
+	for _, want := range []string{`"version": 4`, `"records": [`, `"model": "gpt-5"`, `"agent": "builder"`, `"workflow": "ship"`, `"lane": 2`} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("spend.json missing stable tag %q in:\n%s", want, body)
 		}

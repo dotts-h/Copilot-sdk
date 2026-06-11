@@ -316,6 +316,38 @@ func (b Budget) CapExceeded(projected float64) bool {
 	return projected > b.HardCapCredits
 }
 
+// Leash is a per-agent spend ceiling: an agent persona may be capped at a
+// maximum number of credits and/or turns, checked BEFORE the orchestrator
+// dispatches another of its turns so a runaway agent is stopped at our gate, not
+// after the spend (issue 0072). Both ceilings are opt-in: a zero value on an axis
+// means "no limit" there, and a zero-value Leash is inert (the default — off). It
+// is the per-agent sibling of the account-wide hard cap (Budget.HardCapCredits).
+type Leash struct {
+	// MaxCredits caps the agent's accumulated estimate-priced spend in credits.
+	MaxCredits float64
+	// MaxTurns caps the agent's number of metered turns.
+	MaxTurns int64
+}
+
+// Active reports whether the leash limits anything (either ceiling set). An
+// inactive leash never gates, so an unconfigured agent runs unleashed.
+func (l Leash) Active() bool { return l.MaxCredits > 0 || l.MaxTurns > 0 }
+
+// Breached reports whether the agent's accumulated credits or turns have reached
+// a configured ceiling — checked before allowing another turn, so a leashed agent
+// never spends past its cap. The comparison is inclusive (>=): a configured cap
+// is the last allowed value, and the turn that would cross it is the one gated. A
+// zero ceiling on an axis is "no limit" there. Pure: same inputs → same answer.
+func (l Leash) Breached(credits float64, turns int64) bool {
+	if l.MaxCredits > 0 && credits >= l.MaxCredits {
+		return true
+	}
+	if l.MaxTurns > 0 && turns >= l.MaxTurns {
+		return true
+	}
+	return false
+}
+
 // FormatUSD renders a dollar amount with sub-cent (4-decimal) precision — per-turn
 // costs are often a fraction of a cent, and the CSV export relies on this width.
 func FormatUSD(v float64) string { return fmt.Sprintf("$%.4f", v) }

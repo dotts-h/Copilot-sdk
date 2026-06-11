@@ -579,6 +579,14 @@ func renderBudgetForm(projected, capCredits float64) string {
 	})
 }
 
+// renderLeashForm renders the inline per-agent budget-leash gate: a paused turn
+// whose agent persona has crossed its leash, with proceed / raise-leash / cancel
+// controls reusing the hard-cap gate's look and its /budget/{action} route
+// (issue 0072). "raise leash" lifts only this persona's leash for the session.
+func renderLeashForm(label, reason string) string {
+	return frag("leashForm", map[string]any{"Agent": label, "Reason": reason})
+}
+
 // clampLines limits text to at most n lines, appending an elision note when it
 // truncates, so a large tool result never floods the timeline.
 func clampLines(s string, n int) string {

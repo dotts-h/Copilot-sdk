@@ -52,6 +52,16 @@ type SpendRecord struct {
 	// LaneIndex is meaningful only alongside a non-empty WorkflowID; its zero value
 	// (the first lane, or a non-workflow turn) is correct, so it omits cleanly.
 	LaneIndex int `json:"lane,omitempty"`
+	// SubagentID/SubagentName attribute the turn to the sub-agent INSTANCE that
+	// spent it (empty = a root/persona turn, not a sub-agent). A sub-agent's spend
+	// is the sub-agent's, not the agent that spawned it, so AgentShares excludes a
+	// sub-agent-tagged record from the agent buckets (no double-count) and
+	// SubagentShares rolls it up on its own. The name is carried so the Telemetry
+	// breakdown labels the row even after a restart drops the live registry. Both
+	// are additive, schema-v4 tags (older readers ignore them; older records read
+	// back empty) — the same ADR-0018 discipline (epic 0069 S3, issue 0072).
+	SubagentID   string `json:"sub,omitempty"`
+	SubagentName string `json:"subname,omitempty"`
 }
 
 // Credits expresses the record's estimate-priced USD cost in GitHub AI Credits
@@ -82,10 +92,11 @@ const (
 	// "records" array readable by older code (additive fields only) or ship a
 	// migration — see CONTRACTS.md §4 and docs/REGRESSIONS.md. v2 added the
 	// additive agent/workflow/lane attribution tags (ADR-0018); v3 added the
-	// additive cache-write/reasoning token counts (ADR-0034). Each is additive:
-	// older readers ignore the new keys and tolerate the higher version, and older
-	// records read back with the new fields zero.
-	SpendSchemaVersion = 3
+	// additive cache-write/reasoning token counts (ADR-0034); v4 added the additive
+	// sub-agent id/name attribution tags (issue 0072). Each is additive: older
+	// readers ignore the new keys and tolerate the higher version, and older records
+	// read back with the new fields zero.
+	SpendSchemaVersion = 4
 )
 
 // SpendStore is the persisted spend ledger: a thin typed wrapper over the shared
@@ -260,12 +271,28 @@ type AgentShare struct {
 // AgentShares totals spend per agent persona and computes each agent's fraction
 // of all recorded spend (the empty-agent bucket included, since every turn has an
 // agent), sorted by spend descending. Answers "which agent is burning my budget?"
-// (ADR-0018). Pure: same records → same result.
+// (ADR-0018). Sub-agent-tagged turns are excluded: a sub-agent's spend is the
+// sub-agent's, not the agent that spawned it, so it neither inflates the root
+// (empty-agent) bucket nor any persona's — it rolls up in SubagentShares instead,
+// no double-count (issue 0072). Pure: same records → same result.
 func AgentShares(records []SpendRecord) []AgentShare {
-	groups := shareBy(records, func(r SpendRecord) string { return r.AgentID }, true)
+	groups := shareBy(rootTurns(records), func(r SpendRecord) string { return r.AgentID }, true)
 	out := make([]AgentShare, len(groups))
 	for i, g := range groups {
 		out[i] = AgentShare{AgentID: g.Key, USD: g.USD, Credits: g.Credits, Fraction: g.Fraction}
+	}
+	return out
+}
+
+// rootTurns filters out sub-agent-attributed records, leaving the turns the root
+// or a persona spent directly — so the agent view doesn't double-count spend the
+// SubagentShares view already attributes (issue 0072).
+func rootTurns(records []SpendRecord) []SpendRecord {
+	out := make([]SpendRecord, 0, len(records))
+	for _, r := range records {
+		if r.SubagentID == "" {
+			out = append(out, r)
+		}
 	}
 	return out
 }
@@ -289,6 +316,44 @@ func WorkflowShares(records []SpendRecord) []WorkflowShare {
 	out := make([]WorkflowShare, len(groups))
 	for i, g := range groups {
 		out[i] = WorkflowShare{WorkflowID: g.Key, USD: g.USD, Credits: g.Credits, Fraction: g.Fraction}
+	}
+	return out
+}
+
+// SubagentShare is one sub-agent instance's slice of sub-agent-attributed spend.
+// SubagentName is the instance's display name as captured on the record, so the
+// breakdown labels the row even after a restart drops the live registry.
+type SubagentShare struct {
+	SubagentID   string
+	SubagentName string
+	USD          float64
+	Credits      float64
+	Fraction     float64 // share of sub-agent-attributed spend in [0,1]
+}
+
+// SubagentShares totals spend per sub-agent instance across the records a
+// sub-agent owned (turns with no sub-agent are excluded, so the fraction is each
+// instance's share of sub-agent — not all — spend), sorted by spend descending.
+// The cost-awareness half of the sub-agent epic: answers "which sub-agent is
+// burning my budget?" without inflating the root agent's bucket (issue 0072).
+// Pure: same records → same result.
+func SubagentShares(records []SpendRecord) []SubagentShare {
+	groups := shareBy(records, func(r SpendRecord) string { return r.SubagentID }, false)
+	// Carry a display name per instance id (last non-empty wins) so the breakdown
+	// labels each row from the ledger alone — the live registry doesn't survive a
+	// restart, but the record's name does.
+	names := map[string]string{}
+	for _, r := range records {
+		if r.SubagentID != "" && r.SubagentName != "" {
+			names[r.SubagentID] = r.SubagentName
+		}
+	}
+	out := make([]SubagentShare, len(groups))
+	for i, g := range groups {
+		out[i] = SubagentShare{
+			SubagentID: g.Key, SubagentName: names[g.Key],
+			USD: g.USD, Credits: g.Credits, Fraction: g.Fraction,
+		}
 	}
 	return out
 }
@@ -325,7 +390,7 @@ func WriteCSV(w io.Writer, records []SpendRecord) error {
 	// New attribution columns (agent/workflow/lane) are appended at the end so the
 	// pre-v2 column positions are unchanged — a backward-compatible header bump
 	// (CONTRACTS §3). — ADR-0018.
-	if err := cw.Write([]string{"at", "session", "model", "input", "cached", "output", "usd", "credits", "aiu", "agent", "workflow", "lane", "cacheWrite", "reasoning"}); err != nil {
+	if err := cw.Write([]string{"at", "session", "model", "input", "cached", "output", "usd", "credits", "aiu", "agent", "workflow", "lane", "cacheWrite", "reasoning", "subagent", "subagentName"}); err != nil {
 		return err
 	}
 	for _, r := range records {
@@ -344,6 +409,8 @@ func WriteCSV(w io.Writer, records []SpendRecord) error {
 			strconv.Itoa(r.LaneIndex),
 			strconv.FormatInt(r.CacheWriteTokens, 10),
 			strconv.FormatInt(r.ReasoningTokens, 10),
+			r.SubagentID,
+			r.SubagentName,
 		}
 		if err := cw.Write(row); err != nil {
 			return err

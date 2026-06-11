@@ -10,6 +10,7 @@ import (
 
 	"github.com/dotts-h/copilot-sdk/internal/config"
 	"github.com/dotts-h/copilot-sdk/internal/copilot"
+	"github.com/dotts-h/copilot-sdk/internal/ctxforge"
 	"github.com/dotts-h/copilot-sdk/internal/telemetry"
 )
 
@@ -216,5 +217,146 @@ func TestUnderCapDispatchesNormally(t *testing.T) {
 	}
 	if s.gate != nil {
 		t.Error("no gate should be recorded for an under-cap turn")
+	}
+}
+
+// leashOn primes a session whose active persona ("builder") has a 1-turn budget
+// leash and has already run its one allowed turn, so the next turn gates on the
+// leash (issue 0072).
+func leashOn(t *testing.T) (*Server, *copilot.MockClient, *httptest.Server) {
+	t.Helper()
+	s, mock := newTestServer()
+	s.spec.Model = "gpt-5"
+	cfg := config.Default(t.TempDir())
+	cfg.Telemetry.HardCapCredits = 0 // no account cap — isolate the leash
+	*s.config = *cfg
+	if err := s.forge.AddAgent(ctxforge.Agent{ID: "builder", Name: "Builder", Model: "gpt-5", MaxTurns: 1}); err != nil {
+		t.Fatal(err)
+	}
+	s.agentID = "builder"
+	// Snapshot the leash as applyAgentSpec would on selection (the gate reads the
+	// snapshot, not the forge).
+	s.agentLeash = telemetry.Leash{MaxTurns: 1}
+	s.agentLeashLabel = "Builder"
+	s.agentTurns["builder"] = 1 // already at the 1-turn leash → the next turn gates
+	srv := httptest.NewServer(s.Handler())
+	t.Cleanup(srv.Close)
+	return s, mock, srv
+}
+
+func TestLeashPausesOverLeashTurn(t *testing.T) {
+	s, mock, srv := leashOn(t)
+
+	resp, err := srv.Client().PostForm(srv.URL+"/send", url.Values{"prompt": {"another turn"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	if len(mock.Sent) != 0 {
+		t.Fatalf("an over-leash turn must not dispatch until confirmed: %v", mock.Sent)
+	}
+	if !strings.Contains(string(body), "leash") || !strings.Contains(string(body), "Builder") {
+		t.Errorf("send should return the inline leash gate naming the agent: %q", body)
+	}
+	if !strings.Contains(string(body), "another turn") {
+		t.Errorf("the user bubble should appear even when gated: %q", body)
+	}
+	if s.gate == nil || s.gate.leashAgent != "builder" {
+		t.Fatalf("a pending leash gate should be recorded for the agent: %+v", s.gate)
+	}
+}
+
+func TestLeashProceedDispatchesAndKeepsLeash(t *testing.T) {
+	s, mock, srv := leashOn(t)
+	_, _ = srv.Client().PostForm(srv.URL+"/send", url.Values{"prompt": {"another turn"}})
+
+	resp, err := srv.Client().PostForm(srv.URL+"/budget/proceed", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	if len(mock.Sent) != 1 || mock.Sent[0] != "another turn" {
+		t.Fatalf("proceed should dispatch the held prompt: %v", mock.Sent)
+	}
+	if s.gate != nil {
+		t.Error("the gate should be cleared after a decision")
+	}
+	// Proceed keeps the leash, so a later over-leash turn gates again.
+	if s.leashLifted["builder"] {
+		t.Error("proceed must not lift the leash")
+	}
+}
+
+func TestLeashRaiseLiftsLeashForSession(t *testing.T) {
+	s, mock, srv := leashOn(t)
+	_, _ = srv.Client().PostForm(srv.URL+"/send", url.Values{"prompt": {"another turn"}})
+
+	resp, err := srv.Client().PostForm(srv.URL+"/budget/raise", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	if len(mock.Sent) != 1 || mock.Sent[0] != "another turn" {
+		t.Fatalf("raise should dispatch the held prompt: %v", mock.Sent)
+	}
+	if !s.leashLifted["builder"] {
+		t.Error("raise should lift this persona's leash for the session")
+	}
+	// The leash override is session-scoped, not a forge edit, and the account cap is
+	// untouched.
+	if s.config.Telemetry.HardCapCredits != 0 {
+		t.Errorf("a leash raise must not touch the account hard cap, got %v", s.config.Telemetry.HardCapCredits)
+	}
+}
+
+func TestLeashCancelDropsTurn(t *testing.T) {
+	s, mock, srv := leashOn(t)
+	_, _ = srv.Client().PostForm(srv.URL+"/send", url.Values{"prompt": {"another turn"}})
+
+	resp, err := srv.Client().PostForm(srv.URL+"/budget/cancel", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	if len(mock.Sent) != 0 {
+		t.Fatalf("cancel must not dispatch the held turn: %v", mock.Sent)
+	}
+	if s.gate != nil {
+		t.Error("the gate should be cleared after cancel")
+	}
+	if s.busy {
+		t.Error("cancel should free the composer (busy reset)")
+	}
+	if !strings.Contains(string(body), "leash") {
+		t.Errorf("cancel should note the leash cancellation: %q", body)
+	}
+}
+
+func TestUnleashedAgentDispatchesNormally(t *testing.T) {
+	s, mock := newTestServer()
+	s.spec.Model = "gpt-5"
+	// An agent with no leash configured runs unleashed even after many turns.
+	if err := s.forge.AddAgent(ctxforge.Agent{ID: "free", Name: "Free", Model: "gpt-5"}); err != nil {
+		t.Fatal(err)
+	}
+	s.agentID = "free"
+	s.agentTurns["free"] = 9999
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	if _, err := srv.Client().PostForm(srv.URL+"/send", url.Values{"prompt": {"go"}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(mock.Sent) != 1 {
+		t.Fatalf("an unleashed agent should dispatch without a gate: %v", mock.Sent)
+	}
+	if s.gate != nil {
+		t.Error("no gate should be recorded for an unleashed agent")
 	}
 }

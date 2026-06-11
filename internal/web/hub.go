@@ -37,9 +37,15 @@ type Hub struct {
 	hardCap      float64
 	baseSpec     copilot.SessionSpec
 	baseAgentID  string // the launch-time active agent id (config.DefaultAgent), seeded onto each new session for spend attribution
-	logger       *log.Logger
-	demo         bool
-	workdir      string // base dir scanned by "import project instructions"
+	// baseLeash/baseLeashLabel snapshot the launch-time agent's budget leash, seeded
+	// onto each new session so the pre-dispatch gate reads it under s.mu without
+	// reaching for the forge (issue 0072). Computed once at construction (startup is
+	// single-threaded, so no forgeMu needed there).
+	baseLeash      telemetry.Leash
+	baseLeashLabel string
+	logger         *log.Logger
+	demo           bool
+	workdir        string // base dir scanned by "import project instructions"
 	// lookPath resolves an MCP server command on PATH for the page preflight. It is
 	// the one impurity in the otherwise-pure forge rendering, isolated behind this
 	// seam so tests can inject a fake; defaults to exec.LookPath.
@@ -92,11 +98,20 @@ func New(opts Options) *Hub {
 	}
 	var allowance, warnFraction, hardCap float64
 	var baseAgentID string
+	var baseLeash telemetry.Leash
+	var baseLeashLabel string
 	if opts.Config != nil {
 		allowance = opts.Config.Telemetry.MonthlyCreditAllowance
 		warnFraction = opts.Config.Telemetry.WarnFraction
 		hardCap = opts.Config.Telemetry.HardCapCredits
 		baseAgentID = opts.Config.DefaultAgent
+		// Startup is single-threaded, so reading the forge here needs no forgeMu.
+		if opts.Forge != nil && baseAgentID != "" {
+			if a := opts.Forge.Agent(baseAgentID); a != nil {
+				baseLeash = telemetry.Leash{MaxCredits: a.MaxCredits, MaxTurns: a.MaxTurns}
+				baseLeashLabel = a.Name
+			}
+		}
 	}
 	workdir := opts.Workdir
 	if workdir == "" {
@@ -105,7 +120,8 @@ func New(opts Options) *Hub {
 	h := &Hub{
 		client: opts.Client, forge: opts.Forge, config: opts.Config, meter: opts.Meter, spend: opts.Spend, runs: opts.Runs,
 		allowance: allowance, warnFraction: warnFraction, hardCap: hardCap,
-		baseSpec: opts.Spec, baseAgentID: baseAgentID, logger: lg, demo: opts.Demo, workdir: workdir,
+		baseSpec: opts.Spec, baseAgentID: baseAgentID, baseLeash: baseLeash, baseLeashLabel: baseLeashLabel,
+		logger: lg, demo: opts.Demo, workdir: workdir,
 		lookPath: exec.LookPath, lookupEnv: os.Getenv, setEnv: os.Setenv,
 		sessions: map[string]*Server{}, byCopilot: map[string]*Server{},
 	}
@@ -128,10 +144,15 @@ func (h *Hub) newSession(id string) *Server {
 		allowance:    h.allowance, warnFraction: h.warnFraction, hardCap: h.hardCap,
 		lookPath: h.lookPath, lookupEnv: h.lookupEnv, setEnv: h.setEnv,
 		logger: h.logger, demo: h.demo,
-		spec:           h.baseSpec,
-		agentID:        h.baseAgentID,
-		sessionStartMs: nowMs(),
-		subs:           make(map[chan fragment]struct{}),
+		spec:            h.baseSpec,
+		agentID:         h.baseAgentID,
+		sessionStartMs:  nowMs(),
+		subs:            make(map[chan fragment]struct{}),
+		agentCredits:    make(map[string]float64),
+		agentTurns:      make(map[string]int64),
+		leashLifted:     make(map[string]bool),
+		agentLeash:      h.baseLeash,
+		agentLeashLabel: h.baseLeashLabel,
 	}
 	h.mu.Lock()
 	h.sessions[id] = s

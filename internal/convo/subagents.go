@@ -129,6 +129,22 @@ func (r *Subagents) AddCredits(instanceID string, credits float64) bool {
 	return true
 }
 
+// NameFor returns the display label of the instance's entry, joining it like
+// Observe if needed (so a usage event that is the first tag still binds). Empty
+// when no entry can be joined — the caller still meters the spend (it is real),
+// the label just falls back to the raw instance id. The S3 caller's seam for
+// labelling a tagged ledger record.
+func (r *Subagents) NameFor(instanceID string) string {
+	e := r.join(instanceID)
+	if e == nil {
+		return ""
+	}
+	if e.DisplayName != "" {
+		return e.DisplayName
+	}
+	return e.Name
+}
+
 // End settles the spawn's entry as done or failed, keeping it listed. A
 // successful completion that reported zero tokens AND whose stream we never
 // observed (no instance ever joined the entry) is marked Unverified —

@@ -83,8 +83,25 @@ type Server struct {
 	ctxCurrent  int64        // last context-window token reading (EvContextWindow)
 	ctxLimit    int64        // context-window size from the last reading
 	compacting  bool         // conversation compaction is in progress
-	gate        *budgetGate  // a turn paused on the hard cap (nil when none pending)
+	gate        *budgetGate  // a turn paused on the hard cap or an agent leash (nil when none pending)
 	run         *workflowRun // an active/just-finished multi-agent workflow run (item 2.1)
+
+	// agentCredits/agentTurns accumulate each persona's metered spend this session
+	// (keyed by agent id), so the budget leash can gate a persona's next turn before
+	// it spends past its cap (issue 0072). leashLifted records personas whose leash
+	// the user raised this session, so a raised leash stops re-gating. All three are
+	// reset on /clear. Sub-agent turns (tagged by instance, not persona) don't
+	// accumulate here — their cap rides S4.
+	agentCredits map[string]float64
+	agentTurns   map[string]int64
+	leashLifted  map[string]bool
+	// agentLeash/agentLeashLabel snapshot the ACTIVE persona's budget leash + display
+	// label, captured under forgeMu when the agent is selected (like s.spec) — so the
+	// pre-dispatch gate, which runs under s.mu, reads the snapshot instead of reaching
+	// for forgeMu while holding s.mu (the forge→s.mu lock-order inversion this repo
+	// forbids — REGRESSIONS, CONTEXT "lock order"). — issue 0072
+	agentLeash      telemetry.Leash
+	agentLeashLabel string
 
 	sessionStartMs int64 // epoch ms this conversation began (drives the session timer)
 	messagesSent   int64 // user prompts dispatched (statusline)
@@ -293,6 +310,20 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 	s.pending = nil
 	s.live = liveNone
 
+	// Per-agent budget-leash gate: if the active persona has already crossed its
+	// leash this session, pause before spending more (issue 0072). Checked before
+	// the account-wide cap so the more specific ceiling speaks first. The user
+	// bubble is already in the transcript, so type-ahead UX is preserved.
+	if g := s.pendingLeashGate(prompt, attachments); g != nil {
+		s.gate = g
+		s.turnStartMs = 0
+		oob := s.oobTimeline() + s.oobStat() + s.oobBudget() +
+			oobStatus("agent leash reached — confirm to proceed", false, 0)
+		s.mu.Unlock()
+		_, _ = w.Write([]byte(oob))
+		return
+	}
+
 	// Hard-cap gate: if the projected spend of this turn (current total + the
 	// pre-flight estimate of resending the live context) would breach the cap,
 	// pause and ask for confirmation instead of dispatching. The user bubble is
@@ -319,13 +350,56 @@ func (s *Server) handleSend(w http.ResponseWriter, r *http.Request) {
 // The session's budget accounting — budget(), monthToDate(), forecast(), overCap(),
 // and the budgetTracker they delegate to — lives in budget.go.
 
-// budgetGate holds a turn paused because its projected spend would breach the
-// hard cap, until the user proceeds, raises the cap, or cancels it.
+// budgetGate holds a turn paused because its spend would breach a ceiling — the
+// account-wide hard cap or, when leashAgent is set, that agent persona's budget
+// leash (issue 0072) — until the user proceeds, raises the ceiling, or cancels.
+// The two share one pause-resolve shape and one /budget/{action} route; the
+// leashAgent tag is what tells handleBudget which ceiling "raise" lifts.
 type budgetGate struct {
 	prompt      string
 	attachments []string
 	projected   float64
 	cap         float64
+	leashAgent  string // non-empty → a per-agent leash gate; the agent whose leash tripped
+	leashLabel  string // the agent's display label, for the gate prompt
+	leashReason string // human reason the leash tripped (e.g. "spent 12.00 cr of its 12.00 cr leash")
+}
+
+// leashGate builds a paused-turn gate for an agent persona that has crossed its
+// budget leash (issue 0072), reusing the hard-cap gate's pause-resolve shape.
+// Caller holds s.mu.
+// pendingLeashGate returns a paused-turn gate when the active persona has crossed
+// its budget leash this session, else nil — the shared pre-dispatch leash check for
+// both the first send (handleSend) and the queue drain (EvIdle). Caller holds s.mu.
+func (s *Server) pendingLeashGate(prompt string, attachments []string) *budgetGate {
+	leash, breached := s.leashFor(s.agentID)
+	if !breached {
+		return nil
+	}
+	return s.leashGate(prompt, attachments, s.agentID, leash)
+}
+
+func (s *Server) leashGate(prompt string, attachments []string, agentID string, leash telemetry.Leash) *budgetGate {
+	label := s.agentLeashLabel
+	if label == "" {
+		label = agentID
+	}
+	return &budgetGate{
+		prompt: prompt, attachments: attachments,
+		leashAgent: agentID, leashLabel: label,
+		leashReason: leashReason(leash, s.agentCredits[agentID], s.agentTurns[agentID]),
+	}
+}
+
+// leashReason describes which axis of the leash tripped, for the gate prompt.
+func leashReason(leash telemetry.Leash, credits float64, turns int64) string {
+	if leash.MaxCredits > 0 && credits >= leash.MaxCredits {
+		return fmt.Sprintf("spent %s of its %s leash", telemetry.FormatCredits(credits), telemetry.FormatCredits(leash.MaxCredits))
+	}
+	if leash.MaxTurns > 0 && turns >= leash.MaxTurns {
+		return fmt.Sprintf("ran %d of its %d-turn leash", turns, leash.MaxTurns)
+	}
+	return "reached its budget leash"
 }
 
 // handleBudget resolves a paused over-cap turn. "proceed" dispatches the held
@@ -350,7 +424,11 @@ func (s *Server) handleBudget(w http.ResponseWriter, r *http.Request) {
 		s.busy = false
 		s.queue = nil
 		s.turnStartMs = 0
-		s.state.AddSystem("⚠ turn cancelled — over budget cap")
+		cancelNote := "⚠ turn cancelled — over budget cap"
+		if g.leashAgent != "" {
+			cancelNote = "⚠ turn cancelled — agent budget leash"
+		}
+		s.state.AddSystem(cancelNote)
 		oob := s.oobTimeline() + s.oobBudget() + oobStatus("", false, 0)
 		s.mu.Unlock()
 		_, _ = w.Write([]byte(oob))
@@ -361,10 +439,18 @@ func (s *Server) handleBudget(w http.ResponseWriter, r *http.Request) {
 	s.turnStartMs = nowMs()
 	s.busy = true
 	prompt, attachments := g.prompt, g.attachments
+	leashAgent := g.leashAgent
 	s.mu.Unlock()
 
 	if action == "raise" {
-		if err := s.editConfig(func(c *config.Config) { c.Telemetry.HardCapCredits = 0 }); err != nil {
+		if leashAgent != "" {
+			// A leash gate's "raise" lifts THIS persona's leash for the session (a
+			// transient override, not a forge edit), so its turns stop re-gating —
+			// the account-wide cap is untouched (issue 0072).
+			s.mu.Lock()
+			s.leashLifted[leashAgent] = true
+			s.mu.Unlock()
+		} else if err := s.editConfig(func(c *config.Config) { c.Telemetry.HardCapCredits = 0 }); err != nil {
 			s.logger.Printf("lift cap: %v", err)
 		} else {
 			s.mu.Lock()
@@ -661,11 +747,19 @@ func (s *Server) handleAgentSelect(w http.ResponseWriter, r *http.Request) {
 		s.logger.Printf("save config: %v", err)
 	}
 	c := s.compiledSpec(compileID)
+	// Capture the selected persona's leash + label under forgeMu so applyAgentSpec can
+	// snapshot it under s.mu (issue 0072); toggle-off (compileID "") leaves it inert.
+	var leash telemetry.Leash
+	var leashLabel string
+	if ag := s.forge.Agent(compileID); ag != nil {
+		leash = telemetry.Leash{MaxCredits: ag.MaxCredits, MaxTurns: ag.MaxTurns}
+		leashLabel = ag.Name
+	}
 	s.hub.forgeMu.Unlock()
 	// Compile the agent's full persona (system message + instructions + skill
 	// prompts) plus model/effort/tool-allowlist + enabled MCP servers into the live
 	// spec and restart the session so the selection takes effect on the next prompt.
-	s.applyAgentSpec(c, compileID)
+	s.applyAgentSpec(c, compileID, leash, leashLabel)
 	s.writePartial(w, s.agentsPartial())
 }
 
@@ -736,6 +830,9 @@ func (s *Server) budgetFrag() fragment {
 func (s *Server) renderGate() string {
 	if s.gate == nil {
 		return ""
+	}
+	if s.gate.leashAgent != "" {
+		return renderLeashForm(s.gate.leashLabel, s.gate.leashReason)
 	}
 	return renderBudgetForm(s.gate.projected, s.gate.cap)
 }

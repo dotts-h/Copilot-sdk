@@ -218,6 +218,55 @@ func TestSpendStoreReadsV1RecordWithoutTags(t *testing.T) {
 	}
 }
 
+func TestSpendRecordRoundTripsSubagentTags(t *testing.T) {
+	// A v4 record carries the additive sub-agent id/name tags through a persist +
+	// reload cycle (the cost-attribution half of epic 0069 S3 — issue 0072).
+	dir := t.TempDir()
+	s, err := LoadSpendStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := SpendRecord{Model: "gpt-5", USD: 0.5, SubagentID: "sa-7", SubagentName: "builder"}
+	if err := s.Append(rec); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := LoadSpendStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := reloaded.Records()
+	if len(got) != 1 {
+		t.Fatalf("reloaded %d records, want 1", len(got))
+	}
+	if got[0].SubagentID != "sa-7" || got[0].SubagentName != "builder" {
+		t.Fatalf("sub-agent tags lost on round trip: %+v", got[0])
+	}
+}
+
+func TestSpendStoreReadsV3RecordWithoutSubagentTags(t *testing.T) {
+	// Backward-readable: a v3 file (no sub/subname keys) still loads — older records
+	// read back with empty sub-agent tags, the same additive discipline as v1→v2.
+	dir := t.TempDir()
+	body := `{"version":3,"records":[{"at":"2026-06-05T10:00:00Z","session":"s1","model":"gpt-5","in":100,"out":50,"usd":0.1,"agent":"builder"}]}`
+	if err := os.WriteFile(filepath.Join(dir, "spend.json"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s, err := LoadSpendStore(dir)
+	if err != nil {
+		t.Fatalf("v3 file should still be readable: %v", err)
+	}
+	recs := s.Records()
+	if len(recs) != 1 {
+		t.Fatalf("want 1 record, got %d", len(recs))
+	}
+	if recs[0].SubagentID != "" || recs[0].SubagentName != "" {
+		t.Fatalf("a v3 record should read back with empty sub-agent tags: %+v", recs[0])
+	}
+	if recs[0].AgentID != "builder" || recs[0].USD != 0.1 {
+		t.Fatalf("v3 fields lost: %+v", recs[0])
+	}
+}
+
 func TestAgentShares(t *testing.T) {
 	recs := []SpendRecord{
 		{AgentID: "builder", USD: 0.60},
@@ -246,6 +295,61 @@ func TestAgentSharesDeterministicTieBreak(t *testing.T) {
 	if len(got) != 2 || got[0].AgentID != "alpha" || got[1].AgentID != "zeta" {
 		t.Fatalf("ties should break by agent id: %+v", got)
 	}
+}
+
+func TestSubagentShares(t *testing.T) {
+	recs := []SpendRecord{
+		{SubagentID: "sa-1", SubagentName: "builder", USD: 0.30},
+		{SubagentID: "sa-2", SubagentName: "sdet", USD: 0.10},
+		{SubagentID: "sa-1", SubagentName: "builder", USD: 0.10},
+		{AgentID: "chat", USD: 5.00}, // root persona spend — excluded from the sub-agent view
+	}
+	got := SubagentShares(recs)
+	if len(got) != 2 {
+		t.Fatalf("non-subagent spend must be excluded: got %d buckets %+v", len(got), got)
+	}
+	// Sorted by spend desc → sa-1 (0.40) leads sa-2 (0.10).
+	if got[0].SubagentID != "sa-1" {
+		t.Fatalf("biggest sub-agent should lead: %+v", got)
+	}
+	// Fractions are relative to sub-agent-attributed spend (0.40 + 0.10 = 0.50), not
+	// the 5.50 grand total — so sa-1 is 0.40/0.50 = 0.80.
+	approx(t, got[0].Fraction, 0.80)
+	approx(t, got[1].Fraction, 0.20)
+	approx(t, got[0].Credits, 40)
+	// The display name is carried from the record so the breakdown labels the row
+	// even after a restart drops the live registry.
+	if got[0].SubagentName != "builder" || got[1].SubagentName != "sdet" {
+		t.Fatalf("sub-agent names not carried: %+v", got)
+	}
+}
+
+func TestSubagentSharesEmpty(t *testing.T) {
+	if got := SubagentShares(nil); len(got) != 0 {
+		t.Fatalf("nil records should yield no shares, got %+v", got)
+	}
+	// All-root records (no sub-agent) yield nothing to attribute.
+	if got := SubagentShares([]SpendRecord{{AgentID: "chat", USD: 1}}); len(got) != 0 {
+		t.Fatalf("all-root records should yield no sub-agent shares, got %+v", got)
+	}
+}
+
+func TestAgentSharesExcludeSubagentSpend(t *testing.T) {
+	// A sub-agent's spend is the sub-agent's, not the agent that spawned it: it must
+	// not inflate the root (empty-agent) bucket nor any persona's — no double-count.
+	recs := []SpendRecord{
+		{AgentID: "builder", USD: 0.60},
+		{AgentID: "", USD: 0.40},                              // root chat
+		{SubagentID: "sa-1", SubagentName: "scout", USD: 9.0}, // sub-agent turn — excluded here
+	}
+	got := AgentShares(recs)
+	if len(got) != 2 {
+		t.Fatalf("sub-agent spend must not appear as an agent bucket: got %d %+v", len(got), got)
+	}
+	// builder (0.60) and the empty-agent bucket (0.40) split 1.00 — the 9.0 of
+	// sub-agent spend is gone from the agent view entirely.
+	approx(t, got[0].Fraction, 0.60)
+	approx(t, got[1].Fraction, 0.40)
 }
 
 func TestWorkflowSharesExcludeNonWorkflowSpend(t *testing.T) {
@@ -382,7 +486,7 @@ func TestWriteCSVAppendsAttributionColumns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CSV is not parseable: %v", err)
 	}
-	want := []string{"at", "session", "model", "input", "cached", "output", "usd", "credits", "aiu", "agent", "workflow", "lane", "cacheWrite", "reasoning"}
+	want := []string{"at", "session", "model", "input", "cached", "output", "usd", "credits", "aiu", "agent", "workflow", "lane", "cacheWrite", "reasoning", "subagent", "subagentName"}
 	if len(rows[0]) != len(want) {
 		t.Fatalf("header width = %d, want %d: %+v", len(rows[0]), len(want), rows[0])
 	}
@@ -393,6 +497,28 @@ func TestWriteCSVAppendsAttributionColumns(t *testing.T) {
 	}
 	if rows[1][9] != "builder" || rows[1][10] != "ship" || rows[1][11] != "1" {
 		t.Fatalf("attribution columns wrong: agent=%q workflow=%q lane=%q", rows[1][9], rows[1][10], rows[1][11])
+	}
+}
+
+func TestWriteCSVAppendsSubagentColumns(t *testing.T) {
+	// The sub-agent columns are appended after the v2/v3 columns so the prior column
+	// order is unchanged (backward-compatible header — issue 0072).
+	recs := []SpendRecord{
+		{At: day("2026-06-05T10:00:00Z"), Model: "gpt-5", USD: 0.5, SubagentID: "sa-3", SubagentName: "builder"},
+	}
+	var buf bytes.Buffer
+	if err := WriteCSV(&buf, recs); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := csv.NewReader(&buf).ReadAll()
+	if err != nil {
+		t.Fatalf("CSV is not parseable: %v", err)
+	}
+	if rows[0][14] != "subagent" || rows[0][15] != "subagentName" {
+		t.Fatalf("sub-agent header columns wrong: %+v", rows[0])
+	}
+	if rows[1][14] != "sa-3" || rows[1][15] != "builder" {
+		t.Fatalf("sub-agent columns wrong: id=%q name=%q", rows[1][14], rows[1][15])
 	}
 }
 
