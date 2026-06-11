@@ -1,14 +1,14 @@
 ---
 id: 0083
 title: "Epic: Orchestration robustness — backpressure + replayability (considered-and-rejected event bus)"
-status: open
+status: closed
 severity: medium
 group:
 depends_on: []
 github: 139
 links:
-  adr:
-  prs: []
+  adr: [0048]
+  prs: [148, 149]
   issues: [0084, 0085]
   regression:
 assets: []
@@ -79,4 +79,17 @@ which mapped the current model (single event channel + pure state machine + chan
 bridges) and weighed a pub/sub bus against this project's actual single-user, in-process
 scale. Builds on `telemetry.AppendOnlyStore[T]` (epic 0030 / issue 0033) and the
 orchestration seams from epics 0042 (interactive orchestration) and the v6/v7 cost⋈run work.
+
+## Resolution (closed 2026-06-11)
+
+Both children shipped to `main`; the epic is fully delivered. The event bus stayed rejected —
+each win is a small, local guard on an existing seam, leaving the pure run engine's determinism
+intact (its zero-client tests pass byte-identically).
+
+- **0084 — bounded lane worker pool** (PR #148): `launchLanes` now drains a lane queue with a
+  fixed worker pool, capping concurrent in-flight sessions; backpressure for wide parallel
+  workflows. No new seam, no ADR.
+- **0085 — per-run event log** (PR #149, ADR-0048): an optional `AppendOnlyStore[RunEvent]`
+  fed from `hub.go`'s pump gives step-by-step replay/audit; disabling it leaves the live
+  record/SSE path byte-identical.
 </content>
