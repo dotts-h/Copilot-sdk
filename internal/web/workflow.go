@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dotts-h/copilot-sdk/internal/convo"
@@ -539,11 +540,52 @@ func (s *Server) workflowLaneSpec(cs ctxforge.SessionSpec) copilot.SessionSpec {
 	return SeamSpec(cs, defModel, defEffort, s.lookupEnv, s.hub.baseSpec.Workspace, autoApprove)
 }
 
-// launchLanes starts each given lane's sub-run concurrently.
+// laneWorkerCount is the fixed size of the worker pool that bounds concurrent
+// in-flight lane sessions. Excess lanes wait in the queue until a worker is free
+// (backpressure). The value is large enough for typical parallel workflows (a few
+// agents) while preventing unbounded fan-out on wide workflows (issue 0084).
+const laneWorkerCount = 8
+
+// launchLanes starts each given lane via a bounded worker pool so that at most
+// laneWorkerCount lanes are in-flight concurrently. Lanes beyond the cap queue and
+// start as workers free up — no lane is dropped. Result ordering is still driven by
+// finishLane/evalPending, not by the order lanes are dispatched here.
+//
+// Lock order: workers call startLane, which may acquire s.mu and s.hub.forgeMu
+// internally (forgeMu → s.mu, never inverted). launchLanes itself holds no lock.
 func (s *Server) launchLanes(run *workflowRun, idxs []int) {
-	for _, i := range idxs {
-		go s.startLane(run, i)
+	if len(idxs) == 0 {
+		return
 	}
+	// For a single lane skip the channel overhead — the common case in sequential mode.
+	if len(idxs) == 1 {
+		go s.startLane(run, idxs[0])
+		return
+	}
+
+	queue := make(chan int, len(idxs))
+	for _, i := range idxs {
+		queue <- i
+	}
+	close(queue)
+
+	workers := laneWorkerCount
+	if len(idxs) < workers {
+		workers = len(idxs)
+	}
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for w := 0; w < workers; w++ {
+		go func() {
+			defer wg.Done()
+			for i := range queue {
+				s.startLane(run, i)
+			}
+		}()
+	}
+	// Block in a separate goroutine so the caller (the HTTP handler goroutine or a
+	// startLane goroutine from laneError) is not held while workers run.
+	go wg.Wait()
 }
 
 // startLane opens a backing session for a lane and sends its (handoff) prompt.
