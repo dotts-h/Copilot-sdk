@@ -55,10 +55,10 @@ markdown string → parseBlocks() → []Block{Para, Heading, Code, Callout, Tabl
 
 ## Children
 
-- [ ] **R1 · Block-AST seam** ([0077](0077-block-ast-seam.md), M; ADR) — the keystone.
+- [x] **R1 · Block-AST seam** ([0077](0077-block-ast-seam.md), M; ADR) — the keystone.
       Refactor `renderMarkdown` to parse into a typed `[]Block` then render, with
       **byte-identical** output for today's subset under the existing fuzz/XSS tests.
-- [ ] **R2 · Callouts / admonitions** ([0078](0078-callouts-admonitions.md), S) —
+- [x] **R2 · Callouts / admonitions** ([0078](0078-callouts-admonitions.md), S) —
       GitHub-alert syntax `> [!NOTE|TIP|WARNING|CAUTION]` → designed callout (icon +
       semantic token), degrades to blockquote. Highest visual ROI; the model already
       emits this syntax.
