@@ -58,14 +58,21 @@ listed below. It does **not** file or restructure issues (that's `tracking-issue
       `make e2e` when the UI changed.
 - [ ] **7. Open the PR.** Push with `git push -u origin <branch>` and open a PR against `main`
       titled from the item (reference the issue id + epic/slice label). The PR body carries the
-      what/how and the item's acceptance boxes, ticked.
+      what/how and the item's acceptance boxes, ticked. **Remote/web env: there is no `gh` CLI —
+      open the PR with the GitHub MCP `create_pull_request` tool (base `main`); the same MCP server
+      (`pull_request_read`, `merge_pull_request`) reads checks and merges in steps 8–9.**
 - [ ] **8. Code-review the PR (+ apply fixes).** Run `/code-review --fix` on the diff. Apply
       confirmed correctness/reuse/simplification findings, note refuted/deferred ones in the
       review summary, re-run the gates, and push the fix commit to the same branch.
 - [ ] **9. Merge when CI is green.** Wait for ALL checks on the PR head (lint, test, fuzz, e2e) —
-      CI green is a hard precondition (CONVENTIONS). Then merge the PR (merge commit, matching the
-      repo's `Merge PR #N: <title>` history) and confirm `origin/main` advanced. If a check fails:
-      diagnose, fix on the branch, re-push, re-wait — a red check is never merged around.
+      CI green is a hard precondition (CONVENTIONS). **Remote/web env: you can't poll with `gh` from
+      a Monitor (no `gh` in the shell, and MCP tools can't run inside a Monitor command). Re-check
+      `pull_request_read get_check_runs` after a *background* `sleep` timer (`run_in_background: true`
+      — foreground `sleep` is blocked) and loop until every run is `completed`/`success`; don't
+      busy-wait. Webhook events don't cover CI success, so the timer poll is the reliable signal.**
+      Then merge the PR (merge commit, matching the repo's `Merge PR #N: <title>` history — via the
+      `merge_pull_request` MCP tool, `merge_method: merge`) and confirm `origin/main` advanced. If a
+      check fails: diagnose, fix on the branch, re-push, re-wait — a red check is never merged around.
 
 ## Batching in parallel
 
@@ -98,11 +105,23 @@ The recommender flags, it doesn't decide. **Ask the user** (don't guess) when:
 
 A remote harness (Claude Code on the web, a GitHub Action) may designate an auto-generated
 session branch (e.g. `claude/<old-epic-slug>-<hash>`) and a session title. **Neither carries
-product intent** (RETROS 0003): the item comes from `docs/issues/` via `next-issue.sh`, and the
-work happens on the **scope-prefixed feature branch from step 3/4** — never infer the item from
-the session branch name, and never develop on it when it contradicts the picker. If the harness
-requires its branch to be pushed, push the feature branch as the real PR head and say so; flag
-the mismatch once in the reply rather than asking.
+product intent** (RETROS 0003): the item comes from `docs/issues/` via `next-issue.sh` — never
+infer the item from the session branch name, and never develop on it when it contradicts the
+picker.
+
+Where the work *lands* is a separate question with two cases:
+
+- **Soft case (default): pick your own branch.** When the harness only *suggests* a branch (or
+  none), use the **scope-prefixed feature branch from step 3/4**; if the harness wants its branch
+  pushed, push the feature branch as the real PR head, flag the mismatch once, and move on.
+- **Hard case: the harness mandates a push target** ("develop on branch X; never push elsewhere
+  without permission"). Then **branch *is* the mandate** — don't invent a `feat/` name. Cut **X
+  itself fresh from `origin/main`** so the base is still trustworthy: `start-fresh.sh` *refuses an
+  existing branch*, so when the harness pre-created X, first confirm it carries **no unique work**
+  (`git log origin/main..X` empty / `git merge-base --is-ancestor X origin/main`), delete it
+  (`git branch -D X`), then `start-fresh.sh X --require <seam>`. Develop and push there. The item
+  still comes from the picker; only the branch name is the harness's. (This session: built R6 on
+  the mandated `claude/…` branch this way — RETROS 0004.)
 
 ## Boundaries (what this skill does NOT do)
 
