@@ -19,7 +19,7 @@ issues are added or closed.
 | [0038](0038-epic-cost-run-reconciliation.md) | Epic: cost⋈run reconciliation — converge the two persisted stores (roadmap v7) | closed | 0039, 0040, 0041 |
 | [0042](0042-epic-interactive-orchestration.md) | Epic: interactive orchestration — the Runs surface goes actionable (roadmap v8) | closed | 0043, 0044 |
 | [0045](0045-epic-ui-ux-refresh.md) | Epic: UI/UX refresh — token foundation, theming, navigation IA, telemetry dashboard, motion (roadmap v9) | closed | 0046, 0047, 0048, 0049 |
-| [0069](0069-epic-first-class-subagents.md) | Epic: First-class sub-agents — live view, per-subagent cost, HITL pause/continue/cancel (roadmap v12) | open | 0070, 0071, 0072, 0073, 0074, 0075 |
+| [0069](0069-epic-first-class-subagents.md) | Epic: First-class sub-agents — live view, per-subagent cost, HITL pause/continue/cancel (roadmap v12) | closed | 0070, 0071, 0072, 0073, 0074, 0075 |
 
 ## Issues
 

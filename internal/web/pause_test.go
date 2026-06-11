@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,6 +25,135 @@ func waitForPause(t *testing.T, s *Server) string {
 	}
 	t.Fatal("a pause was never registered")
 	return ""
+}
+
+// fakeClock is a mutex-guarded, advanceable time source so a test can make the
+// escalate back-channel's paused-duration accounting deterministic: the lane stamps
+// pausedAt at park and reads now() again when the pause closes, so advancing between
+// the two yields an exact span. now() is read from the escalate goroutine, so the
+// lock matters.
+type fakeClock struct {
+	mu sync.Mutex
+	t  time.Time
+}
+
+func newFakeClock(t time.Time) *fakeClock { return &fakeClock{t: t} }
+
+func (c *fakeClock) now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.t
+}
+
+func (c *fakeClock) advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.t = c.t.Add(d)
+}
+
+// AC: a completed run records, per lane, how many times it parked on a human and for
+// how long (S6) — the orchestration history's "where were humans the bottleneck?"
+// signal. Drives the escalate back-channel end-to-end with an injected clock so the
+// paused span is exact, then maps the finished run and asserts the per-lane fields.
+func TestRunRecordsLanePauseCountAndDuration(t *testing.T) {
+	s, _ := newTestServer()
+	srv := httptest.NewServer(s.Handler())
+	defer srv.Close()
+
+	clk := newFakeClock(time.Date(2026, 6, 11, 9, 0, 0, 0, time.UTC))
+	s.now = clk.now
+
+	run := startParallelRun(s) // lanes s0, s1 running with session ids
+
+	result := make(chan string, 1)
+	go func() {
+		result <- s.escalate(escalateReq{
+			laneSession: "s0", agentID: "s0", kind: pause.KindInput,
+			message: "which branch?", caps: []pause.Cap{pause.CapContinue, pause.CapCancel},
+		})
+	}()
+
+	id := waitForPause(t, s)
+	clk.advance(30 * time.Second) // 30s pass while parked
+	if _, err := http.PostForm(srv.URL+"/pause/"+id, url.Values{
+		"action": {"continue"}, "payload": {"use main"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	<-result // escalate returned → the lane's pause is closed out
+
+	s.mu.Lock()
+	rec := runRecord(run)
+	s.mu.Unlock()
+	if rec.Lanes[0].Pauses != 1 {
+		t.Fatalf("lane 0 should record 1 pause, got %+v", rec.Lanes[0])
+	}
+	if rec.Lanes[0].PausedMs != 30_000 {
+		t.Fatalf("lane 0 should record 30s paused, got %d ms", rec.Lanes[0].PausedMs)
+	}
+	if rec.Lanes[1].Pauses != 0 || rec.Lanes[1].PausedMs != 0 {
+		t.Fatalf("lane 1 never parked, should be zero: %+v", rec.Lanes[1])
+	}
+}
+
+// Aborting a paused run still attributes the lane's pause (count + the time it was
+// parked up to the abort), and the pause resolves exactly once — the S4 idempotency
+// invariant, asserted on the attention-recording path.
+func TestAbortedPausedLaneStillRecordsPause(t *testing.T) {
+	s, _ := newTestServer()
+	clk := newFakeClock(time.Date(2026, 6, 11, 9, 0, 0, 0, time.UTC))
+	s.now = clk.now
+	run := startParallelRun(s)
+
+	result := make(chan string, 1)
+	go func() {
+		result <- s.escalate(escalateReq{laneSession: "s0", agentID: "s0",
+			message: "blocked", caps: []pause.Cap{pause.CapContinue, pause.CapCancel}})
+	}()
+	waitForPause(t, s)
+
+	clk.advance(10 * time.Second)
+	s.abortRun(t.Context())
+	if got := <-result; !strings.Contains(got, "cancelled") {
+		t.Fatalf("abort should cancel the pause, got %q", got)
+	}
+
+	s.mu.Lock()
+	rec := runRecord(run)
+	pending := len(s.pauses.Pending())
+	s.mu.Unlock()
+	if pending != 0 {
+		t.Fatalf("abort should resolve the pause exactly once, %d still pending", pending)
+	}
+	if rec.Lanes[0].Pauses != 1 || rec.Lanes[0].PausedMs != 10_000 {
+		t.Fatalf("an aborted-while-parked lane should still record its pause: %+v", rec.Lanes[0])
+	}
+}
+
+// The out-of-band attention marker (S6) counts PENDING PAUSES — every parked lane or
+// sub-agent that needs the human, so a lane escalation with no registry sub-agent
+// still raises the title/favicon dot — and rides every pause re-render so the signal
+// never drifts from the ledger.
+func TestAttentionMarkerCountsPendingPauses(t *testing.T) {
+	s, _ := newTestServer()
+	if f := s.attentionFrag(); f.Event != "attention" || !strings.Contains(f.HTML, `data-count="0"`) {
+		t.Fatalf("no pending pause should mark count 0: %+v", f)
+	}
+	s.pauses.Register(pause.Pause{AgentID: "a", Kind: pause.KindInput})
+	s.pauses.Register(pause.Pause{AgentID: "b", Kind: pause.KindIssue})
+	if f := s.attentionFrag(); !strings.Contains(f.HTML, `data-count="2"`) {
+		t.Fatalf("two pending pauses should mark count 2: %+v", f)
+	}
+	// Every pause re-render carries the attention marker so the dot tracks the ledger.
+	var sawAttention bool
+	for _, f := range s.pauseFrags() {
+		if f.Event == "attention" {
+			sawAttention = true
+		}
+	}
+	if !sawAttention {
+		t.Error("pauseFrags must include the attention marker so the out-of-band dot updates live")
+	}
 }
 
 // AC2: a sub-agent calls escalate → a pause event → POST /pause/{id} continue with a

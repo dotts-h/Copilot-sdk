@@ -463,11 +463,22 @@ test.describe("multi-agent workflows", () => {
     await expect(pause.locator("button.pause-continue")).toBeVisible();
     await expect(pause.locator("button.pause-cancel")).toBeVisible();
 
+    // The out-of-band attention surface (S6): while the pause is pending the tab
+    // title is prefixed with the count and the favicon swaps to the amber-dotted
+    // mark — the "needs you" signal visible even on another tab. Title is the firm
+    // assertion (favicon swaps can be flaky); the favicon href carries the dot SVG.
+    await expect(page).toHaveTitle(/^\(1\) my-orchestra$/);
+    await expect(page.locator("#favicon")).toHaveAttribute("href", /circle/);
+
     // The human continues with a hint; the pause clears and the lane finishes,
     // folding the hint into the lane output.
     await pause.locator("input[name=payload]").fill("use the default branch");
     await pause.locator("button.pause-continue").click();
     await expect(page.locator(`${sel.pauses} form.pause`)).toHaveCount(0);
+
+    // The queue drained → the title and favicon dot are restored.
+    await expect(page).toHaveTitle("my-orchestra");
+    await expect(page.locator("#favicon")).not.toHaveAttribute("href", /circle/);
     await expect(page.locator(`${sel.lanes} .run-status.done`)).toBeVisible({ timeout: 30_000 });
     await expect(page.locator(`${sel.lanes} .lane-done`).first()).toBeVisible();
     await expect(page.locator(sel.lanes)).toContainText("use the default branch");

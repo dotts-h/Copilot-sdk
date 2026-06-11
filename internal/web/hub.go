@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"time"
 
 	"github.com/dotts-h/copilot-sdk/internal/config"
 	"github.com/dotts-h/copilot-sdk/internal/copilot"
@@ -145,6 +146,7 @@ func (h *Hub) newSession(id string) *Server {
 		allowance:    h.allowance, warnFraction: h.warnFraction, hardCap: h.hardCap,
 		lookPath: h.lookPath, lookupEnv: h.lookupEnv, setEnv: h.setEnv,
 		logger: h.logger, demo: h.demo,
+		now:             time.Now,
 		spec:            h.baseSpec,
 		agentID:         h.baseAgentID,
 		sessionStartMs:  nowMs(),

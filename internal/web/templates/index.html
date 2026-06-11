@@ -4,6 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>my-orchestra</title>
+  {{/* The favicon is set/swapped client-side by applyAttention (S6): a plain mark
+       normally, an amber-dotted one while a sub-agent needs the human — the out-of-
+       band "needs you" signal Devin/GitHub converged on. A static plain mark here
+       keeps a no-JS tab from showing the browser default. No new route — a data URI,
+       degrades silently. */}}
+  <link rel="icon" id="favicon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2016%2016'%3E%3Crect%20width='16'%20height='16'%20rx='3'%20fill='%236c5ce7'/%3E%3C/svg%3E">
   <script>
     // Set the theme BEFORE first paint to avoid a flash of the wrong theme (FOUC):
     // a deferred/DOMContentLoaded read is too late and flickers. With no stored
@@ -64,6 +70,7 @@
     <div sse-swap="elicit"   hx-target="#elicits"     hx-swap="beforeend"></div>
     <div sse-swap="budget"   hx-target="#budget"      hx-swap="innerHTML"></div>
     <div sse-swap="subagents" hx-target="#subagents"  hx-swap="innerHTML"></div>
+    <div sse-swap="attention" hx-target="#attention"  hx-swap="innerHTML"></div>
     <div sse-swap="lanes"    hx-target="#lanes"       hx-swap="innerHTML"></div>
     <div sse-swap="pauses"   hx-target="#pauses"      hx-swap="innerHTML"></div>
     <div sse-swap="status"   hx-target="#status"      hx-swap="innerHTML"></div>
@@ -71,6 +78,12 @@
     <div sse-swap="stat"     hx-target="#statline"    hx-swap="innerHTML"></div>
     <div sse-swap="cost"     hx-target="#cost-footer" hx-swap="innerHTML"></div>
   </div>
+
+  {{/* The out-of-band attention marker (S6): the parked-sub-agent count the client
+       reads to prefix the title and raise the favicon dot. Hidden — it carries data,
+       not UI. The SSE 'attention' event swaps its inner <i data-count> live; the
+       initial value rides the full page load so a reload restores the signal. */}}
+  <span id="attention" hidden><i data-count="{{.Attention}}"></i></span>
 
   {{.Overlay}}
   {{.Palette}}
@@ -359,6 +372,55 @@
       e.preventDefault();
       runShortcut(action);
     });
+
+    // --- attention surface (S6) ---
+    // The server keeps a hidden #attention marker (<i data-count="N">) in lockstep
+    // with the sub-agent roster — N is how many are parked waiting on the human.
+    // applyAttention turns that count into the out-of-band signals every shipped
+    // agent product added: a "(N) " title prefix and an amber favicon dot when the
+    // human is needed, cleared when the queue drains, plus a Chat-nav badge so the
+    // signal surfaces from any page. Client-only, no new route (the theme-toggle
+    // precedent), so it degrades silently where unsupported.
+    var ATTENTION_TITLE = 'my-orchestra';
+    var FAVICON_PLAIN = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='#6c5ce7'/></svg>";
+    var FAVICON_ALERT = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' rx='3' fill='#6c5ce7'/><circle cx='12' cy='4' r='3.4' fill='#e6a700' stroke='#1a1626' stroke-width='1'/></svg>";
+    function setFavicon(svg) {
+      var link = document.getElementById('favicon');
+      if (link) link.setAttribute('href', 'data:image/svg+xml,' + encodeURIComponent(svg));
+    }
+    function applyAttention(n) {
+      if (!(n > 0)) n = 0;
+      document.title = n > 0 ? '(' + n + ') ' + ATTENTION_TITLE : ATTENTION_TITLE;
+      setFavicon(n > 0 ? FAVICON_ALERT : FAVICON_PLAIN);
+      // The Chat nav item carries the same count so other pages surface it. The badge
+      // is created on demand and hidden (not removed) when the queue drains, so it
+      // survives htmx swaps of the rest of the page.
+      var chat = document.querySelector('.nav a[hx-get="/page/chat"]');
+      if (!chat) return;
+      var badge = chat.querySelector('.nav-badge');
+      if (n > 0) {
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'nav-badge warn';
+          badge.setAttribute('role', 'status');
+          chat.appendChild(badge);
+        }
+        badge.textContent = n;
+        badge.setAttribute('aria-label', n + (n === 1 ? ' sub-agent needs' : ' sub-agents need') + ' your input');
+        badge.hidden = false;
+      } else if (badge) {
+        badge.hidden = true;
+      }
+    }
+    function attentionCount() {
+      var m = document.querySelector('#attention [data-count]');
+      return m ? (parseInt(m.getAttribute('data-count'), 10) || 0) : 0;
+    }
+    // The live updates ride an inline script in the SSE-swapped #attention marker
+    // (attentionMarker → applyAttention(N), htmx runs scripts in swapped content — the
+    // keymap live-apply idiom). Here we apply once from the server-rendered initial
+    // count, so a full page load or a reconnect restores a pending signal immediately.
+    applyAttention(attentionCount());
 
     // Tick every live elapsed-time timer in the status line once a second. The
     // server stamps each active status with data-start (epoch ms); when the turn

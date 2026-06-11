@@ -174,6 +174,35 @@ func TestRunsPartialRendersDurationAndSummary(t *testing.T) {
 	}
 }
 
+// The Runs history surfaces where humans were the bottleneck (S6): a lane that
+// parked on a human-in-the-loop pause renders a distinct indicator with the pause
+// count and the total time it waited; a lane that never parked shows nothing.
+func TestRunsPartialRendersLanePauses(t *testing.T) {
+	s, _ := newTestServer()
+	rs := withRunStore(s)
+	base := time.Date(2026, 6, 11, 10, 0, 0, 0, time.UTC)
+	_ = rs.Append(telemetry.RunRecord{
+		ID: "r1", WorkflowID: "wf", Name: "Needy run", Mode: "parallel",
+		StartedAt: base, FinishedAt: base.Add(5 * time.Minute), Outcome: "finished",
+		Lanes: []telemetry.RunLane{
+			{Index: 0, AgentID: "a", Status: "done", Credits: 2, Pauses: 2, PausedMs: 90_000},
+			{Index: 1, AgentID: "b", Status: "done", Credits: 1}, // never parked
+		},
+	})
+	html := s.runsPartial(defaultSpendWindow)
+	if !strings.Contains(html, "lane-paused") {
+		t.Errorf("a paused lane should render a distinct paused indicator:\n%s", html)
+	}
+	// The pause count and the waited duration both surface (humanDuration → "1m 30s").
+	if !strings.Contains(html, "1m 30s") {
+		t.Errorf("the lane's total paused time should render:\n%s", html)
+	}
+	// A lane that never parked carries no paused indicator — count its occurrences.
+	if strings.Count(html, "lane-paused") != 1 {
+		t.Errorf("only the parked lane should show the indicator (want exactly 1):\n%s", html)
+	}
+}
+
 func TestRunsSummaryShowsTotalAndAvgCredits(t *testing.T) {
 	// The per-workflow summary surfaces a workflow's CUMULATIVE orchestrated spend
 	// (TotalCredits) beside its average (V13). Two runs of one workflow make total ≠

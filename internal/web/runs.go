@@ -138,6 +138,10 @@ func (s *Server) runRow(r telemetry.RunRecord, window int) map[string]any {
 			"Step": l.Index + 1, "Agent": s.agentLabel(l.AgentID),
 			"Glyph": lg, "State": ls, "Status": l.Status,
 			"Credits": telemetry.FormatCredits(l.Credits), "HasCredits": l.Credits > 0,
+			// Attention attribution (S6): a lane that parked on a human shows its
+			// pause count and the time it waited — where humans were the bottleneck.
+			"HasPauses": l.Pauses > 0, "Pauses": l.Pauses,
+			"PausedFor": humanDuration(time.Duration(l.PausedMs) * time.Millisecond),
 		}
 	}
 	credits := r.Credits()

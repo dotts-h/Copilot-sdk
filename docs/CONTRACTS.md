@@ -677,12 +677,18 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   is one row per metered turn, runs is one row per orchestrated run). Shares the generic
   `telemetry.AppendOnlyStore[T]` machinery with `SpendStore` (H1, above) — same atomic-write
   / missing=empty / newer-version-tolerant / ephemeral discipline, same unchanged on-disk
-  tags. On-disk shape is the versioned envelope `{"version":1,"runs":[…]}`; each `RunRecord` is
+  tags. On-disk shape is the versioned envelope `{"version":2,"runs":[…]}`; each `RunRecord` is
   `{id, workflow, name, mode, startedAt, finishedAt, outcome, lanes:[{index, agentId?,
-  status, credits?}]}` (JSON tags are the contract). A lane's `status` ∈ {`done`,
+  status, credits?, pauses?, pausedMs?}]}` (JSON tags are the contract). A lane's `status` ∈ {`done`,
   `failed`, `skipped`} — so a **branched** run's per-lane outcomes, including a
   **skipped** lane that incurred no cost, are first-class (the reason a spend record
-  can't stand in: a branch that didn't run leaves no metered turn). `outcome` ∈
+  can't stand in: a branch that didn't run leaves no metered turn). **`pauses`/`pausedMs`**
+  (schema **v2**, S6 — additive) record per lane how many times it parked on a
+  human-in-the-loop pause and the total wall-clock it waited (`RunRecord.TotalPauses()`
+  / `TotalPausedDuration()` sum them) — "where humans were the bottleneck"; both
+  `omitempty`, so a lane that never parked stays byte-identical to a v1 record and a v1
+  file reads back with them zero (the loader ignores `version` and decodes the array).
+  `outcome` ∈
   {`finished`, `failed`}. Written **atomically** (temp-file + rename); missing file =
   empty, present-but-invalid = error, empty dir = ephemeral (demo/tests). **Migration
   note:** `version` gates the schema and the `runs` array is the stable surface —
