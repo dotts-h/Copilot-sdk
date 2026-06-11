@@ -212,6 +212,11 @@ architecture → opus.
   (`feat(web):`, `docs:`).
 - Adding a TUI page: `Page` constant + `String()` in `internal/tui/model.go`; `view*` in
   `internal/tui/views.go` wired in `renderBody`; a `View` smoke test covers it.
+- **Dim text with the `--dim` token, never `opacity`.** `opacity` dims the foreground *and*
+  its contrast with the surface, dropping text below WCAG AA on tinted fills — this trap has
+  bitten four times (REGRESSIONS #10/#20/#21 + the sub-agent cluster). Use `color: var(--dim)`
+  (AA-tuned, full opacity). Any surface hidden until opened (a `<dialog>`/overlay) gets a
+  both-theme axe scan the day it lands — the static-page scan can't reach it. — see [RETROS 0005](RETROS/0005-deep-quality-architecture-and-test-hardening.md)
 
 ---
 *Bootstrapped 2026-06-04 from CONTRIBUTING.md, Makefile, `.github/workflows/`, and

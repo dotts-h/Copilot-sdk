@@ -12,3 +12,4 @@ change CONVENTIONS, tooling, or the docs system so the gains compound.
 | [0002](0002-v28-postooluse-governance-close.md) | V28 PostToolUse command execution & closing epic 0052 (base-verification + MCP-verbosity + wait-pattern learnings) | 2026-06-09 |
 | [0003](0003-get-next-script-resolution-and-pillar-guessing.md) | get-next stumbled twice before W1 shipped clean (script-path resolution + plumbing-is-not-intent learnings) | 2026-06-09 |
 | [0004](0004-get-next-remote-env-branch-and-ci-merge.md) | get-next end-to-end in the web env — R6/epic 0076 closed (hard push-target branch + no-`gh` CI-poll-and-merge learnings) | 2026-06-11 |
+| [0005](0005-deep-quality-architecture-and-test-hardening.md) | Deep quality, architecture & test hardening over the v0.2→v0.7 arc (three scoped audits → behavior-preserving fixes; `editConfig` drift, `opacity`-contrast, dark-branch + shutdown-path test gaps) | 2026-06-11 |

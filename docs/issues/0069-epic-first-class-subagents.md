@@ -1,17 +1,26 @@
 ---
 id: 0069
 title: "Epic: First-class sub-agents — live view, per-subagent cost, and HITL pause/continue/cancel (roadmap v12, S1–S6)"
-status: open
+status: closed
 severity: high
 group:
 depends_on: []
 github: 110
 links:
-  adr: []
-  prs: []
+  adr: [0040, 0041, 0042, 0043, 0044]
+  prs: [118, 120]
   issues: [0070, 0071, 0072, 0073, 0074, 0075]
   regression:
 ---
+
+## Resolution (shipped)
+
+All six children (S1–S6, issues [0070](0070-agentid-attribution-seam.md)–[0075](0075-subagent-attention-surface.md))
+shipped and closed: `AgentID` attribution through the seam (ADR-0040), the sub-agent registry +
+live list (ADR-0041), per-subagent cost + budget leash (ADR-0042), pause/continue/cancel + the
+escalate tool (ADR-0043), the per-subagent chat overlay (ADR-0044), and the attention surface
+(S6). The epic frontmatter lagged its children (all `closed`) until this pass — see
+[RETROS 0005](../RETROS/0005-deep-quality-architecture-and-test-hardening.md).
 
 ## Charter
 
@@ -52,14 +61,14 @@ governed by the existing third pillar (the pause/permission gates).
 
 ## Children
 
-- [ ] **S1 · `AgentID` attribution through the seam** ([0070](0070-agentid-attribution-seam.md), S/M; ADR) —
+- [x] **S1 · `AgentID` attribution through the seam** ([0070](0070-agentid-attribution-seam.md), S/M; ADR-0040) —
       the keystone. Envelope `AgentID` → `copilot.Event.AgentID` on every normalized
       event; `MockClient`/demo emit tagged events. Pure seam change, no UI.
 - [x] **S2 · Sub-agent registry + live list** ([0071](0071-subagent-registry-live-list.md), M; ADR-0041) —
       pure registry state (id, name, status, current activity, credits) fed by S1 +
       the existing lifecycle events; the chat-side list with the 4-state status
       vocabulary, rendered as idempotent SSE fragment re-renders.
-- [ ] **S3 · Per-subagent cost + budget leash** ([0072](0072-per-subagent-cost-budget-leash.md), S/M) —
+- [x] **S3 · Per-subagent cost + budget leash** ([0072](0072-per-subagent-cost-budget-leash.md), S/M; ADR-0042) —
       `AgentID`-tagged `EvUsage` → per-subagent meter + additive `SpendRecord` tag
       (schema v3, the ADR-0018 pattern); live credits on the list; max-credits /
       max-turns leash at the pre-`Send` gate.
@@ -72,26 +81,26 @@ governed by the existing third pillar (the pause/permission gates).
       `<dialog>` loaded by htmx GET from the list (button + dblclick); per-agent
       transcript region with its own named SSE listener; pause form inside;
       send-into-subagent for lane-backed agents.
-- [ ] **S6 · Attention surface** ([0075](0075-subagent-attention-surface.md), S) —
+- [x] **S6 · Attention surface** ([0075](0075-subagent-attention-surface.md), S) —
       badge count on the list header, amber title/favicon dot when any agent is
       input-required; Runs/lane integration (pause durations, input-required rendered
       distinctly).
 
 ## Acceptance (epic)
 
-- [ ] Every normalized event is attributable to root vs a specific sub-agent instance;
+- [x] Every normalized event is attributable to root vs a specific sub-agent instance;
       sub-agent deltas/tools never bleed into the main transcript.
-- [ ] The chat shows a live sub-agent list: status glyph + text label (working /
+- [x] The chat shows a live sub-agent list: status glyph + text label (working /
       input-required / done / failed), current activity, and live credits per agent —
       working offline against the mock/demo.
-- [ ] A sub-agent can escalate / request input mid-run; the run parks as
+- [x] A sub-agent can escalate / request input mid-run; the run parks as
       `input-required` (non-terminal), and the user resolves it with
       continue(payload) / cancel — duplicate answers and a concurrent abort are safe
       (idempotent resolution), and an unattended pause times out to a default action.
-- [ ] Per-subagent spend is metered live and persisted attributably in the ledger
+- [x] Per-subagent spend is metered live and persisted attributably in the ledger
       (additive schema; old ledgers read back); a per-subagent budget leash blocks
       before `Send`, not after the spend.
-- [ ] Each child: failing test first, ADR where it sets semantics, `make lint && make
+- [x] Each child: failing test first, ADR where it sets semantics, `make lint && make
       test` (floor 65%) + `make e2e` green, born in its PR, SemVer minor.
 
 ## Sequencing
