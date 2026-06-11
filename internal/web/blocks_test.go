@@ -33,6 +33,50 @@ func TestParseBlocksStructure(t *testing.T) {
 	}
 }
 
+func TestParseBlocksCallout(t *testing.T) {
+	// A blockquote whose first line is a known [!KIND] marker becomes a callout
+	// block; the remaining lines are the recursively-parsed body. An optional
+	// trailing title overrides the default per-kind label.
+	cases := []struct {
+		name string
+		src  string
+		want []Block
+	}{
+		{
+			"default title",
+			"> [!NOTE]\n> heads up",
+			[]Block{calloutBlock{kind: "note", title: "Note", children: []Block{paragraphBlock{lines: []string{"heads up"}}}}},
+		},
+		{
+			"custom title",
+			"> [!WARNING] Watch out\n> danger",
+			[]Block{calloutBlock{kind: "warning", title: "Watch out", children: []Block{paragraphBlock{lines: []string{"danger"}}}}},
+		},
+		{
+			"case-insensitive marker",
+			"> [!tip]\n> do this",
+			[]Block{calloutBlock{kind: "tip", title: "Tip", children: []Block{paragraphBlock{lines: []string{"do this"}}}}},
+		},
+		{
+			"unknown kind degrades to quote",
+			"> [!FOO]\n> x",
+			[]Block{quoteBlock{children: []Block{paragraphBlock{lines: []string{"[!FOO]", "x"}}}}},
+		},
+		{
+			"plain quote unaffected",
+			"> just a quote",
+			[]Block{quoteBlock{children: []Block{paragraphBlock{lines: []string{"just a quote"}}}}},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := parseBlocks(c.src); !reflect.DeepEqual(got, c.want) {
+				t.Errorf("parseBlocks(%q)\n  got:  %#v\n  want: %#v", c.src, got, c.want)
+			}
+		})
+	}
+}
+
 func TestParseBlocksNestedQuote(t *testing.T) {
 	got := parseBlocks("> # h\n> - x")
 	want := []Block{

@@ -837,6 +837,13 @@ test.describe("sessions", () => {
     await expect(page.locator(sel.userTurn).filter({ hasText: "Help me refactor the auth flow" })).toBeVisible();
     // The committed agent turn is markdown-rendered: the fenced code becomes a <pre>.
     await expect(page.locator(`${sel.agentTurn} pre`)).toContainText("parseCredentials");
+    // GitHub-alert blockquotes render as designed callout components (R2): the
+    // kind-classed surface carries a glyph + text label (never color alone).
+    const note = page.locator(`${sel.agentTurn} .callout.callout-note`);
+    await expect(note).toBeVisible();
+    await expect(note.locator(".callout-title")).toHaveText("Note");
+    await expect(note.locator(".callout-glyph")).toBeVisible();
+    await expect(page.locator(`${sel.agentTurn} .callout.callout-warning .callout-title`)).toHaveText("Warning");
   });
 
   test("starts a fresh chat from the sessions page", async ({ page }) => {

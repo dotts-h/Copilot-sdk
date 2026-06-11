@@ -147,7 +147,7 @@ func demoClient(forge *ctxforge.Forge, spec *copilot.SessionSpec) (copilot.Clien
 		"demo-sess-1": {
 			{Type: copilot.EvUserMessage, Text: "Help me refactor the auth flow"},
 			{Type: copilot.EvReasoning, Text: "The login handler mixes parsing and policy; split them."},
-			{Type: copilot.EvMessage, Text: "Done. I extracted `parseCredentials` from the handler and added a `Policy` seam.\n\n```go\nfunc parseCredentials(r *http.Request) (Creds, error) { /* … */ }\n```"},
+			{Type: copilot.EvMessage, Text: "Done. I extracted `parseCredentials` from the handler and added a `Policy` seam.\n\n```go\nfunc parseCredentials(r *http.Request) (Creds, error) { /* … */ }\n```\n\n> [!NOTE]\n> The `Policy` seam is behind an interface, so the auth flow stays testable.\n\n> [!WARNING]\n> Rotate the signing key before deploying — the old one is in the git history."},
 		},
 		"demo-sess-2": {
 			{Type: copilot.EvUserMessage, Text: "Why is the e2e job flaky?"},

@@ -422,6 +422,23 @@ button.add, button.abort, .run-head .stop-run, .run-rec-head .rerun,
   padding: .6rem .75rem; overflow-x: auto; margin: 0 0 .5rem; }
 .body.md pre code { background: none; padding: 0; }
 
+/* callouts (R2, issue 0078): GitHub-alert blockquotes rendered as designed
+   callout components. Each kind maps to one guarded semantic token — a soft
+   fill for the surface plus the saturated tone for the rail, glyph, and label.
+   The glyph AND the text label both carry the kind, so meaning never rides on
+   color alone (WCAG); --fg body text keeps AA over the near-bg soft fill. */
+.body.md .callout { margin: 0 0 .5rem; padding: .5rem .75rem; border-radius: var(--radius-3);
+  border-left: 3px solid var(--callout-tone); background: var(--callout-soft); }
+.body.md .callout-head { display: flex; align-items: center; gap: .4rem;
+  font-weight: 600; color: var(--callout-tone); margin-bottom: .25rem; }
+.body.md .callout-glyph { font-size: .95em; line-height: 1; }
+.body.md .callout-body > :last-child { margin-bottom: 0; }
+.body.md .callout-note      { --callout-tone: var(--accent2); --callout-soft: var(--accent2-soft); }
+.body.md .callout-tip       { --callout-tone: var(--good);    --callout-soft: var(--good-soft); }
+.body.md .callout-important { --callout-tone: var(--accent);  --callout-soft: var(--accent-soft); }
+.body.md .callout-warning   { --callout-tone: var(--warn);    --callout-soft: var(--warn-soft); }
+.body.md .callout-caution   { --callout-tone: var(--bad);     --callout-soft: var(--bad-soft); }
+
 /* reasoning ("thinking") — dim, collapsible */
 .turn.reasoning { background: var(--raised-2); border-left: 3px solid var(--subtle);
   color: var(--dim); font-size: .92rem; }
