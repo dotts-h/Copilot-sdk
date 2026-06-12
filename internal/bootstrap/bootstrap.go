@@ -216,6 +216,20 @@ func seedRuns(store *telemetry.RunStore) {
 			},
 		},
 		{
+			// A RERUN of build-and-harden — same workflow as run-demo-1 — so the keyed
+			// run comparison (O4, issue 0094) has a same-workflow pair to diff: this one
+			// finished faster and a touch cheaper, the "did the rerun do better?" story.
+			// Appended before run-demo-2 so the most-recent (top) Runs row stays the
+			// review run, leaving the existing inspector ordering untouched.
+			ID: "run-demo-3", WorkflowID: "build-and-harden", Name: "Build & harden",
+			Mode: "sequential", StartedAt: now.Add(-5 * time.Hour),
+			FinishedAt: now.Add(-5 * time.Hour).Add(95 * time.Second), Outcome: "finished",
+			Lanes: []telemetry.RunLane{
+				{Index: 0, AgentID: "builder", Status: "done", Credits: 2.1},
+				{Index: 1, AgentID: "sdet", Status: "done", Credits: 2.0},
+			},
+		},
+		{
 			ID: "run-demo-2", WorkflowID: "review-and-fix", Name: "Review & fix",
 			Mode: "sequential", StartedAt: now.Add(-3 * time.Hour),
 			FinishedAt: now.Add(-3 * time.Hour).Add(90 * time.Second), Outcome: "finished",
@@ -267,6 +281,28 @@ func seedDemoEventLog(logger *log.Logger) string {
 		if err := rlog.Append(e); err != nil {
 			logger.Printf("demo event log: append: %v", err)
 			return ""
+		}
+	}
+	// The rerun (run-demo-3) gets its own log so the keyed comparison (O4, issue 0094)
+	// can render BOTH runs' final outputs side-by-side — the both-logs-present path. A
+	// terser run: the same two lanes, each ending on a final assistant message.
+	rerun, err := telemetry.LoadRunEventLog(dir, "run-demo-3")
+	if err != nil {
+		logger.Printf("demo event log: load rerun: %v", err)
+		return dir
+	}
+	for _, e := range []telemetry.RunEvent{
+		{Type: "EvUserMessage", LaneIndex: 0, Text: "Rerun: build the feature and harden it."},
+		{Type: "EvToolStart", LaneIndex: 0, Tool: "write", Args: "internal/feature/feature.go"},
+		{Type: "EvToolEnd", LaneIndex: 0, Tool: "write", Result: "wrote 1 file", Success: true},
+		{Type: "EvMessage", LaneIndex: 0, Text: "Feature rebuilt — same seam, fewer tokens this pass."},
+		{Type: "EvUsage", LaneIndex: 0, TokensIn: 4200, TokensOut: 700, Credits: 2.1},
+		{Type: "EvMessage", LaneIndex: 1, Text: "Tests green on the rerun; hardened and a bit cheaper."},
+		{Type: "EvUsage", LaneIndex: 1, TokensIn: 4000, TokensOut: 640, Credits: 2.0},
+	} {
+		if err := rerun.Append(e); err != nil {
+			logger.Printf("demo event log: append rerun: %v", err)
+			return dir
 		}
 	}
 	return dir

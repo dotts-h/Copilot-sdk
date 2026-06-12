@@ -1,7 +1,7 @@
 ---
 id: 0090
 title: "Epic: Run inspector — replay/audit surface over the per-run event log (roadmap v15)"
-status: open
+status: closed
 severity: medium
 group:
 depends_on: []
@@ -51,19 +51,26 @@ Development status).
 - [x] **O3 — Transcript view** (shipped) ([0093](0093-run-transcript-view.md), S) —
       `?view=transcript` flattening the same events into chat reading order through the
       block-AST renderer; per-turn O2 pricing; a timeline ⇄ transcript toggle.
-- [ ] **O4 — Compare two runs** ([0094](0094-compare-two-runs.md), M, stretch) — keyed
-      side-by-side deltas (outcome/duration/credits/per-lane) for two runs of one workflow.
+- [x] **O4 — Compare two runs** ([0094](0094-compare-two-runs.md), M, stretch) — keyed
+      side-by-side deltas (outcome/duration/credits/per-lane) for two runs of one workflow
+      (shipped: `CompareRuns→RunDelta` + `GET /runs/compare` + the compare-with picker).
 
 ## Acceptance (epic)
 
-- [ ] Each child lands test-first, born in its own PR; `make lint && make test` (floor 65%)
+- [x] Each child lands test-first, born in its own PR; `make lint && make test` (floor 65%)
       + `make e2e` for UI slices green; escaping per ADR-0001 throughout.
-- [ ] The inspector contract (read-only reconstruction, step vocabulary) is recorded in
+- [x] The inspector contract (read-only reconstruction, step vocabulary) is recorded in
       ADR-0052 by the first child (ADR-0004 discipline).
-- [ ] The event-log on-disk contract stays additive-only (ADR-0048): pre-O2 logs load and
+- [x] The event-log on-disk contract stays additive-only (ADR-0048): pre-O2 logs load and
       render (usage fields read back zero); the tag-stability pin extends to the new fields.
-- [ ] No new runtime dependency, no new JS, no build chain; the live SSE/record path stays
+- [x] No new runtime dependency, no new JS, no build chain; the live SSE/record path stays
       byte-identical when the inspector is never opened.
+
+**Closed:** all four children shipped (O1 timeline, O2 per-step pricing, O3 transcript, O4
+keyed run comparison). The inspector is a read-only reconstruction surface over the per-run
+event log (ADR-0052/0048): a lane-grouped step **timeline** and a chat-order **transcript**
+of one run, plus a keyed **side-by-side comparison** of two runs of one workflow. No new JS,
+no runtime dependency; the live SSE/record path is untouched when the inspector is never opened.
 
 ## Sequencing
 

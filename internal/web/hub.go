@@ -280,6 +280,7 @@ func (h *Hub) Handler() http.Handler {
 	route("GET /telemetry/export.csv", (*Server).handleSpendExport)
 	route("GET /telemetry/reconcile.csv", (*Server).handleReconcileExport)
 	route("GET /runs/export.csv", (*Server).handleRunsExport)
+	route("GET /runs/compare", (*Server).handleRunCompare)
 	route("POST /runs/rerun/{workflow}", (*Server).handleRunRerun)
 	route("POST /run/abort", (*Server).handleRunAbort)
 	route("GET /commands", (*Server).handleCommands)
