@@ -36,21 +36,22 @@ func clampRunView(raw string) string {
 // turn (user/assistant), a tool card, an error, or a lane-transition marker — in
 // event order, not grouped by lane. It is the pure shape; lane labels are resolved
 // by transcriptRows (which holds forgeMu). Kind is the CSS suffix and the row kind;
-// Body carries raw markdown (rendered through renderMarkdown by the template); Args,
-// Result and Text carry escaped-as-pre disclosure bodies; Credits is the per-turn
-// priced usage (O2) attached to an assistant turn. All strings are escaped by the
-// template (ADR-0001).
+// Clock is each row's wall-clock stamp. Body carries raw markdown for the message
+// turns (rendered through renderMarkdown by the template); Glyph/State/Label drive a
+// tool card's status mark and tool name; Args/Result/Text carry escaped-as-pre
+// disclosure bodies (Text is the error message). Credits is the per-turn priced usage
+// (O2) attached to an assistant turn. All strings are escaped by the template (ADR-0001).
 type transcriptItem struct {
 	Kind      string // "lane" | "user" | "assistant" | "tool" | "error"
 	LaneIndex int
-	Glyph     string
-	State     string
-	Label     string
+	Glyph     string // tool card only
+	State     string // tool card only
+	Label     string // tool name (tool card only)
 	Clock     string
-	Body      string
-	Args      string
-	Result    string
-	Text      string
+	Body      string // message turns (markdown)
+	Args      string // tool input
+	Result    string // tool output
+	Text      string // error message
 	Credits   float64
 }
 
@@ -90,14 +91,12 @@ func buildRunTranscript(events []telemetry.RunEvent) []transcriptItem {
 		case "EvUserMessage":
 			mark(e.LaneIndex)
 			items = append(items, transcriptItem{
-				Kind: "user", LaneIndex: e.LaneIndex, Glyph: "❯",
-				Label: "User", Clock: clockTime(e.At), Body: e.Text,
+				Kind: "user", LaneIndex: e.LaneIndex, Clock: clockTime(e.At), Body: e.Text,
 			})
 		case "EvMessage":
 			mark(e.LaneIndex)
 			items = append(items, transcriptItem{
-				Kind: "assistant", LaneIndex: e.LaneIndex, Glyph: "✎",
-				Label: "Assistant", Clock: clockTime(e.At), Body: e.Text,
+				Kind: "assistant", LaneIndex: e.LaneIndex, Clock: clockTime(e.At), Body: e.Text,
 				Credits: pendingCredits[e.LaneIndex],
 			})
 			delete(pendingCredits, e.LaneIndex)
@@ -105,8 +104,7 @@ func buildRunTranscript(events []telemetry.RunEvent) []transcriptItem {
 		case "EvError":
 			mark(e.LaneIndex)
 			items = append(items, transcriptItem{
-				Kind: "error", LaneIndex: e.LaneIndex, Glyph: "✗", State: "failed",
-				Label: "Error", Clock: clockTime(e.At), Text: e.Err,
+				Kind: "error", LaneIndex: e.LaneIndex, Clock: clockTime(e.At), Text: e.Err,
 			})
 		case "EvToolStart":
 			mark(e.LaneIndex)
