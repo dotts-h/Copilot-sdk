@@ -887,6 +887,26 @@ button.add, button.abort, .run-head .stop-run, .run-rec-head .rerun,
 .tx-pre { margin: .15rem 0 0; padding: .35rem .5rem; background: var(--panel);
   border-radius: var(--radius-2); font-size: .82rem; white-space: pre-wrap;
   word-break: break-word; overflow-x: auto; }
+/* Keyed run comparison (O4, issue 0094): two runs of one workflow side-by-side.
+   The summary + per-lane tables reuse the .grid vocabulary; the delta cell carries
+   a sign and ambers when the cost/duration/pauses ROSE on the rerun. The picker
+   chips reuse the window/view chip styling; the final outputs render in two columns. */
+.compare-picker { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem;
+  margin: .25rem 0 .75rem; }
+.compare-with { font-size: .82rem; color: var(--accent); font-weight: 600;
+  background: var(--raised); border: 1px solid var(--panel);
+  border-radius: var(--radius-full); padding: .15rem .6rem; cursor: pointer; }
+.compare-with:hover { border-color: var(--accent); }
+.compare-delta { font-variant-numeric: tabular-nums; color: var(--dim); }
+.compare-delta.up { color: var(--warn); }
+.compare-step { font-weight: 600; }
+.compare-outputs { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem;
+  margin-top: .4rem; }
+.compare-output { border: 1px solid var(--panel); border-radius: var(--radius-2);
+  padding: .5rem .7rem; background: var(--raised); min-width: 0; }
+.compare-output-head { font-size: var(--text-0); text-transform: uppercase;
+  letter-spacing: var(--tracking-caps); margin-bottom: .3rem; }
+@media (max-width: 40rem) { .compare-outputs { grid-template-columns: 1fr; } }
 /* Per-workflow roll-up table above the run history (V1, ADR-0022): run count,
    failure rate, average cost & duration — the cost ⋈ orchestration summary. */
 .run-summary { width: 100%; border-collapse: collapse; margin: .2rem 0 .4rem;

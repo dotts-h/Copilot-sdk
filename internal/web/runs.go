@@ -510,6 +510,9 @@ func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int, view stri
 		"Amber":  hasLogCredits && math.Abs(logCredits-credits) >= reconcileEpsilon,
 		"Window": window, "HasLog": hasLog, "LoadErr": loadErr,
 		"IsTranscript": transcript, "Lanes": laneRows, "Transcript": txRows,
+		// The keyed-comparison picker (O4, issue 0094): the other runs of this
+		// workflow this run can be compared against (newest first, self excluded).
+		"CompareWith": s.compareCandidates(rec),
 	})
 }
 

@@ -203,6 +203,13 @@
 - **aggregate / roll-up** — a per-workflow **run** summary (`RunAggregates` →
   `RunAggregate{Runs, Failures, Total/AvgCredits, Duration, LastOutcome}`); **`LaneShares`**
   is the per-(workflow, lane) cousin. — ADR-0022
+- **run comparison (keyed diff)** — a **side-by-side** of *two individual runs of one
+  workflow* (`telemetry.CompareRuns(a, b) → RunDelta`), **keyed** on `WorkflowID`: a
+  different-workflow pair is `Comparable=false` (refused, not diffed). Reports **B−A deltas**
+  on outcome/credits/duration/pauses with lanes **aligned by index**, and — when both event
+  logs exist — each run's **final assistant output**. The Braintrust experiment-comparison
+  pattern at run grain ("did the **rerun** do better, and what did it cost?"), the analytic
+  complement of *rerun*; explicitly **not** a structural trace-tree diff. — issue 0094
 - **reconcile** — the cross-store **join** of the ledger's per-workflow spend (`WorkflowShares`
   grain) against the run history's (`RunAggregates` grain), per workflow
   (`telemetry.WorkflowReconcile`). The convergence of the two differentiators. The per-lane

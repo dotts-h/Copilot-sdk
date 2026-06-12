@@ -12,8 +12,10 @@ test("a run row links to its step-timeline detail page", async ({ page }) => {
   await page.locator(sel.nav, { hasText: /^Runs$/ }).click();
   await expect(page.locator("#main h2")).toContainText(/Runs/);
 
-  // The first (most recent) run row's name links into the inspector.
-  const link = page.locator(".run-record .run-name-link").first();
+  // A specific run row's name links into the inspector. Anchored on the review run
+  // by name (not the first row) so a workflow-run test appending to the shared run
+  // history in parallel can't shift which row is on top under this assertion.
+  const link = page.locator(".run-record .run-name-link", { hasText: "Review & fix" }).first();
   await expect(link).toBeVisible();
   await link.click();
 

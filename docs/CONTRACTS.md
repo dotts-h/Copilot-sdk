@@ -175,7 +175,7 @@ for the streaming/turn routes (`/events`, `/send`, the `/perm|ask|plan|elicit/{i
 | Turn answers | `POST /perm/{id}` · `POST /ask/{id}` · `POST /plan/{id}` · `POST /elicit/{id}` · `POST /pause/{id}` · `POST /budget/{action}` |
 | Navigation | `GET /page/{name}` · `GET /commands` · `GET /static/…` |
 | Telemetry | `GET /telemetry/export.csv` · `GET /runs/export.csv` |
-| Runs | `GET /page/runs/{id}` (inspector) · `POST /runs/rerun/{workflow}` · `POST /run/abort` |
+| Runs | `GET /page/runs/{id}` (inspector) · `GET /runs/compare` (keyed run diff) · `POST /runs/rerun/{workflow}` · `POST /run/abort` |
 | Sub-agents | `GET /subagent/{id}` (overlay) · `POST /subagent/{id}/steer` |
 | Skills | `GET /skills/new` · `GET /skills/{id}/edit` · `POST /skills` · `POST /skills/{id}` · `POST /skills/{id}/toggle` · `POST /skills/{id}/delete` |
 | Instructions | `POST /instructions/import` · `GET /instructions/new` · `GET /instructions/{id}/edit` · `POST /instructions` · `POST /instructions/{id}` · `POST /instructions/{id}/toggle` · `POST /instructions/{id}/delete` |
@@ -349,6 +349,21 @@ no row; its priced credits (O2) attach **per assistant turn** (trailing usage �
 usage → the next). The header's summed-credit cross-check is the **view-agnostic**
 `sumEventCredits`, so the timeline and the transcript reconcile against one figure. No ADR
 (presentation over O1's data; the `?view=` clamp is the established `?window=` discipline).
+
+The inspector also carries a **keyed run comparison** (`GET /runs/compare?a={id}&b={id}`,
+O4/issue 0094), reached from a **"compare with"** picker on a run's detail page that lists the
+other runs of **the same workflow** (a cross-workflow pair is never offered). It renders the two
+runs **side-by-side** with **B−A deltas** — outcome, total credits, duration, and per-lane
+**credits/status/pauses** with lanes **aligned by index** (a lane present in only one run shows a
+gap) — plus, **only when both event logs exist**, each run's **final assistant output** (a missing
+log degrades to the summary-only comparison). The delta itself is the pure `telemetry.CompareRuns(a,
+b RunRecord) RunDelta` (keyed on `WorkflowID`: a different-workflow pair returns `Comparable=false`,
+which the page **refuses cleanly**); this layer resolves agent/workflow labels and loads the optional
+logs. It is the **Braintrust experiment-comparison** pattern at run grain ("did the rerun do better,
+and what did it cost?"), explicitly **not** a structural trace-tree diff (the industry diffs keyed
+runs, not span trees). **Read-only** (`s.runs` + `LoadRunEventLog`); an **unknown id** 404s. No ADR
+(a pure cross-record reader + presentation, the V15/V16 pattern). — see
+[ADR-0052](adr/0052-run-inspector-read-only-replay.md)
 
 `POST /budget/{action}` (`action` ∈ {proceed, raise, cancel}) resolves a turn the
 hard cap paused before `Send`: **proceed** dispatches the held prompt and keeps the

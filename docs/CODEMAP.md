@@ -23,18 +23,18 @@ _Last generated: 2026-06-12 (UTC)._
 
 ## internal/bootstrap
 
-### bootstrap.go (476 LOC)
+### bootstrap.go (512 LOC)
 - L36: `func Build(configDir string, demo bool) (srv *web.Hub, close func(), err error)`
 - L131: `func demoClient(forge *ctxforge.Forge, spec *copilot.SessionSpec) (copilot.Client, func())`
 - L176: `func seedSpend(store *telemetry.SpendStore)`
 - L206: `func seedRuns(store *telemetry.RunStore)`
-- L238: `func seedDemoEventLog(logger *log.Logger) string`
-- L277: `func dialClient(cfg *config.Config) (copilot.Client, func())`
-- L300: `func ghCLIToken() (string, error)`
-- L315: `func ServeLocal(h http.Handler) (port int, stop func(), err error)`
-- L327: `func DefaultConfigDir() string`
-- L341: `func SeedForge(forge *ctxforge.Forge)`
-- L464: `func curatedMCPServers() []ctxforge.MCPServer`
+- L252: `func seedDemoEventLog(logger *log.Logger) string`
+- L313: `func dialClient(cfg *config.Config) (copilot.Client, func())`
+- L336: `func ghCLIToken() (string, error)`
+- L351: `func ServeLocal(h http.Handler) (port int, stop func(), err error)`
+- L363: `func DefaultConfigDir() string`
+- L377: `func SeedForge(forge *ctxforge.Forge)`
+- L500: `func curatedMCPServers() []ctxforge.MCPServer`
 
 ## internal/config
 
@@ -505,6 +505,16 @@ _Last generated: 2026-06-12 (UTC)._
 - L138: `func LaneReconcile(spend []SpendRecord, runs []RunRecord) []LaneRecon`
 - L218: `func WriteReconcileCSV(w io.Writer, spend []SpendRecord, runs []RunRecord) error`
 
+### rundelta.go (154 LOC)
+- L22: `type RunSide struct`
+- L35: `type LaneSide struct`
+- L47: `type LaneDelta struct`
+- L61: `type RunDelta struct`
+- L81: `func CompareRuns(a, b RunRecord) RunDelta`
+- L101: `func runSide(r RunRecord) RunSide`
+- L116: `func alignLanes(as, bs []RunLane) []LaneDelta`
+- L146: `func laneSide(l RunLane) LaneSide`
+
 ### runs.go (366 LOC)
 - L25: `type RunLane struct`
 - L45: `type RunRecord struct`
@@ -731,7 +741,7 @@ _Last generated: 2026-06-12 (UTC)._
 - L303: `func commandVarRefs(s string) []string`
 - L317: `func hookPreflightResult(pattern, sample string) string`
 
-### hub.go (357 LOC)
+### hub.go (358 LOC)
 - L30: `type Hub struct`
 - L78: `type Options struct`
 - L104: `func New(opts Options) *Hub`
@@ -741,8 +751,8 @@ _Last generated: 2026-06-12 (UTC)._
 - L220: `func (h *Hub) route(copilotID string) *Server`
 - L238: `func (h *Hub) pump()`
 - L249: `func (h *Hub) Handler() http.Handler`
-- L350: `func (s *Server) Handler() http.Handler { return s.hub.Handler() }`
-- L353: `func newID() string`
+- L351: `func (s *Server) Handler() http.Handler { return s.hub.Handler() }`
+- L354: `func newID() string`
 
 ### instructions_import.go (65 LOC)
 - L31: `func importInstructionFiles(dir string) []ctxforge.Instruction`
@@ -895,6 +905,20 @@ _Last generated: 2026-06-12 (UTC)._
 - L426: `func streamDemoLane(m *copilot.MockClient, sid, prompt string, escalate func(escalateReq) string)`
 - L489: `func firstLine(s string) string`
 
+### run_compare.go (243 LOC)
+- L25: `func (s *Server) handleRunCompare(w http.ResponseWriter, r *http.Request)`
+- L44: `func (s *Server) runComparePartial(a, b telemetry.RunRecord, window int) string`
+- L101: `func (s *Server) compareLaneRow(ld telemetry.LaneDelta) map[string]any`
+- L117: `func (s *Server) laneAgent(ls telemetry.LaneSide) string`
+- L129: `func (s *Server) finalRunOutput(runID string) (string, bool)`
+- L145: `func finalAssistantOutput(events []telemetry.RunEvent) string`
+- L161: `func signedCredits(v float64) (string, bool)`
+- L176: `func signedDuration(d time.Duration) (string, bool)`
+- L188: `func absDuration(d time.Duration) time.Duration`
+- L198: `func signedInt(n int) (string, bool)`
+- L211: `func (s *Server) compareCandidates(rec telemetry.RunRecord) []map[string]any`
+- L237: `func compareCandidateLabel(r telemetry.RunRecord) string`
+
 ### run_engine.go (391 LOC)
 - L24: `type laneStatus int`
 - L40: `func settled(st laneStatus) bool`
@@ -929,15 +953,15 @@ _Last generated: 2026-06-12 (UTC)._
 - L96: `func laneStatusName(st laneStatus) string`
 - L114: `func (l *lane) costDetail() string`
 
-### run_transcript.go (199 LOC)
+### run_transcript.go (197 LOC)
 - L28: `func clampRunView(raw string) string`
-- L43: `type transcriptItem struct`
-- L74: `func buildRunTranscript(events []telemetry.RunEvent) []transcriptItem`
-- L148: `func (s *Server) transcriptRows(items []transcriptItem, rec telemetry.RunRecord) []map[string]any`
-- L176: `func (s *Server) laneLabel(laneIndex int, rec telemetry.RunRecord) string`
-- L191: `func sumEventCredits(events []telemetry.RunEvent) float64`
+- L44: `type transcriptItem struct`
+- L75: `func buildRunTranscript(events []telemetry.RunEvent) []transcriptItem`
+- L146: `func (s *Server) transcriptRows(items []transcriptItem, rec telemetry.RunRecord) []map[string]any`
+- L174: `func (s *Server) laneLabel(laneIndex int, rec telemetry.RunRecord) string`
+- L189: `func sumEventCredits(events []telemetry.RunEvent) float64`
 
-### runs.go (542 LOC)
+### runs.go (545 LOC)
 - L31: `func (s *Server) runsPartial(window int) string`
 - L65: `func windowRuns(records []telemetry.RunRecord, window int) []telemetry.RunRecord`
 - L94: `func (s *Server) runSummaryRow(a telemetry.RunAggregate) map[string]any`
@@ -958,7 +982,7 @@ _Last generated: 2026-06-12 (UTC)._
 - L426: `func (s *Server) handleRunDetail(w http.ResponseWriter, r *http.Request)`
 - L440: `func (s *Server) findRun(id string) (telemetry.RunRecord, bool)`
 - L457: `func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int, view string) string`
-- L520: `func (s *Server) laneTimelineRow(lt laneSteps, rec telemetry.RunRecord) map[string]any`
+- L523: `func (s *Server) laneTimelineRow(lt laneSteps, rec telemetry.RunRecord) map[string]any`
 
 ### server.go (741 LOC)
 - L27: `type Server struct`
