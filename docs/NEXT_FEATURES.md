@@ -1143,3 +1143,156 @@ as a roadmap item.
 N1 and N2 touch **disjoint seams** (the concurrency adapter vs. a new telemetry store fed from the
 event loop) and have no edge between them — they belong in the same parallel batch. On both merges,
 epic 0083 closes; then scope v15 from a fresh value×fit pass.
+
+---
+
+## Roadmap v15 — the run inspector (deep-research pass 2026-06-12)
+
+> Fresh pass. Roadmaps **v1–v14** are shipped and closed (epics 0001/0005/0007/0013/0022/0024/
+> 0030/0031/0038/0042/0045/0050/0051/0052/0062/0069/0076/0083/0086); the tracker has **no open
+> issue**. This pass ran the deep-research harness: five parallel search angles (unattended/
+> background runs · agent memory · parallel-fleet orchestration · eval/replay observability ·
+> cost governance) + an internal seam map, then **14 load-bearing claims adversarially verified
+> 3×14 votes — all supported** (caveats in the confidence note). The v15 epic takes **0090**;
+> children take **0091–0094**; the first child consumes **ADR-0052** (written first, ADR-0004).
+
+**Thesis (the gap).** v14's ADR-0048 shipped the per-run event log — replay *data* with **no
+replay surface**: `telemetry.RunEventLog` is written on every run (`hub.go pump` →
+`appendRunEvent`, one `eventlogs/<runID>.json` per run) and **read by nothing**. Meanwhile the
+external scan finds the run-detail pattern fully settled across LangSmith / Langfuse / AgentOps /
+OpenAI Agents tracing: a **master/detail step timeline** (per step: type, functional name,
+duration, tokens, cost; full input/output in a detail pane) plus a **chat-style transcript
+view** of the same events — and local-first precedents (Arize Phoenix on localhost; the
+claude-code-log / claude-replay cottage industry rendering JSONL transcripts as static HTML)
+prove the minimum viable form is *a renderer over an append-only log*, which is exactly what we
+persist. The per-step field vocabulary is converged (llm-call / tool-call / handoff / guardrail;
+OTel GenAI names `invoke_agent`/`execute_tool` — spec still **Development**, so we adopt the
+*names* as a guide, not the SDK plumbing). The one schema gap: `RunEvent` records `EvUsage` as
+type-only — **no tokens/credits per step** (`normalizeRunEvent` has no `EvUsage` case), so the
+timeline can't be priced yet; ADR-0048's additive-fields-only rule pre-blesses the fix.
+
+**Why this epic (value×fit).** It is the repo's own established move — ship the store, then the
+deferred pure-reader surface (B3→V11, A2→F1, ADR-0048→this) — at the lowest risk in the candidate
+set (read-only renderer + one additive field), and it **converges the differentiators at the
+finest grain yet**: run → lane → **step/turn** cost, the last attribution level below V14's
+per-lane shares. The block-AST pipeline (epic 0076) gets its natural second consumer (transcript
+bodies render through the designed-output renderer).
+
+**What the research says to skip.** True time-travel / fork-from-step (requires per-super-step
+*state checkpoints* à la LangGraph — a persistence project, not a UI feature; ADR-0048 already
+decided replay = read-only reconstruction); structural trace-tree diffing (the industry diffs two
+runs *keyed by the same task* on outputs/score/cost — Braintrust pattern); AI-assistant-over-traces
+(pays off only at volumes a single user won't hit); full OTel SDK export (names only).
+
+### Tier O — the run inspector (epic [0090](issues/0090-epic-run-inspector.md))
+
+#### O1 — Run-detail page: the step timeline — **M** · **BUILD FIRST** · takes **ADR-0052**
+- **What:** a `GET /page/runs/{id}` drill-down (each `runRow` header links to it) rendering the
+  persisted event log as a lane-grouped **step timeline**: one row per load-bearing event
+  (`EvUserMessage`, committed `EvMessage`/`EvReasoning`, `EvToolStart`+`EvToolEnd` joined into one
+  tool step, `EvPermission`, `EvToolDecision`, `EvError`, `EvSubagentStart/End`,
+  `EvCompactionStart/End`) with type glyph + name + lane + clock time; full args/result/text
+  behind a `<details>` disclosure — master/detail with **zero new JS**. Deltas
+  (`EvMessageDelta`/`EvReasoningDelta`/`EvToolProgress`) are coalesced away. A run with no log
+  (pre-0085, or log disabled) degrades to the summary card + a note. **Read-only reconstruction —
+  never re-execution** (ADR-0052 records the inspector contract + the step vocabulary).
+- **Why now:** the log is write-only today — the v6 finding again ("it holds data that can't be
+  seen"), one renderer away; the external pattern is settled, so the design risk is ~zero.
+- **Touches:** `internal/web` (`runs.go` `runDetailPartial`/`handleRunDetail` + `runRow` link,
+  `hub.go` route, `templates/fragments.html`, `static/app.css`); `internal/telemetry` read-side
+  only (`LoadRunEventLog` exists). **Issue [0091](issues/0091-run-detail-step-timeline.md).**
+
+#### O2 — Price the timeline: per-step usage/credits — **S/M** · no ADR
+- **What:** `normalizeRunEvent` gains the missing `EvUsage` case, stamping the turn's token
+  counts + **computed credits at time of use** into additive `RunEvent` fields (omitempty; older
+  logs read back zero — the additive-only rule of ADR-0048). Price-at-time-of-use means a later
+  price-book change never silently reprices history (token prices are falling 80%+/yr — a stale
+  or refreshed book must not corrupt the record). The inspector prices each turn row, rolls up
+  per-lane subtotals, and cross-checks the header total against `RunRecord.Credits` — a per-run
+  mini-reconciliation, ambered on mismatch (the V15 discipline at run grain).
+- **Touches:** `internal/telemetry` (`eventlog.go` additive fields), `internal/web`
+  (`eventlog.go` `normalizeRunEvent`, `runs.go` pricing).
+  **Issue [0092](issues/0092-per-step-cost-event-log.md).**
+
+#### O3 — Transcript view — **S** · no ADR
+- **What:** a view toggle (`?view=transcript`, mirroring the `?window=` pattern) flattening the
+  same events into chat reading order — the "Messages view" every vendor ships beside the tree —
+  message bodies rendered through the **block-AST designed-output pipeline** (its second
+  consumer), tool steps as compact cards between them.
+- **Touches:** `internal/web` (`runs.go`, `templates/fragments.html`).
+  **Issue [0093](issues/0093-run-transcript-view.md).**
+
+#### O4 — Compare two runs of the same workflow — **M** · candidate/stretch
+- **What:** pick two runs of one workflow → side-by-side summary deltas (outcome, duration,
+  credits, per-lane credits/status, pauses) + final outputs. **Keyed** comparison (same-task key,
+  output + cost deltas — the Braintrust pattern), explicitly **not** a structural tree diff. A
+  pure `RunDelta(a, b)`-style reader + presentation; pairs with O1's rerun loop (rerun → compare).
+- **Touches:** `internal/telemetry` (small pure reader), `internal/web` (`runs.go`).
+  **Issue [0094](issues/0094-compare-two-runs.md).**
+
+### Runner-up candidates (documented, not promoted)
+
+- **Durable autopilot** — persist pause records on `AppendOnlyStore` (+ SLA deadlines) so a
+  restart resurfaces them, a run **queue** (today `launchWorkflow` *refuses* while busy), and
+  scheduled/recurring runs. The verified industry pattern is exactly this four-pillar shape
+  (normalized trigger ingress; durable state outside the process; an explicit persisted lifecycle
+  state machine with suspend-with-reason + message-to-resume — Devin v3; attention routing).
+  Stays on TECH_DEBT #16's own trigger: **when unattended runs actually matter.** Natural v16 lead.
+- **Active cost governance** — the carried B `DetectAnomalies` reader (FinOps-for-AI names
+  higher-frequency anomaly detection as an AI-specific capability), a **per-run budget cap with
+  pre-Send enforcement** (the 2026 answer to runaway-agent incidents — monthly caps don't stop
+  them; mirrors the 0072 sub-agent leash at run grain), and a scheduled spend digest.
+- **Learnings forge entity** — file-based auto-extracted memory with a Devin-style
+  approve/edit/dismiss review step. The external scan **validates ADR-0050's file stance**:
+  Claude Code / Codex / Windsurf all store auto-memory as editable local markdown, and Cursor
+  *removed* its opaque Memories feature (2.1) telling users to convert to Rules.
+- **Worktree lane isolation** — the local-tool market standard is a git worktree per run
+  (Conductor, Cursor 2.0's 8-agent cap via worktrees, vibe-kanban, first-party Claude Code
+  `isolation: worktree`). Relevant here only when concurrent-write lanes bite; Tier-D-style
+  demand gate.
+
+### Recommended sequencing (v15)
+
+1. **O1 — run-detail step timeline** *(BUILD FIRST)*: the keystone renderer; takes ADR-0052. →
+   issue **0091**, epic **0090**.
+2. **O2 — price the timeline**: the one schema-touching slice; lands the per-step cost grain.
+3. **O3 — transcript view**: cheap, reuses O1's data + the block-AST renderer.
+4. **O4 — compare two runs**: the stretch child (R6 semantics — drop if a fresh look ranks it
+   low). On the last merge epic 0090 closes; scope v16 from a fresh pass (durable autopilot and
+   active cost governance lead the queue).
+
+### Sources (cited research, roadmap-v15)
+- Run-detail / replay pattern: langchain.com/blog/debugging-deep-agents-with-langsmith;
+  docs.langchain.com/langsmith (Messages view + run tree); langfuse.com/faq/all/what-does-a-good-trace-look-like
+  + langfuse.com/docs/observability (per-observation model/tokens/cost); docs.agentops.ai
+  (session waterfall + detail pane); openai.github.io/openai-agents-python/tracing (span
+  vocabulary); github.com/daaain/claude-code-log + github.com/es617/claude-replay (renderer-over-
+  JSONL precedent); github.com/arize-ai/phoenix (localhost trace UI).
+- Replay vs re-execution: docs.langchain.com/oss/python/langgraph/persistence (checkpointer
+  per super-step; fork needs state, not logs). Run diffing: braintrust.dev/foundations/comparing-experiments
+  (keyed by test case, not tree diff).
+- OTel GenAI: opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-agent-spans
+  (`invoke_agent`/`execute_tool`; status **Development**).
+- Unattended runs (runner-up): docs.devin.ai/api-reference (v3 `waiting_for_user`/`suspended` +
+  message-to-resume); code.claude.com/docs/en/sessions (JSONL transcripts, resume-by-id);
+  github.com/OpenHands/OpenHands/issues/13275 (Automations RFC: webhook ingress + persistent
+  queue); cursor.com/docs/cloud-agent/automations (cron + webhook per automation).
+- Cost governance (runner-up): github.blog (Copilot usage-based AI-Credits billing live
+  2026-06-01; enterprise/cost-center/user budgets); finops.org/wg/finops-for-ai-overview
+  (AI-scope anomaly detection); waxell.ai + relayplane.com (pre-call per-run budget enforcement;
+  runaway incidents); code.claude.com/docs/en/costs (`/usage` per-skill/subagent/MCP breakdown);
+  epoch.ai/data-insights/llm-inference-price-trends (price volatility → price-at-time-of-use).
+- Memory + fleet (runner-ups): code.claude.com/docs/en/memory; developers.openai.com/codex/memories;
+  docs.devin.ai/desktop/cascade/memories; forum.cursor.com (Memories removed in 2.1);
+  docs.devin.ai/product-guides/knowledge (approve/edit/dismiss loop); conductor.build;
+  cursor.com/changelog/2-0 (8 parallel agents via worktrees); github.blog/changelog/2025-10-28
+  (Mission Control); code.claude.com/docs/en/worktrees.
+
+> **Confidence:** 14 load-bearing claims were adversarially verified by three independent voters
+> (3×14 votes, **all SUPPORT** against primary sources). Caveats carried: runaway-cost incidents
+> are documented at five figures (the "four-figure" framing understates); the Cursor Memories
+> removal is confirmed by docs-removal + forum staff guidance, not an official changelog entry;
+> the Devin lifecycle states are **v3-API**-specific; OTel GenAI conventions remain
+> **Development** status — adopted as a naming guide only. The internal seam map is first-party
+> (exact files/lines — high confidence): the event log is confirmed write-only, `RunEvent` is
+> confirmed usage-blind, and there is no scheduler/queue code anywhere in the tree.

@@ -23,6 +23,7 @@ issues are added or closed.
 | [0076](0076-epic-designed-agent-output.md) | Epic: Designed agent output — rich, token-styled components from agent markdown (roadmap v13) | closed | 0077, 0078, 0079, 0080, 0081, 0082 |
 | [0083](0083-epic-orchestration-robustness-backpressure-replayability-considered-and-rejected-event-bus.md) | Epic: Orchestration robustness — backpressure + replayability (considered-and-rejected event bus) (roadmap v14) | closed | 0084, 0085 |
 | [0086](0086-epic-code-health-followups.md) | Epic: Code-health follow-ups — structural splits + a normalize map-leak sweep (RETROS 0005) | closed | 0087, 0088, 0089 |
+| [0090](0090-epic-run-inspector.md) | Epic: Run inspector — replay/audit surface over the per-run event log (roadmap v15) | open | 0091, 0092, 0093, 0094 |
 
 ## Issues
 
@@ -105,3 +106,8 @@ issues are added or closed.
 | [0087](0087-split-workflow-god-file.md) | Split workflow.go — separate the run engine, seam adapter, renderer, demo, and CRUD | closed | low | 0086 | depends_on: —, RETROS 0005, TECH_DEBT #17; parallel-safe w/ 0089 |
 | [0088](0088-split-server-god-file.md) | Split server.go — lift the interaction + forge-mutation handlers out of the god file | closed | low | 0086 | depends_on: —, RETROS 0005, TECH_DEBT #17; same package as 0087 |
 | [0089](0089-normalize-toolmap-leak-sweep.md) | Sweep orphaned toolNames/toolMeta entries in normalize.go on session teardown | closed | low | 0086 | depends_on: —, RETROS 0005, TECH_DEBT #18 (paid); toolSession index + sweepToolMaps |
+| [0090](0090-epic-run-inspector.md) | Epic: Run inspector — replay/audit surface over the per-run event log (roadmap v15) | open | medium | | children 0091–0094; NEXT_FEATURES roadmap-v15; ADR-0052 reserved; builds on ADR-0048 |
+| [0091](0091-run-detail-step-timeline.md) | Run-detail page — lane-grouped step timeline over the per-run event log (O1) | open | medium | 0090 | depends_on: —, BUILD FIRST; ADR-0052; renderer over RunEventLog |
+| [0092](0092-per-step-cost-event-log.md) | Price the timeline — per-step usage/credits in the run event log (O2) | open | medium | 0090 | depends_on: 0091, additive RunEvent fields (ADR-0048 rule); price-at-time-of-use |
+| [0093](0093-run-transcript-view.md) | Run transcript view — chat-order rendering of the event log (O3) | open | low | 0090 | depends_on: 0091, block-AST second consumer; ?view= pattern |
+| [0094](0094-compare-two-runs.md) | Compare two runs of one workflow — keyed side-by-side deltas (O4, stretch) | open | low | 0090 | depends_on: 0091, Braintrust keyed-comparison pattern; pure RunDelta reader |
