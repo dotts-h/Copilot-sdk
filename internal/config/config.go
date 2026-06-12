@@ -60,6 +60,11 @@ type TelemetryConfig struct {
 	// HardCapCredits is an absolute credit ceiling; a turn whose projected spend
 	// would exceed it is paused for confirmation. Zero (the default) disables it.
 	HardCapCredits float64 `json:"hardCapCredits,omitempty"`
+	// RunCapCredits is a per-workflow-run credit ceiling: a run whose cumulative
+	// spend reaches it admits no further lane and is stopped (ADR-0053). It bounds
+	// an unattended or runaway run that the account/persona caps can't (those are
+	// monthly / per-agent). Zero (the default) disables it.
+	RunCapCredits float64 `json:"runCapCredits,omitempty"`
 	// OTLPEndpoint, if set, is forwarded to the SDK's OpenTelemetry exporter.
 	OTLPEndpoint string `json:"otlpEndpoint,omitempty"`
 	// PriceOverrides maps model -> [inputPerMTok, cachedPerMTok, outputPerMTok] and
@@ -169,6 +174,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Telemetry.HardCapCredits < 0 {
 		return fmt.Errorf("hardCapCredits must be >= 0")
+	}
+	if c.Telemetry.RunCapCredits < 0 {
+		return fmt.Errorf("runCapCredits must be >= 0")
 	}
 	// Membership only: a "token" method whose var is unset degrades at dial and
 	// surfaces on the Connection page preflight — rejecting it here would let a

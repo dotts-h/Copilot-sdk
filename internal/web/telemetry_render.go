@@ -27,6 +27,9 @@ func (s *Server) telemetryPartial(window int) string {
 	if s.hardCap > 0 {
 		rows = append(rows, [2]string{"Hard cap", fmt.Sprintf("%.0f cr — a turn projected to exceed it pauses for confirmation", s.hardCap)})
 	}
+	if s.runCap > 0 {
+		rows = append(rows, [2]string{"Per-run cap", fmt.Sprintf("%.0f cr — a run reaching it admits no further lane and stops", s.runCap)})
+	}
 	if aiu := s.meter.ReportedAIU(); aiu > 0 {
 		rows = append(rows, [2]string{"GitHub-reported cost", fmt.Sprintf("%.4f AIU", aiu)})
 	}

@@ -197,6 +197,15 @@ func (s *Server) startLane(run *workflowRun, idx int) {
 	ctx := context.Background()
 	s.mu.Lock()
 	l := run.lanes[idx]
+	// Pre-Send admission control (ADR-0053): if the run has already spent up to its
+	// per-run cap, refuse this lane before opening a session — the run-grain dual of
+	// the persona leash. The cap is the single choke point, so a refused run only
+	// winds down (capStop admits no further lane).
+	if s.runOverCap(run) {
+		s.mu.Unlock()
+		s.laneBudgetStop(run, l)
+		return
+	}
 	spec := l.spec
 	prompt := run.handoffPrompt(idx)
 	s.mu.Unlock()
@@ -220,6 +229,32 @@ func (s *Server) startLane(run *workflowRun, idx int) {
 			go streamDemoLane(mock, cid, prompt, s.escalate)
 		}
 	}
+}
+
+// runOverCap reports whether the run's cumulative credits have reached the
+// configured per-run cap (ADR-0053) — the run-grain dual of leashFor, reusing
+// telemetry.Leash so the inclusive (>=) cap semantics match the persona leash and
+// the account hard cap. A zero cap (the default) never gates, so an unconfigured
+// run is byte-identical to the pre-cap dispatch. Caller holds s.mu.
+func (s *Server) runOverCap(run *workflowRun) bool {
+	return telemetry.Leash{MaxCredits: s.runCap}.Breached(run.credits, 0)
+}
+
+// laneBudgetStop settles a lane the per-run cap refused and stops the run from
+// spending further (ADR-0053). It mirrors laneError — fail the lane, broadcast the
+// run fragments — but admits no next lane (capStop is the choke point) and adds a
+// one-time system note naming the cap. A still-running lane is left to finish; its
+// own terminal event settles the run.
+func (s *Server) laneBudgetStop(run *workflowRun, l *lane) {
+	s.mu.Lock()
+	firstHit := !run.failed // capStop sets run.failed; note only the first refusal
+	run.capStop(l)
+	if firstHit {
+		s.state.AddSystem("⚠ run stopped — over budget cap (" + telemetry.FormatCredits(s.runCap) + ")")
+	}
+	frags := s.runFrags(run, run.done)
+	s.mu.Unlock()
+	s.broadcast(frags)
 }
 
 // laneError fails a lane and broadcasts the resulting lane/status fragments.
@@ -262,6 +297,7 @@ func (s *Server) handleRunEvent(run *workflowRun, e copilot.Event) []fragment {
 			tag.laneIndex = l.Index
 		}
 		cost := s.recordUsage(e.Usage, tag)
+		run.credits += cost.Credits() // the run's cumulative spend, for the per-run cap (ADR-0053)
 		if l != nil {
 			l.credits += cost.Credits()
 		}

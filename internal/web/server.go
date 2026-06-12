@@ -59,6 +59,7 @@ type Server struct {
 	allowance     float64
 	warnFraction  float64 // soft-warn threshold as a fraction of the allowance
 	hardCap       float64 // hard credit ceiling; 0 disables the gate
+	runCap        float64 // per-run credit ceiling (ADR-0053); 0 disables it
 	// lookPath resolves an MCP server command on PATH for the MCP page preflight,
 	// isolating the one impurity behind a seam (defaults to exec.LookPath; tests
 	// inject a fake).

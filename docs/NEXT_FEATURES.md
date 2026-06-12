@@ -1244,8 +1244,13 @@ runs *keyed by the same task* on outputs/score/cost — Braintrust pattern); AI-
   them; mirrors the 0072 sub-agent leash at run grain), and a scheduled spend digest.
 - **Learnings forge entity** — file-based auto-extracted memory with a Devin-style
   approve/edit/dismiss review step. The external scan **validates ADR-0050's file stance**:
-  Claude Code / Codex / Windsurf all store auto-memory as editable local markdown, and Cursor
-  *removed* its opaque Memories feature (2.1) telling users to convert to Rules.
+  Claude Code / Codex / Windsurf all store auto-memory as editable local markdown, and the
+  field steers users away from opaque auto-memories toward version-controlled Rules/AGENTS.md
+  (Windsurf says so explicitly; the Cursor community advises converting Memories to Rules).
+  [v16 verification correction: the original note here claimed Cursor *removed* Memories in
+  2.1 — the primary 2.1 changelog + staff forum reply confirm only **Custom Modes** were
+  removed in 2.1, not Memories; the "removed in 2.1" wording is community-only. The directional
+  deprioritization of Memories in favour of Rules is solid; the exact removal claim is not.]
 - **Worktree lane isolation** — the local-tool market standard is a git worktree per run
   (Conductor, Cursor 2.0's 8-agent cap via worktrees, vibe-kanban, first-party Claude Code
   `isolation: worktree`). Relevant here only when concurrent-write lanes bite; Tier-D-style
@@ -1324,3 +1329,139 @@ runs *keyed by the same task* on outputs/score/cost — Braintrust pattern); AI-
 > **Development** status — adopted as a naming guide only. The internal seam map is first-party
 > (exact files/lines — high confidence): the event log is confirmed write-only, `RunEvent` is
 > confirmed usage-blind, and there is no scheduler/queue code anywhere in the tree.
+
+## Roadmap v16 — active cost governance (deep-research pass 2026-06-12)
+
+> Fresh pass. Roadmaps **v1–v15** are shipped and closed; the tracker had **no open issue**.
+> This pass ran the deep-research harness: **five parallel search angles** — durable/unattended
+> runs · run queues + scheduling/triggers · per-run cost caps/governance · agent memory ·
+> worktree isolation & the single-user local-first landscape — plus a first-party seam map, then
+> the load-bearing claims **adversarially verified** (one correction landed: the v15 runner-up
+> note's "Cursor *removed* Memories in 2.1" is community-only — the 2.1 changelog confirms only
+> Custom Modes; fixed in-place above). The v16 epic takes **0095**; children take **0096–0098**;
+> the BUILD-FIRST child consumes **ADR-0053** (written first, ADR-0004).
+
+**Thesis (the gap).** The meter **sees** spend but cannot **stop** it at run grain. The repo
+enforces pre-Send *admission control* at two grains — the account-wide hard cap (ADR-0008,
+`s.hardCap`) and the per-persona budget leash (ADR-0042, issue 0072: `leashFor` →
+`pendingLeashGate` → `budgetGate`) — but a workflow **run** fans out across lanes and sub-agents
+(`launchLanes` → `startLane`, summed into `RunRecord.Credits`) with **no cumulative ceiling**. A
+looping/wide run, and especially an **unattended/queued** run, can burn without limit.
+
+**What the research settled.** The converged 2025–2026 failure mode is exactly this: monthly /
+account caps **structurally cannot** stop a run-grain runaway — a verified incident ran four
+agents in a retry loop for **11 days to a ~$47K bill** with logging and monitoring but "no hard
+limit, no per-conversation budget"; the major providers (Anthropic/OpenAI) cap only at *monthly
+workspace* grain. The settled fix is **admission control**: a gate that runs *before* the next
+model call, reads the running cost, and refuses once the cap would be crossed — Portkey (HTTP 412
+pre-call), LiteLLM (`max_budget` across key/team/session scopes), OpenRouter (per-key credit
+limits with reset cadence) all implement exactly this at key/run scope. FinOps-for-AI guidance
+pairs the hard cap with **high-frequency anomaly detection** (the <2% / 2–7% / >7%-of-spend
+maturity bands) and a **scheduled digest**, the same cap + anomaly + digest triad — with the
+caveat (verified) that *enforcement* is far less standardized than reporting (even LiteLLM has
+shipped silent-bypass bugs in 2025), so the pre-send block is the load-bearing, must-get-right
+piece. The two cost angles independently converged on **per-run caps as the highest-value,
+lowest-risk next slice**.
+
+**Why this epic (value×fit).** It is the repo's own established move — **mirror an existing seam
+at the next attribution grain** (the 0072 sub-agent leash → run grain), the level above V14's
+per-lane shares — at the lowest risk in the candidate set: a deterministic, side-effect-free
+`leash.Breached(...)` decision reusing `telemetry.Leash` and the `budgetGate` pause, **zero new
+type, zero new infra**, byte-identical streaming/record path when unset. It is also the **safety
+precondition for v17** (durable/unattended runs): a run nobody is watching must not be able to
+burn past its ceiling *before* that direction exists.
+
+**Re-ordering the v15 runner-up queue (the deliberate call).** The v15 close-out named **durable
+autopilot** the v16 lead. This pass **re-orders** that: durable autopilot is the right *next
+epic* and its minimal form is settled (the field converged on a durably-persisted run lifecycle
+state machine — `running → suspended/waiting_for_* → resuming` — over an append-only log, with a
+HITL pause as a durable record keyed by id + an SLA timer, and "resume = deliver the awaited
+input"; for a single-user local-first tool the consensus is to **skip Temporal/Restate and use
+embedded SQLite / append-only JSONL** — which is exactly this repo's `AppendOnlyStore` + the
+existing `pause.Ledger`). But it is a **larger, multi-child** epic (queue — `launchWorkflow`
+*refuses* while busy today — + persisted pause lifecycle + scheduling/trigger ingress), and
+unattended runs are precisely where a runaway is most dangerous. So the **cost leash lands first
+(v16), durable autopilot follows (v17)** on a now-safe base. **Worktree lane isolation** is
+demand-gated and already commoditized across the field (table-stakes; and naive fan-out risks
+`index.lock` contention) — it stays on its "when concurrent-write lanes bite" trigger.
+**Learnings/memory** stays a runner-up: the editable-local-markdown + human-gated approve/edit/
+dismiss pattern is settled (Devin Knowledge is the clearest instance; ADR-0050's file stance is
+validated), but it's lower-urgency for a cost/orchestration tool than leashing run spend.
+
+### Tier P — active cost governance (epic [0095](issues/0095-epic-active-cost-governance.md))
+
+#### P1 — Per-run budget cap: pre-Send admission control — **M** · **BUILD FIRST** · takes **ADR-0053**
+- **What:** a run carries an optional credit ceiling (`telemetry.Leash`, **reused**) from
+  `config.Telemetry.RunCapCredits` (`0` = unleashed, default). The server accumulates the run's
+  spend (`s.runCredits`, fed by the same `recordUsage` turn that sums to `RunRecord.Credits`) and
+  checks it **before admitting the next lane's Send** in `startLane`. A breach raises the **same
+  `budgetGate`** (proceed / raise / cancel) the account cap and persona leash use — `raise` lifts
+  the cap for **this run only**; an **unattended** run resolves a breach deterministically to
+  **cancel** (remaining lanes failed-with-reason, partial run recorded once — the ADR-0024 abort
+  shape). Realized cumulative-vs-cap between lanes, not a forward per-call estimate (ADR-0053).
+- **Why now:** the converged, lowest-risk, highest-value slice; sits on seams the repo has; the
+  safety precondition for v17.
+- **Touches:** `internal/telemetry` (`credits.go` — reuse `Leash`), `internal/config`
+  (`RunCapCredits`), `internal/web` (`session.go` `recordUsage` run accumulation, `run_adapter.go`
+  `startLane` gate, `server.go` `budgetGate` reuse). **Issue
+  [0096](issues/0096-per-run-budget-cap-admission-control.md).**
+
+#### P2 — Cost anomaly signal — **S/M** · no ADR (pure reader)
+- **What:** a pure `DetectAnomalies(records, opts) []Anomaly` reader over the run records + the
+  per-step credits (issue 0092), flagging a run/step whose cost-per-step or burn-rate jumps beyond
+  a threshold (the FinOps <2 / 2–7 / >7% bands as framing, not a hard spec), surfaced **ambered**
+  on the run inspector + Telemetry — the reconcile-drift discipline. No enforcement.
+- **Touches:** `internal/telemetry` (pure reader), `internal/web` (inspector + Telemetry badges).
+  **Issue [0097](issues/0097-cost-anomaly-signal.md).**
+
+#### P3 — Scheduled spend digest — **S** · no ADR · *closes the epic*
+- **What:** a pure digest builder rolling a period's spend (by workflow/agent/run) + cap-hits (P1)
+  + anomalies (P2) into one Telemetry view and/or a written artifact, on the existing `?window=`
+  discipline (not a cron daemon — that's v17's scheduling). On its merge epic 0095 closes.
+- **Touches:** `internal/telemetry` (pure builder), `internal/web` (Telemetry digest).
+  **Issue [0098](issues/0098-scheduled-spend-digest.md).**
+
+### Runner-up candidates (carried, re-ranked this pass)
+
+- **Durable autopilot** *(now the v17 lead)* — persisted run lifecycle state machine
+  (`running → suspended/waiting_for_* → resuming`) over the append-only log + `pause.Ledger`, a
+  run **queue** (today `launchWorkflow` refuses while busy), and scheduled/recurring runs +
+  normalized trigger ingress. Minimal form settled (SQLite/JSONL, not Temporal/Restate — Devin v3
+  message-to-resume, LangGraph `SqliteSaver` + interrupt, OpenAI `SQLiteSession`). Built **after**
+  the run leash so unattended runs land on a safe base.
+- **Learnings forge entity** — editable-local-markdown auto-memory with Devin-style
+  approve/edit/dismiss; validated pattern, lower urgency than leashing spend.
+- **Worktree lane isolation** — git-worktree-per-run; demand-gated (concurrent-write lanes),
+  commoditized, `index.lock`-risky to dispatch naively.
+
+### Recommended sequencing (v16)
+
+1. **P1 — per-run budget cap** *(BUILD FIRST)*: the enforcement keystone; takes ADR-0053. →
+   issue **0096**, epic **0095**.
+2. **P2 — anomaly signal**: the pure reader over the same run/step credits.
+3. **P3 — spend digest**: rolls up P1 cap-hits + P2 anomalies; on its merge epic 0095 closes.
+   Scope **v17 (durable autopilot)** from a fresh pass on the now-safe, leashed base.
+
+### Sources (cited research, roadmap-v16)
+- Pre-send cost enforcement: portkey.ai/docs/product/enterprise-offering/budget-policies (HTTP
+  412 pre-call); docs.litellm.ai/docs/proxy/users (`max_budget` scopes) + github.com/BerriAI/
+  litellm/issues/27381 (silent-bypass bugs — enforcement is fragile); docs.helicone.ai/features/
+  advanced-usage/custom-rate-limits (cost-unit rate limits); openrouter usage limits (per-key
+  credit caps); docs.anthropic.com/en/api/rate-limits (monthly-workspace grain only).
+- Runaway incident + admission-control framing: dev.to/dingdawg/how-an-ai-agent-ran-up-a-47000-
+  bill-in-11-days (no hard limit; per-call superlinear history growth; admission control is the
+  fix). FinOps-for-AI: finops.org/wg/finops-for-ai-overview + finops.org/framework/technology-
+  categories/ai (cap + anomaly bands); portkey.ai/blog/the-state-of-ai-finops-2025 (enforcement
+  still immature vs reporting).
+- Durable runs (v17 lead): docs.devin.ai/api-reference/v3/sessions (lifecycle enum + message-to-
+  resume); docs.langchain.com/oss/python/langgraph/interrupts (`SqliteSaver` + `interrupt`/
+  `Command(resume)`); openai.github.io/openai-agents-python/sessions (`SQLiteSession`);
+  docs.restate.dev/ai/patterns/human-in-the-loop (durable promise + SLA timer); byteiota.com/
+  sqlite-durable-workflows-skip-temporal + morling.dev (append-only log is the core; start with
+  SQLite). OTel GenAI agent spans: opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-agent-spans
+  (status **Development** — naming guide only).
+- Agent memory (runner-up): code.claude.com/docs/en/memory (auto-memory as editable markdown);
+  docs.devin.ai/product-guides/knowledge (approve/edit/dismiss gate); agents.md (AGENTS.md
+  standard, Linux Foundation); cursor.com/changelog/2-1 + forum.cursor.com (2.1 removed Custom
+  Modes, **not** Memories — the v15 note's correction); letta.com/blog/benchmarking-ai-agent-
+  memory (files beat graph-RAG for capable agents — vendor benchmark, treat as suggestive).
