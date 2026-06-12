@@ -1,14 +1,14 @@
 ---
 id: 0097
 title: "Cost anomaly signal — high-frequency DetectAnomalies reader over run/step credits (P2)"
-status: open
+status: closed
 severity: medium
 group: 0095
 depends_on: [0096]
 github:
 links:
   adr:
-  prs: []
+  prs: [165]
   issues: [0095]
   regression:
 assets: []
@@ -47,6 +47,12 @@ credits), so it carries near-zero correctness risk.
 
 ## Acceptance
 
-- [ ] `DetectAnomalies` flags an out-of-band run/step deterministically and is table-tested.
-- [ ] The signal surfaces ambered on the inspector + Telemetry, read-only.
-- [ ] `make lint && make test` green (coverage ≥ floor); `make e2e` if the UI changed.
+- [x] `DetectAnomalies` flags an out-of-band run/step deterministically and is table-tested.
+- [x] The signal surfaces ambered on the inspector + Telemetry, read-only.
+- [x] `make lint && make test` green (coverage ≥ floor — telemetry 96.7%, web 89.9%); `make e2e`
+      ran (UI changed — 160 passed).
+
+Shipped in **PR #165** (commit `ad9a42f`): `telemetry.DetectAnomalies` (median-baseline ratio
+threshold, `DefaultAnomalyOpts` = 3× over ≥3 runs), the Telemetry "Cost anomalies" section
+(linking each flagged run to its inspector) + the run-inspector amber note. Code-reviewed (high
+effort) — no correctness findings. Run-grain shipped; per-step anomaly grain is a noted follow-up.
