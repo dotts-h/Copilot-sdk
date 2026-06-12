@@ -1,14 +1,14 @@
 ---
 id: 0098
 title: "Scheduled spend digest — periodic rollup of spend, cap-hits, and anomalies (P3)"
-status: open
+status: closed
 severity: low
 group: 0095
 depends_on: [0096, 0097]
 github:
 links:
   adr:
-  prs: []
+  prs: [166]
   issues: [0095]
   regression:
 assets: []
@@ -43,7 +43,17 @@ purely on the spend/run stores and the P2 reader.
 
 ## Acceptance
 
-- [ ] A pure digest builder rolls up spend + cap-hits + anomalies for a period, table-tested.
-- [ ] A Telemetry digest surface and/or written artifact renders it.
-- [ ] `make lint && make test` green (coverage ≥ floor); `make e2e` if the UI changed.
-- [ ] Epic 0095 closed on merge (its row ticked, children all closed).
+- [x] A pure digest builder rolls up spend + cap-hits + anomalies for a period, table-tested.
+- [x] A Telemetry digest surface (Period digest card) **and** a written artifact (`digest.md`)
+      render it.
+- [x] `make lint && make test` green (coverage ≥ floor — telemetry 96.6%, web 90.0%); `make e2e`
+      ran (UI changed — 160 passed).
+- [x] Epic 0095 closed on merge (its row ticked, children all closed).
+
+Shipped in **PR #166** (commit `142de8c`): `telemetry.BuildSpendDigest` (window rollup —
+totals, run activity, top-N workflow/agent spenders, in-window anomalies over a full-history
+baseline) + `telemetry.WriteDigest` (markdown artifact); the Telemetry "Period digest" card +
+`GET /telemetry/digest.md` export. Code-reviewed (high effort) — one consistency finding (Top
+workflows now excludes the unattributed bucket, matching `WorkflowShares`) fixed on the branch.
+Cap-hits surface as the stopped/failed-run count; a distinct persisted cap-hit signal is a noted
+follow-up.
