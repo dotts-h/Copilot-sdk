@@ -54,3 +54,4 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0048 | [Per-run event log — replay semantics over an additive AppendOnlyStore[RunEvent]](0048-per-run-event-log-replay-vs-summary.md) | accepted |
 | 0049 | [Citation cards — inline `[n]` markers + reference-defined source cards](0049-citation-cards-inline-markers-and-source-cards.md) | accepted |
 | 0050 | [No mini-RAG over the docs corpus — file-based docs + agentic search stay](0050-no-mini-rag-file-based-docs-and-agentic-search.md) | accepted |
+| 0051 | [No third-party efficiency/observability plugins — an in-repo session playbook instead](0051-no-third-party-efficiency-plugins-in-repo-session-playbook.md) | accepted |

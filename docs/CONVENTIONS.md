@@ -124,6 +124,54 @@ Exact commands CI enforces (`.github/workflows/ci.yml`, `Makefile`):
   `scripts/hook-check-workflows.sh` (matcher `Edit|Write|MultiEdit`) — the agent can't edit
   that file (it enables an external plugin marketplace), so wire it by hand.
 
+## Session playbook
+
+The single home for the "carry-forward" session-optimization lessons (RETROS 0001/0002/0005/
+0006 each appended one — consolidated here per RETROS 0006 so a new session reads **one** list,
+not four overlapping ones). A retro adds a lesson by editing *this* list, and its own
+checklist section carries only the **delta** (what changed) plus the one-line session-cost
+figure (below). Frontend/style lessons live in *Naming & style*, not here.
+
+**Discovery & reading**
+- Map-first (CODEMAP), windowed reads; full file reads only when editing most of a file.
+- Delegate discovery to Explore/sub-agents and mechanical work (e.g. test authoring) to a
+  scoped sonnet agent on non-overlapping packages; keep the conclusion + line ranges, not
+  file dumps.
+- Scope audits (named files + concerns) and run them in parallel; don't "sweep everything"
+  on a healthy codebase.
+- Docs lookups: route (CLAUDE.md) → index (CODEMAP/CONTEXT/INDEX) → grep → windowed read;
+  don't reach for retrieval infra the corpus doesn't need (ADR-0050).
+
+**Remote sandbox**
+- Verify the base before writing code — `origin/main` SHA + a sentinel file; never trust the
+  first fetch.
+- Prefer compact MCP endpoints; don't read `list_workflow_runs` to check one status.
+- Wait via a background until-loop timer; never a foreground `sleep`.
+- An unverifiable e2e change (no browser in-sandbox) must be a faithful copy of a proven
+  spec, not a fresh invention.
+
+**Quality loop**
+- Package-scoped tests in the loop; `/code-review` (always) + full `make lint && make test`
+  before push.
+- When an error-path fix breaks green tests, suspect the harness encodes the bug — fix the
+  harness, then guard the real failure path.
+- Treat a review finding against the *motivating example* as a bug to fix at depth, not a
+  limitation to document.
+
+**Close-out**
+- Close an epic completely: status + INDEX + children + the epic's **own body**; landing an
+  ADR includes its `docs/adr/README.md` index row (treat like CODEMAP regen).
+- For "should we adopt X infra?" write the ADR with revisit triggers — retro sections get
+  re-asked, ADRs get cited.
+- Keep the KICKOFF "READ FIRST" list tight (CODEMAP + the 5 core docs).
+
+**Session-cost line (observability, in-repo, zero-dependency).** End each retro with one
+sentence: *roughly what the session cost in tokens and where it went* (e.g. "~150K, dominated
+by the three scoped audits"). This is the local, trust-boundary-free equivalent of the
+third-party context-optimizer plugins (RETROS 0007): we hold our own dev loop to the same
+spend-measurement standard the product holds the agent to — without installing anything that
+runs with our process privileges.
+
 ## Releases & versioning
 
 Versions are **SemVer** (`vMAJOR.MINOR.PATCH`), bumped per landed change:
