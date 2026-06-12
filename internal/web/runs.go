@@ -290,7 +290,7 @@ func buildRunTimeline(events []telemetry.RunEvent) []laneSteps {
 			openTools[e.LaneIndex] = append(openTools[e.LaneIndex], len(g.Steps)-1)
 		case "EvToolEnd":
 			g := lane(e.LaneIndex)
-			if pos, ok := popOpenTool(openTools, e.LaneIndex, def(e.Tool, "tool"), g.Steps); ok {
+			if pos, ok := popOpenTool(openTools, e.LaneIndex, def(e.Tool, "tool"), func(p int) string { return g.Steps[p].Label }); ok {
 				st := &g.Steps[pos]
 				st.Result = e.Result
 				st.Glyph, st.State = toolEndGlyph(e.Success)
@@ -359,13 +359,15 @@ func loadBearingStep(e telemetry.RunEvent) (runStep, bool) {
 // idx that an EvToolEnd joins to: the most recent open start whose label matches
 // name (the persisted record carries no call id — ADR-0052). Returns false when no
 // open start in the lane has that name, so the caller renders the end standalone
-// rather than mis-attributing its result/success onto an unrelated tool. steps is
-// the lane's step slice, read to compare labels.
-func popOpenTool(open map[int][]int, idx int, name string, steps []runStep) (int, bool) {
+// rather than mis-attributing its result/success onto an unrelated tool. labelAt
+// resolves the label of an open position so the same join serves both the
+// lane-grouped timeline (positions into a lane's steps) and the flat transcript
+// (positions into the chat-order item list).
+func popOpenTool(open map[int][]int, idx int, name string, labelAt func(pos int) string) (int, bool) {
 	stack := open[idx]
 	// Walk the stack from the top (most recent) for a label match.
 	for i := len(stack) - 1; i >= 0; i-- {
-		if steps[stack[i]].Label == name {
+		if labelAt(stack[i]) == name {
 			pos := stack[i]
 			open[idx] = append(stack[:i:i], stack[i+1:]...)
 			return pos, true
@@ -429,7 +431,7 @@ func (s *Server) handleRunDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte(s.runDetailPartial(rec, clampWindow(r.URL.Query().Get("window")))))
+	_, _ = w.Write([]byte(s.runDetailPartial(rec, clampWindow(r.URL.Query().Get("window")), r.URL.Query().Get("view"))))
 }
 
 // findRun looks up a persisted run by id, returning false when no run store is
@@ -452,15 +454,15 @@ func (s *Server) findRun(id string) (telemetry.RunRecord, bool) {
 // step timeline reconstructed from the per-run event log. A run with no log file
 // (a pre-event-log run, or the log disabled) renders the card + a "no event log"
 // note — no error. Lane labels resolve under forgeMu, like runRow. — ADR-0052.
-func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int) string {
+func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int, view string) string {
 	glyph, state := runOutcomeGlyph(rec.Outcome)
 	dur := rec.Duration()
 	credits := rec.Credits()
+	transcript := clampRunView(view) == viewTranscript
 
-	var laneRows []map[string]any
+	var events []telemetry.RunEvent
 	hasLog := false
 	loadErr := false
-	var logCredits float64
 	if s.eventLogDir != "" {
 		if log, err := telemetry.LoadRunEventLog(s.eventLogDir, rec.ID); err != nil {
 			// A present-but-unreadable log (malformed/truncated <id>.json) is a data
@@ -469,14 +471,28 @@ func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int) string {
 			loadErr = true
 		} else if log.Count() > 0 {
 			hasLog = true
-			lanes := buildRunTimeline(log.Records())
-			s.hub.forgeMu.Lock()
-			for _, lt := range lanes {
-				logCredits += lt.Credits
+			events = log.Records()
+		}
+	}
+
+	// The summed per-step credits are a property of the log, not the view, so both the
+	// timeline and the transcript header cross-check against the same figure.
+	logCredits := sumEventCredits(events)
+
+	// Reconstruct the chosen view from the same events: the lane-grouped step timeline
+	// (default) or the chat-order transcript (?view=transcript). Lane labels resolve
+	// under forgeMu, like runRow.
+	var laneRows, txRows []map[string]any
+	if hasLog {
+		s.hub.forgeMu.Lock()
+		if transcript {
+			txRows = s.transcriptRows(buildRunTranscript(events), rec)
+		} else {
+			for _, lt := range buildRunTimeline(events) {
 				laneRows = append(laneRows, s.laneTimelineRow(lt, rec))
 			}
-			s.hub.forgeMu.Unlock()
 		}
+		s.hub.forgeMu.Unlock()
 	}
 
 	// Per-run mini-reconciliation (issue 0092): when the log carries priced usage,
@@ -485,13 +501,15 @@ func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int) string {
 	// == 0) shows nothing extra, so the header stays unpriced-clean.
 	hasLogCredits := logCredits > 0
 	return frag("runDetailPage", map[string]any{
+		"ID":   rec.ID,
 		"Name": rec.Name, "Mode": rec.Mode, "Outcome": rec.Outcome,
 		"Glyph": glyph, "State": state, "When": humanWhen(rec.StartedAt),
 		"Duration": humanDuration(dur), "HasDuration": dur > 0,
 		"Credits": telemetry.FormatCredits(credits), "HasCredits": credits > 0,
 		"LogCredits": telemetry.FormatCredits(logCredits), "HasLogCredits": hasLogCredits,
 		"Amber":  hasLogCredits && math.Abs(logCredits-credits) >= reconcileEpsilon,
-		"Window": window, "HasLog": hasLog, "LoadErr": loadErr, "Lanes": laneRows,
+		"Window": window, "HasLog": hasLog, "LoadErr": loadErr,
+		"IsTranscript": transcript, "Lanes": laneRows, "Transcript": txRows,
 	})
 }
 
@@ -500,13 +518,7 @@ func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int) string {
 // forgeMu — or "run-level" for the unattributed -1 group) and its rendered steps,
 // each with its disclosure parts clamped. — ADR-0052.
 func (s *Server) laneTimelineRow(lt laneSteps, rec telemetry.RunRecord) map[string]any {
-	label := "run-level"
-	if lt.LaneIndex >= 0 {
-		label = fmt.Sprintf("step %d", lt.LaneIndex+1)
-		if lt.LaneIndex < len(rec.Lanes) {
-			label += " · " + s.agentLabel(rec.Lanes[lt.LaneIndex].AgentID)
-		}
-	}
+	label := s.laneLabel(lt.LaneIndex, rec)
 	steps := make([]map[string]any, len(lt.Steps))
 	for i, st := range lt.Steps {
 		args := clampLines(st.Args, maxStepDetailLines)

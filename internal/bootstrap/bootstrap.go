@@ -246,17 +246,23 @@ func seedDemoEventLog(logger *log.Logger) string {
 		logger.Printf("demo event log: load: %v", err)
 		return ""
 	}
-	// Lane 0 (builder): a tool step + a committed message. Lane 1 (sdet):
-	// reasoning + a test run — a representative two-lane sequential run.
+	// Lane 0 (builder): a tool step + a committed message whose body carries
+	// designed markdown (a callout, a table, a fenced code block) so the transcript
+	// view (O3) showcases the block-AST renderer — its second consumer. Lane 1
+	// (sdet): reasoning + a test run. EvUsage turns price each lane (O2) so the
+	// transcript shows per-turn credits and the header log-vs-record cross-check
+	// matches the seeded run total (2.6 + 2.2 = 4.8). A representative two-lane run.
 	for _, e := range []telemetry.RunEvent{
 		{Type: "EvUserMessage", LaneIndex: 0, Text: "Build the feature and harden it."},
 		{Type: "EvReasoning", LaneIndex: 0, Text: "Plan: scaffold, implement, then add tests."},
 		{Type: "EvToolStart", LaneIndex: 0, Tool: "write", Args: "internal/feature/feature.go\n+ package feature"},
 		{Type: "EvToolEnd", LaneIndex: 0, Tool: "write", Result: "wrote 1 file", Success: true},
-		{Type: "EvMessage", LaneIndex: 0, Text: "Feature scaffolded and implemented."},
+		{Type: "EvMessage", LaneIndex: 0, Text: "Feature scaffolded and implemented.\n\n```go\nfunc Feature() error { return nil }\n```\n\n> [!NOTE]\n> The seam is behind an interface, so it stays unit-testable.\n\n| Check | Status |\n| --- | :--: |\n| Build | pass |\n| Lint | pass |"},
+		{Type: "EvUsage", LaneIndex: 0, TokensIn: 5200, TokensOut: 900, Credits: 2.6},
 		{Type: "EvToolStart", LaneIndex: 1, Tool: "bash", Args: "go test ./internal/feature/"},
 		{Type: "EvToolEnd", LaneIndex: 1, Tool: "bash", Result: "ok  internal/feature  0.012s", Success: true},
 		{Type: "EvMessage", LaneIndex: 1, Text: "Tests green; the feature is hardened."},
+		{Type: "EvUsage", LaneIndex: 1, TokensIn: 4400, TokensOut: 700, Credits: 2.2},
 	} {
 		if err := rlog.Append(e); err != nil {
 			logger.Printf("demo event log: append: %v", err)

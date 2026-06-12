@@ -1274,6 +1274,21 @@ runs *keyed by the same task* on outputs/score/cost — Braintrust pattern); AI-
 > chat-order `?view=` rendering over the same log, reusing the block-AST renderer) → then **O4
 > — compare two runs** (stretch). On O4's merge epic 0090 closes.
 
+> **v15 update (after O3):** **O3 shipped** (issue 0093) — the run-detail page now carries a
+> `timeline ⇄ transcript` toggle (`?view=transcript`, clamped by `clampRunView` like
+> `?window=`: garbage → the default timeline). The pure `buildRunTranscript` flattens the same
+> event log into **chat reading order** (chronological, NOT lane-grouped) with a lane-transition
+> marker at every lane change; `EvToolStart`/`EvToolEnd` join into one compact card via the
+> generalized `popOpenTool` (now a label-lookup closure shared with the timeline). Committed
+> `EvUserMessage`/`EvMessage` turns render through `renderMarkdown` — the **block-AST pipeline's
+> natural second consumer** (epic 0076), so callouts/tables/code in a recorded run render
+> designed (escaped per ADR-0001); `EvUsage` credits (O2) attach **per assistant turn** (trailing
+> usage → its turn, lead usage → the next). The header's summed-credit cross-check moved to the
+> view-agnostic `sumEventCredits` so both views reconcile against one figure, and the demo log was
+> enriched with designed markdown + priced turns so the offline inspector showcases the view. No
+> ADR (presentation over O1's data; the `?view=` clamp is the established `?window=` discipline).
+> **Remaining:** **O4 — compare two runs** (stretch). On O4's merge epic 0090 closes.
+
 ### Sources (cited research, roadmap-v15)
 - Run-detail / replay pattern: langchain.com/blog/debugging-deep-agents-with-langsmith;
   docs.langchain.com/langsmith (Messages view + run tree); langfuse.com/faq/all/what-does-a-good-trace-look-like

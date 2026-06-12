@@ -44,6 +44,32 @@ test("the seeded demo run renders a lane-grouped step timeline with disclosures"
   await expect(toolStep.locator(".tstep-pre").first()).toContainText("internal/feature/feature.go");
 });
 
+test("the transcript view flattens the run into chat order through the markdown renderer", async ({ page }) => {
+  // run-demo-1's seeded log carries committed messages with designed markdown and
+  // priced usage — the transcript (O3, issue 0093) renders them as chat turns.
+  await gotoApp(page);
+  await page.evaluate(() =>
+    (window as any).htmx.ajax("GET", "/page/runs/run-demo-1?view=transcript", { target: "#main", swap: "innerHTML" }),
+  );
+
+  // The chat-order container renders user + assistant turns, not the lane-grouped timeline.
+  await expect(page.locator(".transcript")).toBeVisible();
+  await expect(page.locator(".inspector-lane")).toHaveCount(0);
+  await expect(page.locator(".transcript .turn.user").first()).toContainText("Build the feature");
+
+  // The assistant body went through the block-AST renderer: the table and code block render designed.
+  const assistant = page.locator(".transcript .turn.assistant").first();
+  await expect(assistant.locator("table")).toBeVisible();
+  await expect(assistant.locator("pre code")).toContainText("func Feature()");
+  // Per-turn pricing (O2) shows on the assistant turn.
+  await expect(assistant.locator(".tx-cost")).toContainText("2.60");
+
+  // The view toggle switches back to the timeline (the same events, lane-grouped).
+  await page.locator(".view-row .view", { hasText: /^timeline$/ }).click();
+  await expect(page.locator(".inspector-lane").first()).toBeVisible();
+  await expect(page.locator(".transcript")).toHaveCount(0);
+});
+
 test("a run without an event log degrades to a note, not an error", async ({ page }) => {
   // run-demo-2 ("Review & fix") has no seeded log → the summary card + a note.
   await gotoApp(page);

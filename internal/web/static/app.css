@@ -857,6 +857,36 @@ button.add, button.abort, .run-head .stop-run, .run-rec-head .rerun,
 .tstep-pre { margin: .15rem 0 0; padding: .35rem .5rem; background: var(--panel);
   border-radius: var(--radius-2); font-size: .82rem; white-space: pre-wrap;
   word-break: break-word; overflow-x: auto; }
+/* Run-detail view toggle (O3, issue 0093): timeline ⇄ transcript reuses the Runs
+   window selector's chip styling (.window-row/.window). */
+/* Transcript view: the run's events in chat reading order (O3). User/assistant
+   turns reuse the chat .turn/.body.md vocabulary; tool calls render as compact
+   cards and lane changes as dim markers between turns. */
+.transcript { display: flex; flex-direction: column; gap: .2rem; }
+.tx-lane { font-size: .8rem; color: var(--dim); text-transform: uppercase;
+  letter-spacing: .04em; margin: .55rem 0 .15rem; }
+.tx-turn { margin: 0; }
+.tx-turn .tx-role { font-size: var(--text-0); text-transform: uppercase;
+  letter-spacing: var(--tracking-caps); color: var(--dim); margin-bottom: .25rem;
+  display: flex; align-items: center; gap: .4rem; }
+.tx-turn.error { background: var(--bad-soft); border-left: 3px solid var(--bad); }
+.tx-cost { font-weight: 400; font-size: .8rem; }
+.tx-tool { border: 1px solid var(--panel); border-radius: var(--radius-2);
+  padding: .25rem .55rem; background: var(--raised); }
+.tx-tool-head { display: flex; align-items: center; gap: .5rem; }
+.tx-glyph { color: var(--dim); }
+.tx-tool.state-done .tx-glyph { color: var(--good); }
+.tx-tool.state-failed .tx-glyph { color: var(--bad); }
+.tx-tool.state-running .tx-glyph { color: var(--accent); }
+.tx-tool-label { font-weight: 600; color: var(--accent); font-family: var(--font-mono); }
+.tx-clock { font-size: .78rem; margin-left: auto; }
+.tx-tool-detail { margin-top: .3rem; }
+.tx-tool-detail > summary { font-size: .8rem; color: var(--dim); cursor: pointer; }
+.tx-part { margin-top: .25rem; }
+.tx-part-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; }
+.tx-pre { margin: .15rem 0 0; padding: .35rem .5rem; background: var(--panel);
+  border-radius: var(--radius-2); font-size: .82rem; white-space: pre-wrap;
+  word-break: break-word; overflow-x: auto; }
 /* Per-workflow roll-up table above the run history (V1, ADR-0022): run count,
    failure rate, average cost & duration — the cost ⋈ orchestration summary. */
 .run-summary { width: 100%; border-collapse: collapse; margin: .2rem 0 .4rem;
@@ -947,11 +977,11 @@ button.add, button.abort, .run-head .stop-run, .run-rec-head .rerun,
   border-radius: var(--radius-2); padding: .15rem .6rem; cursor: pointer; font: inherit; font-size: .85rem; }
 .effort:hover { border-color: var(--accent2); color: var(--fg); }
 .effort.on { border-color: var(--good); color: var(--good); }
-.window-row { display: flex; align-items: center; gap: .4rem; margin: .25rem 0 .75rem; }
-.window { background: none; border: 1px solid var(--subtle); color: var(--dim);
+.window-row, .view-row { display: flex; align-items: center; gap: .4rem; margin: .25rem 0 .75rem; }
+.window, .view { background: none; border: 1px solid var(--subtle); color: var(--dim);
   border-radius: var(--radius-2); padding: .15rem .6rem; cursor: pointer; font: inherit; font-size: .85rem; }
-.window:hover { border-color: var(--accent2); color: var(--fg); }
-.window.on { border-color: var(--good); color: var(--good); }
+.window:hover, .view:hover { border-color: var(--accent2); color: var(--fg); }
+.window.on, .view.on { border-color: var(--good); color: var(--good); }
 #composer { display: flex; gap: .5rem; max-width: 56rem; margin: .25rem auto; align-items: flex-end; }
 #composer textarea { flex: 1 1 auto; background: var(--bg); border: 1px solid var(--subtle);
   border-radius: var(--radius-2); color: var(--fg); padding: .55rem .7rem; font: inherit; line-height: 1.4;

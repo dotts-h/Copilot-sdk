@@ -23,18 +23,18 @@ _Last generated: 2026-06-12 (UTC)._
 
 ## internal/bootstrap
 
-### bootstrap.go (470 LOC)
+### bootstrap.go (476 LOC)
 - L36: `func Build(configDir string, demo bool) (srv *web.Hub, close func(), err error)`
 - L131: `func demoClient(forge *ctxforge.Forge, spec *copilot.SessionSpec) (copilot.Client, func())`
 - L176: `func seedSpend(store *telemetry.SpendStore)`
 - L206: `func seedRuns(store *telemetry.RunStore)`
 - L238: `func seedDemoEventLog(logger *log.Logger) string`
-- L271: `func dialClient(cfg *config.Config) (copilot.Client, func())`
-- L294: `func ghCLIToken() (string, error)`
-- L309: `func ServeLocal(h http.Handler) (port int, stop func(), err error)`
-- L321: `func DefaultConfigDir() string`
-- L335: `func SeedForge(forge *ctxforge.Forge)`
-- L458: `func curatedMCPServers() []ctxforge.MCPServer`
+- L277: `func dialClient(cfg *config.Config) (copilot.Client, func())`
+- L300: `func ghCLIToken() (string, error)`
+- L315: `func ServeLocal(h http.Handler) (port int, stop func(), err error)`
+- L327: `func DefaultConfigDir() string`
+- L341: `func SeedForge(forge *ctxforge.Forge)`
+- L464: `func curatedMCPServers() []ctxforge.MCPServer`
 
 ## internal/config
 
@@ -443,12 +443,12 @@ _Last generated: 2026-06-12 (UTC)._
 - L38: `func (d ModelDrift) Drifted(epsilon float64) bool { return math.Abs(d.Delta) >= epsilon }`
 - L49: `func ModelDrifts(records []SpendRecord) []ModelDrift`
 
-### eventlog.go (121 LOC)
+### eventlog.go (122 LOC)
 - L32: `type RunEvent struct`
-- L78: `type RunEventLog struct`
-- L84: `func RunEventLogPath(dir, runID string) string`
-- L92: `func LoadRunEventLog(dir, runID string) (*RunEventLog, error)`
-- L116: `func stampRunEvent(e RunEvent) RunEvent`
+- L79: `type RunEventLog struct`
+- L85: `func RunEventLogPath(dir, runID string) string`
+- L93: `func LoadRunEventLog(dir, runID string) (*RunEventLog, error)`
+- L117: `func stampRunEvent(e RunEvent) RunEvent`
 
 ### forecast.go (142 LOC)
 - L24: `type ProjectionStatus int`
@@ -647,11 +647,11 @@ _Last generated: 2026-06-12 (UTC)._
 - L63: `func (s *Server) modelsPartial() string`
 - L93: `func (s *Server) settingsPartial() string`
 
-### eventlog.go (197 LOC)
+### eventlog.go (198 LOC)
 - L22: `func (s *Server) appendRunEvent(e copilot.Event)`
 - L89: `func normalizeRunEvent(e copilot.Event, runID string, laneIndex int, pb *telemetry.PriceBook) telemetry.RunEvent`
-- L130: `func usageCredits(pb *telemetry.PriceBook, u copilot.UsageData) float64`
-- L146: `func eventTypeName(t copilot.EventType) string`
+- L134: `func usageCredits(pb *telemetry.PriceBook, u copilot.UsageData) float64`
+- L147: `func eventTypeName(t copilot.EventType) string`
 
 ### forge_handlers.go (111 LOC)
 - L17: `func (s *Server) handleSkillToggle(w http.ResponseWriter, r *http.Request)`
@@ -929,7 +929,15 @@ _Last generated: 2026-06-12 (UTC)._
 - L96: `func laneStatusName(st laneStatus) string`
 - L114: `func (l *lane) costDetail() string`
 
-### runs.go (530 LOC)
+### run_transcript.go (199 LOC)
+- L28: `func clampRunView(raw string) string`
+- L43: `type transcriptItem struct`
+- L74: `func buildRunTranscript(events []telemetry.RunEvent) []transcriptItem`
+- L148: `func (s *Server) transcriptRows(items []transcriptItem, rec telemetry.RunRecord) []map[string]any`
+- L176: `func (s *Server) laneLabel(laneIndex int, rec telemetry.RunRecord) string`
+- L191: `func sumEventCredits(events []telemetry.RunEvent) float64`
+
+### runs.go (542 LOC)
 - L31: `func (s *Server) runsPartial(window int) string`
 - L65: `func windowRuns(records []telemetry.RunRecord, window int) []telemetry.RunRecord`
 - L94: `func (s *Server) runSummaryRow(a telemetry.RunAggregate) map[string]any`
@@ -942,15 +950,15 @@ _Last generated: 2026-06-12 (UTC)._
 - L244: `type laneSteps struct`
 - L268: `func buildRunTimeline(events []telemetry.RunEvent) []laneSteps`
 - L329: `func loadBearingStep(e telemetry.RunEvent) (runStep, bool)`
-- L364: `func popOpenTool(open map[int][]int, idx int, name string, steps []runStep) (int, bool)`
-- L380: `func toolEndGlyph(success bool) (glyph, state string)`
-- L390: `func sortLaneIndices(order []int) []int`
-- L398: `func laneLess(a, b int) bool`
-- L413: `func clockTime(t time.Time) string`
-- L424: `func (s *Server) handleRunDetail(w http.ResponseWriter, r *http.Request)`
-- L438: `func (s *Server) findRun(id string) (telemetry.RunRecord, bool)`
-- L455: `func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int) string`
-- L502: `func (s *Server) laneTimelineRow(lt laneSteps, rec telemetry.RunRecord) map[string]any`
+- L366: `func popOpenTool(open map[int][]int, idx int, name string, labelAt func(pos int) string) (int, bool)`
+- L382: `func toolEndGlyph(success bool) (glyph, state string)`
+- L392: `func sortLaneIndices(order []int) []int`
+- L400: `func laneLess(a, b int) bool`
+- L415: `func clockTime(t time.Time) string`
+- L426: `func (s *Server) handleRunDetail(w http.ResponseWriter, r *http.Request)`
+- L440: `func (s *Server) findRun(id string) (telemetry.RunRecord, bool)`
+- L457: `func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int, view string) string`
+- L520: `func (s *Server) laneTimelineRow(lt laneSteps, rec telemetry.RunRecord) map[string]any`
 
 ### server.go (741 LOC)
 - L27: `type Server struct`
