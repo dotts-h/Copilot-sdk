@@ -1,4 +1,4 @@
-# orchestra-recipes
+# cookbook
 
 **Installable, versioned, doc-based engineering process packages.** A *recipe*
 turns a hard-won process (a constitution, quality gates, an issue store, a dev
@@ -22,10 +22,10 @@ the docs and scripts are just there, host-agnostic (both `CLAUDE.md` and
 
 ```text
 # 1. Add this repo as a marketplace (Claude Code)
-/plugin marketplace add dotts-h/orchestra-recipes
+/plugin marketplace add dotts-h/cookbook
 
 # 2. Enable the plugin
-/plugin install orchestra-recipes@orchestra-recipes-dev
+/plugin install cookbook@cookbook-dev
 
 # 3. In the repo you want to bring under management
 /adopt-recipes
@@ -43,8 +43,8 @@ Without the plugin, everything is runnable by hand:
 make evals                       # run all recipe evals (fixture repos in mktemp)
 make lint                        # bash -n all scripts + secret/date scans
 make doctor TARGET=/path/to/repo # aggregate doctors against a repo
-plugins/orchestra-recipes/scripts/install-recipe.sh \
-  --recipe plugins/orchestra-recipes/recipes/core --target /path/to/repo --tier M
+plugins/cookbook/scripts/install-recipe.sh \
+  --recipe plugins/cookbook/recipes/core --target /path/to/repo --tier M
 ```
 
 ## Catalog
@@ -80,7 +80,7 @@ RETROS, TECH_DEBT).
 ## Status
 
 **Staging ground.** This repo is the development marketplace
-(`orchestra-recipes-dev`) for the `orchestra-recipes` plugin; the merge target
+(`cookbook-dev`) for the `cookbook` plugin; the merge target
 is the `dotts-h/claude-skills` plugin marketplace (see the merge plan). APIs
 above `0.x` stability are not promised yet — the lock file is what protects
 adopted repos across changes.

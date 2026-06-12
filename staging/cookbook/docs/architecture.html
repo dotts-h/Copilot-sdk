@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Orchestra Recipes — Architecture</title>
+<title>Cookbook — Architecture</title>
 <style>
   :root{
     --bg:#0e1116; --panel:#161b22; --panel2:#1c2330; --line:#2d3748;
@@ -102,15 +102,15 @@
 </head>
 <body>
 
-<h1>Orchestra Recipes</h1>
+<h1>Cookbook</h1>
 <p class="sub">Process knowledge packaged as <b>doc-based software</b>: versioned, installable into any repo (new, old, or mid-flight), self-checking, and updatable — extracted from the Copilot-sdk process stack, distributed through your own plugin marketplace.</p>
 
 <section>
   <div class="kicker">1 · The big picture — how a recipe reaches a repo</div>
   <div class="pipe">
-    <div class="step"><span class="tag t-mkt">marketplace</span><b>dotts-h/orchestra-recipes</b><p>Your own registry (later merged into <code>claude-skills</code>). Pinned, source-reviewed — no third-party trust boundary (ADR-0051 stays intact).</p></div>
+    <div class="step"><span class="tag t-mkt">marketplace</span><b>dotts-h/cookbook</b><p>Your own registry (later merged into <code>claude-skills</code>). Pinned, source-reviewed — no third-party trust boundary (ADR-0051 stays intact).</p></div>
     <div class="arrow">→</div>
-    <div class="step"><span class="tag t-plg">plugin</span><b>orchestra-recipes</b><p>Loaded per-session. Carries the installer skills (<code>/adopt-recipes</code>, <code>/update-recipes</code>, <code>/recipe-doctor</code>) + the recipe catalog.</p></div>
+    <div class="step"><span class="tag t-plg">plugin</span><b>cookbook</b><p>Loaded per-session. Carries the installer skills (<code>/adopt-recipes</code>, <code>/update-recipes</code>, <code>/recipe-doctor</code>) + the recipe catalog.</p></div>
     <div class="arrow">→</div>
     <div class="step"><span class="tag t-rcp">recipe</span><b>core · quality · loop…</b><p>Manifest + templates + scripts + evals. The unit of versioning (SemVer) and dependency.</p></div>
     <div class="arrow">→</div>

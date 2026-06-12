@@ -1,6 +1,6 @@
-# orchestra-recipes — repo gates. See docs/SPEC.md for the contracts these enforce.
+# cookbook — repo gates. See docs/SPEC.md for the contracts these enforce.
 
-PLUGIN := plugins/orchestra-recipes
+PLUGIN := plugins/cookbook
 
 .PHONY: lint evals doctor
 

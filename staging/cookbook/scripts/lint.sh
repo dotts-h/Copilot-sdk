@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# lint.sh — repo lint gate for orchestra-recipes.
+# lint.sh — repo lint gate for cookbook.
 #
 #   1. bash -n every shell script (including .sh.tmpl templates).
 #   2. No hardcoded secrets (token-shaped strings) anywhere tracked.

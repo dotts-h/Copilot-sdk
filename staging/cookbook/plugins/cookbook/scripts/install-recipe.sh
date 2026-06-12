@@ -5,7 +5,7 @@
 #   install-recipe.sh --recipe <recipe-dir> --target <repo-dir> --tier S|M|L \
 #                     [--answer key=value]... [--force] [--dry-run]
 #
-# Contract (see docs/SPEC.md in the orchestra-recipes repo):
+# Contract (see docs/SPEC.md in the cookbook repo):
 #   - Reads <recipe-dir>/recipe.yaml: params (defaults), provides.files
 #     (template -> dest, tiers, optional `when: param=value` condition).
 #   - Renders {{param}} placeholders from defaults merged with --answer pairs.

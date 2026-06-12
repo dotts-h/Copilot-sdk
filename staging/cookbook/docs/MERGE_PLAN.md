@@ -1,7 +1,7 @@
-# MERGE_PLAN — folding orchestra-recipes into dotts-h/claude-skills
+# MERGE_PLAN — folding cookbook into dotts-h/claude-skills
 
 > This repo is a **staging ground**: a standalone dev marketplace
-> (`orchestra-recipes-dev`) so the plugin can be installed, exercised, and
+> (`cookbook-dev`) so the plugin can be installed, exercised, and
 > hardened in isolation. The end state is a **second plugin inside the
 > `dotts-h/claude-skills` marketplace**, alongside the existing skills plugin.
 
@@ -12,17 +12,17 @@ claude-skills/
 ├── .claude-plugin/marketplace.json     # gains ONE new plugin entry
 └── plugins/
     ├── orchestra-skills/               # existing methodology skills
-    └── orchestra-recipes/              # ← this repo's plugins/orchestra-recipes, lifted as-is
+    └── cookbook/              # ← this repo's plugins/cookbook, lifted as-is
 ```
 
 Marketplace entry to add (only the marketplace name changes for users:
-installs become `orchestra-recipes@orchestra` instead of
-`orchestra-recipes@orchestra-recipes-dev`):
+installs become `cookbook@orchestra` instead of
+`cookbook@cookbook-dev`):
 
 ```json
 {
-  "name": "orchestra-recipes",
-  "source": "./plugins/orchestra-recipes",
+  "name": "cookbook",
+  "source": "./plugins/cookbook",
   "description": "Recipe system: install versioned engineering-process packages into any repo, update via lock + 3-way merge, check conformance with doctors."
 }
 ```
@@ -31,13 +31,13 @@ installs become `orchestra-recipes@orchestra` instead of
 
 | item | action |
 |------|--------|
-| `plugins/orchestra-recipes/**` (plugin.json, skills, recipes, bindings, profiles, scripts) | **moves verbatim** — it is self-contained; all internal paths are plugin-root-relative (`${CLAUDE_PLUGIN_ROOT}`, `$(dirname "$0")` walks) |
+| `plugins/cookbook/**` (plugin.json, skills, recipes, bindings, profiles, scripts) | **moves verbatim** — it is self-contained; all internal paths are plugin-root-relative (`${CLAUDE_PLUGIN_ROOT}`, `$(dirname "$0")` walks) |
 | `.claude-plugin/marketplace.json` (this repo) | **does not move** — claude-skills' marketplace.json gains the entry above |
 | `Makefile`, `scripts/lint.sh` | **merge** into claude-skills' equivalents (or copy under a `recipes-` prefix if it has its own gates) — `evals` and `lint` targets must keep running in the merged repo's CI |
 | `docs/SPEC.md`, `docs/DESIGN.md` | **move** to claude-skills `docs/recipes/` (or stay plugin-adjacent); links in README/skills updated |
 | `docs/MERGE_PLAN.md` | retired (its job is done) |
 | `README.md` | shrinks into a section of claude-skills' README + the catalog table |
-| repo `dotts-h/orchestra-recipes` | archived with a pointer once the merge lands |
+| repo `dotts-h/cookbook` | archived with a pointer once the merge lands |
 
 No skill renames are needed: `adopt-recipes`, `update-recipes`,
 `recipe-doctor` collide with nothing in the skills plugin, and skill names are
@@ -57,7 +57,7 @@ already plugin-scoped.
 ## Post-merge test gates (in claude-skills)
 
 1. The marketplace parses: both plugins listed, both installable side by side.
-2. Re-run the fresh-host smoke via `orchestra-recipes@orchestra`.
+2. Re-run the fresh-host smoke via `cookbook@orchestra`.
 3. Boundary check: prompts that should route to the *skills* plugin
    (tracking-issues, cut-release) still do — the recipe skills' descriptions
    target installation/update/conformance, not day-to-day operation, and that
