@@ -5,6 +5,8 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -110,6 +112,70 @@ func TestBuildRunTimeline_UnmatchedToolStartRenders(t *testing.T) {
 	open := lanes[0].Steps[0]
 	if open.Type != "tool" || open.State != "running" || open.Result != "" {
 		t.Fatalf("unmatched tool start should render running with no result, got %+v", open)
+	}
+}
+
+// TestBuildRunTimeline_MismatchedEndRendersStandalone proves an EvToolEnd whose
+// tool name matches no open start in its lane renders on its own rather than
+// hijacking an unrelated open tool's result/success (ADR-0052 join is name-scoped).
+func TestBuildRunTimeline_MismatchedEndRendersStandalone(t *testing.T) {
+	events := []telemetry.RunEvent{
+		{Type: "EvToolStart", LaneIndex: 0, Tool: "bash", Args: "sleep 99", At: time.Now()},
+		{Type: "EvToolEnd", LaneIndex: 0, Tool: "read", Result: "file.go", Success: true, At: time.Now()},
+	}
+	lanes := buildRunTimeline(events)
+	if len(lanes) != 1 || len(lanes[0].Steps) != 2 {
+		t.Fatalf("want 1 lane with 2 steps (open bash + standalone read end), got %+v", lanes)
+	}
+	bash := lanes[0].Steps[0]
+	if bash.Label != "bash" || bash.State != "running" || bash.Result != "" {
+		t.Fatalf("bash must stay open/running with no result, got %+v", bash)
+	}
+	read := lanes[0].Steps[1]
+	if read.Label != "read" || read.Result != "file.go" || read.State != "done" {
+		t.Fatalf("read end must render standalone with its own result, got %+v", read)
+	}
+}
+
+// TestRunRow_NoLinkWhenIDEmpty proves a legacy run record with an empty ID renders
+// its name as plain text, not a link that would 404 on click (ADR-0052).
+func TestRunRow_NoLinkWhenIDEmpty(t *testing.T) {
+	dir := t.TempDir()
+	s := newTestServerWithRunsAndLog(t, dir)
+	_ = s.runs.Append(telemetry.RunRecord{ID: "", Name: "Legacy", Mode: "sequential", Outcome: "finished"})
+
+	html := s.runsPartial(defaultSpendWindow)
+	if strings.Contains(html, "/page/runs/?") {
+		t.Fatalf("empty-id run must not render a detail link:\n%s", html)
+	}
+	if !strings.Contains(html, "Legacy") {
+		t.Fatal("the legacy run row should still render its name")
+	}
+}
+
+// TestRunDetailPartial_CorruptLogNote proves a present-but-unreadable event log
+// surfaces a distinct "could not be read" note, not the misleading "ran before
+// logging" note (ADR-0052 graceful degradation).
+func TestRunDetailPartial_CorruptLogNote(t *testing.T) {
+	dir := t.TempDir()
+	s := newTestServerWithRunsAndLog(t, dir)
+	rec := telemetry.RunRecord{ID: "run-corrupt", Name: "Corrupt", Mode: "sequential", Outcome: "finished"}
+	_ = s.runs.Append(rec)
+	// Write a malformed log file at the canonical path so LoadRunEventLog errors.
+	path := telemetry.RunEventLogPath(dir, "run-corrupt")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("{not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	html := s.runDetailPartial(rec, defaultSpendWindow)
+	if !strings.Contains(html, "could not be read") {
+		t.Fatalf("corrupt log should surface a distinct note:\n%s", html)
+	}
+	if strings.Contains(html, "ran before the per-run event log was enabled") {
+		t.Fatal("corrupt log must not show the 'no log' note")
 	}
 }
 

@@ -928,28 +928,28 @@ _Last generated: 2026-06-12 (UTC)._
 - L96: `func laneStatusName(st laneStatus) string`
 - L114: `func (l *lane) costDetail() string`
 
-### runs.go (506 LOC)
-- L29: `func (s *Server) runsPartial(window int) string`
-- L63: `func windowRuns(records []telemetry.RunRecord, window int) []telemetry.RunRecord`
-- L92: `func (s *Server) runSummaryRow(a telemetry.RunAggregate) map[string]any`
-- L111: `func (s *Server) laneShareRow(l telemetry.LaneShare) map[string]any`
-- L133: `func (s *Server) runRow(r telemetry.RunRecord, window int) map[string]any`
-- L167: `func pausedFor(ms int64) string`
-- L182: `func humanDuration(d time.Duration) string`
-- L210: `func runOutcomeGlyph(outcome string) (glyph, state string)`
-- L226: `type runStep struct`
-- L239: `type laneSteps struct`
-- L262: `func buildRunTimeline(events []telemetry.RunEvent) []laneSteps`
-- L316: `func loadBearingStep(e telemetry.RunEvent) (runStep, bool)`
-- L350: `func popOpenTool(open map[int][]int, idx int, name string, steps []runStep) (int, bool)`
-- L371: `func toolEndGlyph(success bool) (glyph, state string)`
-- L380: `func sortLaneIndices(order []int) []int`
-- L392: `func laneLess(a, b int) bool`
-- L407: `func clockTime(t time.Time) string`
-- L418: `func (s *Server) handleRunDetail(w http.ResponseWriter, r *http.Request)`
-- L432: `func (s *Server) findRun(id string) (telemetry.RunRecord, bool)`
-- L449: `func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int) string`
-- L483: `func (s *Server) laneTimelineRow(lt laneSteps, rec telemetry.RunRecord) map[string]any`
+### runs.go (505 LOC)
+- L30: `func (s *Server) runsPartial(window int) string`
+- L64: `func windowRuns(records []telemetry.RunRecord, window int) []telemetry.RunRecord`
+- L93: `func (s *Server) runSummaryRow(a telemetry.RunAggregate) map[string]any`
+- L112: `func (s *Server) laneShareRow(l telemetry.LaneShare) map[string]any`
+- L134: `func (s *Server) runRow(r telemetry.RunRecord, window int) map[string]any`
+- L168: `func pausedFor(ms int64) string`
+- L183: `func humanDuration(d time.Duration) string`
+- L211: `func runOutcomeGlyph(outcome string) (glyph, state string)`
+- L227: `type runStep struct`
+- L240: `type laneSteps struct`
+- L263: `func buildRunTimeline(events []telemetry.RunEvent) []laneSteps`
+- L318: `func loadBearingStep(e telemetry.RunEvent) (runStep, bool)`
+- L353: `func popOpenTool(open map[int][]int, idx int, name string, steps []runStep) (int, bool)`
+- L369: `func toolEndGlyph(success bool) (glyph, state string)`
+- L379: `func sortLaneIndices(order []int) []int`
+- L387: `func laneLess(a, b int) bool`
+- L402: `func clockTime(t time.Time) string`
+- L413: `func (s *Server) handleRunDetail(w http.ResponseWriter, r *http.Request)`
+- L427: `func (s *Server) findRun(id string) (telemetry.RunRecord, bool)`
+- L444: `func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int) string`
+- L482: `func (s *Server) laneTimelineRow(lt laneSteps, rec telemetry.RunRecord) map[string]any`
 
 ### server.go (741 LOC)
 - L27: `type Server struct`

@@ -54,11 +54,11 @@ is the record, so the deltas that built it are noise in an audit view.
 
 `telemetry.RunEvent` (ADR-0048) persists `Tool`/`Args`/`Result`/`Success` but **not** a
 tool-call id. The join therefore matches each `EvToolEnd` to the most recent still-open
-`EvToolStart` **in the same lane** preferring an equal tool name, falling back to the most
-recent open start in that lane. An unmatched start (a tool that never returned — a crashed or
-in-flight run) renders as a tool step with no result; an unmatched end renders on its own.
-This is a reconstruction heuristic, documented here so a future call-id field (a clean,
-additive upgrade) can make the join exact.
+`EvToolStart` **in the same lane with the same tool name**. An unmatched start (a tool that
+never returned — a crashed or in-flight run) renders as a tool step with no result; an
+`EvToolEnd` with **no same-name open start** renders on its own rather than being
+mis-attributed onto an unrelated open tool. This is a reconstruction heuristic, documented
+here so a future call-id field (a clean, additive upgrade) can make the join exact.
 
 ### Escaping (ADR-0001)
 

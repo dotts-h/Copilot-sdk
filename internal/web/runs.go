@@ -346,14 +346,12 @@ func loadBearingStep(e telemetry.RunEvent) (runStep, bool) {
 
 // popOpenTool removes and returns the position of the still-open tool step in lane
 // idx that an EvToolEnd joins to: the most recent open start whose label matches
-// name, falling back to the most recent open start of any name (the persisted
-// record carries no call id — ADR-0052). Returns false when the lane has no open
-// tool. steps is the lane's step slice, read to compare labels.
+// name (the persisted record carries no call id — ADR-0052). Returns false when no
+// open start in the lane has that name, so the caller renders the end standalone
+// rather than mis-attributing its result/success onto an unrelated tool. steps is
+// the lane's step slice, read to compare labels.
 func popOpenTool(open map[int][]int, idx int, name string, steps []runStep) (int, bool) {
 	stack := open[idx]
-	if len(stack) == 0 {
-		return 0, false
-	}
 	// Walk the stack from the top (most recent) for a label match.
 	for i := len(stack) - 1; i >= 0; i-- {
 		if steps[stack[i]].Label == name {
@@ -362,10 +360,7 @@ func popOpenTool(open map[int][]int, idx int, name string, steps []runStep) (int
 			return pos, true
 		}
 	}
-	// No name match — join to the most recent open start.
-	pos := stack[len(stack)-1]
-	open[idx] = stack[:len(stack)-1]
-	return pos, true
+	return 0, false
 }
 
 // toolEndGlyph maps a tool's success flag to its settled glyph + CSS state via
@@ -453,9 +448,13 @@ func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int) string {
 
 	var laneRows []map[string]any
 	hasLog := false
+	loadErr := false
 	if s.eventLogDir != "" {
 		if log, err := telemetry.LoadRunEventLog(s.eventLogDir, rec.ID); err != nil {
+			// A present-but-unreadable log (malformed/truncated <id>.json) is a data
+			// problem, not an absent log — surface it distinctly, not as "no log".
 			s.logger.Printf("run inspector: load event log %q: %v", rec.ID, err)
+			loadErr = true
 		} else if log.Count() > 0 {
 			hasLog = true
 			lanes := buildRunTimeline(log.Records())
@@ -472,7 +471,7 @@ func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int) string {
 		"Glyph": glyph, "State": state, "When": humanWhen(rec.StartedAt),
 		"Duration": humanDuration(dur), "HasDuration": dur > 0,
 		"Credits": telemetry.FormatCredits(credits), "HasCredits": credits > 0,
-		"Window": window, "HasLog": hasLog, "Lanes": laneRows,
+		"Window": window, "HasLog": hasLog, "LoadErr": loadErr, "Lanes": laneRows,
 	})
 }
 
