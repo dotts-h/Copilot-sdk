@@ -2,6 +2,7 @@ package web
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -235,11 +236,15 @@ type runStep struct {
 	Result string
 }
 
-// laneSteps is one lane's slice of the timeline: its lane index and the ordered
-// steps attributed to it. LaneIndex -1 is the run-level (unattributed) group.
+// laneSteps is one lane's slice of the timeline: its lane index, the ordered steps
+// attributed to it, and Credits — the lane's per-step usage rolled up (the summed
+// credits of its EvUsage turns, priced at time of use; ADR-0048/issue 0092). Credits
+// is zero for a pre-O2 log (no priced usage events). LaneIndex -1 is the run-level
+// (unattributed) group.
 type laneSteps struct {
 	LaneIndex int
 	Steps     []runStep
+	Credits   float64
 }
 
 // maxStepDetailLines bounds a step's disclosure body (tool args/result, text) so a
@@ -297,6 +302,12 @@ func buildRunTimeline(events []telemetry.RunEvent) []laneSteps {
 				Type: "tool", Glyph: glyph, State: state,
 				Label: def(e.Tool, "tool"), Clock: clockTime(e.At), Result: e.Result,
 			})
+		case "EvUsage":
+			// Usage is coalesced away as a step (ADR-0052) but its priced credits roll
+			// into the owning lane's subtotal — the O2 per-step pricing grain (issue
+			// 0092). A lane that ONLY metered (no visible step) still gets a group so its
+			// spend is attributable.
+			lane(e.LaneIndex).Credits += e.Credits
 		default:
 			if st, ok := loadBearingStep(e); ok {
 				g := lane(e.LaneIndex)
@@ -449,6 +460,7 @@ func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int) string {
 	var laneRows []map[string]any
 	hasLog := false
 	loadErr := false
+	var logCredits float64
 	if s.eventLogDir != "" {
 		if log, err := telemetry.LoadRunEventLog(s.eventLogDir, rec.ID); err != nil {
 			// A present-but-unreadable log (malformed/truncated <id>.json) is a data
@@ -460,17 +472,25 @@ func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int) string {
 			lanes := buildRunTimeline(log.Records())
 			s.hub.forgeMu.Lock()
 			for _, lt := range lanes {
+				logCredits += lt.Credits
 				laneRows = append(laneRows, s.laneTimelineRow(lt, rec))
 			}
 			s.hub.forgeMu.Unlock()
 		}
 	}
 
+	// Per-run mini-reconciliation (issue 0092): when the log carries priced usage,
+	// show its summed credits beside RunRecord.Credits and amber a non-trivial
+	// mismatch — the V15 reconcile discipline at run grain. A pre-O2 log (logCredits
+	// == 0) shows nothing extra, so the header stays unpriced-clean.
+	hasLogCredits := logCredits > 0
 	return frag("runDetailPage", map[string]any{
 		"Name": rec.Name, "Mode": rec.Mode, "Outcome": rec.Outcome,
 		"Glyph": glyph, "State": state, "When": humanWhen(rec.StartedAt),
 		"Duration": humanDuration(dur), "HasDuration": dur > 0,
 		"Credits": telemetry.FormatCredits(credits), "HasCredits": credits > 0,
+		"LogCredits": telemetry.FormatCredits(logCredits), "HasLogCredits": hasLogCredits,
+		"Amber":  hasLogCredits && math.Abs(logCredits-credits) >= reconcileEpsilon,
 		"Window": window, "HasLog": hasLog, "LoadErr": loadErr, "Lanes": laneRows,
 	})
 }
@@ -501,5 +521,10 @@ func (s *Server) laneTimelineRow(lt laneSteps, rec telemetry.RunRecord) map[stri
 			"HasDetail": args != "" || result != "" || text != "",
 		}
 	}
-	return map[string]any{"Label": label, "Steps": steps}
+	return map[string]any{
+		"Label": label, "Steps": steps,
+		// The lane's rolled-up per-step usage (issue 0092), shown only when this lane
+		// metered — a pre-O2 lane (no priced usage) stays cost-clean.
+		"Credits": telemetry.FormatCredits(lt.Credits), "HasCredits": lt.Credits > 0,
+	}
 }

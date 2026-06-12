@@ -55,6 +55,19 @@ type RunEvent struct {
 	Success bool `json:"success,omitempty"`
 	// Err carries the error message for EvError events.
 	Err string `json:"err,omitempty"`
+	// TokensIn and TokensOut are the input/output token counts of an EvUsage turn,
+	// stamped so the timeline can be priced at the finest grain (run → lane → step).
+	// Additive (omitempty): a pre-O2 log reads them back zero. — issue 0092, ADR-0048.
+	TokensIn  int64 `json:"tokensIn,omitempty"`
+	TokensOut int64 `json:"tokensOut,omitempty"`
+	// Credits is the price-book estimate the meter computed for an EvUsage turn AT
+	// TIME OF USE — the same figure the run record accumulates per lane (the estimate
+	// from telemetry.Price, NOT the reported-AIU authoritative basis), so the summed
+	// log credits reconcile against RunRecord.Credits on one basis. Stamped once at log
+	// time and never recomputed, so a later price-book change (or live repricing) can't
+	// silently reprice history. Additive (omitempty): older logs read back zero.
+	// — issue 0092, ADR-0048.
+	Credits float64 `json:"credits,omitempty"`
 }
 
 // RunEventLog is the per-run event log: a thin typed wrapper over the shared

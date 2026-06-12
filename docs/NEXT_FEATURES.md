@@ -1261,6 +1261,19 @@ runs *keyed by the same task* on outputs/score/cost — Braintrust pattern); AI-
    low). On the last merge epic 0090 closes; scope v16 from a fresh pass (durable autopilot and
    active cost governance lead the queue).
 
+> **v15 update (after O2):** **O1 shipped** (issue 0091, ADR-0052) and **O2 shipped** (issue
+> 0092) — `RunEvent` gained three additive omitempty fields (`tokensIn`/`tokensOut`/`credits`)
+> stamping each `EvUsage` turn's tokens + the **price-book estimate** credits the meter computed
+> **at time of use** (the new `usageCredits`, the same figure `recordUsage` adds to the lane —
+> NOT the reported AIU — so it reconciles against `RunRecord.Credits` on one basis), so the
+> timeline prices without ever recomputing history. The inspector rolls the usage into per-lane
+> subtotals (coalesced as steps) and cross-checks the summed event-log credits against
+> `RunRecord.Credits` in the header, ambering a non-trivial mismatch (`reconcileEpsilon`) — a
+> genuine log↔record drift, not the estimate-vs-reported gap (the ModelDrift table's job). No
+> ADR (additive, pre-blessed by ADR-0048). **Remaining:** **O3 — transcript view** (next up:
+> chat-order `?view=` rendering over the same log, reusing the block-AST renderer) → then **O4
+> — compare two runs** (stretch). On O4's merge epic 0090 closes.
+
 ### Sources (cited research, roadmap-v15)
 - Run-detail / replay pattern: langchain.com/blog/debugging-deep-agents-with-langsmith;
   docs.langchain.com/langsmith (Messages view + run tree); langfuse.com/faq/all/what-does-a-good-trace-look-like

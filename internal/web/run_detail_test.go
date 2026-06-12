@@ -137,6 +137,97 @@ func TestBuildRunTimeline_MismatchedEndRendersStandalone(t *testing.T) {
 	}
 }
 
+// TestBuildRunTimeline_RollsUpLaneCreditsFromUsage proves EvUsage events stay
+// coalesced away (no visible step) yet their credits roll into the owning lane's
+// subtotal — the O2 per-step pricing grain (issue 0092).
+func TestBuildRunTimeline_RollsUpLaneCreditsFromUsage(t *testing.T) {
+	events := []telemetry.RunEvent{
+		{Type: "EvUserMessage", LaneIndex: 0, At: time.Now()},
+		{Type: "EvUsage", LaneIndex: 0, TokensIn: 1000, TokensOut: 200, Credits: 0.30, At: time.Now()},
+		{Type: "EvUsage", LaneIndex: 0, TokensIn: 500, TokensOut: 100, Credits: 0.20, At: time.Now()},
+		{Type: "EvUsage", LaneIndex: 1, TokensIn: 800, TokensOut: 150, Credits: 0.50, At: time.Now()},
+	}
+	lanes := buildRunTimeline(events)
+	if len(lanes) != 2 {
+		t.Fatalf("want 2 lane groups, got %d: %+v", len(lanes), lanes)
+	}
+	// Lane 0: one visible step (the user message) — the two EvUsage events are
+	// coalesced away — and a 0.50 cr subtotal.
+	if len(lanes[0].Steps) != 1 {
+		t.Fatalf("lane 0 want 1 visible step (usage coalesced away), got %+v", lanes[0].Steps)
+	}
+	if lanes[0].Credits != 0.50 {
+		t.Fatalf("lane 0 subtotal = %v, want 0.50", lanes[0].Credits)
+	}
+	// Lane 1: usage-only — no visible steps, a 0.50 cr subtotal still rolls up.
+	if len(lanes[1].Steps) != 0 {
+		t.Fatalf("lane 1 should have no visible steps, got %+v", lanes[1].Steps)
+	}
+	if lanes[1].Credits != 0.50 {
+		t.Fatalf("lane 1 subtotal = %v, want 0.50", lanes[1].Credits)
+	}
+}
+
+// TestRunDetailPartial_CrossChecksLogCreditsAgainstRecord proves the detail header
+// shows the summed event-log credits beside RunRecord.Credits and ambers only on a
+// non-trivial mismatch — the per-run mini-reconciliation (issue 0092).
+func TestRunDetailPartial_CrossChecksLogCreditsAgainstRecord(t *testing.T) {
+	dir := t.TempDir()
+	s := newTestServerWithRunsAndLog(t, dir)
+	// RunRecord credits = 0.50 (lane 0). The event log will sum to a mismatching 0.80.
+	rec := telemetry.RunRecord{ID: "run-xcheck", Name: "Xcheck", Mode: "sequential", Outcome: "finished",
+		Lanes: []telemetry.RunLane{{Index: 0, AgentID: "builder", Status: "done", Credits: 0.50}}}
+	_ = s.runs.Append(rec)
+	log, _ := telemetry.LoadRunEventLog(dir, "run-xcheck")
+	_ = log.Append(telemetry.RunEvent{Type: "EvUserMessage", LaneIndex: 0})
+	_ = log.Append(telemetry.RunEvent{Type: "EvUsage", LaneIndex: 0, TokensIn: 1000, TokensOut: 200, Credits: 0.80})
+	waitForEventLog(t, dir, "run-xcheck", 2)
+
+	html := s.runDetailPartial(rec, defaultSpendWindow)
+	if !strings.Contains(html, "0.80 cr") {
+		t.Fatalf("header should show the summed event-log credits (0.80 cr):\n%s", html)
+	}
+	if !strings.Contains(html, "amber") {
+		t.Fatalf("a non-trivial log-vs-record mismatch should amber:\n%s", html)
+	}
+
+	// A matching pair: log sums to 0.50, equal to the record — no amber.
+	recMatch := telemetry.RunRecord{ID: "run-match", Name: "Match", Mode: "sequential", Outcome: "finished",
+		Lanes: []telemetry.RunLane{{Index: 0, AgentID: "builder", Status: "done", Credits: 0.50}}}
+	_ = s.runs.Append(recMatch)
+	logM, _ := telemetry.LoadRunEventLog(dir, "run-match")
+	_ = logM.Append(telemetry.RunEvent{Type: "EvUsage", LaneIndex: 0, TokensIn: 1000, TokensOut: 200, Credits: 0.50})
+	waitForEventLog(t, dir, "run-match", 1)
+
+	htmlM := s.runDetailPartial(recMatch, defaultSpendWindow)
+	if strings.Contains(htmlM, "amber") {
+		t.Fatalf("a matching log-vs-record pair must not amber:\n%s", htmlM)
+	}
+}
+
+// TestRunDetailPartial_PreO2LogRendersUnpriced proves a pre-O2 log (no priced
+// usage events) renders the timeline without cost-column noise — the header shows
+// the record's own credits but no zero-valued event-log figure (issue 0092).
+func TestRunDetailPartial_PreO2LogRendersUnpriced(t *testing.T) {
+	dir := t.TempDir()
+	s := newTestServerWithRunsAndLog(t, dir)
+	rec := telemetry.RunRecord{ID: "run-preo2", Name: "PreO2", Mode: "sequential", Outcome: "finished",
+		Lanes: []telemetry.RunLane{{Index: 0, AgentID: "builder", Status: "done", Credits: 0.50}}}
+	_ = s.runs.Append(rec)
+	log, _ := telemetry.LoadRunEventLog(dir, "run-preo2")
+	_ = log.Append(telemetry.RunEvent{Type: "EvMessage", LaneIndex: 0, Text: "hello"})
+	waitForEventLog(t, dir, "run-preo2", 1)
+
+	html := s.runDetailPartial(rec, defaultSpendWindow)
+	if !strings.Contains(html, "hello") {
+		t.Fatalf("the timeline should render the message step:\n%s", html)
+	}
+	// No event-log cost figure and no amber when the log carries no pricing.
+	if strings.Contains(html, "log:") || strings.Contains(html, "amber") {
+		t.Fatalf("a pre-O2 log must render unpriced (no log-credit figure / amber):\n%s", html)
+	}
+}
+
 // TestRunRow_NoLinkWhenIDEmpty proves a legacy run record with an empty ID renders
 // its name as plain text, not a link that would 404 on click (ADR-0052).
 func TestRunRow_NoLinkWhenIDEmpty(t *testing.T) {

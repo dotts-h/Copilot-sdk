@@ -828,9 +828,16 @@ button.add, button.abort, .run-head .stop-run, .run-rec-head .rerun,
   padding: .15rem .55rem; cursor: pointer; }
 .inspector .back:hover { border-color: var(--accent); }
 .inspector-summary { margin-bottom: 0; }
+/* The summed per-step credits from the run's event log, beside the recorded run
+   total (O2, issue 0092): a per-run mini-reconciliation. Ambers when the two
+   disagree (the V15 reconcile discipline at run grain). */
+.run-logcost { font-size: .82rem; color: var(--dim); margin-left: .35rem; }
+.run-logcost.amber { color: var(--warn); }
 .inspector-lane { margin-top: .8rem; }
 .inspector-lane-head { font-size: .9rem; color: var(--dim); font-weight: 600;
   margin: 0 0 .35rem; border-bottom: 1px solid var(--panel); padding-bottom: .25rem; }
+/* A lane's rolled-up per-step usage (O2): the summed credits of its metered turns. */
+.lane-cost { font-weight: 400; font-size: .82rem; }
 .timeline-steps { list-style: none; padding: 0; margin: 0; display: flex;
   flex-direction: column; gap: .3rem; }
 .tstep { border: 1px solid var(--panel); border-radius: var(--radius-2);
