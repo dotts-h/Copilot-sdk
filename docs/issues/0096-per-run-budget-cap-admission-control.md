@@ -1,14 +1,14 @@
 ---
 id: 0096
 title: "Per-run budget cap — pre-Send admission control at run grain (P1)"
-status: open
+status: closed
 severity: high
 group: 0095
 depends_on: []
 github:
 links:
   adr: [0053]
-  prs: []
+  prs: [164]
   issues: [0095]
   regression:
 assets: []
@@ -66,10 +66,16 @@ highest-value next slice: monthly/account caps structurally can't stop run-grain
 
 ## Acceptance
 
-- [ ] A run with `RunCapCredits > 0` whose cumulative credits reach the cap does **not** admit
+- [x] A run with `RunCapCredits > 0` whose cumulative credits reach the cap does **not** admit
       the next lane — it settles the lane over-cap and stops admitting, recording the partial run.
-- [ ] A system note surfaces the cap-hit; the over-cap lane reads failed-with-reason.
-- [ ] `RunCapCredits == 0` ⇒ no stop, streaming/record path byte-identical (a guarding test).
-- [ ] The run cap composes with the account / persona caps without lock inversion.
-- [ ] `make lint && make test` green (coverage ≥ floor); `make e2e` for the pause UI; ADR-0053
-      + this close-out ride the branch (ADR-0004).
+- [x] A system note surfaces the cap-hit; the over-cap lane reads failed-with-reason.
+- [x] `RunCapCredits == 0` ⇒ no stop, streaming/record path byte-identical (a guarding test).
+- [x] The run cap composes with the account / persona caps without lock inversion.
+- [x] `make lint && make test` green (coverage ≥ floor); ADR-0053 + this close-out ride the
+      branch (ADR-0004). (No e2e: the change surfaces only server-rendered Settings/Telemetry
+      rows + a system note, all covered by Go tests; no new interactive UI.)
+
+Shipped in **PR #164** (commit `52debf3`): `config.Telemetry.RunCapCredits`, `workflowRun.credits`
++ `runOverCap` (reusing `telemetry.Leash`), the `startLane` admission gate + `capStop` +
+`laneBudgetStop`, Settings field + live refresh, Telemetry row. Code-reviewed (high effort) — no
+correctness findings.
