@@ -131,8 +131,13 @@ recording and SSE path byte-identical. Sub-agent-tagged events (`AgentID != ""`)
 logged (they route to the registry only, ADR-0040/0041). The on-disk envelope is
 `{"version":1,"events":[…]}`; each `RunEvent` carries `at`, `runId`, `type` (stable name,
 e.g. `"EvMessage"`), `laneIndex` (omitted for lane 0), and type-specific payload (`text`,
-`tool`, `args`, `result`, `success`, `err`). Tags are the stable contract, pinned by
-`TestRunEventLogOnDiskTagsAreStable`. — see
+`tool`, `args`, `result`, `success`, `err`, plus the O2 pricing fields `tokensIn`,
+`tokensOut`, `credits` on an `EvUsage` turn — the **price-book estimate** the meter computed
+**at time of use** (the same figure the run record accumulates per lane, NOT the reported-AIU
+basis, so the summed log credits reconcile against `RunRecord.Credits`), stamped once and
+never recomputed so a later price change can't reprice history; all omitempty, so a pre-O2 log
+reads them back zero — issue 0092). Tags are the stable contract, pinned by `TestRunEventLogOnDiskTagsAreStable`
+and `TestRunEventLogPricedUsageRoundTrips`. — see
 [ADR-0048](adr/0048-per-run-event-log-replay-vs-summary.md)
 
 **`PermissionRequest`** (`copilot.go:50`): `ID, Kind, Detail` plus the write-only
@@ -315,7 +320,11 @@ one row per load-bearing event (`EvUserMessage`, committed `EvMessage`/`EvReason
 `EvToolStart`+`EvToolEnd` **joined** into one tool step, `EvPermission`,
 `EvToolDecision`, `EvError`, `EvSubagent*`, `EvCompaction*`), with the streaming deltas
 and `EvToolProgress` **coalesced away** and the full args/result/text behind a native
-`<details>` (zero new JS). It is **read-only** — it reads `s.runs` + `telemetry.LoadRunEventLog`,
+`<details>` (zero new JS). An `EvUsage` turn is also coalesced as a step but its priced
+credits **roll into the lane's subtotal** (O2/issue 0092), and the detail header shows the
+summed event-log credits **cross-checked** against `RunRecord.Credits` — a per-run mini-
+reconciliation that ambers a non-trivial mismatch (`reconcileEpsilon`, the V15 discipline at
+run grain). It is **read-only** — it reads `s.runs` + `telemetry.LoadRunEventLog`,
 never the live run state, resolving lane labels under `forgeMu` like `runRow`. It stays
 **outside `pageNames`** (no sidebar/palette entry — `{name}` matches a single segment, so
 `GET /page/runs/{id}` and `GET /page/{name}` never collide), so the nav/palette count is

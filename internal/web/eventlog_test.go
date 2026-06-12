@@ -173,6 +173,50 @@ func TestEventLogDoesNotLogSubagentEvents(t *testing.T) {
 	}
 }
 
+// TestNormalizeRunEventPricesUsage proves the EvUsage case stamps the turn's token
+// counts and the price-book estimate credits — the SAME figure recordUsage adds to
+// the run's lane (run_adapter.go: l.credits += cost.Credits()), NOT the reported AIU,
+// so the summed log credits reconcile against RunRecord.Credits on one basis (issue
+// 0092). A reported NanoAIU must NOT change the stamped credits. Non-usage events
+// carry no pricing fields.
+func TestNormalizeRunEventPricesUsage(t *testing.T) {
+	pb := telemetry.DefaultPriceBook()
+
+	usage := copilot.UsageData{Model: "gpt-5", InputTokens: 1000, OutputTokens: 500}
+	want := telemetry.Price(pb, telemetry.Usage{
+		Model: "gpt-5", InputTokens: 1000, OutputTokens: 500,
+	}).Credits()
+	if want == 0 {
+		t.Fatal("test precondition: gpt-5 must price to a non-zero estimate")
+	}
+
+	ev := normalizeRunEvent(copilot.Event{Type: copilot.EvUsage, Usage: usage}, "run-1", 1, pb)
+	if ev.Type != "EvUsage" {
+		t.Fatalf("type = %q, want EvUsage", ev.Type)
+	}
+	if ev.TokensIn != 1000 || ev.TokensOut != 500 {
+		t.Fatalf("token counts not stamped: %+v", ev)
+	}
+	if ev.Credits != want {
+		t.Fatalf("usage credits = %v, want the price-book estimate %v", ev.Credits, want)
+	}
+
+	// A reported authoritative cost (NanoAIU) must NOT shift the logged credits off
+	// the estimate basis — else the inspector's cross-check would falsely amber every
+	// reported run (the estimate-vs-reported gap is the ModelDrift table's job).
+	reported := copilot.UsageData{Model: "gpt-5", InputTokens: 1000, OutputTokens: 500, NanoAIU: 9_000_000_000}
+	evR := normalizeRunEvent(copilot.Event{Type: copilot.EvUsage, Usage: reported}, "run-1", 1, pb)
+	if evR.Credits != want {
+		t.Fatalf("a reported NanoAIU must not change the stamped estimate credits: got %v, want %v", evR.Credits, want)
+	}
+
+	// A non-usage event carries no pricing fields.
+	msg := normalizeRunEvent(copilot.Event{Type: copilot.EvMessage, Text: "hi"}, "run-1", 0, pb)
+	if msg.TokensIn != 0 || msg.TokensOut != 0 || msg.Credits != 0 {
+		t.Fatalf("non-usage event must carry no pricing fields, got %+v", msg)
+	}
+}
+
 // waitForEventLog polls until the event log for runID has at least wantCount
 // records (with a short timeout), so tests don't have fragile fixed sleeps.
 func waitForEventLog(t *testing.T, dir, runID string, wantCount int) {

@@ -64,7 +64,7 @@ func (s *Server) appendRunEvent(e copilot.Event) {
 	log := s.runEventLog
 	s.mu.Unlock()
 
-	ev := normalizeRunEvent(e, runID, laneIndex)
+	ev := normalizeRunEvent(e, runID, laneIndex, s.meter.PriceBook())
 
 	// Append in a goroutine so the pump never blocks on disk IO.
 	go func() {
@@ -82,7 +82,11 @@ func (s *Server) appendRunEvent(e copilot.Event) {
 // laneIndex is -1 when the event could not be attributed to any lane (no lane
 // resolved), which round-trips as -1 in JSON. Lane 0 is stored as laneIndex=0
 // so lane 0 events are distinguishable from unattributed events.
-func normalizeRunEvent(e copilot.Event, runID string, laneIndex int) telemetry.RunEvent {
+//
+// pb is the meter's price book, used only to price an EvUsage turn whose
+// authoritative cost the runtime did not report — passing data (not a live meter)
+// keeps the function pure.
+func normalizeRunEvent(e copilot.Event, runID string, laneIndex int, pb *telemetry.PriceBook) telemetry.RunEvent {
 	ev := telemetry.RunEvent{
 		At:        time.Now(),
 		RunID:     runID,
@@ -104,12 +108,38 @@ func normalizeRunEvent(e copilot.Event, runID string, laneIndex int) telemetry.R
 			ev.Result = e.ToolCall.Result
 			ev.Success = e.ToolCall.Success
 		}
+	case copilot.EvUsage:
+		// Price the turn at time of use so the timeline carries the credits the meter
+		// actually computed — never recomputed from a later price book (issue 0092).
+		ev.TokensIn = e.Usage.InputTokens
+		ev.TokensOut = e.Usage.OutputTokens
+		ev.Credits = usageCredits(pb, e.Usage)
 	case copilot.EvError:
 		if e.Err != nil {
 			ev.Err = e.Err.Error()
 		}
 	}
 	return ev
+}
+
+// usageCredits computes the credits to stamp into an EvUsage run event: the
+// price-book estimate for the turn, frozen at log time so a later price-book change
+// (or live repricing) can't reprice history (issue 0092). It deliberately mirrors
+// the figure recordUsage adds to the lane (run_adapter.go EvUsage: `l.credits +=
+// cost.Credits()`, the estimate from telemetry.Price) — NOT the reported-AIU
+// authoritative basis — so the logged per-turn credits sum back to RunRecord.Credits
+// on the SAME basis, and the inspector's per-run cross-check ambers only on a genuine
+// log↔record drift, never on the estimate-vs-reported gap that the Telemetry page's
+// ModelDrift table already surfaces (ADR-0033). Pure: no IO, no lock.
+func usageCredits(pb *telemetry.PriceBook, u copilot.UsageData) float64 {
+	return telemetry.Price(pb, telemetry.Usage{
+		Model:            u.Model,
+		InputTokens:      u.InputTokens,
+		CachedTokens:     u.CachedTokens,
+		CacheWriteTokens: u.CacheWriteTokens,
+		OutputTokens:     u.OutputTokens,
+		ReasoningTokens:  u.ReasoningTokens,
+	}).Credits()
 }
 
 // eventTypeName converts a copilot.EventType to its stable string name for the log.

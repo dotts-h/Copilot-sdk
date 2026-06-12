@@ -443,12 +443,12 @@ _Last generated: 2026-06-12 (UTC)._
 - L38: `func (d ModelDrift) Drifted(epsilon float64) bool { return math.Abs(d.Delta) >= epsilon }`
 - L49: `func ModelDrifts(records []SpendRecord) []ModelDrift`
 
-### eventlog.go (109 LOC)
+### eventlog.go (121 LOC)
 - L32: `type RunEvent struct`
-- L66: `type RunEventLog struct`
-- L72: `func RunEventLogPath(dir, runID string) string`
-- L80: `func LoadRunEventLog(dir, runID string) (*RunEventLog, error)`
-- L104: `func stampRunEvent(e RunEvent) RunEvent`
+- L78: `type RunEventLog struct`
+- L84: `func RunEventLogPath(dir, runID string) string`
+- L92: `func LoadRunEventLog(dir, runID string) (*RunEventLog, error)`
+- L116: `func stampRunEvent(e RunEvent) RunEvent`
 
 ### forecast.go (142 LOC)
 - L24: `type ProjectionStatus int`
@@ -647,10 +647,11 @@ _Last generated: 2026-06-12 (UTC)._
 - L63: `func (s *Server) modelsPartial() string`
 - L93: `func (s *Server) settingsPartial() string`
 
-### eventlog.go (168 LOC)
+### eventlog.go (197 LOC)
 - L22: `func (s *Server) appendRunEvent(e copilot.Event)`
-- L85: `func normalizeRunEvent(e copilot.Event, runID string, laneIndex int) telemetry.RunEvent`
-- L117: `func eventTypeName(t copilot.EventType) string`
+- L89: `func normalizeRunEvent(e copilot.Event, runID string, laneIndex int, pb *telemetry.PriceBook) telemetry.RunEvent`
+- L130: `func usageCredits(pb *telemetry.PriceBook, u copilot.UsageData) float64`
+- L146: `func eventTypeName(t copilot.EventType) string`
 
 ### forge_handlers.go (111 LOC)
 - L17: `func (s *Server) handleSkillToggle(w http.ResponseWriter, r *http.Request)`
@@ -928,28 +929,28 @@ _Last generated: 2026-06-12 (UTC)._
 - L96: `func laneStatusName(st laneStatus) string`
 - L114: `func (l *lane) costDetail() string`
 
-### runs.go (505 LOC)
-- L30: `func (s *Server) runsPartial(window int) string`
-- L64: `func windowRuns(records []telemetry.RunRecord, window int) []telemetry.RunRecord`
-- L93: `func (s *Server) runSummaryRow(a telemetry.RunAggregate) map[string]any`
-- L112: `func (s *Server) laneShareRow(l telemetry.LaneShare) map[string]any`
-- L134: `func (s *Server) runRow(r telemetry.RunRecord, window int) map[string]any`
-- L168: `func pausedFor(ms int64) string`
-- L183: `func humanDuration(d time.Duration) string`
-- L211: `func runOutcomeGlyph(outcome string) (glyph, state string)`
-- L227: `type runStep struct`
-- L240: `type laneSteps struct`
-- L263: `func buildRunTimeline(events []telemetry.RunEvent) []laneSteps`
-- L318: `func loadBearingStep(e telemetry.RunEvent) (runStep, bool)`
-- L353: `func popOpenTool(open map[int][]int, idx int, name string, steps []runStep) (int, bool)`
-- L369: `func toolEndGlyph(success bool) (glyph, state string)`
-- L379: `func sortLaneIndices(order []int) []int`
-- L387: `func laneLess(a, b int) bool`
-- L402: `func clockTime(t time.Time) string`
-- L413: `func (s *Server) handleRunDetail(w http.ResponseWriter, r *http.Request)`
-- L427: `func (s *Server) findRun(id string) (telemetry.RunRecord, bool)`
-- L444: `func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int) string`
-- L482: `func (s *Server) laneTimelineRow(lt laneSteps, rec telemetry.RunRecord) map[string]any`
+### runs.go (530 LOC)
+- L31: `func (s *Server) runsPartial(window int) string`
+- L65: `func windowRuns(records []telemetry.RunRecord, window int) []telemetry.RunRecord`
+- L94: `func (s *Server) runSummaryRow(a telemetry.RunAggregate) map[string]any`
+- L113: `func (s *Server) laneShareRow(l telemetry.LaneShare) map[string]any`
+- L135: `func (s *Server) runRow(r telemetry.RunRecord, window int) map[string]any`
+- L169: `func pausedFor(ms int64) string`
+- L184: `func humanDuration(d time.Duration) string`
+- L212: `func runOutcomeGlyph(outcome string) (glyph, state string)`
+- L228: `type runStep struct`
+- L244: `type laneSteps struct`
+- L268: `func buildRunTimeline(events []telemetry.RunEvent) []laneSteps`
+- L329: `func loadBearingStep(e telemetry.RunEvent) (runStep, bool)`
+- L364: `func popOpenTool(open map[int][]int, idx int, name string, steps []runStep) (int, bool)`
+- L380: `func toolEndGlyph(success bool) (glyph, state string)`
+- L390: `func sortLaneIndices(order []int) []int`
+- L398: `func laneLess(a, b int) bool`
+- L413: `func clockTime(t time.Time) string`
+- L424: `func (s *Server) handleRunDetail(w http.ResponseWriter, r *http.Request)`
+- L438: `func (s *Server) findRun(id string) (telemetry.RunRecord, bool)`
+- L455: `func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int) string`
+- L502: `func (s *Server) laneTimelineRow(lt laneSteps, rec telemetry.RunRecord) map[string]any`
 
 ### server.go (741 LOC)
 - L27: `type Server struct`

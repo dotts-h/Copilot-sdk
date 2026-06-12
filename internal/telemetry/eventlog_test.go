@@ -162,6 +162,68 @@ func TestRunEventLogOnDiskTagsAreStable(t *testing.T) {
 	}
 }
 
+// TestRunEventLogPricedUsageRoundTrips proves the additive O2 pricing fields
+// (tokensIn/tokensOut/credits) round-trip on disk and pin their stable JSON tags,
+// while a record written WITHOUT them reads back zero — the additive-only rule
+// (ADR-0048): a pre-O2 log is still readable and prices to nothing. — issue 0092.
+func TestRunEventLogPricedUsageRoundTrips(t *testing.T) {
+	dir := t.TempDir()
+	log, err := LoadRunEventLog(dir, "run-priced")
+	if err != nil {
+		t.Fatal(err)
+	}
+	priced := RunEvent{
+		At:        time.Date(2026, 6, 12, 9, 0, 0, 0, time.UTC),
+		RunID:     "run-priced",
+		Type:      "EvUsage",
+		LaneIndex: 1,
+		TokensIn:  1200,
+		TokensOut: 340,
+		Credits:   0.55,
+	}
+	// An unpriced (pre-O2-shaped) event: no token/credit fields set.
+	unpriced := RunEvent{Type: "EvMessage", LaneIndex: 0, Text: "hi"}
+	if err := log.Append(priced); err != nil {
+		t.Fatal(err)
+	}
+	if err := log.Append(unpriced); err != nil {
+		t.Fatal(err)
+	}
+
+	// Pin the new on-disk tags so a drift that breaks replay fails loud.
+	data, err := os.ReadFile(RunEventLogPath(dir, "run-priced"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(data)
+	for _, want := range []string{`"tokensIn": 1200`, `"tokensOut": 340`, `"credits": 0.55`} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("priced usage event missing stable tag %q in:\n%s", want, body)
+		}
+	}
+	// The unpriced event omits the additive fields entirely (omitempty), so an
+	// older reader sees no cost-column noise.
+	if strings.Count(body, `"credits"`) != 1 {
+		t.Fatalf("the unpriced event must omit the credits tag (omitempty):\n%s", body)
+	}
+
+	// Reload: the priced event keeps its figures; the unpriced one reads back zero.
+	got, err := LoadRunEventLog(dir, "run-priced")
+	if err != nil {
+		t.Fatal(err)
+	}
+	recs := got.Records()
+	if len(recs) != 2 {
+		t.Fatalf("want 2 records, got %d", len(recs))
+	}
+	if recs[0].TokensIn != 1200 || recs[0].TokensOut != 340 || recs[0].Credits != 0.55 {
+		t.Fatalf("priced event lost its figures on read-back: %+v", recs[0])
+	}
+	if recs[1].TokensIn != 0 || recs[1].TokensOut != 0 || recs[1].Credits != 0 {
+		t.Fatalf("unpriced event must read back zero-valued, got %+v", recs[1])
+	}
+}
+
 // TestRunEventLogPerRunIsolation verifies two runs get separate files and
 // separate records — keyed by run id.
 func TestRunEventLogPerRunIsolation(t *testing.T) {
