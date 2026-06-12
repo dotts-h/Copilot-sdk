@@ -24,6 +24,7 @@ issues are added or closed.
 | [0083](0083-epic-orchestration-robustness-backpressure-replayability-considered-and-rejected-event-bus.md) | Epic: Orchestration robustness — backpressure + replayability (considered-and-rejected event bus) (roadmap v14) | closed | 0084, 0085 |
 | [0086](0086-epic-code-health-followups.md) | Epic: Code-health follow-ups — structural splits + a normalize map-leak sweep (RETROS 0005) | closed | 0087, 0088, 0089 |
 | [0090](0090-epic-run-inspector.md) | Epic: Run inspector — replay/audit surface over the per-run event log (roadmap v15) | closed | 0091, 0092, 0093, 0094 |
+| [0095](0095-epic-active-cost-governance.md) | Epic: Active cost governance — run-grain budget enforcement + anomaly signal + spend digest (roadmap v16) | open | 0096, 0097, 0098 |
 
 ## Issues
 
@@ -111,3 +112,7 @@ issues are added or closed.
 | [0092](0092-per-step-cost-event-log.md) | Price the timeline — per-step usage/credits in the run event log (O2) | closed | medium | 0090 | depends_on: 0091; additive RunEvent fields (tokensIn/tokensOut/credits, ADR-0048 rule); price-at-time-of-use via usageCredits; per-lane subtotals + header cross-check (reconcileEpsilon) |
 | [0093](0093-run-transcript-view.md) | Run transcript view — chat-order rendering of the event log (O3) | closed | low | 0090 | depends_on: 0091; chat-order buildRunTranscript + clampRunView; renderMarkdown turns; per-turn O2 pricing; timeline⇄transcript toggle; no ADR |
 | [0094](0094-compare-two-runs.md) | Compare two runs of one workflow — keyed side-by-side deltas (O4, stretch) | closed | low | 0090 | depends_on: 0091; pure CompareRuns→RunDelta (keyed on workflow, B−A deltas, lanes by index); GET /runs/compare + compare-with picker; final outputs when both logs present; no ADR |
+| [0095](0095-epic-active-cost-governance.md) | Epic: Active cost governance — run-grain enforcement + anomaly + digest (roadmap v16) | open | high | | children 0096–0098; NEXT_FEATURES roadmap-v16; ADR-0053; mirrors 0072 leash at run grain |
+| [0096](0096-per-run-budget-cap-admission-control.md) | Per-run budget cap — pre-Send admission control at run grain (P1) | open | high | 0095 | depends_on: —, BUILD FIRST; ADR-0053; reuse telemetry.Leash + budgetGate; gate at startLane |
+| [0097](0097-cost-anomaly-signal.md) | Cost anomaly signal — high-frequency DetectAnomalies reader over run/step credits (P2) | open | medium | 0095 | depends_on: 0096; pure reader, ambered on inspector + Telemetry; FinOps bands |
+| [0098](0098-scheduled-spend-digest.md) | Scheduled spend digest — periodic rollup of spend, cap-hits, and anomalies (P3) | open | low | 0095 | depends_on: 0096 0097; closes the epic |
