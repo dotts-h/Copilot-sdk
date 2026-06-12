@@ -2,6 +2,8 @@ package web
 
 import (
 	"fmt"
+	"net/http"
+	"sort"
 	"strconv"
 	"time"
 
@@ -149,6 +151,7 @@ func (s *Server) runRow(r telemetry.RunRecord, window int) map[string]any {
 	credits := r.Credits()
 	dur := r.Duration()
 	return map[string]any{
+		"ID":   r.ID, // links the row header to its read-only step-timeline detail page (ADR-0052)
 		"Name": r.Name, "Mode": r.Mode, "Glyph": glyph, "State": state, "Outcome": r.Outcome,
 		"When": humanWhen(r.StartedAt), "Lanes": lanes,
 		"Duration": humanDuration(dur), "HasDuration": dur > 0,
@@ -210,4 +213,294 @@ func runOutcomeGlyph(outcome string) (glyph, state string) {
 		return "✗", "failed"
 	}
 	return "✓", "done"
+}
+
+// --- Run inspector: read-only step timeline over the per-run event log (ADR-0052) ---
+
+// runStep is one rendered row in the run-detail step timeline: a load-bearing
+// event reconstructed from the per-run event log. Type is the CSS suffix and the
+// step kind; Glyph/State drive the (aria-hidden) status mark; Label is the primary
+// text (a tool name, or the event-kind label). The disclosure body is split into
+// Text (message/reasoning/error/compaction summary), Args (tool input) and Result
+// (tool output) — whichever are present render in the <details> pane. All strings
+// are escaped by the template (ADR-0001).
+type runStep struct {
+	Type   string
+	Glyph  string
+	State  string
+	Label  string
+	Clock  string
+	Text   string
+	Args   string
+	Result string
+}
+
+// laneSteps is one lane's slice of the timeline: its lane index and the ordered
+// steps attributed to it. LaneIndex -1 is the run-level (unattributed) group.
+type laneSteps struct {
+	LaneIndex int
+	Steps     []runStep
+}
+
+// maxStepDetailLines bounds a step's disclosure body (tool args/result, text) so a
+// huge command output can't balloon the page — the inspector analog of the live
+// timeline's maxToolResultLines.
+const maxStepDetailLines = 200
+
+// buildRunTimeline reconstructs a run's lane-grouped step timeline from its event
+// log (ADR-0052). It is PURE: same events → same timeline, no IO, no locking.
+//
+//   - Streaming deltas (EvMessageDelta/EvReasoningDelta/EvToolProgress) and the
+//     non-load-bearing lifecycle events (EvIdle/EvUsage/…) are coalesced away — the
+//     committed event is the record.
+//   - EvToolStart+EvToolEnd join into ONE tool step (args from the start, result +
+//     success from the end). The persisted record carries no call id, so the join
+//     matches each end to the most recent still-open start IN THE SAME LANE,
+//     preferring an equal tool name; an unmatched start renders running with no
+//     result, an unmatched end renders on its own.
+//   - Steps group by lane, ordered by lane index ascending, with the run-level
+//     (-1, unattributed) group last.
+func buildRunTimeline(events []telemetry.RunEvent) []laneSteps {
+	order := []int{}               // lane indices, first-seen order
+	groups := map[int]*laneSteps{} // lane index → its steps
+	openTools := map[int][]int{}   // lane index → stack of open tool-step positions
+	lane := func(idx int) *laneSteps {
+		g, ok := groups[idx]
+		if !ok {
+			g = &laneSteps{LaneIndex: idx}
+			groups[idx] = g
+			order = append(order, idx)
+		}
+		return g
+	}
+
+	for _, e := range events {
+		switch e.Type {
+		case "EvToolStart":
+			g := lane(e.LaneIndex)
+			g.Steps = append(g.Steps, runStep{
+				Type: "tool", Glyph: "●", State: "running",
+				Label: def(e.Tool, "tool"), Clock: clockTime(e.At), Args: e.Args,
+			})
+			openTools[e.LaneIndex] = append(openTools[e.LaneIndex], len(g.Steps)-1)
+		case "EvToolEnd":
+			g := lane(e.LaneIndex)
+			if pos, ok := popOpenTool(openTools, e.LaneIndex, def(e.Tool, "tool"), g.Steps); ok {
+				st := &g.Steps[pos]
+				st.Result = e.Result
+				st.Glyph, st.State = toolEndGlyph(e.Success)
+				continue
+			}
+			// Unmatched end (no recorded start) — render it on its own.
+			glyph, state := toolEndGlyph(e.Success)
+			g.Steps = append(g.Steps, runStep{
+				Type: "tool", Glyph: glyph, State: state,
+				Label: def(e.Tool, "tool"), Clock: clockTime(e.At), Result: e.Result,
+			})
+		default:
+			if st, ok := loadBearingStep(e); ok {
+				g := lane(e.LaneIndex)
+				g.Steps = append(g.Steps, st)
+			}
+		}
+	}
+
+	out := make([]laneSteps, 0, len(order))
+	for _, idx := range sortLaneIndices(order) {
+		out = append(out, *groups[idx])
+	}
+	return out
+}
+
+// loadBearingStep maps a non-tool event to its timeline step, or returns false for
+// a coalesced-away event (the streaming deltas and the non-load-bearing lifecycle
+// events). The load-bearing whitelist is the ADR-0052 step vocabulary.
+func loadBearingStep(e telemetry.RunEvent) (runStep, bool) {
+	base := runStep{Clock: clockTime(e.At)}
+	switch e.Type {
+	case "EvUserMessage":
+		base.Type, base.Glyph, base.Label, base.Text = "user", "❯", "User message", e.Text
+	case "EvMessage":
+		base.Type, base.Glyph, base.Label, base.Text = "message", "✎", "Message", e.Text
+	case "EvReasoning":
+		base.Type, base.Glyph, base.Label, base.Text = "reasoning", "✻", "Reasoning", e.Text
+	case "EvPermission":
+		base.Type, base.Glyph, base.Label = "permission", "⚑", "Permission request"
+	case "EvToolDecision":
+		base.Type, base.Glyph, base.Label = "decision", "⚖", "Tool decision"
+	case "EvError":
+		base.Type, base.Glyph, base.State, base.Label, base.Text = "error", "✗", "failed", "Error", e.Err
+	case "EvSubagentStart":
+		base.Type, base.Glyph, base.Label = "subagent", "⊕", "Sub-agent started"
+	case "EvSubagentEnd":
+		base.Type, base.Glyph, base.Label = "subagent", "⊖", "Sub-agent finished"
+	case "EvCompactionStart":
+		base.Type, base.Glyph, base.Label = "compaction", "⊞", "Compaction started"
+	case "EvCompactionEnd":
+		base.Type, base.Glyph, base.Label, base.Text = "compaction", "⊟", "Compaction finished", e.Text
+	default:
+		return runStep{}, false // a delta / progress / idle / usage / … — coalesced away
+	}
+	return base, true
+}
+
+// popOpenTool removes and returns the position of the still-open tool step in lane
+// idx that an EvToolEnd joins to: the most recent open start whose label matches
+// name, falling back to the most recent open start of any name (the persisted
+// record carries no call id — ADR-0052). Returns false when the lane has no open
+// tool. steps is the lane's step slice, read to compare labels.
+func popOpenTool(open map[int][]int, idx int, name string, steps []runStep) (int, bool) {
+	stack := open[idx]
+	if len(stack) == 0 {
+		return 0, false
+	}
+	// Walk the stack from the top (most recent) for a label match.
+	for i := len(stack) - 1; i >= 0; i-- {
+		if steps[stack[i]].Label == name {
+			pos := stack[i]
+			open[idx] = append(stack[:i:i], stack[i+1:]...)
+			return pos, true
+		}
+	}
+	// No name match — join to the most recent open start.
+	pos := stack[len(stack)-1]
+	open[idx] = stack[:len(stack)-1]
+	return pos, true
+}
+
+// toolEndGlyph maps a tool's success flag to its settled glyph + CSS state via
+// glyphFor — the single source of truth for status glyphs (run_render.go) — so the
+// inspector's tool steps never drift from the live lanes / Runs history.
+func toolEndGlyph(success bool) (glyph, state string) {
+	if success {
+		return glyphFor("done")
+	}
+	return glyphFor("failed")
+}
+
+// sortLaneIndices orders lane groups by index ascending with the run-level (-1)
+// group last, preserving the lane-then-run-level reading order. Lane indices are
+// unique, so the unstable sort.Slice is well-defined.
+func sortLaneIndices(order []int) []int {
+	out := append([]int(nil), order...)
+	sort.Slice(out, func(i, j int) bool { return laneLess(out[i], out[j]) })
+	return out
+}
+
+// laneLess orders lane indices ascending, treating -1 (run-level) as greater than
+// every real lane so it sorts last.
+func laneLess(a, b int) bool {
+	if a == b {
+		return false
+	}
+	if a < 0 {
+		return false
+	}
+	if b < 0 {
+		return true
+	}
+	return a < b
+}
+
+// clockTime renders an event's timestamp as wall-clock HH:MM:SS for the timeline
+// row, or "" for a zero time (so the cell stays empty rather than printing an epoch).
+func clockTime(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.Format("15:04:05")
+}
+
+// handleRunDetail serves GET /page/runs/{id}: the read-only step-timeline detail
+// page for one persisted run (ADR-0052). An unknown run id 404s cleanly; the route
+// never touches the live run state — it reads the run history (s.runs) and the
+// per-run event log only.
+func (s *Server) handleRunDetail(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	rec, ok := s.findRun(id)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(s.runDetailPartial(rec, clampWindow(r.URL.Query().Get("window")))))
+}
+
+// findRun looks up a persisted run by id, returning false when no run store is
+// wired or the id is unknown. Reads the append-only store's own snapshot — it does
+// not touch s.mu / the live run state.
+func (s *Server) findRun(id string) (telemetry.RunRecord, bool) {
+	if s.runs == nil {
+		return telemetry.RunRecord{}, false
+	}
+	for _, r := range s.runs.Records() {
+		if r.ID == id {
+			return r, true
+		}
+	}
+	return telemetry.RunRecord{}, false
+}
+
+// runDetailPartial renders the run-detail page: a summary card (the runRow
+// vocabulary — outcome glyph, mode, when, duration, cost) above the lane-grouped
+// step timeline reconstructed from the per-run event log. A run with no log file
+// (a pre-event-log run, or the log disabled) renders the card + a "no event log"
+// note — no error. Lane labels resolve under forgeMu, like runRow. — ADR-0052.
+func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int) string {
+	glyph, state := runOutcomeGlyph(rec.Outcome)
+	dur := rec.Duration()
+	credits := rec.Credits()
+
+	var laneRows []map[string]any
+	hasLog := false
+	if s.eventLogDir != "" {
+		if log, err := telemetry.LoadRunEventLog(s.eventLogDir, rec.ID); err != nil {
+			s.logger.Printf("run inspector: load event log %q: %v", rec.ID, err)
+		} else if log.Count() > 0 {
+			hasLog = true
+			lanes := buildRunTimeline(log.Records())
+			s.hub.forgeMu.Lock()
+			for _, lt := range lanes {
+				laneRows = append(laneRows, s.laneTimelineRow(lt, rec))
+			}
+			s.hub.forgeMu.Unlock()
+		}
+	}
+
+	return frag("runDetailPage", map[string]any{
+		"Name": rec.Name, "Mode": rec.Mode, "Outcome": rec.Outcome,
+		"Glyph": glyph, "State": state, "When": humanWhen(rec.StartedAt),
+		"Duration": humanDuration(dur), "HasDuration": dur > 0,
+		"Credits": telemetry.FormatCredits(credits), "HasCredits": credits > 0,
+		"Window": window, "HasLog": hasLog, "Lanes": laneRows,
+	})
+}
+
+// laneTimelineRow builds the template shape for one lane's slice of the timeline:
+// its label (step N · agent, resolved from the run's recorded lanes — caller holds
+// forgeMu — or "run-level" for the unattributed -1 group) and its rendered steps,
+// each with its disclosure parts clamped. — ADR-0052.
+func (s *Server) laneTimelineRow(lt laneSteps, rec telemetry.RunRecord) map[string]any {
+	label := "run-level"
+	if lt.LaneIndex >= 0 {
+		label = fmt.Sprintf("step %d", lt.LaneIndex+1)
+		if lt.LaneIndex < len(rec.Lanes) {
+			label += " · " + s.agentLabel(rec.Lanes[lt.LaneIndex].AgentID)
+		}
+	}
+	steps := make([]map[string]any, len(lt.Steps))
+	for i, st := range lt.Steps {
+		args := clampLines(st.Args, maxStepDetailLines)
+		result := clampLines(st.Result, maxStepDetailLines)
+		text := clampLines(st.Text, maxStepDetailLines)
+		steps[i] = map[string]any{
+			"Type": st.Type, "Glyph": st.Glyph, "State": def(st.State, st.Type),
+			"Label": st.Label, "Clock": st.Clock,
+			"Args": args, "HasArgs": args != "",
+			"Result": result, "HasResult": result != "",
+			"Text": text, "HasText": text != "",
+			"HasDetail": args != "" || result != "" || text != "",
+		}
+	}
+	return map[string]any{"Label": label, "Steps": steps}
 }

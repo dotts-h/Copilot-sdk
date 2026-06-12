@@ -6,7 +6,7 @@
 > this first; jump straight to `file:symbol`. The source is the source of
 > truth — if this looks stale, re-run `make codemap`.
 
-_Last generated: 2026-06-11 (UTC)._
+_Last generated: 2026-06-12 (UTC)._
 
 ## cmd/my-orchestra
 
@@ -23,17 +23,18 @@ _Last generated: 2026-06-11 (UTC)._
 
 ## internal/bootstrap
 
-### bootstrap.go (424 LOC)
+### bootstrap.go (470 LOC)
 - L36: `func Build(configDir string, demo bool) (srv *web.Hub, close func(), err error)`
-- L122: `func demoClient(forge *ctxforge.Forge, spec *copilot.SessionSpec) (copilot.Client, func())`
-- L167: `func seedSpend(store *telemetry.SpendStore)`
-- L197: `func seedRuns(store *telemetry.RunStore)`
-- L225: `func dialClient(cfg *config.Config) (copilot.Client, func())`
-- L248: `func ghCLIToken() (string, error)`
-- L263: `func ServeLocal(h http.Handler) (port int, stop func(), err error)`
-- L275: `func DefaultConfigDir() string`
-- L289: `func SeedForge(forge *ctxforge.Forge)`
-- L412: `func curatedMCPServers() []ctxforge.MCPServer`
+- L131: `func demoClient(forge *ctxforge.Forge, spec *copilot.SessionSpec) (copilot.Client, func())`
+- L176: `func seedSpend(store *telemetry.SpendStore)`
+- L206: `func seedRuns(store *telemetry.RunStore)`
+- L238: `func seedDemoEventLog(logger *log.Logger) string`
+- L271: `func dialClient(cfg *config.Config) (copilot.Client, func())`
+- L294: `func ghCLIToken() (string, error)`
+- L309: `func ServeLocal(h http.Handler) (port int, stop func(), err error)`
+- L321: `func DefaultConfigDir() string`
+- L335: `func SeedForge(forge *ctxforge.Forge)`
+- L458: `func curatedMCPServers() []ctxforge.MCPServer`
 
 ## internal/config
 
@@ -729,7 +730,7 @@ _Last generated: 2026-06-11 (UTC)._
 - L303: `func commandVarRefs(s string) []string`
 - L317: `func hookPreflightResult(pattern, sample string) string`
 
-### hub.go (352 LOC)
+### hub.go (357 LOC)
 - L30: `type Hub struct`
 - L78: `type Options struct`
 - L104: `func New(opts Options) *Hub`
@@ -739,8 +740,8 @@ _Last generated: 2026-06-11 (UTC)._
 - L220: `func (h *Hub) route(copilotID string) *Server`
 - L238: `func (h *Hub) pump()`
 - L249: `func (h *Hub) Handler() http.Handler`
-- L345: `func (s *Server) Handler() http.Handler { return s.hub.Handler() }`
-- L348: `func newID() string`
+- L350: `func (s *Server) Handler() http.Handler { return s.hub.Handler() }`
+- L353: `func newID() string`
 
 ### instructions_import.go (65 LOC)
 - L31: `func importInstructionFiles(dir string) []ctxforge.Instruction`
@@ -927,15 +928,28 @@ _Last generated: 2026-06-11 (UTC)._
 - L96: `func laneStatusName(st laneStatus) string`
 - L114: `func (l *lane) costDetail() string`
 
-### runs.go (213 LOC)
-- L28: `func (s *Server) runsPartial(window int) string`
-- L62: `func windowRuns(records []telemetry.RunRecord, window int) []telemetry.RunRecord`
-- L91: `func (s *Server) runSummaryRow(a telemetry.RunAggregate) map[string]any`
-- L110: `func (s *Server) laneShareRow(l telemetry.LaneShare) map[string]any`
-- L132: `func (s *Server) runRow(r telemetry.RunRecord, window int) map[string]any`
-- L165: `func pausedFor(ms int64) string`
-- L180: `func humanDuration(d time.Duration) string`
-- L208: `func runOutcomeGlyph(outcome string) (glyph, state string)`
+### runs.go (506 LOC)
+- L29: `func (s *Server) runsPartial(window int) string`
+- L63: `func windowRuns(records []telemetry.RunRecord, window int) []telemetry.RunRecord`
+- L92: `func (s *Server) runSummaryRow(a telemetry.RunAggregate) map[string]any`
+- L111: `func (s *Server) laneShareRow(l telemetry.LaneShare) map[string]any`
+- L133: `func (s *Server) runRow(r telemetry.RunRecord, window int) map[string]any`
+- L167: `func pausedFor(ms int64) string`
+- L182: `func humanDuration(d time.Duration) string`
+- L210: `func runOutcomeGlyph(outcome string) (glyph, state string)`
+- L226: `type runStep struct`
+- L239: `type laneSteps struct`
+- L262: `func buildRunTimeline(events []telemetry.RunEvent) []laneSteps`
+- L316: `func loadBearingStep(e telemetry.RunEvent) (runStep, bool)`
+- L350: `func popOpenTool(open map[int][]int, idx int, name string, steps []runStep) (int, bool)`
+- L371: `func toolEndGlyph(success bool) (glyph, state string)`
+- L380: `func sortLaneIndices(order []int) []int`
+- L392: `func laneLess(a, b int) bool`
+- L407: `func clockTime(t time.Time) string`
+- L418: `func (s *Server) handleRunDetail(w http.ResponseWriter, r *http.Request)`
+- L432: `func (s *Server) findRun(id string) (telemetry.RunRecord, bool)`
+- L449: `func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int) string`
+- L483: `func (s *Server) laneTimelineRow(lt laneSteps, rec telemetry.RunRecord) map[string]any`
 
 ### server.go (741 LOC)
 - L27: `type Server struct`
