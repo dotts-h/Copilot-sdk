@@ -37,6 +37,7 @@ type Hub struct {
 	allowance    float64
 	warnFraction float64
 	hardCap      float64
+	runCap       float64
 	baseSpec     copilot.SessionSpec
 	baseAgentID  string // the launch-time active agent id (config.DefaultAgent), seeded onto each new session for spend attribution
 	// baseLeash/baseLeashLabel snapshot the launch-time agent's budget leash, seeded
@@ -106,7 +107,7 @@ func New(opts Options) *Hub {
 	if lg == nil {
 		lg = log.Default()
 	}
-	var allowance, warnFraction, hardCap float64
+	var allowance, warnFraction, hardCap, runCap float64
 	var baseAgentID string
 	var baseLeash telemetry.Leash
 	var baseLeashLabel string
@@ -114,6 +115,7 @@ func New(opts Options) *Hub {
 		allowance = opts.Config.Telemetry.MonthlyCreditAllowance
 		warnFraction = opts.Config.Telemetry.WarnFraction
 		hardCap = opts.Config.Telemetry.HardCapCredits
+		runCap = opts.Config.Telemetry.RunCapCredits
 		baseAgentID = opts.Config.DefaultAgent
 		// Startup is single-threaded, so reading the forge here needs no forgeMu.
 		if opts.Forge != nil && baseAgentID != "" {
@@ -129,7 +131,7 @@ func New(opts Options) *Hub {
 	}
 	h := &Hub{
 		client: opts.Client, forge: opts.Forge, config: opts.Config, meter: opts.Meter, spend: opts.Spend, runs: opts.Runs,
-		allowance: allowance, warnFraction: warnFraction, hardCap: hardCap,
+		allowance: allowance, warnFraction: warnFraction, hardCap: hardCap, runCap: runCap,
 		baseSpec: opts.Spec, baseAgentID: baseAgentID, baseLeash: baseLeash, baseLeashLabel: baseLeashLabel,
 		logger: lg, demo: opts.Demo, workdir: workdir, eventLogDir: opts.EventLogDir,
 		lookPath: exec.LookPath, lookupEnv: os.Getenv, setEnv: os.Setenv,
@@ -152,7 +154,7 @@ func (h *Hub) newSession(id string) *Server {
 		// the same invariant the rest of the package relies on (bootstrap/tests
 		// always supply one).
 		sessionMeter: telemetry.NewMeter(h.meter.PriceBook()),
-		allowance:    h.allowance, warnFraction: h.warnFraction, hardCap: h.hardCap,
+		allowance:    h.allowance, warnFraction: h.warnFraction, hardCap: h.hardCap, runCap: h.runCap,
 		lookPath: h.lookPath, lookupEnv: h.lookupEnv, setEnv: h.setEnv,
 		logger: h.logger, demo: h.demo,
 		now:             time.Now,

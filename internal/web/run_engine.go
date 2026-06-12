@@ -152,6 +152,34 @@ type workflowRun struct {
 	// which is the workflow definition's id), started is the launch time (ADR-0022).
 	runID   string
 	started time.Time
+	// credits is the run's cumulative metered spend (sum of its lanes' credits),
+	// accrued by the Server adapter as usage events land. It is the figure the
+	// per-run budget cap checks before admitting the next lane (ADR-0053).
+	credits float64
+}
+
+// capStopDetail is the lane detail set when the per-run budget cap refuses a lane.
+const capStopDetail = "✗ over run budget cap"
+
+// capStop settles a run stopped by its budget cap (ADR-0053). The lane the cap
+// refused plus every not-yet-started (pending) lane are failed with the cap
+// reason — so no further lane can be admitted — while a lane already running is
+// left to finish, and the run is marked done+failed once every lane has settled.
+// Unlike failLane it advances nothing: the cap is the single choke point, so a
+// capped run can only wind down. Pure (no I/O); caller holds s.mu in the adapter.
+func (r *workflowRun) capStop(refused *lane) {
+	refused.status = laneFailed
+	refused.detail = capStopDetail
+	for _, l := range r.lanes {
+		if l.status == lanePending {
+			l.status = laneFailed
+			l.detail = capStopDetail
+		}
+	}
+	r.failed = true
+	if r.allSettled() {
+		r.done = true
+	}
 }
 
 // newWorkflowRun builds a run with one pending lane per compiled step. specs are

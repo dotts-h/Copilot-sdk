@@ -32,6 +32,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	c.DefaultModel = "claude-opus-4.7"
 	c.Telemetry.MonthlyCreditAllowance = 7000
 	c.Telemetry.HardCapCredits = 250
+	c.Telemetry.RunCapCredits = 40
 	c.Telemetry.PriceOverrides = map[string][]float64{"gpt-5": {1, 2, 3}}
 	if err := c.Save(); err != nil {
 		t.Fatal(err)
@@ -53,6 +54,9 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if loaded.Telemetry.HardCapCredits != 250 {
 		t.Fatalf("hard cap lost on round trip: %v", loaded.Telemetry)
 	}
+	if loaded.Telemetry.RunCapCredits != 40 {
+		t.Fatalf("run cap lost on round trip: %v", loaded.Telemetry)
+	}
 	if got := loaded.Telemetry.PriceOverrides["gpt-5"]; len(got) != 3 || got[0] != 1 || got[1] != 2 || got[2] != 3 {
 		t.Fatalf("price overrides lost: %v", got)
 	}
@@ -66,6 +70,7 @@ func TestValidateRejectsBadValues(t *testing.T) {
 		func(c *Config) { c.Telemetry.MonthlyCreditAllowance = -1 },
 		func(c *Config) { c.Telemetry.WarnFraction = 2 },
 		func(c *Config) { c.Telemetry.HardCapCredits = -1 },
+		func(c *Config) { c.Telemetry.RunCapCredits = -1 },
 		func(c *Config) { c.Telemetry.PriceOverrides = map[string][]float64{"gpt-5": {-1, 0, 0}} },
 		func(c *Config) { c.Telemetry.PriceOverrides = map[string][]float64{"gpt-5": {1, 2, -3}} },
 		func(c *Config) { c.Telemetry.PriceOverrides = map[string][]float64{"gpt-5": {1, 2}} },          // too short (ADR-0034)

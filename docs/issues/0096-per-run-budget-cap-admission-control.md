@@ -26,12 +26,12 @@ feeds `RunRecord.Credits`, and **checked before admitting the next lane's Send**
 account hard cap (ADR-0008). Contract: **ADR-0053**.
 
 This **mirrors the 0072 sub-agent leash at run grain** — the same pure `leash.Breached(...)`
-decision and the same `budgetGate` pause (proceed / raise / cancel), so the interactive UX
-and the lift-this-session semantics are identical. `raise` lifts the cap for **this run
-only** (transient, like `leashLifted`), never editing the workflow or the account cap. An
-**unattended** run (no human to answer the gate — the v17 queue/schedule path) resolves a
-breach deterministically to **cancel**: remaining lanes failed-with-reason, the partial run
-recorded once (the ADR-0024 abort shape). The safe default never spends past the cap.
+decision — but a multi-lane run is **not** a single held prompt, so it does **not** reuse the
+root-chat `budgetGate`. A breach resolves the ADR-0024 way: `startLane` **does not admit** the
+over-cap lane, the remaining un-admitted lanes are **failed-with-reason** ("over run budget
+cap"), the partial run is recorded once, and a system note surfaces the cap-hit. Deterministic,
+no new gate plumbing, identical whether the run is interactive or (v17) unattended. Lifting the
+ceiling is a **config edit + rerun** (ADR-0023), not a transient in-run override.
 
 ## Why now
 
@@ -48,12 +48,13 @@ highest-value next slice: monthly/account caps structurally can't stop run-grain
   Pure, table-tested in `internal/telemetry` / `internal/web` with no I/O.
 - **Config:** `config.Telemetry.RunCapCredits float64` (`0` = unleashed); default off, so the
   streaming/record path is **byte-identical** when unset.
-- **Enforcement:** accumulate `s.runCredits` in `recordUsage` (the run-tagged turn); in
-  `startLane`, before `client.Send`, if the run's cumulative credits have reached the cap,
-  **do not admit** the lane — mark the run budget-paused and stop admitting further lanes;
-  raise a `budgetGate` (interactive) or resolve to cancel (unattended).
-- **Surface:** a system note on pause/cancel; the cap shown alongside the run; the gate reuses
-  the existing budget pause partial. No new page.
+- **Enforcement:** accumulate the run's credits (on `workflowRun`, fed by the same
+  `handleRunEvent` EvUsage turn that updates `l.credits`); in `startLane`, before
+  `CreateSession`/`Send`, if the run's cumulative credits have reached the cap, **do not admit**
+  the lane — settle it over-cap and stop admitting further lanes (the ADR-0024 terminal path
+  records the partial run once).
+- **Surface:** a system note on the cap-hit ("⚠ run stopped — over budget cap"); the over-cap
+  lanes failed-with-reason in the run view. No new page.
 
 ## Out of scope
 
@@ -66,10 +67,9 @@ highest-value next slice: monthly/account caps structurally can't stop run-grain
 ## Acceptance
 
 - [ ] A run with `RunCapCredits > 0` whose cumulative credits reach the cap does **not** admit
-      the next lane — it pauses (interactive) or cancels (unattended) instead.
-- [ ] `raise` lifts the cap for this run only; `cancel`/unanswered drops the run safely (no
-      spend past the cap); `proceed` is the account-cap shape where applicable.
-- [ ] `RunCapCredits == 0` ⇒ no gate, streaming/record path byte-identical (a guarding test).
-- [ ] The three caps (account / persona / run) compose without lock inversion.
+      the next lane — it settles the lane over-cap and stops admitting, recording the partial run.
+- [ ] A system note surfaces the cap-hit; the over-cap lane reads failed-with-reason.
+- [ ] `RunCapCredits == 0` ⇒ no stop, streaming/record path byte-identical (a guarding test).
+- [ ] The run cap composes with the account / persona caps without lock inversion.
 - [ ] `make lint && make test` green (coverage ≥ floor); `make e2e` for the pause UI; ADR-0053
       + this close-out ride the branch (ADR-0004).

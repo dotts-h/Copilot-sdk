@@ -43,10 +43,11 @@ func (s *Server) refreshBudget() {
 	allowance := s.config.Telemetry.MonthlyCreditAllowance
 	warn := s.config.Telemetry.WarnFraction
 	hardCap := s.config.Telemetry.HardCapCredits
+	runCap := s.config.Telemetry.RunCapCredits
 	s.hub.forgeMu.Unlock()
 
 	s.mu.Lock()
-	s.allowance, s.warnFraction, s.hardCap = allowance, warn, hardCap
+	s.allowance, s.warnFraction, s.hardCap, s.runCap = allowance, warn, hardCap, runCap
 	s.mu.Unlock()
 }
 
@@ -73,6 +74,7 @@ func renderSettingsForm(c *config.Config, note, errMsg string) string {
 		numberField("Monthly credit budget", "allowance", int(c.Telemetry.MonthlyCreditAllowance)),
 		numberField("Warn at (%)", "warnPercent", int(c.Telemetry.WarnFraction*100+0.5)),
 		numberField("Hard cap (credits; 0 = off)", "hardCap", int(c.Telemetry.HardCapCredits)),
+		numberField("Per-run cap (credits; 0 = off)", "runCap", int(c.Telemetry.RunCapCredits)),
 		textField("OTLP endpoint", "otlpEndpoint", c.Telemetry.OTLPEndpoint, false),
 		textField("GitHub token env var (blank = copilot CLI session)", "githubTokenEnv", c.GitHubTokenEnv, false),
 	}
@@ -271,6 +273,9 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request) {
 		}
 		if v, e := strconv.ParseFloat(strings.TrimSpace(r.FormValue("hardCap")), 64); e == nil {
 			c.Telemetry.HardCapCredits = v
+		}
+		if v, e := strconv.ParseFloat(strings.TrimSpace(r.FormValue("runCap")), 64); e == nil {
+			c.Telemetry.RunCapCredits = v
 		}
 		// Price overrides: replace the whole table only when the form carried the
 		// section (preserve-on-absent, like key bindings). Validate (in Save) rejects

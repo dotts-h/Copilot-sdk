@@ -44,22 +44,24 @@ The gate is **pre-Send admission control**, never a mid-flight kill of an in-fli
 lane already streaming runs to its natural end (its tokens are already committed), and the
 abort path for a running call stays ADR-0024's explicit user action. The run cap decides
 only whether the **next** lane is *admitted*: when the run's cumulative credits have reached
-the cap, `startLane` does not open/Send that lane — it marks the run **budget-paused** and
-stops admitting further lanes. This keeps the cap a deterministic, side-effect-free decision
+the cap, `startLane` does not open/Send that lane — it settles the lane over-cap and stops
+admitting further lanes. This keeps the cap a deterministic, side-effect-free decision
 (`leash.Breached(runCredits, runTurns)`) layered over the existing dispatch, with **no change
 to the streaming or record path** when no cap is set.
 
-### Interactive pause reuses `budgetGate`; unattended runs hard-stop
+### Breach = stop admitting + settle the partial run (the abort shape)
 
-A run cap breach raises the **same `budgetGate`** the account cap and persona leash use
-(proceed / raise / cancel), so the interactive UX and the lift-this-session semantics are
-identical — `raise` lifts the run cap for *this run* only (a transient override, like the
-persona leash's `leashLifted`), never editing the workflow or the account cap. For an
-**unattended** run (no human to answer the gate — the v17 queue/schedule path) the same
-breach resolves deterministically to **cancel** (the safe default that already governs an
-unanswered gate): the run stops with the remaining lanes failed-with-reason and the partial
-run recorded once, exactly the ADR-0024 abort shape. The default is always the cheap one — an
-ambiguous or unanswered cap never spends past it.
+A multi-lane run is **not** a single held prompt, so the run cap does **not** reuse the
+root-chat `budgetGate` (which holds one prompt for proceed/raise/cancel). Instead a breach
+resolves the way ADR-0024 already aborts a run: `startLane` **does not admit** the over-cap
+lane, the remaining un-admitted lanes are **failed-with-reason** ("over run budget cap"), and
+the partial run is **recorded once** through the existing terminal path. A clear system note
+surfaces the cap-hit and the figure. This is deterministic, needs **no new gate plumbing**,
+and is identical whether the run is interactive or (the v17 direction) unattended — the safe
+default that never spends past the cap governs both. Lifting the ceiling is a **config edit +
+rerun** (the workflow's *current definition* re-executes — ADR-0023), not a transient in-run
+override; a per-run "raise and continue" and a per-workflow cap field are noted additive
+follow-ups, deliberately out of P1.
 
 ### Estimate basis
 
