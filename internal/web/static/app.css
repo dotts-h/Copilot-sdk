@@ -813,6 +813,43 @@ button.add, button.abort, .run-head .stop-run, .run-rec-head .rerun,
   background: none; border: 1px solid var(--subtle); border-radius: var(--radius-2);
   padding: .1rem .45rem; cursor: pointer; }
 .run-rec-head .rerun:hover { border-color: var(--accent); }
+/* The run name on the Runs page links to the run inspector (ADR-0052): the
+   read-only step-timeline detail page. Styled like .run-name (it replaces the
+   plain span) with a hover underline so the affordance reads as navigable. */
+.run-name-link { font-weight: 600; color: var(--accent); text-decoration: none; }
+.run-name-link:hover { text-decoration: underline; }
+/* Run inspector (ADR-0052): the read-only step timeline over a run's event log,
+   reached from a Runs-page row. The summary card reuses the .run-record vocabulary;
+   below it, steps group by lane, each a row with a status glyph + a <details>
+   disclosure for the full input/output. Zero new JS — native <details>. */
+.inspector-head { margin-bottom: .6rem; }
+.inspector .back { font-size: .85rem; color: var(--accent); font-weight: 600;
+  background: none; border: 1px solid var(--subtle); border-radius: var(--radius-2);
+  padding: .15rem .55rem; cursor: pointer; }
+.inspector .back:hover { border-color: var(--accent); }
+.inspector-summary { margin-bottom: 0; }
+.inspector-lane { margin-top: .8rem; }
+.inspector-lane-head { font-size: .9rem; color: var(--dim); font-weight: 600;
+  margin: 0 0 .35rem; border-bottom: 1px solid var(--panel); padding-bottom: .25rem; }
+.timeline-steps { list-style: none; padding: 0; margin: 0; display: flex;
+  flex-direction: column; gap: .3rem; }
+.tstep { border: 1px solid var(--panel); border-radius: var(--radius-2);
+  padding: .3rem .55rem; background: var(--raised); }
+.tstep-head { display: flex; align-items: center; gap: .5rem; }
+.tstep-glyph { color: var(--dim); }
+.tstep.state-done .tstep-glyph { color: var(--good); }
+.tstep.state-failed .tstep-glyph { color: var(--bad); }
+.tstep.state-running .tstep-glyph { color: var(--accent); }
+.tstep-label { font-weight: 600; }
+.tstep-tool .tstep-label { color: var(--accent); font-family: var(--font-mono); }
+.tstep-clock { font-size: .78rem; margin-left: auto; }
+.tstep-detail { margin-top: .3rem; }
+.tstep-detail > summary { font-size: .8rem; color: var(--dim); cursor: pointer; }
+.tstep-part { margin-top: .25rem; }
+.tstep-part-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; }
+.tstep-pre { margin: .15rem 0 0; padding: .35rem .5rem; background: var(--panel);
+  border-radius: var(--radius-2); font-size: .82rem; white-space: pre-wrap;
+  word-break: break-word; overflow-x: auto; }
 /* Per-workflow roll-up table above the run history (V1, ADR-0022): run count,
    failure rate, average cost & duration — the cost ⋈ orchestration summary. */
 .run-summary { width: 100%; border-collapse: collapse; margin: .2rem 0 .4rem;

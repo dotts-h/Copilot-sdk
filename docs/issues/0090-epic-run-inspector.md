@@ -39,7 +39,8 @@ Development status).
 
 ## Children
 
-- [ ] **O1 — Run-detail page: the step timeline**
+- [x] **O1 — Run-detail page: the step timeline** (shipped — also wired `EventLogDir`
+      in production; the ADR-0048 writer had been switched off everywhere)
       ([0091](0091-run-detail-step-timeline.md), M, **ADR-0052**, BUILD FIRST) —
       `GET /page/runs/{id}` rendering the event log as a lane-grouped master/detail step
       timeline; zero new JS; read-only reconstruction.

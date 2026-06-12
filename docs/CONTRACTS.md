@@ -170,7 +170,7 @@ for the streaming/turn routes (`/events`, `/send`, the `/perm|ask|plan|elicit/{i
 | Turn answers | `POST /perm/{id}` · `POST /ask/{id}` · `POST /plan/{id}` · `POST /elicit/{id}` · `POST /pause/{id}` · `POST /budget/{action}` |
 | Navigation | `GET /page/{name}` · `GET /commands` · `GET /static/…` |
 | Telemetry | `GET /telemetry/export.csv` · `GET /runs/export.csv` |
-| Runs | `POST /runs/rerun/{workflow}` · `POST /run/abort` |
+| Runs | `GET /page/runs/{id}` (inspector) · `POST /runs/rerun/{workflow}` · `POST /run/abort` |
 | Sub-agents | `GET /subagent/{id}` (overlay) · `POST /subagent/{id}/steer` |
 | Skills | `GET /skills/new` · `GET /skills/{id}/edit` · `POST /skills` · `POST /skills/{id}` · `POST /skills/{id}/toggle` · `POST /skills/{id}/delete` |
 | Instructions | `POST /instructions/import` · `GET /instructions/new` · `GET /instructions/{id}/edit` · `POST /instructions` · `POST /instructions/{id}` · `POST /instructions/{id}/toggle` · `POST /instructions/{id}/delete` |
@@ -306,6 +306,24 @@ existing v1 records — no schema change, no new store, no ADR.
 A run is recorded **once on completion** by the web adapter (`workflow.go`
 `recordRun`, where `runFrags` already clears `busy`). — see
 [ADR-0022](adr/0022-workflow-run-history-sibling-append-only-run-store.md)
+
+The **run inspector** (`GET /page/runs/{id}`, O1/issue 0091) is the read surface over
+the per-run event log (ADR-0048) — the **first parameterized page route**, reached from a
+link on each Runs-page row (each `runRow` header is now an `<a>` into the inspector). It
+**reconstructs** the run as a lane-grouped **step timeline** (`buildRunTimeline`, pure):
+one row per load-bearing event (`EvUserMessage`, committed `EvMessage`/`EvReasoning`,
+`EvToolStart`+`EvToolEnd` **joined** into one tool step, `EvPermission`,
+`EvToolDecision`, `EvError`, `EvSubagent*`, `EvCompaction*`), with the streaming deltas
+and `EvToolProgress` **coalesced away** and the full args/result/text behind a native
+`<details>` (zero new JS). It is **read-only** — it reads `s.runs` + `telemetry.LoadRunEventLog`,
+never the live run state, resolving lane labels under `forgeMu` like `runRow`. It stays
+**outside `pageNames`** (no sidebar/palette entry — `{name}` matches a single segment, so
+`GET /page/runs/{id}` and `GET /page/{name}` never collide), so the nav/palette count is
+unchanged. A run with **no log** (a pre-event-log run, or `EventLogDir` disabled) renders
+the summary card + a "no event log" note; an **unknown id** 404s. The per-run event log is
+now **wired in production** (`EventLogDir = configDir`) and seeded in demo so the inspector
+has data to read. — see [ADR-0052](adr/0052-run-inspector-read-only-replay.md),
+[ADR-0048](adr/0048-per-run-event-log-replay-vs-summary.md)
 
 `POST /budget/{action}` (`action` ∈ {proceed, raise, cancel}) resolves a turn the
 hard cap paused before `Send`: **proceed** dispatches the held prompt and keeps the

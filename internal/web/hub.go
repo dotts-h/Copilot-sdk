@@ -271,6 +271,11 @@ func (h *Hub) Handler() http.Handler {
 	route("POST /pause/{id}", (*Server).handlePause)
 	route("GET /subagent/{id}", (*Server).handleSubagentOverlay)
 	route("POST /subagent/{id}/steer", (*Server).handleSubagentSteer)
+	// The run inspector (ADR-0052): the first parameterized page route. More
+	// specific than GET /page/{name} ({name} matches a single segment, so the two
+	// never collide), reached from a link on each Runs-page row — it stays out of
+	// pageNames (no sidebar/palette entry).
+	route("GET /page/runs/{id}", (*Server).handleRunDetail)
 	route("GET /page/{name}", (*Server).handlePage)
 	route("GET /telemetry/export.csv", (*Server).handleSpendExport)
 	route("GET /telemetry/reconcile.csv", (*Server).handleReconcileExport)

@@ -65,15 +65,23 @@ func Build(configDir string, demo bool) (srv *web.Hub, close func(), err error) 
 	// Persisted workflow-run history (sibling of the spend ledger; survives restart,
 	// feeds the Runs page). Demo uses an ephemeral, pre-seeded store so the Runs page
 	// renders deterministically offline (ADR-0022).
+	//
+	// eventLogDir enables the per-run event log (ADR-0048) that the run inspector
+	// (ADR-0052) reads. Production writes it alongside runs.json under configDir;
+	// demo seeds one run's log into a temp dir so the inspector renders a real
+	// timeline offline (the other demo runs exercise the "no event log" degradation).
 	var runs *telemetry.RunStore
+	var eventLogDir string
 	if demo {
 		runs, _ = telemetry.LoadRunStore("")
 		seedRuns(runs)
+		eventLogDir = seedDemoEventLog(log.Default())
 	} else {
 		runs, err = telemetry.LoadRunStore(configDir)
 		if err != nil {
 			return nil, nil, fmt.Errorf("load run history: %w", err)
 		}
+		eventLogDir = configDir
 	}
 
 	// Compile the configured default agent (or just the enabled global
@@ -102,15 +110,16 @@ func Build(configDir string, demo bool) (srv *web.Hub, close func(), err error) 
 	}
 
 	srv = web.New(web.Options{
-		Client: client,
-		Forge:  forge,
-		Config: cfg,
-		Meter:  meter,
-		Spend:  spend,
-		Runs:   runs,
-		Spec:   spec,
-		Demo:   demo,
-		Logger: log.New(os.Stderr, "web: ", log.LstdFlags),
+		Client:      client,
+		Forge:       forge,
+		Config:      cfg,
+		Meter:       meter,
+		Spend:       spend,
+		Runs:        runs,
+		EventLogDir: eventLogDir,
+		Spec:        spec,
+		Demo:        demo,
+		Logger:      log.New(os.Stderr, "web: ", log.LstdFlags),
 	})
 	return srv, closeFn, nil
 }
@@ -218,6 +227,43 @@ func seedRuns(store *telemetry.RunStore) {
 	} {
 		_ = store.Append(r)
 	}
+}
+
+// seedDemoEventLog writes a representative per-run event log for the first demo
+// run (run-demo-1) into a fresh temp dir and returns that dir, so the run inspector
+// (ADR-0052) renders a real lane-grouped step timeline offline. The second demo run
+// (run-demo-2) has no log here, exercising the "no event log" degradation path.
+// An empty string (temp-dir creation failed) disables the event log — the inspector
+// then shows every run's summary card with the note, never an error.
+func seedDemoEventLog(logger *log.Logger) string {
+	dir, err := os.MkdirTemp("", "mo-demo-eventlogs-")
+	if err != nil {
+		logger.Printf("demo event log: temp dir: %v", err)
+		return ""
+	}
+	rlog, err := telemetry.LoadRunEventLog(dir, "run-demo-1")
+	if err != nil {
+		logger.Printf("demo event log: load: %v", err)
+		return ""
+	}
+	// Lane 0 (builder): a tool step + a committed message. Lane 1 (sdet):
+	// reasoning + a test run — a representative two-lane sequential run.
+	for _, e := range []telemetry.RunEvent{
+		{Type: "EvUserMessage", LaneIndex: 0, Text: "Build the feature and harden it."},
+		{Type: "EvReasoning", LaneIndex: 0, Text: "Plan: scaffold, implement, then add tests."},
+		{Type: "EvToolStart", LaneIndex: 0, Tool: "write", Args: "internal/feature/feature.go\n+ package feature"},
+		{Type: "EvToolEnd", LaneIndex: 0, Tool: "write", Result: "wrote 1 file", Success: true},
+		{Type: "EvMessage", LaneIndex: 0, Text: "Feature scaffolded and implemented."},
+		{Type: "EvToolStart", LaneIndex: 1, Tool: "bash", Args: "go test ./internal/feature/"},
+		{Type: "EvToolEnd", LaneIndex: 1, Tool: "bash", Result: "ok  internal/feature  0.012s", Success: true},
+		{Type: "EvMessage", LaneIndex: 1, Text: "Tests green; the feature is hardened."},
+	} {
+		if err := rlog.Append(e); err != nil {
+			logger.Printf("demo event log: append: %v", err)
+			return ""
+		}
+	}
+	return dir
 }
 
 // dialClient starts the SDK-backed client, returning a mock if the runtime is
