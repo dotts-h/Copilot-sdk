@@ -281,6 +281,7 @@ func (h *Hub) Handler() http.Handler {
 	route("GET /page/{name}", (*Server).handlePage)
 	route("GET /telemetry/export.csv", (*Server).handleSpendExport)
 	route("GET /telemetry/reconcile.csv", (*Server).handleReconcileExport)
+	route("GET /telemetry/digest.md", (*Server).handleDigestExport)
 	route("GET /runs/export.csv", (*Server).handleRunsExport)
 	route("GET /runs/compare", (*Server).handleRunCompare)
 	route("POST /runs/rerun/{workflow}", (*Server).handleRunRerun)

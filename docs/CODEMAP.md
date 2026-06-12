@@ -445,6 +445,19 @@ _Last generated: 2026-06-12 (UTC)._
 - L125: `type Delta struct`
 - L139: `func ChangePct(prior, current float64) Delta`
 
+### digest.go (195 LOC)
+- L23: `type DigestOpts struct`
+- L31: `type DigestShare struct`
+- L41: `type SpendDigest struct`
+- L59: `func BuildSpendDigest(spend []SpendRecord, runs []RunRecord, opts DigestOpts) SpendDigest`
+- L108: `func WriteDigest(w io.Writer, d SpendDigest) error`
+- L134: `func appendShares(b []byte, heading string, shares []DigestShare) []byte`
+- L146: `func labelOrDash(key string) string`
+- L153: `func plural(n int) string`
+- L161: `func inWindow(t, since time.Time) bool`
+- L167: `func addShare(buckets map[string]*DigestShare, key string, r SpendRecord)`
+- L180: `func topShares(buckets map[string]*DigestShare, top int) []DigestShare`
+
 ### drift.go (84 LOC)
 - L25: `type ModelDrift struct`
 - L38: `func (d ModelDrift) Drifted(epsilon float64) bool { return math.Abs(d.Delta) >= epsilon }`
@@ -748,7 +761,7 @@ _Last generated: 2026-06-12 (UTC)._
 - L303: `func commandVarRefs(s string) []string`
 - L317: `func hookPreflightResult(pattern, sample string) string`
 
-### hub.go (360 LOC)
+### hub.go (361 LOC)
 - L30: `type Hub struct`
 - L79: `type Options struct`
 - L105: `func New(opts Options) *Hub`
@@ -758,8 +771,8 @@ _Last generated: 2026-06-12 (UTC)._
 - L222: `func (h *Hub) route(copilotID string) *Server`
 - L240: `func (h *Hub) pump()`
 - L251: `func (h *Hub) Handler() http.Handler`
-- L353: `func (s *Server) Handler() http.Handler { return s.hub.Handler() }`
-- L356: `func newID() string`
+- L354: `func (s *Server) Handler() http.Handler { return s.hub.Handler() }`
+- L357: `func newID() string`
 
 ### instructions_import.go (65 LOC)
 - L31: `func importInstructionFiles(dir string) []ctxforge.Instruction`
@@ -1120,27 +1133,30 @@ _Last generated: 2026-06-12 (UTC)._
 - L163: `func trendBandSVG(actual, forecast []float64, label string) string`
 - L216: `func bulletSVG(value, target, scaleMax float64, overTarget bool, label string) string`
 
-### telemetry_render.go (464 LOC)
+### telemetry_render.go (528 LOC)
 - L12: `func (s *Server) telemetryPartial(window int) string`
-- L87: `func (s *Server) spendTrend(window int) (days, shares []map[string]any, hasHistory bool)`
-- L144: `func (s *Server) spendShares(now time.Time) (agents, workflows, subagents []map[string]any)`
-- L179: `func agentKey(r telemetry.SpendRecord) string { return r.AgentID }`
-- L181: `func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }`
-- L199: `func (s *Server) workflowReconcile() []map[string]any`
-- L222: `func (s *Server) runAnomalies() []map[string]any`
-- L249: `func (s *Server) reconcileRow(r telemetry.WorkflowRecon) map[string]any`
-- L266: `func (s *Server) laneReconcile() []map[string]any`
-- L288: `func (s *Server) laneReconcileRow(r telemetry.LaneRecon) map[string]any`
-- L305: `func (s *Server) estimateDrift() []map[string]any`
-- L331: `func bucketTrajectories(bs []telemetry.BucketProjection, now time.Time) map[string]string`
-- L347: `func bucketTrajectoryText(p telemetry.Projection, now time.Time) string`
-- L366: `func daysLeftInMonth(now time.Time) int`
-- L377: `func shareRow(label string, credits, fraction float64) map[string]any`
-- L389: `func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any`
-- L413: `func forecastSoon(exhaust, now time.Time) bool`
-- L423: `func plural(n int, one, many string) string`
-- L433: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
-- L450: `func (s *Server) handleReconcileExport(w http.ResponseWriter, r *http.Request)`
+- L88: `func (s *Server) spendTrend(window int) (days, shares []map[string]any, hasHistory bool)`
+- L145: `func (s *Server) spendShares(now time.Time) (agents, workflows, subagents []map[string]any)`
+- L180: `func agentKey(r telemetry.SpendRecord) string { return r.AgentID }`
+- L182: `func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }`
+- L200: `func (s *Server) workflowReconcile() []map[string]any`
+- L221: `func (s *Server) buildDigest(window int, now time.Time) telemetry.SpendDigest`
+- L244: `func (s *Server) digestView(window int, now time.Time) map[string]any`
+- L271: `func (s *Server) handleDigestExport(w http.ResponseWriter, r *http.Request)`
+- L286: `func (s *Server) runAnomalies() []map[string]any`
+- L313: `func (s *Server) reconcileRow(r telemetry.WorkflowRecon) map[string]any`
+- L330: `func (s *Server) laneReconcile() []map[string]any`
+- L352: `func (s *Server) laneReconcileRow(r telemetry.LaneRecon) map[string]any`
+- L369: `func (s *Server) estimateDrift() []map[string]any`
+- L395: `func bucketTrajectories(bs []telemetry.BucketProjection, now time.Time) map[string]string`
+- L411: `func bucketTrajectoryText(p telemetry.Projection, now time.Time) string`
+- L430: `func daysLeftInMonth(now time.Time) int`
+- L441: `func shareRow(label string, credits, fraction float64) map[string]any`
+- L453: `func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any`
+- L477: `func forecastSoon(exhaust, now time.Time) bool`
+- L487: `func plural(n int, one, many string) string`
+- L497: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
+- L514: `func (s *Server) handleReconcileExport(w http.ResponseWriter, r *http.Request)`
 
 ### tmpl.go (55 LOC)
 - L44: `func trusted(s string) template.HTML { return template.HTML(s) } //nolint:gosec // composed from escaped fragments`

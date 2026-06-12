@@ -68,6 +68,7 @@ func (s *Server) telemetryPartial(window int) string {
 	}
 	return frag("telemetryPage", map[string]any{
 		"Rows": rows, "Width": fmt.Sprintf("%.1f%%", pct), "Models": models,
+		"Digest":    s.digestView(window, now),
 		"Dashboard": s.dashboardView(window, now),
 		"Days":      days, "Shares": shares, "HasHistory": hasHistory,
 		"AgentShares": agents, "WorkflowShares": workflows, "SubagentShares": subagents,
@@ -211,6 +212,69 @@ func (s *Server) workflowReconcile() []map[string]any {
 		rows = append(rows, s.reconcileRow(r))
 	}
 	return rows
+}
+
+// buildDigest assembles the period SpendDigest (P3, issue 0098) over the chosen window
+// from the two persisted stores. A zero/absent store yields a nil slice — the builder
+// handles it. window 0 would be all-time, but the Telemetry window is always clamped to
+// spendWindows (>0), so the digest is a bounded period.
+func (s *Server) buildDigest(window int, now time.Time) telemetry.SpendDigest {
+	var spend []telemetry.SpendRecord
+	if s.spend != nil {
+		spend = s.spend.Records()
+	}
+	var runs []telemetry.RunRecord
+	if s.runs != nil {
+		runs = s.runs.Records()
+	}
+	since := time.Time{}
+	if window > 0 {
+		since = now.AddDate(0, 0, -window)
+	}
+	return telemetry.BuildSpendDigest(spend, runs, telemetry.DigestOpts{
+		Since: since, Anomaly: telemetry.DefaultAnomalyOpts(), TopN: 5,
+	})
+}
+
+// digestView builds the Telemetry "Period digest" card (P3, issue 0098): the window's
+// total spend, run activity, top workflow/agent spenders, and the anomaly count — the
+// consolidated cost summary that pairs the per-run cap (P1) and the anomaly signal (P2),
+// the FinOps-for-AI cap+anomaly+digest triad. Nil (no card) when the window saw no
+// spend and no runs. Workflow/agent ids resolve to display names under forgeMu.
+func (s *Server) digestView(window int, now time.Time) map[string]any {
+	d := s.buildDigest(window, now)
+	if d.Turns == 0 && d.Runs == 0 {
+		return nil
+	}
+	s.hub.forgeMu.Lock()
+	defer s.hub.forgeMu.Unlock()
+	shares := func(in []telemetry.DigestShare, label func(string) string) []map[string]any {
+		out := make([]map[string]any, 0, len(in))
+		for _, sh := range in {
+			out = append(out, map[string]any{
+				"Label": label(sh.Key), "Credits": telemetry.FormatCredits(sh.Credits), "Turns": sh.Turns,
+			})
+		}
+		return out
+	}
+	return map[string]any{
+		"TotalCredits": telemetry.FormatCredits(d.TotalCredits), "TotalUSD": telemetry.FormatUSD(d.TotalUSD),
+		"Turns": d.Turns, "Runs": d.Runs, "FailedRuns": d.FailedRuns, "AnomalyCount": len(d.Anomalies),
+		"Workflows": shares(d.Workflows, s.workflowLabel), "Agents": shares(d.Agents, s.agentLabel),
+		"Window": window,
+	}
+}
+
+// handleDigestExport streams the period spend digest as a downloadable markdown artifact
+// (P3, issue 0098) — the written delivery of the Telemetry digest card, over the same
+// ?window= as the page. Empty stores yield a header-only digest, never an error.
+func (s *Server) handleDigestExport(w http.ResponseWriter, r *http.Request) {
+	d := s.buildDigest(clampWindow(r.URL.Query().Get("window")), time.Now())
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="my-orchestra-digest.md"`)
+	if err := telemetry.WriteDigest(w, d); err != nil {
+		s.logger.Printf("export digest: %v", err)
+	}
 }
 
 // runAnomalies builds the cost-anomaly rows for the Telemetry page (P2, issue 0097):
