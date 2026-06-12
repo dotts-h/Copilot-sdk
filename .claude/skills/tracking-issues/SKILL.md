@@ -36,6 +36,10 @@ mirrored to GitHub so the team gets the familiar UI, labels, and notifications.
    (GA 2026), and writes the issue number back. See [references/gh-sync.md](references/gh-sync.md).
 4. **Close the loop:** when fixed, link the PR, set `status: closed`, and if it must never regress,
    hand the repro to `authoring-tests`; record it in `logging-learnings`.
+   - **Closing an epic closes its body too** (RETROS 0006 A1 — drifted twice: 0069, 0086): tick the
+     epic's own acceptance checkboxes and populate its `links`, not just status + INDEX + children.
+   - **A new ADR isn't landed until `docs/adr/README.md` has its row** (RETROS 0006 A2) — same
+     discipline as CODEMAP regen for moved symbols.
 
 ## Why grouping matters
 A lone bug fixed in isolation is fine — but most bugs are symptoms of a theme (a layout pass, a

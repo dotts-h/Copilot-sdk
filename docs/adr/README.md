@@ -51,3 +51,6 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0045 | [Block-AST seam for markdown rendering](0045-block-ast-seam-for-markdown-rendering.md) | accepted |
 | 0046 | [Callout blocks — GitHub-alert syntax, in-house, mapped to semantic tokens](0046-callout-blocks-token-mapping.md) | accepted |
 | 0047 | [Container directives — in-house `:::name{attrs}` grammar, resolved against a registry allowlist](0047-container-directives-grammar-and-allowlist.md) | accepted |
+| 0048 | [Per-run event log — replay semantics over an additive AppendOnlyStore[RunEvent]](0048-per-run-event-log-replay-vs-summary.md) | accepted |
+| 0049 | [Citation cards — inline `[n]` markers + reference-defined source cards](0049-citation-cards-inline-markers-and-source-cards.md) | accepted |
+| 0050 | [No mini-RAG over the docs corpus — file-based docs + agentic search stay](0050-no-mini-rag-file-based-docs-and-agentic-search.md) | accepted |

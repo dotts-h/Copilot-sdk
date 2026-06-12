@@ -51,11 +51,14 @@ block) avoids a trivial merge conflict. Recommended parallel split: one session 
 
 ## Acceptance (epic)
 
-- [ ] Each child is a pure structural change: `make lint && make test` (floor 65%) green
+- [x] Each child is a pure structural change: `make lint && make test` (floor 65%) green
       with **no** test rewrites for behavior (only file-location / import churn), and the
-      CODEMAP regenerated (`make codemap`) where top-level decls move files.
-- [ ] No ADR (no decision changes — these are mechanical splits and a leak sweep).
-- [ ] Born in its own PR, SemVer **patch** (cleanup, not feature).
+      CODEMAP regenerated (`make codemap`) where top-level decls move files. (0089 added
+      one guard test by design — it fixes a real leak, per its own acceptance.)
+- [x] No ADR (no decision changes — these are mechanical splits and a leak sweep).
+- [x] Born in its own PR, SemVer **patch** — two PRs in practice: #155 (0089, the
+      parallel-safe `copilot` child) and #156 (0087+0088, the same-package web pair),
+      matching the epic's own sequencing note.
 
 ## Notes
 
