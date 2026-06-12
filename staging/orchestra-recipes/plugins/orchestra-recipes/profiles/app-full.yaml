@@ -1,0 +1,14 @@
+# Profile: a full product app (web UI + API in one repo, long-lived).
+name: app-full
+description: The whole stack for a serious application repo — every recipe at tier L, frontend/api/qa bindings.
+tier: L
+recipes: [core, quality, issues, loop, contracts, release]
+bindings: [frontend, api, qa]
+answers:
+  core:
+    default_branch: main
+  quality:
+    build_system: make
+    coverage_floor: "65"
+  contracts:
+    fleet_member: "false"

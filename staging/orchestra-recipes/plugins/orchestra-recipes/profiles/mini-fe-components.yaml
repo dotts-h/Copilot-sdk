@@ -1,0 +1,18 @@
+# Profile: a mini frontend/component-library repo — npm gates, token/a11y
+# rules via the frontend binding, promises registered for consumers.
+name: mini-fe-components
+description: Tier-S lean set with npm-flavored CI + the frontend binding; CONTRACTS registers the exported components/tokens.
+tier: S
+recipes: [core, quality, contracts]
+bindings: [frontend]
+answers:
+  core:
+    default_branch: main
+    lint_command: npm run lint
+    test_command: npm test
+  quality:
+    build_system: npm
+    lint_command: npm run lint
+    test_command: npm test
+  contracts:
+    fleet_member: "true"

@@ -1,0 +1,13 @@
+# Profile: a brand-new repo that expects to grow — structure without weight.
+# Start at tier M (glossary + ADR log + issues + loop), add contracts/release
+# when there's something to promise or ship.
+name: greenfield-lean
+description: Tier-M core + gates + issues + the dev loop; no bindings, no release/fleet wiring yet — grow into those.
+tier: M
+recipes: [core, quality, issues, loop]
+bindings: []
+answers:
+  core:
+    default_branch: main
+  quality:
+    build_system: make

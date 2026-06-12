@@ -1,0 +1,42 @@
+name: contracts
+version: 0.1.0
+description: Layer 1 — the contracts registry. docs/CONTRACTS.md indexes the repo's stable promises with explicit Provides/Consumes sections for multi-repo fleets, plus an optional fleet constellation.yaml and fleet-doctor.sh that cross-checks provider/consumer pairs across sibling checkouts.
+requires:
+  recipes: [core]
+  params:
+    - name: project_name
+      type: string
+      default: my-project
+      prompt: Project or app name (used in headings and the constellation entry)
+    - name: fleet_member
+      type: bool(true|false)
+      default: false
+      prompt: Is this repo part of a multi-repo fleet (installs constellation.yaml + fleet-doctor.sh)?
+    - name: fleet_name
+      type: string
+      default: my-fleet
+      prompt: Fleet name (only used when fleet_member=true)
+provides:
+  files:
+    - template: templates/CONTRACTS.md.tmpl
+      dest: docs/CONTRACTS.md
+      tiers: [S, M, L]
+    - template: templates/constellation.yaml.tmpl
+      dest: constellation.yaml
+      tiers: [S, M, L]
+      when: fleet_member=true
+    - template: templates/fleet-doctor.sh.tmpl
+      dest: scripts/fleet-doctor.sh
+      tiers: [S, M, L]
+      when: fleet_member=true
+  scripts:
+    - scripts/doctor.sh
+  skills: []
+tiers:
+  S: CONTRACTS.md (a mini repo in a fleet NEEDS its promises written down)
+  M: same files; the registry simply grows
+  L: same as M
+min_model:
+  install: sonnet
+  doctor: haiku
+  registry_curation: opus

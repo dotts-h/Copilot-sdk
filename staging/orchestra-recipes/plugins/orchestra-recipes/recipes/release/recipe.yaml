@@ -1,0 +1,38 @@
+name: release
+version: 0.1.0
+description: Layer 1 — tag-driven releases with end-to-end version verification. Ships a parametrized release workflow whose version step resolves the dispatch input before the ref (the learned regression), checksummed artifacts, generated notes, and the RELEASING playbook with SemVer rules and the verify-after checklist.
+requires:
+  recipes: [quality]
+  params:
+    - name: project_name
+      type: string
+      default: my-project
+      prompt: Project or app name (used in headings)
+    - name: artifact_name
+      type: string
+      default: app
+      prompt: Artifact base name (release assets are <artifact_name>-<tag>-...)
+    - name: release_build_command
+      type: string
+      default: echo "TODO(backfill) build $VERSION artifacts into dist/" > dist/BUILD_TODO.txt
+      prompt: Command(s) that build release artifacts into dist/ (VERSION env is set)
+provides:
+  files:
+    - template: templates/release.yml.tmpl
+      dest: .github/workflows/release.yml
+      tiers: [S, M, L]
+    - template: templates/RELEASING.md.tmpl
+      dest: docs/RELEASING.md
+      tiers: [M, L]
+  scripts:
+    - scripts/doctor.sh
+  skills: []
+tiers:
+  S: release workflow only (the playbook rules ride the lite constitution)
+  M: adds the RELEASING playbook
+  L: same as M
+min_model:
+  install: sonnet
+  doctor: haiku
+  cut_release: sonnet
+  verify_release: sonnet

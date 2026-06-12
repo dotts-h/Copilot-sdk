@@ -1,0 +1,46 @@
+name: loop
+version: 0.1.0
+description: Layer 1 — the engineered dev loop. Verify-base → pick the next item from the issues index → failing-test-first → gates → PR → record → merge green. Ships language-agnostic start-fresh.sh (trustworthy-base branching) and next-issue.sh (ranked, dependency-aware picker) plus the DEV_LOOP playbook.
+requires:
+  recipes: [core, issues]
+  params:
+    - name: project_name
+      type: string
+      default: my-project
+      prompt: Project or app name (used in headings)
+    - name: default_branch
+      type: string
+      default: main
+      prompt: Default branch name
+    - name: lint_command
+      type: string
+      default: make lint
+      prompt: Command that runs the lint gate locally
+    - name: test_command
+      type: string
+      default: make test
+      prompt: Command that runs the test gate locally
+provides:
+  files:
+    - template: templates/DEV_LOOP.md.tmpl
+      dest: docs/DEV_LOOP.md
+      tiers: [M, L]
+    - template: templates/start-fresh.sh.tmpl
+      dest: scripts/start-fresh.sh
+      tiers: [M, L]
+    - template: templates/next-issue.sh.tmpl
+      dest: scripts/next-issue.sh
+      tiers: [M, L]
+  scripts:
+    - scripts/doctor.sh
+  skills: []
+tiers:
+  S: not installed — a mini repo's loop is "branch, PR, merge green"; the lite constitution covers it
+  M: full loop (playbook + both scripts)
+  L: same as M
+min_model:
+  install: sonnet
+  doctor: haiku
+  pick_next: haiku
+  build_item: sonnet
+  review_merge: opus

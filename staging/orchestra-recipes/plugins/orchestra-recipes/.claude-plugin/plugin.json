@@ -1,0 +1,8 @@
+{
+  "name": "orchestra-recipes",
+  "description": "Installable, versioned, doc-based engineering process packages (recipes) with adopt/update/doctor skills — durable repo state any agent can work with, not per-session context.",
+  "version": "0.1.0",
+  "author": {
+    "name": "dotts-h"
+  }
+}

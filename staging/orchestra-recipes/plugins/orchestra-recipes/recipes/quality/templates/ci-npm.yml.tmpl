@@ -1,0 +1,43 @@
+name: CI
+
+# Triggers run CI exactly once per change: `pull_request` validates a branch while
+# a PR is open, and `push` validates {{default_branch}} on merge. A feature branch
+# is NEVER listed under `push` — that runs the whole pipeline twice per push (the
+# push event AND the pull_request event, on refs the concurrency group can't dedup).
+# scripts/check-workflows.sh guards this invariant.
+on:
+  push:
+    branches: [{{default_branch}}]
+  pull_request:
+    branches: [{{default_branch}}]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    name: Lint, guard & test
+    runs-on: ubuntu-latest
+    env:
+      COVERAGE_FLOOR: "{{coverage_floor}}"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "{{node_version}}"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: {{lint_command}}
+      - name: Workflow invariants (no CI double-runs; release version resolution)
+        run: bash scripts/check-workflows.sh
+      - name: Test
+        run: {{test_command}}
+      # TODO(backfill): enforce the coverage floor (${COVERAGE_FLOOR}%) — e.g. wire
+      # your runner's coverage thresholds so CI fails below it instead of reporting.

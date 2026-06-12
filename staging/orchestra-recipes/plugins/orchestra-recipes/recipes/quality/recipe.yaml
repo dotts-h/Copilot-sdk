@@ -1,0 +1,61 @@
+name: quality
+version: 0.1.0
+description: Layer 1 — quality gates. Single-run CI wiring (Make- and npm-flavored), the self-enforcing workflow guard (no feature-branch double-runs, no release version-resolution bug), a parametrized coverage floor, and the REGRESSIONS register (every fixed bug gets a guard test).
+requires:
+  recipes: [core]
+  params:
+    - name: project_name
+      type: string
+      default: my-project
+      prompt: Project or app name (used in headings)
+    - name: default_branch
+      type: string
+      default: main
+      prompt: Default branch name
+    - name: build_system
+      type: enum(make|npm)
+      default: make
+      prompt: Which CI flavor to install (make or npm/package.json)
+    - name: lint_command
+      type: string
+      default: make lint
+      prompt: Command that runs the lint gate (e.g. make lint, npm run lint)
+    - name: test_command
+      type: string
+      default: make test
+      prompt: Command that runs the test gate (e.g. make test, npm test)
+    - name: coverage_floor
+      type: int
+      default: 65
+      prompt: Coverage floor in percent (CI should fail below it)
+    - name: node_version
+      type: string
+      default: "20"
+      prompt: Node version for the npm CI flavor (ignored for make)
+provides:
+  files:
+    - template: templates/check-workflows.sh.tmpl
+      dest: scripts/check-workflows.sh
+      tiers: [S, M, L]
+    - template: templates/ci-make.yml.tmpl
+      dest: .github/workflows/ci.yml
+      tiers: [S, M, L]
+      when: build_system=make
+    - template: templates/ci-npm.yml.tmpl
+      dest: .github/workflows/ci.yml
+      tiers: [S, M, L]
+      when: build_system=npm
+    - template: templates/REGRESSIONS.md.tmpl
+      dest: docs/REGRESSIONS.md
+      tiers: [M, L]
+  scripts:
+    - scripts/doctor.sh
+  skills: []
+tiers:
+  S: CI workflow + the workflow guard only
+  M: adds the REGRESSIONS register
+  L: same as M (the gates don't grow with repo size; the docs around them do)
+min_model:
+  install: sonnet
+  doctor: haiku
+  coverage_wiring: sonnet

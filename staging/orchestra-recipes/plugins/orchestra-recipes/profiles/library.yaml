@@ -1,0 +1,16 @@
+# Profile: a published library/SDK — consumed by others, so contracts and
+# releases matter more than the issue loop machinery.
+name: library
+description: Tier-M docs + gates + tag-driven releases + a contracts registry; no fleet wiring, no e2e bindings.
+tier: M
+recipes: [core, quality, issues, loop, contracts, release]
+bindings: []
+answers:
+  core:
+    default_branch: main
+  quality:
+    build_system: make
+  contracts:
+    fleet_member: "false"
+  release:
+    artifact_name: lib

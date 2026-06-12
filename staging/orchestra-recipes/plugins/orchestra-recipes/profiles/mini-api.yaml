@@ -1,0 +1,14 @@
+# Profile: a mini API repo in a fleet — ~4 small files, but its promises are
+# written down and fleet-checked.
+name: mini-api
+description: Tier-S lean set (pointers, CONVENTIONS-lite, CI guard, CONTRACTS with fleet wiring) + the api binding.
+tier: S
+recipes: [core, quality, contracts]
+bindings: [api]
+answers:
+  core:
+    default_branch: main
+  quality:
+    build_system: make
+  contracts:
+    fleet_member: "true"

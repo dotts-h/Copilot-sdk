@@ -1,0 +1,29 @@
+# CONVENTIONS.md — {{project_name}} (lite)
+
+> One page, on purpose: this is a small repo (tier S). Rules are exact and
+> copy-pasteable. Graduate to the full constitution (tier M) when the repo grows.
+
+## Doctrine
+
+1. **One fact, one home** — a rule lives in exactly one doc; everything else points.
+2. **Enforce with hooks, not memory** — invariants become deterministic checks in CI.
+3. **Small, auditable diffs** — one tight change per PR.
+4. **Verify outward-facing actions** — releases and published artifacts get checked,
+   never fired blind.
+5. **Test-first** — failing test, then the smallest code to pass it; every fixed bug
+   gets a guard test.
+
+## Workflow & gates
+
+- Branch from `{{default_branch}}`; never commit to it directly.
+- Gates before push: `{{lint_command}}` and `{{test_command}}`. CI green before merge.
+- CI runs **once** per change: triggers are `pull_request` + `push` to
+  `{{default_branch}}` only — never a feature branch under `push`.
+
+## Decisions
+
+> Tier S has no ADR log. Record decisions here as one-liners (what + why + when).
+> When this list reaches ~5 entries, graduate: create `docs/adr/` (tier M) and move
+> each entry into its own numbered record.
+
+- *(none yet)*

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orchestra Recipes — Architecture</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c2330; --line:#2d3748;
+    --ink:#e6edf3; --dim:#9aa7b4; --faint:#6b7684;
+    --core:#d98c5f; --l1:#6ea8fe; --l2:#56d364; --meta:#c297f5; --warn:#e3b341;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:32px 20px 80px;max-width:1080px;margin:0 auto}
+  h1{font-size:26px;letter-spacing:-.5px}
+  h2{font-size:18px;margin:0 0 4px}
+  .sub{color:var(--dim);margin:6px 0 36px;max-width:760px}
+  section{margin-bottom:48px}
+  .kicker{font:600 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin-bottom:10px}
+  .note{color:var(--dim);font-size:13px;margin-top:10px;max-width:820px}
+  .tag{display:inline-block;font:600 10px/1 var(--mono);letter-spacing:.08em;padding:4px 8px;border-radius:99px;text-transform:uppercase}
+  code{font:13px var(--mono);background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:var(--ink)}
+
+  /* ---------- 1. pipeline ---------- */
+  .pipe{display:grid;grid-template-columns:1fr 28px 1fr 28px 1fr 28px 1.2fr;align-items:stretch;gap:0}
+  .pipe .step{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .pipe .arrow{align-self:center;text-align:center;color:var(--faint);font-size:18px}
+  .step b{display:block;font-size:14px;margin-bottom:6px}
+  .step p{color:var(--dim);font-size:12.5px}
+  .step .tag{margin-bottom:10px}
+  .t-mkt{background:#3a2c20;color:var(--core)} .t-plg{background:#1f2c44;color:var(--l1)}
+  .t-rcp{background:#1d3326;color:var(--l2)} .t-repo{background:#2e2440;color:var(--meta)}
+
+  /* ---------- 2. layers ---------- */
+  .layers{display:flex;flex-direction:column;gap:14px}
+  .layer{border-radius:12px;border:1px solid var(--line);background:var(--panel);padding:16px 18px;display:grid;grid-template-columns:170px 1fr;gap:18px;align-items:start}
+  .layer .name{font:600 13px var(--mono)}
+  .layer .name small{display:block;font:400 11px var(--mono);color:var(--faint);margin-top:4px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font:13px var(--mono)}
+  .chip small{display:block;font:11px/1.4 -apple-system,sans-serif;color:var(--dim);margin-top:3px;max-width:230px}
+  .b-core{border-left:4px solid var(--core)} .b-l1{border-left:4px solid var(--l1)}
+  .b-l2{border-left:4px solid var(--l2)} .b-meta{border-left:4px solid var(--meta)}
+  .dep{color:var(--faint);font:11px var(--mono);text-align:center;margin:-4px 0}
+
+  /* ---------- 3. anatomy ---------- */
+  .anatomy{display:grid;grid-template-columns:1.1fr 1fr;gap:20px}
+  .filetree{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;font:13px/1.9 var(--mono);white-space:pre;color:var(--dim);overflow-x:auto}
+  .filetree .hl{color:var(--ink)} .filetree .c-core{color:var(--core)} .filetree .c-l1{color:var(--l1)} .filetree .c-l2{color:var(--l2)} .filetree .c-meta{color:var(--meta)}
+  .facts{display:flex;flex-direction:column;gap:12px}
+  .fact{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .fact b{font-size:13.5px} .fact p{color:var(--dim);font-size:12.5px;margin-top:4px}
+
+  /* ---------- 4. install flow ---------- */
+  .flow{display:flex;flex-direction:column;gap:0;max-width:860px}
+  .fstep{display:grid;grid-template-columns:44px 1fr;gap:16px;position:relative;padding-bottom:22px}
+  .fstep:last-child{padding-bottom:0}
+  .fstep::before{content:"";position:absolute;left:21px;top:36px;bottom:0;width:2px;background:var(--line)}
+  .fstep:last-child::before{display:none}
+  .dot{width:44px;height:36px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font:600 13px var(--mono);color:var(--l1)}
+  .fstep h3{font-size:14px} .fstep p{color:var(--dim);font-size:13px;margin-top:2px;max-width:720px}
+  .branch{font:11px var(--mono);color:var(--warn);margin-top:4px}
+
+  /* ---------- 5. matrix ---------- */
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);font:600 12px var(--mono);color:var(--dim)}
+  td b{font:600 12.5px var(--mono)}
+  .tier{font:600 11px var(--mono);padding:2px 7px;border-radius:5px}
+  .tS{background:#1d3326;color:var(--l2)} .tM{background:#1f2c44;color:var(--l1)} .tL{background:#3a2c20;color:var(--core)}
+  td small{color:var(--dim)}
+
+  /* ---------- 6. fleet ---------- */
+  .fleet{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;position:relative}
+  .hub{grid-column:1/4;justify-self:center;background:#2e2440;border:1px solid #4a3a68;border-radius:12px;padding:14px 22px;text-align:center;max-width:420px}
+  .hub b{color:var(--meta)} .hub p{font-size:12px;color:var(--dim);margin-top:4px}
+  .vline{grid-column:1/4;justify-self:center;width:2px;height:22px;background:var(--line)}
+  .mini{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .mini b{font:600 13px var(--mono)}
+  .mini .prov{color:var(--l2);font:11.5px var(--mono);margin-top:8px}
+  .mini .cons{color:var(--warn);font:11.5px var(--mono)}
+  .mini .docs{color:var(--faint);font:11px var(--mono);margin-top:8px;border-top:1px dashed var(--line);padding-top:8px}
+
+  /* ---------- 7. models ---------- */
+  .ladder{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .rung{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .rung h3{font:600 13px var(--mono);margin-bottom:8px}
+  .rung ul{list-style:none}
+  .rung li{font-size:12.5px;color:var(--dim);padding:4px 0 4px 16px;position:relative}
+  .rung li::before{content:"›";position:absolute;left:2px;color:var(--faint)}
+  .m1{border-top:3px solid var(--l2)} .m2{border-top:3px solid var(--l1)} .m3{border-top:3px solid var(--core)}
+
+  @media(max-width:840px){
+    .pipe{grid-template-columns:1fr}
+    .pipe .arrow{transform:rotate(90deg);padding:6px 0}
+    .anatomy,.ladder,.fleet{grid-template-columns:1fr}
+    .hub,.vline{grid-column:1}
+    .layer{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+
+<h1>Orchestra Recipes</h1>
+<p class="sub">Process knowledge packaged as <b>doc-based software</b>: versioned, installable into any repo (new, old, or mid-flight), self-checking, and updatable — extracted from the Copilot-sdk process stack, distributed through your own plugin marketplace.</p>
+
+<section>
+  <div class="kicker">1 · The big picture — how a recipe reaches a repo</div>
+  <div class="pipe">
+    <div class="step"><span class="tag t-mkt">marketplace</span><b>dotts-h/orchestra-recipes</b><p>Your own registry (later merged into <code>claude-skills</code>). Pinned, source-reviewed — no third-party trust boundary (ADR-0051 stays intact).</p></div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="tag t-plg">plugin</span><b>orchestra-recipes</b><p>Loaded per-session. Carries the installer skills (<code>/adopt-recipes</code>, <code>/update-recipes</code>, <code>/recipe-doctor</code>) + the recipe catalog.</p></div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="tag t-rcp">recipe</span><b>core · quality · loop…</b><p>Manifest + templates + scripts + evals. The unit of versioning (SemVer) and dependency.</p></div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="tag t-repo">repo state</span><b>durable, agent-agnostic</b><p>Docs, CI guards, scripts, lock file — installed <i>into</i> the repo. Works with no plugin present, and for any agent (CLAUDE.md <i>and</i> AGENTS.md pointers).</p></div>
+  </div>
+  <p class="note"><b>Key distinction:</b> a skill/plugin is session-scoped and leaves no trace. A recipe installs durable state into the repo. They compose — the recipe <i>ships as</i> a plugin, but its <i>product</i> is repo content.</p>
+</section>
+
+<section>
+  <div class="kicker">2 · Layering — one flow, thin per-surface bindings</div>
+  <div class="layers">
+    <div class="layer b-core">
+      <div class="name" style="color:var(--core)">LAYER 0 · core<small>everything depends on it</small></div>
+      <div class="chips">
+        <div class="chip">CLAUDE.md + AGENTS.md<small>thin pointers — host-agnostic entry</small></div>
+        <div class="chip">CONVENTIONS.md<small>constitution + the doctrine (one fact one home · hooks not memory · small diffs · verify outward actions)</small></div>
+        <div class="chip">CONTEXT.md<small>glossary, empty-but-structured</small></div>
+        <div class="chip">.recipes/lock.json<small>version + answers → enables updates</small></div>
+      </div>
+    </div>
+    <div class="dep">▲ requires core ▲</div>
+    <div class="layer b-l1">
+      <div class="name" style="color:var(--l1)">LAYER 1 · lifecycle<small>the invariant dev flow</small></div>
+      <div class="chips">
+        <div class="chip">loop<small>verify base → pick next → test-first → gates → PR → record (get-next, generalized)</small></div>
+        <div class="chip">quality<small>lint/test gates, coverage floor, CI-runs-once guard, REGRESSIONS</small></div>
+        <div class="chip">issues<small>local markdown SoT → GitHub mirror</small></div>
+        <div class="chip">release<small>tag-driven, version-verified (cut-release)</small></div>
+        <div class="chip">contracts<small>provides / consumes registry — the fleet spine</small></div>
+      </div>
+    </div>
+    <div class="dep">▲ fills slots left open below ▲</div>
+    <div class="layer b-l2">
+      <div class="name" style="color:var(--l2)">LAYER 2 · bindings<small>NOT recipes — 50–150 line adapters</small></div>
+      <div class="chips">
+        <div class="chip">frontend.md<small>tokens · a11y/axe · visual regression · npm gates</small></div>
+        <div class="chip">api.md<small>contract tests · schema discipline</small></div>
+        <div class="chip">qa.md<small>Playwright governance · no hard waits</small></div>
+        <div class="chip">services.md<small>inter-service contracts (thin)</small></div>
+      </div>
+    </div>
+    <div class="dep">▲ selected together by ▲</div>
+    <div class="layer b-meta">
+      <div class="name" style="color:var(--meta)">PROFILES<small>preset = recipes + tier + bindings + answers</small></div>
+      <div class="chips">
+        <div class="chip">app-full</div><div class="chip">library</div><div class="chip">mini-api</div>
+        <div class="chip">mini-fe-components</div><div class="chip">mini-functions</div><div class="chip">greenfield-lean</div>
+      </div>
+    </div>
+  </div>
+  <p class="note"><b>Why no frontend/backend/QA recipes:</b> two months of observation confirmed it — the flow is identical across surfaces. Only the bindings differ (commands, test layers, contract artifacts). The TDD loop is written <i>once</i>, in <code>loop</code>.</p>
+</section>
+
+<section>
+  <div class="kicker">3 · Anatomy — a recipe is software made of docs</div>
+  <div class="anatomy">
+    <div class="filetree"><span class="c-l1">recipes/quality/</span>
+├─ <span class="hl">recipe.yaml</span>        <span class="c-meta">← the interface</span>
+│    name · version (semver)
+│    requires: [core] + facts
+│      {test_cmd, lint_cmd, ci…}
+│    provides: files · scripts · CI
+│    tiers: S / M / L file sets
+│    min_model: per step
+├─ <span class="hl">templates/</span>         <span class="c-meta">← implementation</span>
+│    REGRESSIONS.md.tmpl
+│    ci-snippet.yml.tmpl
+├─ <span class="hl">scripts/</span>           <span class="c-meta">← determinism</span>
+│    doctor.sh   guard.sh
+└─ <span class="hl">evals/</span>             <span class="c-meta">← the tests (≥3)</span>
+     fixture → install → assert
+
+<span class="c-l2">target-repo/.recipes/lock.json</span>
+  {name, version, tier,
+   answers:{...}, installedAt}</div>
+    <div class="facts">
+      <div class="fact"><b>Interface → <code>requires</code></b><p>Repo facts the recipe needs bound (test command, CI provider, language) and recipes it depends on. Facts are <i>never copied</i> — asked at install or harvested.</p></div>
+      <div class="fact"><b>Tests → <code>doctor.sh</code></b><p>Deterministic conformance: "CLAUDE.md points at CONVENTIONS · no feature-branch push trigger · every fixed bug has a guard test." Your <code>check-workflows.sh</code>, generalized. Wired into lint + CI.</p></div>
+      <div class="fact"><b>Package state → <code>lock.json</code></b><p>The Copier insight: record version + answers in the repo. Without it, every re-application is a blind overwrite. With it, updates are 3-way merges.</p></div>
+      <div class="fact"><b>Releases → SemVer per recipe</b><p>Update a fleet repo = diff lock vs latest → agent does the <i>semantic</i> 3-way merge (old template / repo's copy / new template) → PR. Never auto-applied.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="kicker">4 · Install &amp; update flow — <code>/adopt-recipes</code></div>
+  <div class="flow">
+    <div class="fstep"><div class="dot">1</div><div><h3>Inventory</h3><p>Detect language, build system, CI, existing docs. Deterministic script, runs on any repo.</p></div></div>
+    <div class="fstep"><div class="dot">2</div><div><h3>Propose</h3><p>Profile + tier + answers, confirmed with you. <span class="branch">greenfield → full scaffold, empty-but-structured</span><span class="branch">brownfield → HARVEST: generate CONVENTIONS from existing CI/Makefile/CONTRIBUTING — never clobber</span></p></div></div>
+    <div class="fstep"><div class="dot">3</div><div><h3>Apply in dependency order</h3><p>core → quality/loop/issues/release/contracts → bindings. Gaps become flagged <code>backfill</code> checklist items (the proven "ADR needed (backfill)" pattern) — adopt incrementally, never block on completeness.</p></div></div>
+    <div class="fstep"><div class="dot">4</div><div><h3>Lock + wire enforcement</h3><p>Write <code>.recipes/lock.json</code>; wire doctors into <code>make lint</code> / CI — enforce with hooks, not memory.</p></div></div>
+    <div class="fstep"><div class="dot">5</div><div><h3>Doctor</h3><p>Conformance report. Divergence from upstream is a <i>flag</i>, not an error — repos legitimately fork rules; a fork becomes a local decision note or an upstream contribution.</p></div></div>
+    <div class="fstep"><div class="dot">↻</div><div><h3>Update loop — <code>/update-recipes</code></h3><p>Lock vs latest → semantic 3-way merge → PR → human review. The fix for scaffold drift: improve the recipe once, every repo can pull it.</p></div></div>
+  </div>
+</section>
+
+<section>
+  <div class="kicker">5 · Profiles × tiers — mini-repos don't get the whole shebang</div>
+  <table>
+    <tr><th>Profile</th><th>Tier</th><th>Recipes</th><th>Bindings</th><th>Doc footprint</th></tr>
+    <tr><td><b>app-full</b><br><small>this repo's shape</small></td><td><span class="tier tL">L</span></td><td>core · quality · loop · issues · release · contracts</td><td>per stack</td><td><small>full: + CODEMAP gen, ADR log, RETROS, TECH_DEBT</small></td></tr>
+    <tr><td><b>library</b></td><td><span class="tier tM">M</span></td><td>core · quality · loop · release · contracts</td><td>—</td><td><small>+ adr/, REGRESSIONS, issues/INDEX</small></td></tr>
+    <tr><td><b>mini-api</b></td><td><span class="tier tS">S</span></td><td>core · quality · contracts</td><td>api.md</td><td rowspan="3"><small><b>~4 small files:</b> pointers, CONVENTIONS-lite (1 page, decisions inline until ~5, then graduate), CONTRACTS, CI guard</small></td></tr>
+    <tr><td><b>mini-fe-components</b></td><td><span class="tier tS">S</span></td><td>core · quality · contracts</td><td>frontend.md</td></tr>
+    <tr><td><b>mini-functions</b></td><td><span class="tier tS">S</span></td><td>core · quality · contracts</td><td>—</td></tr>
+    <tr><td><b>greenfield-lean</b></td><td><span class="tier tS">S</span>→<span class="tier tM">M</span></td><td>core · quality · loop</td><td>chosen at adopt</td><td><small>structure + a few hundred lines; grows as decisions are made</small></td></tr>
+  </table>
+</section>
+
+<section>
+  <div class="kicker">6 · The fleet — contracts as the cross-repo spine</div>
+  <div class="fleet">
+    <div class="hub"><b>fleet hub</b> · constellation.yaml + shared glossary<p>members, profiles, who-consumes-whom · fleet-doctor cross-checks every consumed contract against its provider's version</p></div>
+    <div class="vline"></div>
+    <div class="mini"><b>fe-framework</b> <span class="tier tS">S</span><div class="prov">provides → app shell, routing</div><div class="cons">consumes ← components@^2, api-client@^1</div><div class="docs">CONTRACTS.md · CONVENTIONS-lite</div></div>
+    <div class="mini"><b>components</b> <span class="tier tS">S</span><div class="prov">provides → ui-kit public API v2.3</div><div class="cons">consumes ← design tokens@^1</div><div class="docs">CONTRACTS.md · frontend.md binding</div></div>
+    <div class="mini"><b>api-service</b> <span class="tier tS">S</span><div class="prov">provides → REST routes + schemas v1.8</div><div class="cons">consumes ← functions@^3</div><div class="docs">CONTRACTS.md · api.md binding</div></div>
+  </div>
+  <p class="note">Breaking a <i>provided</i> contract requires the same ceremony everywhere: decision note + version bump + consumer notification. Each repo's CONTEXT defines only local terms and points up to the shared glossary — one fact, one home, scaled to N repos.</p>
+</section>
+
+<section>
+  <div class="kicker">7 · Model portability — why this makes cheaper models execute flows correctly</div>
+  <div class="ladder">
+    <div class="rung m1"><h3>determinism → scripts</h3><ul><li>base verification, next-item picking, doctors, guards — executed, not interpreted</li><li>a step moved into a script is a step a small model can't get wrong</li></ul></div>
+    <div class="rung m2"><h3>structure → checklists</h3><ul><li>every workflow is a checklist with a testable termination condition</li><li>weak models fail on ambiguity, not length</li></ul></div>
+    <div class="rung m3"><h3>certification → evals</h3><ul><li>≥3 runnable evals per recipe, run per model tier</li><li><code>min_model</code> recorded in the manifest — "can a smaller model run this loop here?" gets a measured answer, not a vibe</li></ul></div>
+  </div>
+</section>
+
+<section>
+  <div class="kicker">8 · Rollout</div>
+  <table>
+    <tr><th>Phase</th><th>What</th><th>Testbed</th></tr>
+    <tr><td><b>1 · extract</b></td><td>seed-project-infra → core + quality, with manifest/lock/doctor</td><td><small>Governor (brand-new, zero risk)</small></td></tr>
+    <tr><td><b>2 · brownfield</b></td><td>harvest mode + TS parametrization (the hardest 30%)</td><td><small>Wayfarer, Cosul</small></td></tr>
+    <tr><td><b>3 · lifecycle</b></td><td>get-next → loop · tracking-issues → issues · cut-release → release</td><td><small>already battle-debugged</small></td></tr>
+    <tr><td><b>4 · fleet + bindings</b></td><td>only once ≥2 mini-repos share a contract</td><td><small>marginal-value bar</small></td></tr>
+    <tr><td><b>5 · certify</b></td><td>model-tier evals over stable recipes</td><td><small>last — needs stability</small></td></tr>
+  </table>
+</section>
+
+</body>
+</html>

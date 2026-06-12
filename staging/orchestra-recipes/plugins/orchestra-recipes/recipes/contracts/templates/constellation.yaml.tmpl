@@ -1,0 +1,16 @@
+# constellation.yaml — fleet membership map (schema: docs/SPEC.md in orchestra-recipes)
+#
+# Lists the sibling repos that form this fleet. Paths are relative to THIS file's
+# directory — typically sibling checkouts (../other-repo). scripts/fleet-doctor.sh
+# reads this file and cross-checks every repo's docs/CONTRACTS.md Provides/Consumes
+# sections: each consumed contract id must have exactly one provider in the fleet.
+#
+# Keep one constellation per fleet. When several repos each carry a copy, list the
+# same members in each — the fleet doctor works from whichever copy you run it on.
+
+fleet: {{fleet_name}}
+repos:
+  - name: {{project_name}}
+    path: .
+  # - name: sibling-service
+  #   path: ../sibling-service

@@ -1,0 +1,69 @@
+name: core
+version: 0.1.0
+description: Layer 0 — host-agnostic thin pointers (CLAUDE.md + AGENTS.md), the CONVENTIONS constitution with the five-point doctrine, the CONTEXT glossary, and the doc skeleton (ADR log at tier M, CODEMAP/RETROS/TECH_DEBT at tier L). Every other recipe assumes core.
+requires:
+  recipes: []
+  params:
+    - name: project_name
+      type: string
+      default: my-project
+      prompt: Project or app name (used in headings)
+    - name: project_description
+      type: string
+      default: a software project
+      prompt: One-line description of what the project is
+    - name: default_branch
+      type: string
+      default: main
+      prompt: Default branch name
+    - name: lint_command
+      type: string
+      default: make lint
+      prompt: Command that runs the lint gate locally
+    - name: test_command
+      type: string
+      default: make test
+      prompt: Command that runs the test gate locally
+provides:
+  files:
+    - template: templates/CLAUDE.md.tmpl
+      dest: CLAUDE.md
+      tiers: [S, M, L]
+    - template: templates/AGENTS-lite.md.tmpl
+      dest: AGENTS.md
+      tiers: [S]
+    - template: templates/AGENTS.md.tmpl
+      dest: AGENTS.md
+      tiers: [M, L]
+    - template: templates/CONVENTIONS-lite.md.tmpl
+      dest: docs/CONVENTIONS.md
+      tiers: [S]
+    - template: templates/CONVENTIONS.md.tmpl
+      dest: docs/CONVENTIONS.md
+      tiers: [M, L]
+    - template: templates/CONTEXT.md.tmpl
+      dest: docs/CONTEXT.md
+      tiers: [M, L]
+    - template: templates/adr-README.md.tmpl
+      dest: docs/adr/README.md
+      tiers: [M, L]
+    - template: templates/TECH_DEBT.md.tmpl
+      dest: docs/TECH_DEBT.md
+      tiers: [L]
+    - template: templates/RETROS-README.md.tmpl
+      dest: docs/RETROS/README.md
+      tiers: [L]
+    - template: templates/codemap.sh.tmpl
+      dest: scripts/codemap.sh
+      tiers: [L]
+  scripts:
+    - scripts/doctor.sh
+  skills: []
+tiers:
+  S: thin pointers + one-page CONVENTIONS-lite only (~3 files)
+  M: adds CONTEXT glossary + ADR log
+  L: adds generated-CODEMAP wiring, RETROS/, TECH_DEBT register
+min_model:
+  install: sonnet
+  doctor: haiku
+  harvest: opus

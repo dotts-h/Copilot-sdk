@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.1.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & publish artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # TODO(backfill): set up this repo's build toolchain here.
+
+      - name: Resolve version
+        id: ver
+        # Prefer the dispatch input (a manual workflow_dispatch provides the tag);
+        # otherwise use the ref name (a push of a v* tag). The shell-default form
+        # (GITHUB_REF_NAME with a :- fallback) is WRONG on dispatch — the ref is
+        # the *branch*, non-empty, so it shadows the input and the release gets
+        # tagged after the branch. scripts/check-workflows.sh guards this.
+        run: echo "version=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build artifacts ({{artifact_name}})
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          ARTIFACT: "{{artifact_name}}"
+        run: |
+          mkdir -p dist
+          {{release_build_command}}
+          if ! ls -A dist | grep -q .; then
+            echo "::error::release build produced nothing in dist/"; exit 1
+          fi
+          cd dist && sha256sum * > checksums.txt && cat checksums.txt
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.ver.outputs.version }}
+          generate_release_notes: true
+          files: dist/*

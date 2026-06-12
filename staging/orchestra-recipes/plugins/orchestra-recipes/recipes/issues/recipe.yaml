@@ -1,0 +1,36 @@
+name: issues
+version: 0.1.0
+description: Layer 1 — hybrid issue tracking. Markdown files under docs/issues/ are the source of truth (diffable, offline, greppable), mirrored to GitHub Issues via gh. Ships the INDEX + NNNN-title.md frontmatter format, epics via the group field, hard ordering via depends_on, and the filing/sync scripts.
+requires:
+  recipes: [core]
+  params:
+    - name: project_name
+      type: string
+      default: my-project
+      prompt: Project or app name (used in headings)
+provides:
+  files:
+    - template: templates/issues-INDEX.md.tmpl
+      dest: docs/issues/INDEX.md
+      tiers: [M, L]
+    - template: templates/issue-TEMPLATE.md.tmpl
+      dest: docs/issues/TEMPLATE.md
+      tiers: [M, L]
+    - template: templates/new-issue.sh.tmpl
+      dest: scripts/new-issue.sh
+      tiers: [M, L]
+    - template: templates/sync-github.sh.tmpl
+      dest: scripts/sync-github.sh
+      tiers: [M, L]
+  scripts:
+    - scripts/doctor.sh
+  skills: []
+tiers:
+  S: not installed — a mini repo tracks work in its host's issue tracker directly
+  M: full hybrid store (INDEX, template, filing + sync scripts)
+  L: same as M
+min_model:
+  install: sonnet
+  doctor: haiku
+  filing: haiku
+  epic_breakdown: opus

@@ -1,0 +1,16 @@
+{
+  "name": "orchestra-recipes-dev",
+  "owner": {
+    "name": "dotts-h"
+  },
+  "metadata": {
+    "description": "Development marketplace for the orchestra-recipes plugin — installable, versioned, doc-based engineering process packages. Staging ground; merges into the claude-skills marketplace."
+  },
+  "plugins": [
+    {
+      "name": "orchestra-recipes",
+      "source": "./plugins/orchestra-recipes",
+      "description": "Recipe system: install versioned engineering-process packages (conventions, gates, dev loop, issues, releases, contracts) into any repo, keep them updated via a lock file, and check conformance with doctors."
+    }
+  ]
+}

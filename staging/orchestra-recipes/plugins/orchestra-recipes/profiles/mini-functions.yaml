@@ -1,0 +1,14 @@
+# Profile: a mini functions/worker repo — smallest viable set; inter-service
+# promises ride the services binding + CONTRACTS.
+name: mini-functions
+description: Tier-S lean set (pointers, CONVENTIONS-lite, CI guard, CONTRACTS) + the services binding for queue/event contracts.
+tier: S
+recipes: [core, quality, contracts]
+bindings: [services]
+answers:
+  core:
+    default_branch: main
+  quality:
+    build_system: make
+  contracts:
+    fleet_member: "true"

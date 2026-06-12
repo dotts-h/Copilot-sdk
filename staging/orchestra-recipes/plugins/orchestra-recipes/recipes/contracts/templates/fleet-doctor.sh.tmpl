@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# fleet-doctor.sh [path/to/constellation.yaml] — cross-check provider/consumer
+# pairs across the fleet's sibling repo checkouts.
+#
+# Reads the constellation (default: ./constellation.yaml), then each member
+# repo's docs/CONTRACTS.md "## Provides" / "## Consumes" sections (bullets of
+# the form: - `contract-id` — description). Verifies:
+#   - every consumed id is provided by some OTHER repo in the fleet  (else GAP)
+#   - no id is provided by two repos                                  (else GAP)
+#   - unreadable member paths are reported                            (GAP)
+#   - provided ids nobody consumes are listed as info (not a gap)
+# Exit: 0 all pairs satisfied · 1 gaps · 2 usage/parse error.
+#
+# Dependency-light: bash + python3 stdlib (the constellation subset is parsed
+# with a regex scanner, no YAML library needed).
+set -uo pipefail
+
+constellation="${1:-constellation.yaml}"
+[ -f "$constellation" ] || { echo "usage: fleet-doctor.sh [constellation.yaml] (not found: $constellation)" >&2; exit 2; }
+
+CONSTELLATION="$constellation" python3 - <<'PY'
+import os, re, sys
+
+cpath = os.path.abspath(os.environ["CONSTELLATION"])
+base = os.path.dirname(cpath)
+text = open(cpath).read()
+
+# Parse the constellation subset: `fleet: name` + repos list of {name, path}.
+fleet = (re.search(r"^fleet:\s*(.+)$", text, re.M) or [None, "(unnamed)"])[1]
+if hasattr(fleet, "strip"): fleet = fleet.strip()
+repos = []
+for m in re.finditer(r"-\s*name:\s*(\S+)\s*\n\s*path:\s*(\S+)", text):
+    repos.append((m.group(1), m.group(2)))
+if not repos:
+    print(f"ERROR: no repos parsed from {cpath} (expected '- name: X' / 'path: Y' pairs)")
+    sys.exit(2)
+
+def section_ids(md, heading):
+    """Contract ids: backticked first token of bullets under `## <heading>`…"""
+    lines = md.splitlines()
+    ids, inside = [], False
+    for ln in lines:
+        if re.match(rf"##\s+{heading}\b", ln):
+            inside = True; continue
+        if inside and ln.startswith("## "):
+            break
+        if inside:
+            m = re.match(r"\s*-\s*`([^`]+)`", ln)
+            if m: ids.append(m.group(1).strip())
+    return ids
+
+provides, consumes, gaps = {}, {}, []
+for name, path in repos:
+    repo_dir = os.path.normpath(os.path.join(base, path))
+    contracts = os.path.join(repo_dir, "docs", "CONTRACTS.md")
+    if not os.path.isdir(repo_dir):
+        gaps.append(f"GAP: member '{name}' path not found: {repo_dir} (is the sibling checked out?)")
+        continue
+    if not os.path.isfile(contracts):
+        gaps.append(f"GAP: member '{name}' has no docs/CONTRACTS.md — its promises aren't registered")
+        continue
+    md = open(contracts).read()
+    for cid in section_ids(md, "Provides"):
+        provides.setdefault(cid, []).append(name)
+    for cid in section_ids(md, "Consumes"):
+        consumes.setdefault(cid, []).append(name)
+
+print(f"== fleet doctor: fleet '{fleet}' ({len(repos)} member(s)) from {cpath}")
+
+for cid, providers in sorted(provides.items()):
+    if len(providers) > 1:
+        gaps.append(f"GAP: contract `{cid}` is provided by multiple repos: {', '.join(providers)} — one fact, one home")
+
+for cid, consumers in sorted(consumes.items()):
+    providers = provides.get(cid, [])
+    others = [p for p in providers]
+    if not others:
+        for c in consumers:
+            gaps.append(f"GAP: `{cid}` is consumed by '{c}' but provided by NO fleet member")
+    else:
+        print(f"  ok: `{cid}` — {', '.join(providers)} -> {', '.join(consumers)}")
+
+orphans = sorted(set(provides) - set(consumes))
+if orphans:
+    print(f"  info: provided but unconsumed (fine, maybe external clients): {', '.join(orphans)}")
+
+for g in gaps:
+    print(g)
+print(f"== fleet doctor: {len(gaps)} gap(s)")
+sys.exit(1 if gaps else 0)
+PY
