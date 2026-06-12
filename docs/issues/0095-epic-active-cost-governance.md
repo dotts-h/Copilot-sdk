@@ -1,7 +1,7 @@
 ---
 id: 0095
 title: "Epic: Active cost governance — run-grain budget enforcement + anomaly signal + spend digest (roadmap v16)"
-status: open
+status: closed
 severity: high
 group:
 depends_on: []
@@ -61,10 +61,14 @@ forge entity, not P1).
 
 ## Acceptance
 
-- [ ] A run carries an optional credit ceiling; cumulative run spend is checked **before** the
-      next lane is admitted, and a breach pauses (interactive) or cancels (unattended) the run.
-- [ ] The streaming / record path is byte-identical when no cap is set (`RunCapCredits == 0`).
-- [ ] An anomaly reader flags an out-of-band run/step and surfaces it without enforcing.
-- [ ] A spend digest rolls up the period's spend, cap-hits, and anomalies.
-- [ ] Each child: `make lint && make test` green (coverage ≥ floor), `make e2e` when the UI
-      changed; the close-out + any ADR ride the child's branch (ADR-0004).
+- [x] A run carries an optional credit ceiling; cumulative run spend is checked **before** the
+      next lane is admitted, and a breach stops the run (P1 / PR #164, ADR-0053).
+- [x] The streaming / record path is byte-identical when no cap is set (`RunCapCredits == 0`).
+- [x] An anomaly reader flags an out-of-band run and surfaces it without enforcing (P2 / PR #165).
+- [x] A spend digest rolls up the period's spend, run activity, and anomalies (P3 / PR #166).
+- [x] Each child: `make lint && make test` green (coverage ≥ floor), `make e2e` when the UI
+      changed; the close-out + any ADR rode the child's branch (ADR-0004).
+
+**Closed** — all three children shipped (P1 #164 / ADR-0053, P2 #165, P3 #166). The repo now has
+run-grain cost enforcement + an anomaly signal + a period digest (the FinOps cap+anomaly+digest
+triad), and the safety precondition for v17 (durable / unattended runs) is in place.

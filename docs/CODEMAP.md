@@ -445,18 +445,18 @@ _Last generated: 2026-06-12 (UTC)._
 - L125: `type Delta struct`
 - L139: `func ChangePct(prior, current float64) Delta`
 
-### digest.go (195 LOC)
+### digest.go (199 LOC)
 - L23: `type DigestOpts struct`
 - L31: `type DigestShare struct`
 - L41: `type SpendDigest struct`
 - L59: `func BuildSpendDigest(spend []SpendRecord, runs []RunRecord, opts DigestOpts) SpendDigest`
-- L108: `func WriteDigest(w io.Writer, d SpendDigest) error`
-- L134: `func appendShares(b []byte, heading string, shares []DigestShare) []byte`
-- L146: `func labelOrDash(key string) string`
-- L153: `func plural(n int) string`
-- L161: `func inWindow(t, since time.Time) bool`
-- L167: `func addShare(buckets map[string]*DigestShare, key string, r SpendRecord)`
-- L180: `func topShares(buckets map[string]*DigestShare, top int) []DigestShare`
+- L112: `func WriteDigest(w io.Writer, d SpendDigest) error`
+- L138: `func appendShares(b []byte, heading string, shares []DigestShare) []byte`
+- L150: `func labelOrDash(key string) string`
+- L157: `func plural(n int) string`
+- L165: `func inWindow(t, since time.Time) bool`
+- L171: `func addShare(buckets map[string]*DigestShare, key string, r SpendRecord)`
+- L184: `func topShares(buckets map[string]*DigestShare, top int) []DigestShare`
 
 ### drift.go (84 LOC)
 - L25: `type ModelDrift struct`

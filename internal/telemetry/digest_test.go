@@ -130,6 +130,31 @@ func TestWriteDigest(t *testing.T) {
 	}
 }
 
+// The shares match the established reader semantics: a non-workflow (chat) turn is
+// excluded from Top workflows (WorkflowShares includeEmpty=false), but the empty
+// (built-in chat agent) bucket IS kept in Top agents (AgentShares includeEmpty=true).
+func TestBuildSpendDigestShareEmptyKeySemantics(t *testing.T) {
+	now := time.Now()
+	spend := []SpendRecord{
+		spendAt(now, 4, "", "", ""),     // a plain chat turn: no workflow, no persona
+		spendAt(now, 1, "wf", "ag", ""), // a workflow+persona turn
+	}
+	d := BuildSpendDigest(spend, nil, DigestOpts{})
+
+	if len(d.Workflows) != 1 || d.Workflows[0].Key != "wf" {
+		t.Errorf("Top workflows excludes the non-workflow (empty) bucket, got %+v", d.Workflows)
+	}
+	var sawChat bool
+	for _, a := range d.Agents {
+		if a.Key == "" {
+			sawChat = true
+		}
+	}
+	if !sawChat {
+		t.Errorf("Top agents keeps the empty (chat) bucket, got %+v", d.Agents)
+	}
+}
+
 // An all-time digest (zero Since) includes every record.
 func TestBuildSpendDigestAllTime(t *testing.T) {
 	old := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)

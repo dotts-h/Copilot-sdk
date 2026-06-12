@@ -68,10 +68,14 @@ func BuildSpendDigest(spend []SpendRecord, runs []RunRecord, opts DigestOpts) Sp
 		d.Turns++
 		d.TotalUSD += r.USD
 		d.TotalCredits += r.Credits()
-		addShare(byWorkflow, r.WorkflowID, r)
-		// A sub-agent's spend is the sub-agent's, not the spawning agent's — exclude it
-		// from the agent buckets so the per-agent rollup never double-counts (the
-		// AgentShares discipline, ADR-0018).
+		// A non-workflow (plain chat / persona) turn is not a workflow, so it is
+		// excluded from the per-workflow rollup — matching WorkflowShares
+		// (includeEmpty=false); the agent rollup, like AgentShares, keeps the empty
+		// (built-in chat agent) bucket but excludes sub-agent turns (their spend is the
+		// sub-agent's, not the spawning agent's — no double count, ADR-0018).
+		if r.WorkflowID != "" {
+			addShare(byWorkflow, r.WorkflowID, r)
+		}
 		if r.SubagentID == "" {
 			addShare(byAgent, r.AgentID, r)
 		}
