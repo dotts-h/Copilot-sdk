@@ -4,7 +4,7 @@ PKG := ./...
 VERSION ?= dev
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
-.PHONY: all build run desktop run-desktop test bench cover lint fmt vet fuzz tidy clean e2e e2e-install codemap check-workflows
+.PHONY: all build run desktop run-desktop test bench cover lint fmt vet fuzz tidy clean e2e e2e-install codemap check-workflows doctor
 
 all: lint test build
 
@@ -59,6 +59,12 @@ vet:
 
 check-workflows:
 	bash scripts/check-workflows.sh
+
+# Recipe conformance (ADR-0054): lock-driven cookbook doctors. Needs a Cookbook
+# checkout; point COOKBOOK_DIR at it (default: sibling of this repo).
+COOKBOOK_DIR ?= ../Cookbook
+doctor:
+	bash $(COOKBOOK_DIR)/plugins/cookbook/skills/recipe-doctor/scripts/run-doctors.sh .
 
 lint: vet check-workflows
 	@unformatted=$$(gofmt -l ./cmd ./internal); \
