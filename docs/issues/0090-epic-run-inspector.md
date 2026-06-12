@@ -44,12 +44,13 @@ Development status).
       ([0091](0091-run-detail-step-timeline.md), M, **ADR-0052**, BUILD FIRST) —
       `GET /page/runs/{id}` rendering the event log as a lane-grouped master/detail step
       timeline; zero new JS; read-only reconstruction.
-- [ ] **O2 — Price the timeline: per-step usage/credits**
+- [x] **O2 — Price the timeline: per-step usage/credits** (shipped)
       ([0092](0092-per-step-cost-event-log.md), S/M) — additive `RunEvent` usage/credits
       fields stamped at time of use; per-turn pricing + per-lane subtotals + a per-run
       header cross-check against `RunRecord.Credits`.
-- [ ] **O3 — Transcript view** ([0093](0093-run-transcript-view.md), S) — `?view=transcript`
-      flattening the same events into chat reading order through the block-AST renderer.
+- [x] **O3 — Transcript view** (shipped) ([0093](0093-run-transcript-view.md), S) —
+      `?view=transcript` flattening the same events into chat reading order through the
+      block-AST renderer; per-turn O2 pricing; a timeline ⇄ transcript toggle.
 - [ ] **O4 — Compare two runs** ([0094](0094-compare-two-runs.md), M, stretch) — keyed
       side-by-side deltas (outcome/duration/credits/per-lane) for two runs of one workflow.
 

@@ -334,6 +334,22 @@ now **wired in production** (`EventLogDir = configDir`) and seeded in demo so th
 has data to read. — see [ADR-0052](adr/0052-run-inspector-read-only-replay.md),
 [ADR-0048](adr/0048-per-run-event-log-replay-vs-summary.md)
 
+The inspector carries a `timeline ⇄ transcript` **view toggle** (`?view=transcript`, O3/issue
+0093), clamped by `clampRunView` exactly like `?window=` (an empty or unrecognized value falls
+back to the default timeline — a garbage view never half-builds the page). The **transcript**
+(`buildRunTranscript`, pure) reconstructs the **same** event log in **chat reading order** —
+chronological, **not** lane-grouped — with a **lane-transition marker** emitted whenever the
+active lane changes (so an interleaved multi-lane run stays legible). Committed `EvUserMessage`
+/`EvMessage` turns render as message bubbles through **`renderMarkdown`** — the block-AST
+designed-output pipeline's (epic 0076) **second consumer**, so callouts/tables/code in a
+recorded run render designed (escaped per ADR-0001) — while `EvToolStart`+`EvToolEnd` **join**
+into one **compact tool card** (the join is the generalized `popOpenTool`, now a label-lookup
+closure shared with the timeline) and `EvError` renders a compact error row. `EvUsage` carries
+no row; its priced credits (O2) attach **per assistant turn** (trailing usage → its turn, lead
+usage → the next). The header's summed-credit cross-check is the **view-agnostic**
+`sumEventCredits`, so the timeline and the transcript reconcile against one figure. No ADR
+(presentation over O1's data; the `?view=` clamp is the established `?window=` discipline).
+
 `POST /budget/{action}` (`action` ∈ {proceed, raise, cancel}) resolves a turn the
 hard cap paused before `Send`: **proceed** dispatches the held prompt and keeps the
 cap, **raise** lifts (disables) and persists the cap then dispatches, **cancel**

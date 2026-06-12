@@ -183,7 +183,7 @@ func TestRunDetailPartial_CrossChecksLogCreditsAgainstRecord(t *testing.T) {
 	_ = log.Append(telemetry.RunEvent{Type: "EvUsage", LaneIndex: 0, TokensIn: 1000, TokensOut: 200, Credits: 0.80})
 	waitForEventLog(t, dir, "run-xcheck", 2)
 
-	html := s.runDetailPartial(rec, defaultSpendWindow)
+	html := s.runDetailPartial(rec, defaultSpendWindow, viewTimeline)
 	if !strings.Contains(html, "0.80 cr") {
 		t.Fatalf("header should show the summed event-log credits (0.80 cr):\n%s", html)
 	}
@@ -199,7 +199,7 @@ func TestRunDetailPartial_CrossChecksLogCreditsAgainstRecord(t *testing.T) {
 	_ = logM.Append(telemetry.RunEvent{Type: "EvUsage", LaneIndex: 0, TokensIn: 1000, TokensOut: 200, Credits: 0.50})
 	waitForEventLog(t, dir, "run-match", 1)
 
-	htmlM := s.runDetailPartial(recMatch, defaultSpendWindow)
+	htmlM := s.runDetailPartial(recMatch, defaultSpendWindow, viewTimeline)
 	if strings.Contains(htmlM, "amber") {
 		t.Fatalf("a matching log-vs-record pair must not amber:\n%s", htmlM)
 	}
@@ -218,7 +218,7 @@ func TestRunDetailPartial_PreO2LogRendersUnpriced(t *testing.T) {
 	_ = log.Append(telemetry.RunEvent{Type: "EvMessage", LaneIndex: 0, Text: "hello"})
 	waitForEventLog(t, dir, "run-preo2", 1)
 
-	html := s.runDetailPartial(rec, defaultSpendWindow)
+	html := s.runDetailPartial(rec, defaultSpendWindow, viewTimeline)
 	if !strings.Contains(html, "hello") {
 		t.Fatalf("the timeline should render the message step:\n%s", html)
 	}
@@ -261,7 +261,7 @@ func TestRunDetailPartial_CorruptLogNote(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	html := s.runDetailPartial(rec, defaultSpendWindow)
+	html := s.runDetailPartial(rec, defaultSpendWindow, viewTimeline)
 	if !strings.Contains(html, "could not be read") {
 		t.Fatalf("corrupt log should surface a distinct note:\n%s", html)
 	}
@@ -283,7 +283,7 @@ func TestRunDetailPartial_EscapesHostileText(t *testing.T) {
 		Result: "<script>alert(1)</script>", Success: true})
 	waitForEventLog(t, dir, "run-x", 1)
 
-	html := s.runDetailPartial(rec, defaultSpendWindow)
+	html := s.runDetailPartial(rec, defaultSpendWindow, viewTimeline)
 	if strings.Contains(html, "<script>alert(1)</script>") {
 		t.Fatal("hostile tool result was not escaped")
 	}
@@ -300,7 +300,7 @@ func TestRunDetailPartial_MissingLogRendersNote(t *testing.T) {
 	rec := telemetry.RunRecord{ID: "run-nolog", Name: "No Log", Mode: "sequential", Outcome: "finished"}
 	_ = s.runs.Append(rec)
 
-	html := s.runDetailPartial(rec, defaultSpendWindow)
+	html := s.runDetailPartial(rec, defaultSpendWindow, viewTimeline)
 	if !strings.Contains(html, "No Log") {
 		t.Fatal("summary card (run name) missing")
 	}
