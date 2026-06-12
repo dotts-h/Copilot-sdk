@@ -74,6 +74,7 @@ func (s *Server) telemetryPartial(window int) string {
 		"Reconcile":     s.workflowReconcile(),
 		"LaneReconcile": s.laneReconcile(),
 		"Drift":         s.estimateDrift(),
+		"Anomalies":     s.runAnomalies(),
 		"Forecast":      forecast, "Windows": windows,
 	})
 }
@@ -208,6 +209,35 @@ func (s *Server) workflowReconcile() []map[string]any {
 	defer s.hub.forgeMu.Unlock()
 	for _, r := range recon {
 		rows = append(rows, s.reconcileRow(r))
+	}
+	return rows
+}
+
+// runAnomalies builds the cost-anomaly rows for the Telemetry page (P2, issue 0097):
+// each recorded run whose total credits reached the default factor over its workflow's
+// median run cost — the "noticed but not stopped" dual of the per-run cap (ADR-0053). A
+// read-only signal (always ambered — every row IS an anomaly), not enforcement. Workflow
+// ids resolve to display names under forgeMu. Empty unless a run store is wired and a run
+// is out of band.
+func (s *Server) runAnomalies() []map[string]any {
+	rows := []map[string]any{}
+	if s.runs == nil {
+		return rows
+	}
+	anomalies := telemetry.DetectAnomalies(s.runs.Records(), telemetry.DefaultAnomalyOpts())
+	if len(anomalies) == 0 {
+		return rows
+	}
+	s.hub.forgeMu.Lock()
+	defer s.hub.forgeMu.Unlock()
+	for _, a := range anomalies {
+		rows = append(rows, map[string]any{
+			"Workflow": s.workflowLabel(a.WorkflowID),
+			"RunID":    a.RunID,
+			"Credits":  telemetry.FormatCredits(a.Credits),
+			"Baseline": telemetry.FormatCredits(a.Baseline),
+			"Factor":   fmt.Sprintf("%.1f×", a.Factor),
+		})
 	}
 	return rows
 }
