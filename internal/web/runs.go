@@ -500,6 +500,10 @@ func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int, view stri
 	// mismatch — the V15 reconcile discipline at run grain. A pre-O2 log (logCredits
 	// == 0) shows nothing extra, so the header stays unpriced-clean.
 	hasLogCredits := logCredits > 0
+	// Cost-anomaly flag (P2, issue 0097): an amber note when this run cost far more
+	// than its workflow normally does — the same DetectAnomalies signal the Telemetry
+	// page lists, surfaced here on the run it points at.
+	anomaly, isAnomaly := s.runAnomalyFor(rec)
 	return frag("runDetailPage", map[string]any{
 		"ID":   rec.ID,
 		"Name": rec.Name, "Mode": rec.Mode, "Outcome": rec.Outcome,
@@ -509,11 +513,29 @@ func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int, view stri
 		"LogCredits": telemetry.FormatCredits(logCredits), "HasLogCredits": hasLogCredits,
 		"Amber":  hasLogCredits && math.Abs(logCredits-credits) >= reconcileEpsilon,
 		"Window": window, "HasLog": hasLog, "LoadErr": loadErr,
-		"IsTranscript": transcript, "Lanes": laneRows, "Transcript": txRows,
+		"IsAnomaly": isAnomaly, "AnomalyFactor": fmt.Sprintf("%.1f×", anomaly.Factor),
+		"AnomalyBaseline": telemetry.FormatCredits(anomaly.Baseline),
+		"IsTranscript":    transcript, "Lanes": laneRows, "Transcript": txRows,
 		// The keyed-comparison picker (O4, issue 0094): the other runs of this
 		// workflow this run can be compared against (newest first, self excluded).
 		"CompareWith": s.compareCandidates(rec),
 	})
+}
+
+// runAnomalyFor reports whether this run is a cost anomaly (P2, issue 0097) and, if
+// so, the Anomaly carrying how many× its workflow's typical run it cost. Reads the
+// same DetectAnomalies signal the Telemetry page lists, so the inspector amber and the
+// Telemetry row never disagree.
+func (s *Server) runAnomalyFor(rec telemetry.RunRecord) (telemetry.Anomaly, bool) {
+	if s.runs == nil {
+		return telemetry.Anomaly{}, false
+	}
+	for _, a := range telemetry.DetectAnomalies(s.runs.Records(), telemetry.DefaultAnomalyOpts()) {
+		if a.RunID == rec.ID {
+			return a, true
+		}
+	}
+	return telemetry.Anomaly{}, false
 }
 
 // laneTimelineRow builds the template shape for one lane's slice of the timeline:

@@ -381,6 +381,13 @@ _Last generated: 2026-06-12 (UTC)._
 
 ## internal/telemetry
 
+### anomaly.go (122 LOC)
+- L30: `type Anomaly struct`
+- L43: `type AnomalyOpts struct`
+- L50: `func DefaultAnomalyOpts() AnomalyOpts`
+- L59: `func DetectAnomalies(records []RunRecord, opts AnomalyOpts) []Anomaly`
+- L110: `func median(vs []float64) float64`
+
 ### breakdown.go (73 LOC)
 - L22: `type ModelBreakdown struct`
 - L36: `func (b ModelBreakdown) USD() float64 { return b.USDTotal }`
@@ -964,7 +971,7 @@ _Last generated: 2026-06-12 (UTC)._
 - L174: `func (s *Server) laneLabel(laneIndex int, rec telemetry.RunRecord) string`
 - L189: `func sumEventCredits(events []telemetry.RunEvent) float64`
 
-### runs.go (545 LOC)
+### runs.go (567 LOC)
 - L31: `func (s *Server) runsPartial(window int) string`
 - L65: `func windowRuns(records []telemetry.RunRecord, window int) []telemetry.RunRecord`
 - L94: `func (s *Server) runSummaryRow(a telemetry.RunAggregate) map[string]any`
@@ -985,7 +992,8 @@ _Last generated: 2026-06-12 (UTC)._
 - L426: `func (s *Server) handleRunDetail(w http.ResponseWriter, r *http.Request)`
 - L440: `func (s *Server) findRun(id string) (telemetry.RunRecord, bool)`
 - L457: `func (s *Server) runDetailPartial(rec telemetry.RunRecord, window int, view string) string`
-- L523: `func (s *Server) laneTimelineRow(lt laneSteps, rec telemetry.RunRecord) map[string]any`
+- L529: `func (s *Server) runAnomalyFor(rec telemetry.RunRecord) (telemetry.Anomaly, bool)`
+- L545: `func (s *Server) laneTimelineRow(lt laneSteps, rec telemetry.RunRecord) map[string]any`
 
 ### server.go (742 LOC)
 - L27: `type Server struct`
@@ -1112,26 +1120,27 @@ _Last generated: 2026-06-12 (UTC)._
 - L163: `func trendBandSVG(actual, forecast []float64, label string) string`
 - L216: `func bulletSVG(value, target, scaleMax float64, overTarget bool, label string) string`
 
-### telemetry_render.go (434 LOC)
+### telemetry_render.go (464 LOC)
 - L12: `func (s *Server) telemetryPartial(window int) string`
-- L86: `func (s *Server) spendTrend(window int) (days, shares []map[string]any, hasHistory bool)`
-- L143: `func (s *Server) spendShares(now time.Time) (agents, workflows, subagents []map[string]any)`
-- L178: `func agentKey(r telemetry.SpendRecord) string { return r.AgentID }`
-- L180: `func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }`
-- L198: `func (s *Server) workflowReconcile() []map[string]any`
-- L219: `func (s *Server) reconcileRow(r telemetry.WorkflowRecon) map[string]any`
-- L236: `func (s *Server) laneReconcile() []map[string]any`
-- L258: `func (s *Server) laneReconcileRow(r telemetry.LaneRecon) map[string]any`
-- L275: `func (s *Server) estimateDrift() []map[string]any`
-- L301: `func bucketTrajectories(bs []telemetry.BucketProjection, now time.Time) map[string]string`
-- L317: `func bucketTrajectoryText(p telemetry.Projection, now time.Time) string`
-- L336: `func daysLeftInMonth(now time.Time) int`
-- L347: `func shareRow(label string, credits, fraction float64) map[string]any`
-- L359: `func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any`
-- L383: `func forecastSoon(exhaust, now time.Time) bool`
-- L393: `func plural(n int, one, many string) string`
-- L403: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
-- L420: `func (s *Server) handleReconcileExport(w http.ResponseWriter, r *http.Request)`
+- L87: `func (s *Server) spendTrend(window int) (days, shares []map[string]any, hasHistory bool)`
+- L144: `func (s *Server) spendShares(now time.Time) (agents, workflows, subagents []map[string]any)`
+- L179: `func agentKey(r telemetry.SpendRecord) string { return r.AgentID }`
+- L181: `func workflowKey(r telemetry.SpendRecord) string { return r.WorkflowID }`
+- L199: `func (s *Server) workflowReconcile() []map[string]any`
+- L222: `func (s *Server) runAnomalies() []map[string]any`
+- L249: `func (s *Server) reconcileRow(r telemetry.WorkflowRecon) map[string]any`
+- L266: `func (s *Server) laneReconcile() []map[string]any`
+- L288: `func (s *Server) laneReconcileRow(r telemetry.LaneRecon) map[string]any`
+- L305: `func (s *Server) estimateDrift() []map[string]any`
+- L331: `func bucketTrajectories(bs []telemetry.BucketProjection, now time.Time) map[string]string`
+- L347: `func bucketTrajectoryText(p telemetry.Projection, now time.Time) string`
+- L366: `func daysLeftInMonth(now time.Time) int`
+- L377: `func shareRow(label string, credits, fraction float64) map[string]any`
+- L389: `func forecastView(fc telemetry.Projection, allowance float64, now time.Time) map[string]any`
+- L413: `func forecastSoon(exhaust, now time.Time) bool`
+- L423: `func plural(n int, one, many string) string`
+- L433: `func (s *Server) handleSpendExport(w http.ResponseWriter, r *http.Request)`
+- L450: `func (s *Server) handleReconcileExport(w http.ResponseWriter, r *http.Request)`
 
 ### tmpl.go (55 LOC)
 - L44: `func trusted(s string) template.HTML { return template.HTML(s) } //nolint:gosec // composed from escaped fragments`
