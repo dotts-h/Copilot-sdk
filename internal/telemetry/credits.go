@@ -88,7 +88,7 @@ func EstimateTurn(pb *PriceBook, model string, contextTokens int64) Cost {
 type Meter struct {
 	mu          sync.RWMutex
 	pb          *PriceBook
-	events      []Usage
+	count       int // how many usage events recorded (was a retained []Usage; only the count is ever read)
 	perModel    map[string]*ModelTotals
 	totalCost   Cost
 	reportedAIU float64 // GitHub-authoritative cost, in AI units
@@ -177,7 +177,7 @@ func (m *Meter) Record(u Usage) Cost {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.events = append(m.events, u)
+	m.count++
 
 	mt := m.perModel[u.Model]
 	if mt == nil {
@@ -267,7 +267,7 @@ func (m *Meter) ByModel() []ModelTotals {
 func (m *Meter) Count() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return len(m.events)
+	return m.count
 }
 
 // Budget tracks consumption against a credit allowance (e.g. a plan's monthly

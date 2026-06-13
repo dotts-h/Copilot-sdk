@@ -12,6 +12,28 @@ import (
 	"github.com/dotts-h/copilot-sdk/internal/copilot"
 )
 
+func TestPctClamped(t *testing.T) {
+	cases := []struct {
+		cur, limit int64
+		want       int
+	}{
+		{0, 0, 0},       // no reading yet
+		{50, 0, 0},      // limit guard wins over cur
+		{50, -1, 0},     // negative limit
+		{0, 100, 0},     // empty context
+		{50, 100, 50},   // midpoint
+		{1, 3, 33},      // rounds down (33.3)
+		{2, 3, 67},      // rounds up (66.6)
+		{100, 100, 100}, // full
+		{150, 100, 100}, // clamped over 100
+	}
+	for _, c := range cases {
+		if got := pctClamped(c.cur, c.limit); got != c.want {
+			t.Errorf("pctClamped(%d, %d) = %d, want %d", c.cur, c.limit, got, c.want)
+		}
+	}
+}
+
 func TestEscNewlinesAndEscaping(t *testing.T) {
 	got := esc("line1\nline2 <x>")
 	want := "line1<br>line2 &lt;x&gt;"

@@ -323,16 +323,12 @@ func elicitFieldView(f copilot.ElicitField) map[string]any {
 func elicitFieldKey(name string) string { return "f." + name }
 
 // subagentLabel returns a sub-agent's display name, falling back to its internal
-// name, then to a generic label.
-func subagentLabel(sa copilot.SubagentInfo) string {
-	switch {
-	case sa.DisplayName != "":
-		return sa.DisplayName
-	case sa.Name != "":
-		return sa.Name
-	default:
-		return "sub-agent"
-	}
+// name, then to a generic label. The single home for that fallback ladder, shared
+// by every surface that names a sub-agent (started/finished notes, the live list,
+// the overlay) across both the copilot.SubagentInfo and convo.SubagentView types.
+// Values are trimmed (a whitespace-only field falls through), matching firstNonEmpty.
+func subagentLabel(displayName, name string) string {
+	return firstNonEmpty([]string{displayName, name, "sub-agent"})
 }
 
 // subagentGlyph is the status glyph rendered beside the textual label (glyph
@@ -397,7 +393,7 @@ func renderSubagents(entries []convo.SubagentView) string {
 			// (claude-code#47936) — say so in the label itself.
 			label += " (unverified)"
 		}
-		name := firstNonEmpty([]string{sa.DisplayName, sa.Name, "sub-agent"})
+		name := subagentLabel(sa.DisplayName, sa.Name)
 		// Name/Description/Activity/Detail are model/SDK-originated text → they
 		// flow through html/template auto-escaping, never trusted() raw (ADR-0001).
 		// An empty Description omits the title attribute entirely.
@@ -424,6 +420,20 @@ func renderStatus(text string, active bool, startMs int64) string {
 	})
 }
 
+// pctClamped is the rounded fill percentage of cur within limit, clamped to
+// [0,100]. limit <= 0 yields 0 (no reading yet). Shared by the context meter
+// (#ctx) and the statusline so the two surfaces round identically.
+func pctClamped(cur, limit int64) int {
+	if limit <= 0 {
+		return 0
+	}
+	pct := int(float64(cur)/float64(limit)*100 + 0.5)
+	if pct > 100 {
+		pct = 100
+	}
+	return pct
+}
+
 // renderCtx renders the live context-window meter (#ctx): a token count and
 // fill percentage, or a compaction indicator. Empty until the first reading.
 func renderCtx(cur, limit int64, compacting bool) string {
@@ -436,10 +446,7 @@ func renderCtx(cur, limit int64, compacting bool) string {
 		}
 		return frag("ctx", map[string]any{"ShowTokens": true, "Cur": humanTokens(cur)})
 	}
-	pct := int(float64(cur)/float64(limit)*100 + 0.5)
-	if pct > 100 {
-		pct = 100
-	}
+	pct := pctClamped(cur, limit)
 	cls := "ctx-meter"
 	if pct >= 80 {
 		cls += " warn"
@@ -471,13 +478,7 @@ func renderStatline(s *Server) string {
 	if in+cached > 0 {
 		hit = int(float64(cached)/float64(in+cached)*100 + 0.5)
 	}
-	ctxPct := 0
-	if s.ctxLimit > 0 {
-		ctxPct = int(float64(s.ctxCurrent)/float64(s.ctxLimit)*100 + 0.5)
-		if ctxPct > 100 {
-			ctxPct = 100
-		}
-	}
+	ctxPct := pctClamped(s.ctxCurrent, s.ctxLimit)
 	// Pre-flight estimate: what the next turn would cost to resend the current
 	// context as input, so the abort decision is informed before sending. Shown
 	// only once a context reading has arrived (EvContextWindow).

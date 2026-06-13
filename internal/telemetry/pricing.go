@@ -124,14 +124,17 @@ func (pb *PriceBook) Rate(model string) (ModelRate, bool) {
 	return fb, false
 }
 
-// Set inserts or replaces a rate. It is safe to call from a settings page.
+// Set inserts or replaces a rate. It is safe to call from a settings page: like
+// NewPriceBook/BuildPriceBook, it derives a missing cache-write price (1.25× input)
+// via withDerivedCacheWrite, so a caller passing a rate without an explicit
+// CacheWritePerMTok can't silently price cache-write tokens at $0.
 func (pb *PriceBook) Set(r ModelRate) {
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 	if pb.rates == nil {
 		pb.rates = make(map[string]ModelRate)
 	}
-	pb.rates[normalizeModel(r.Model)] = r
+	pb.rates[normalizeModel(r.Model)] = withDerivedCacheWrite(r)
 }
 
 // Models returns the known model identifiers in stable, sorted order.

@@ -248,6 +248,25 @@ func TestSubagentStatusVocabulary(t *testing.T) {
 // entries — keyed by the spawn id the list row carries. Identity joins exactly like
 // Observe (the first tagged text binds an unjoined instance), and the record is
 // capped so a long-running sub-agent can't grow the registry without bound.
+func TestEntriesReturnsDeepCopies(t *testing.T) {
+	// Entries() must hand out deep copies (like ByID/ViewByInstance): mutating a
+	// returned entry's Transcript slice must not corrupt the live registry.
+	var r Subagents
+	r.Start("tc-1", "a", "A", "", "")
+	r.AppendText("sub-1", false, "original")
+
+	got := r.Entries()
+	if len(got) != 1 || len(got[0].Transcript) != 1 {
+		t.Fatalf("want 1 entry with 1 transcript line, got %+v", got)
+	}
+	got[0].Transcript[0].Text = "TAMPERED"
+
+	again, _ := r.ByID("tc-1")
+	if again.Transcript[0].Text != "original" {
+		t.Fatalf("mutating an Entries() view corrupted the registry: %q", again.Transcript[0].Text)
+	}
+}
+
 func TestSubagentTranscript(t *testing.T) {
 	t.Run("text deltas coalesce into a trailing run of the same kind", func(t *testing.T) {
 		var r Subagents
