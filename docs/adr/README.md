@@ -59,3 +59,4 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0053 | [Per-run budget cap — pre-Send admission control at run grain](0053-per-run-budget-cap-admission-control.md) | accepted |
 | 0054 | [Process infrastructure managed by cookbook recipes — Cookbook-first changes](0054-process-infra-managed-by-cookbook-recipes.md) | accepted |
 | 0055 | [SPDX license headers on first-party Go sources (CI-enforced)](0055-spdx-license-headers-on-first-party-go-sources.md) | accepted |
+| 0056 | [Post-roadmap architecture assessment — sound, no structural change](0056-architecture-assessment-post-roadmap-no-structural-change.md) | accepted |
