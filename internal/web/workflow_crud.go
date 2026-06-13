@@ -211,47 +211,22 @@ func workflowFromForm(r *http.Request, id string) ctxforge.Workflow {
 	}
 }
 
-func (s *Server) handleWorkflowNew(w http.ResponseWriter, r *http.Request) {
-	s.writePartial(w, renderWorkflowForm(ctxforge.Workflow{Mode: ctxforge.WorkflowSequential}, true, ""))
-}
-
+// The Workflow CRUD handlers delegate to the shared forgeCRUD[T] generic
+// (forgecrud.go) — the lock/lookup/fallback and error-re-render logic lives there
+// once. The per-type form (renderWorkflowForm), form parse (workflowFromForm),
+// validated builders ((*Forge).Add/Update/RemoveWorkflow), and list
+// (workflowsPartial) above are the only workflow-specific parts. handleWorkflowRun
+// is NOT CRUD (it's the run surface) and stays in run_adapter.go.
+func (s *Server) handleWorkflowNew(w http.ResponseWriter, r *http.Request) { workflowCRUD.New(s, w, r) }
 func (s *Server) handleWorkflowEdit(w http.ResponseWriter, r *http.Request) {
-	s.hub.forgeMu.Lock()
-	wf := s.forge.Workflow(r.PathValue("id"))
-	var form string
-	if wf != nil {
-		form = renderWorkflowForm(*wf, false, "")
-	}
-	s.hub.forgeMu.Unlock()
-	if form == "" {
-		s.writePartial(w, s.workflowsPartial())
-		return
-	}
-	s.writePartial(w, form)
+	workflowCRUD.Edit(s, w, r)
 }
-
 func (s *Server) handleWorkflowCreate(w http.ResponseWriter, r *http.Request) {
-	wf := workflowFromForm(r, strings.TrimSpace(r.FormValue("id")))
-	if err := s.editForge(func() error { return s.forge.AddWorkflow(wf) }); err != nil {
-		s.writePartial(w, renderWorkflowForm(wf, true, err.Error()))
-		return
-	}
-	s.writePartial(w, s.workflowsPartial())
+	workflowCRUD.Create(s, w, r)
 }
-
 func (s *Server) handleWorkflowUpdate(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	wf := workflowFromForm(r, id)
-	if err := s.editForge(func() error { return s.forge.UpdateWorkflow(id, wf) }); err != nil {
-		s.writePartial(w, renderWorkflowForm(wf, false, err.Error()))
-		return
-	}
-	s.writePartial(w, s.workflowsPartial())
+	workflowCRUD.Update(s, w, r)
 }
-
 func (s *Server) handleWorkflowDelete(w http.ResponseWriter, r *http.Request) {
-	if err := s.editForge(func() error { return s.forge.RemoveWorkflow(r.PathValue("id")) }); err != nil {
-		s.logger.Printf("remove workflow: %v", err)
-	}
-	s.writePartial(w, s.workflowsPartial())
+	workflowCRUD.Delete(s, w, r)
 }

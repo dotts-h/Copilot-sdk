@@ -127,7 +127,7 @@ func renderSubagentOverlay(v convo.SubagentView, pauses []pause.Pause) string {
 	return frag("subagentOverlay", map[string]any{
 		"ID":          v.SpawnID,
 		"Event":       subagentEvent(v.SpawnID),
-		"Name":        firstNonEmpty([]string{v.DisplayName, v.Name, "sub-agent"}),
+		"Name":        subagentLabel(v.DisplayName, v.Name),
 		"Model":       v.Model,
 		"Glyph":       subagentGlyph(v.Status),
 		"Label":       v.Status.Label(),

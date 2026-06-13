@@ -125,7 +125,8 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		if e.ToolCall != nil {
 			s.state.ToolEnd(e.ToolCall.ID, e.ToolCall.Result, e.ToolCall.Success)
 		}
-		s.live = liveNone
+		// s.live is recomputed by timelineFragments() below (from state.Pending());
+		// no separate reset needed here.
 		st := "thinking…"
 		if active := s.state.ActiveTools(); len(active) > 0 {
 			st = "running " + active[len(active)-1]
@@ -244,7 +245,7 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		}
 		sa := *e.Subagent
 		s.subreg.Start(sa.ToolCallID, sa.Name, sa.DisplayName, sa.Description, sa.Model)
-		s.state.AddSystem("▸ sub-agent " + subagentLabel(sa) + " started")
+		s.state.AddSystem("▸ sub-agent " + subagentLabel(sa.DisplayName, sa.Name) + " started")
 		return append(s.timelineFragments(), s.subagentsFrag())
 
 	case copilot.EvSubagentEnd:
@@ -256,7 +257,7 @@ func (s *Server) handleEvent(e copilot.Event) []fragment {
 		if !e.Subagent.Success {
 			glyph = "✗"
 		}
-		note := glyph + " sub-agent " + subagentLabel(*e.Subagent) + " finished"
+		note := glyph + " sub-agent " + subagentLabel(e.Subagent.DisplayName, e.Subagent.Name) + " finished"
 		if e.Subagent.Detail != "" {
 			note += " · " + e.Subagent.Detail
 		}

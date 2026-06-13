@@ -414,10 +414,14 @@ func (r *Subagents) End(spawnID string, success bool, detail string, totalTokens
 	return true
 }
 
-// Entries returns a copy of the registry in start order.
+// Entries returns a copy of the registry in start order. Each view is deep-copied
+// via copyView (like ByID/ViewByInstance), so a handed-out entry shares no mutable
+// state — notably its Transcript slice — with the registry.
 func (r *Subagents) Entries() []SubagentView {
 	out := make([]SubagentView, len(r.entries))
-	copy(out, r.entries)
+	for i := range r.entries {
+		out[i] = copyView(&r.entries[i])
+	}
 	return out
 }
 

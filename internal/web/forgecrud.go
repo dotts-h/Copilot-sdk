@@ -120,4 +120,12 @@ var (
 		add:      (*ctxforge.Forge).AddSnippet, update: (*ctxforge.Forge).UpdateSnippet,
 		remove: (*ctxforge.Forge).RemoveSnippet, list: (*Server).snippetsPartial,
 	}
+	workflowCRUD = forgeCRUD[ctxforge.Workflow]{
+		kind:   "workflow",
+		lookup: (*ctxforge.Forge).Workflow, render: renderWorkflowForm,
+		blank:    func() ctxforge.Workflow { return ctxforge.Workflow{Mode: ctxforge.WorkflowSequential} },
+		fromForm: workflowFromForm,
+		add:      (*ctxforge.Forge).AddWorkflow, update: (*ctxforge.Forge).UpdateWorkflow,
+		remove: (*ctxforge.Forge).RemoveWorkflow, list: (*Server).workflowsPartial,
+	}
 )

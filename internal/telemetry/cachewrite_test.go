@@ -59,6 +59,20 @@ func TestBuildPriceBookCacheWriteOverrideAndDerivedDefault(t *testing.T) {
 	approx(t, rd.CacheWritePerMTok, 1.25*2)
 }
 
+func TestPriceBookSetDerivesCacheWrite(t *testing.T) {
+	// Set, like NewPriceBook/BuildPriceBook, must derive a missing cache-write
+	// price (1.25× input) rather than store a zero — otherwise a caller passing a
+	// rate without CacheWritePerMTok would silently price cache-write at $0.
+	pb := NewPriceBook(ModelRate{})
+	pb.Set(ModelRate{Model: "gpt-5", InputPerMTok: 2, CachedInputPerMTok: 0.2, OutputPerMTok: 20})
+	r, ok := pb.Rate("gpt-5")
+	if !ok {
+		t.Fatal("rate not found after Set")
+	}
+	approx(t, r.CacheWritePerMTok, 1.25*2)
+	approx(t, Price(pb, Usage{Model: "gpt-5", CacheWriteTokens: 1_000_000}).CacheWriteUSD, 1.25*2)
+}
+
 func TestMeterRecordFoldsCacheWriteIntoTotals(t *testing.T) {
 	m := NewMeter(DefaultPriceBook())
 	// gpt-5: in $1.25/Mt (cache-write $1.5625/Mt), out $10/Mt.

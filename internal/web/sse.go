@@ -70,6 +70,12 @@ func writeSSE(w io.Writer, event, data string) {
 	if data == "" {
 		// A data line is required for the browser to dispatch the event.
 		b.WriteString("data: \n")
+	} else if !strings.Contains(data, "\n") {
+		// Fast path for the common single-line payload (every streamed token
+		// delta) — avoids the strings.Split slice allocation on the hot path.
+		b.WriteString("data: ")
+		b.WriteString(data)
+		b.WriteByte('\n')
 	} else {
 		for _, line := range strings.Split(data, "\n") {
 			fmt.Fprintf(&b, "data: %s\n", line)
