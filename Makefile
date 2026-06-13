@@ -60,11 +60,16 @@ vet:
 check-workflows:
 	bash scripts/check-workflows.sh
 
-# Recipe conformance (ADR-0054): lock-driven cookbook doctors. Needs a Cookbook
-# checkout; point COOKBOOK_DIR at it (default: sibling of this repo).
-COOKBOOK_DIR ?= ../Cookbook
+# Recipe conformance (ADR-0054): lock-driven cookbook doctors. The recipe catalog
+# now ships in the cookbook@ori plugin (dotts-h/claude-skills) — in a Claude session
+# it's at $CLAUDE_PLUGIN_ROOT; outside one (CI/manual) point RECIPES_DIR at a checkout
+# of that plugin (dotts-h/claude-skills/plugins/cookbook). No ../Cookbook checkout.
+RECIPES_DIR ?= $(CLAUDE_PLUGIN_ROOT)
+ifeq ($(strip $(RECIPES_DIR)),)
+RECIPES_DIR := ../claude-skills/plugins/cookbook
+endif
 doctor:
-	bash $(COOKBOOK_DIR)/plugins/cookbook/skills/recipe-doctor/scripts/run-doctors.sh .
+	bash $(RECIPES_DIR)/skills/recipe-doctor/scripts/run-doctors.sh .
 
 lint: vet check-workflows
 	@unformatted=$$(gofmt -l ./cmd ./internal); \
