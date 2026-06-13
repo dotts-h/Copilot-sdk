@@ -1,8 +1,8 @@
 {
   "extraKnownMarketplaces": {
-    "orchestra": {
+    "ori": {
       "source": { "source": "github", "repo": "dotts-h/claude-skills" }
     }
   },
-  "enabledPlugins": ["orchestra-skills@orchestra"]
+  "enabledPlugins": ["skills@ori", "cookbook@ori"]
 }
