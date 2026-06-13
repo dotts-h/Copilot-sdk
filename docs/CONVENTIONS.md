@@ -96,7 +96,8 @@ Module: `github.com/dotts-h/copilot-sdk` · app *my-orchestra*.
 
 Exact commands CI enforces (`.github/workflows/ci.yml`, `Makefile`):
 
-- **Lint:** `make lint` — gofmt + `go vet ./...` + golangci-lint v2 (`.golangci.yml`).
+- **Lint:** `make lint` — gofmt + `go vet ./...` + golangci-lint v2 (`.golangci.yml`),
+  including `goheader` (the SPDX license-header gate, see *Naming & style*).
 - **Test:** `make test` — `go test ./... -race -count=1 -timeout 180s` with coverage.
 - **Coverage floor: 65%** (`go tool cover -func`; CI fails below 65%).
 - **Fuzz:** `make fuzz` — smoke on pricing.
@@ -260,6 +261,12 @@ architecture → opus.
 
 ## Naming & style
 
+- **Every first-party Go file starts with the 2-line SPDX header** (`// Copyright (c)
+  <year> Horia C. Rădulescu` / `// SPDX-License-Identifier: BUSL-1.1`), above any
+  `//go:build` line, followed by a blank line. **Never remove it** — `goheader` in
+  `make lint`/CI fails on a missing or malformed header. New files (and any code
+  generator) must emit it; the vendored MIT SDK dep is out of scope. — see
+  [ADR-0055](adr/0055-spdx-license-headers-on-first-party-go-sources.md)
 - Branches: `feat/…`, `docs/…`, `fix/…` (kebab, scope-prefixed).
 - Skills use gerund slugs (`registering-contracts`); the docs they own live under `docs/`.
 - Commit messages: imperative subject, conventional-commit prefix where it fits

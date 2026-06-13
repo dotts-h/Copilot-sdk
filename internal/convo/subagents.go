@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Horia C. Rădulescu
+// SPDX-License-Identifier: BUSL-1.1
+
 package convo
 
 // Sub-agent registry (issue 0071, epic 0069 S2, ADR-0041): the UI-agnostic model

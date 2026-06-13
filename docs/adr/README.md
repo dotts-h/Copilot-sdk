@@ -58,3 +58,4 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0052 | [Run inspector — read-only step-timeline reconstruction over the per-run event log](0052-run-inspector-read-only-replay.md) | accepted |
 | 0053 | [Per-run budget cap — pre-Send admission control at run grain](0053-per-run-budget-cap-admission-control.md) | accepted |
 | 0054 | [Process infrastructure managed by cookbook recipes — Cookbook-first changes](0054-process-infra-managed-by-cookbook-recipes.md) | accepted |
+| 0055 | [SPDX license headers on first-party Go sources (CI-enforced)](0055-spdx-license-headers-on-first-party-go-sources.md) | accepted |

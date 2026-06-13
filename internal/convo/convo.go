@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Horia C. Rădulescu
+// SPDX-License-Identifier: BUSL-1.1
+
 // Package convo is the UI-agnostic conversation transcript model for
 // my-orchestra. It was lifted out of the Bubble Tea TUI (internal/tui/chat.go)
 // so both a terminal and the htmx web frontend render from the same reducer

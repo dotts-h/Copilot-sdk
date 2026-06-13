@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Horia C. Rădulescu
+// SPDX-License-Identifier: BUSL-1.1
+
 // Package bootstrap assembles a ready-to-serve web.Hub from on-disk config and
 // forge, wiring the price book, meter, the compiled default-agent SessionSpec,
 // and the Copilot client (real SDK, or an offline/demo mock). Both the web

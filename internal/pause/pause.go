@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Horia C. Rădulescu
+// SPDX-License-Identifier: BUSL-1.1
+
 // Package pause is the human-in-the-loop pause ledger: the typed records a
 // sub-agent parks on when it needs the human, and their idempotent resolution.
 //

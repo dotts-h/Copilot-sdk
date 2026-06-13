@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Horia C. Rădulescu
+// SPDX-License-Identifier: BUSL-1.1
+
 package bootstrap
 
 // guard_test.go — additional guard tests for items 11–13.

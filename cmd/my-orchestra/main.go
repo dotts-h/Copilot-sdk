@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Horia C. Rădulescu
+// SPDX-License-Identifier: BUSL-1.1
+
 // Command my-orchestra is a cost-aware coding web app that fuses the GitHub
 // Copilot CLI and Claude CLI experiences. It drives the GitHub Copilot SDK
 // (through a Node sidecar), assembles context with the my-ctx forge, meters

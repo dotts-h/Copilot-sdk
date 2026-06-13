@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Horia C. Rădulescu
+// SPDX-License-Identifier: BUSL-1.1
+
 // Package telemetry models GitHub Copilot's usage-based (AI Credits) billing so
 // my-orchestra can show a faithful, real-time estimate of the credits a session
 // consumes.
