@@ -61,12 +61,17 @@ check-workflows:
 	bash scripts/check-workflows.sh
 
 # Recipe conformance (ADR-0054): lock-driven cookbook doctors. The recipe catalog
-# now ships in the cookbook@ori plugin (dotts-h/claude-skills) — in a Claude session
-# it's at $CLAUDE_PLUGIN_ROOT; outside one (CI/manual) point RECIPES_DIR at a checkout
-# of that plugin (dotts-h/claude-skills/plugins/cookbook). No ../Cookbook checkout.
+# ships in the cookbook@ori plugin (dotts-h/claude-skills). Resolve it in priority
+# order: an explicit RECIPES_DIR (CI/manual) > $CLAUDE_PLUGIN_ROOT (set only inside
+# a plugin's own command/hook, NOT in a plain `make` shell — so it's usually empty
+# here) > the marketplace install location (~/.claude/.../marketplaces/*/plugins/
+# cookbook, the stable path recorded in known_marketplaces.json) > a sibling checkout.
+# The marketplace-wildcard fallback is what makes `make doctor` work in a web/CLI
+# session without any env var — see docs/REGRESSIONS.md "make doctor couldn't find
+# the recipe catalog".
 RECIPES_DIR ?= $(CLAUDE_PLUGIN_ROOT)
 ifeq ($(strip $(RECIPES_DIR)),)
-RECIPES_DIR := ../claude-skills/plugins/cookbook
+RECIPES_DIR := $(firstword $(wildcard $(HOME)/.claude/plugins/marketplaces/*/plugins/cookbook) ../claude-skills/plugins/cookbook)
 endif
 doctor:
 	bash $(RECIPES_DIR)/skills/recipe-doctor/scripts/run-doctors.sh .
