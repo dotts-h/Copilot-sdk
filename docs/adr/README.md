@@ -55,3 +55,6 @@ One decision per file (MADR-lite). Superseded records keep their file; their sta
 | 0049 | [Citation cards — inline `[n]` markers + reference-defined source cards](0049-citation-cards-inline-markers-and-source-cards.md) | accepted |
 | 0050 | [No mini-RAG over the docs corpus — file-based docs + agentic search stay](0050-no-mini-rag-file-based-docs-and-agentic-search.md) | accepted |
 | 0051 | [No third-party efficiency/observability plugins — an in-repo session playbook instead](0051-no-third-party-efficiency-plugins-in-repo-session-playbook.md) | accepted |
+| 0052 | [Run inspector — read-only step-timeline reconstruction over the per-run event log](0052-run-inspector-read-only-replay.md) | accepted |
+| 0053 | [Per-run budget cap — pre-Send admission control at run grain](0053-per-run-budget-cap-admission-control.md) | accepted |
+| 0054 | [Process infrastructure managed by cookbook recipes — Cookbook-first changes](0054-process-infra-managed-by-cookbook-recipes.md) | accepted |

@@ -886,6 +886,21 @@ or ship a migration). Writes are atomic (temp-file + rename + validate).
   dependency-free.
 - **Persistence atomicity:** config/forge writes are temp-file + rename, validated before save.
 
+## Provides (consumed by other repos)
+
+> Fleet-facing promises (contracts recipe shape, ADR-0054). One bullet per
+> contract: ``- `contract-id` — description · shape/schema pointer``.
+
+- *(none — my-orchestra ships an app; no sibling repo consumes a contract from it)*
+
+## Consumes (provided by other repos)
+
+> Same format; ids here must be provided by a sibling repo in a fleet
+> `constellation.yaml`. Not a fleet member today — upstream third-party seams
+> (the Copilot Go SDK, the `claude` CLI) are documented in §1, not here.
+
+- *(none yet)*
+
 ---
 *Consolidated from the scattered tables in ARCHITECTURE.md and WEB_UI_PLAN.md. Drift check:
 re-run `scripts/extract-interfaces.sh` and reconcile against this file.*

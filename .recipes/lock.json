@@ -1,0 +1,75 @@
+{
+  "recipes": [
+    {
+      "name": "contracts",
+      "version": "0.1.0",
+      "tier": "L",
+      "answers": {
+        "project_name": "my-orchestra",
+        "fleet_member": "false",
+        "fleet_name": "my-fleet"
+      },
+      "installedAt": "2026-06-12T20:20:51Z"
+    },
+    {
+      "name": "core",
+      "version": "0.1.0",
+      "tier": "L",
+      "answers": {
+        "project_name": "my-orchestra",
+        "project_description": "A cost-aware coding web app that drives the GitHub Copilot Go SDK, composes context with the my-ctx forge, and meters AI-Credit spend in real time.",
+        "default_branch": "main",
+        "lint_command": "make lint",
+        "test_command": "make test"
+      },
+      "installedAt": "2026-06-12T20:20:50Z"
+    },
+    {
+      "name": "issues",
+      "version": "0.1.0",
+      "tier": "L",
+      "answers": {
+        "project_name": "my-orchestra"
+      },
+      "installedAt": "2026-06-12T20:20:50Z"
+    },
+    {
+      "name": "loop",
+      "version": "0.1.0",
+      "tier": "L",
+      "answers": {
+        "project_name": "my-orchestra",
+        "default_branch": "main",
+        "lint_command": "make lint",
+        "test_command": "make test"
+      },
+      "installedAt": "2026-06-12T20:20:51Z"
+    },
+    {
+      "name": "quality",
+      "version": "0.1.0",
+      "tier": "L",
+      "answers": {
+        "project_name": "my-orchestra",
+        "default_branch": "main",
+        "build_system": "make",
+        "lint_command": "make lint",
+        "test_command": "make test",
+        "coverage_floor": "65",
+        "node_version": "20"
+      },
+      "installedAt": "2026-06-12T20:20:50Z"
+    },
+    {
+      "name": "release",
+      "version": "0.1.0",
+      "tier": "L",
+      "answers": {
+        "project_name": "my-orchestra",
+        "artifact_name": "my-orchestra",
+        "release_build_command": "cross-compile the 6-target matrix into dist/ (see .github/workflows/release.yml build step)"
+      },
+      "installedAt": "2026-06-12T20:20:51Z"
+    }
+  ]
+}
