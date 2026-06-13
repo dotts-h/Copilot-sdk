@@ -13,7 +13,7 @@
     },
     {
       "name": "core",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "tier": "L",
       "answers": {
         "project_name": "my-orchestra",
@@ -22,7 +22,7 @@
         "lint_command": "make lint",
         "test_command": "make test"
       },
-      "installedAt": "2026-06-12T20:20:50Z"
+      "installedAt": "2026-06-13T15:35:00Z"
     },
     {
       "name": "issues",
@@ -47,7 +47,7 @@
     },
     {
       "name": "quality",
-      "version": "0.1.0",
+      "version": "0.3.0",
       "tier": "L",
       "answers": {
         "project_name": "my-orchestra",
@@ -58,7 +58,7 @@
         "coverage_floor": "65",
         "node_version": "20"
       },
-      "installedAt": "2026-06-12T20:20:50Z"
+      "installedAt": "2026-06-13T15:35:00Z"
     },
     {
       "name": "release",
