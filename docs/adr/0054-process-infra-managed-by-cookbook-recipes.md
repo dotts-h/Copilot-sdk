@@ -1,9 +1,19 @@
 # 0054. Process infrastructure managed by cookbook recipes — Cookbook-first changes
 
-- Status: accepted
+- Status: accepted (amended 2026-06-13)
 - Date: 2026-06-12
 - Deciders: Horia
-- Related: [ADR-0051](0051-no-third-party-efficiency-plugins-in-repo-session-playbook.md), `dotts-h/cookbook` (the recipe catalog), `.recipes/lock.json`, `Makefile` (`doctor`), [docs/CONVENTIONS.md](../CONVENTIONS.md)
+- Related: [ADR-0051](0051-no-third-party-efficiency-plugins-in-repo-session-playbook.md), `dotts-h/claude-skills` (the recipe catalog — `cookbook@ori` plugin), `.recipes/lock.json`, `Makefile` (`doctor`), [docs/CONVENTIONS.md](../CONVENTIONS.md)
+
+> **Amended 2026-06-13.** The recipe catalog and the adopt/update/doctor skills
+> moved out of `dotts-h/cookbook` into the **`cookbook@ori`** plugin, hosted in
+> **`dotts-h/claude-skills`** (the `ori` marketplace); `dotts-h/cookbook` is now
+> deprecated/archived. The "Cookbook-first" direction below still holds — only the
+> home changed: process-infra changes land in the plugin first, then flow here via
+> `/update-recipes`. The catalog ships *inside* the plugin (`$CLAUDE_PLUGIN_ROOT`),
+> so `make doctor` no longer needs a `../Cookbook` checkout — it resolves the plugin,
+> or `RECIPES_DIR` for CI/manual runs (the old `COOKBOOK_DIR`/`../Cookbook` is gone).
+> Read "Cookbook" below as "the cookbook plugin in dotts-h/claude-skills".
 
 ## Context
 

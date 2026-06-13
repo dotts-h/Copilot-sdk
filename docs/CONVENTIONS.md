@@ -103,9 +103,11 @@ Exact commands CI enforces (`.github/workflows/ci.yml`, `Makefile`):
 - **E2E:** `make e2e` (Playwright; `make e2e-install` first); CI runs `npx playwright test`.
 - **Build matrix:** `make build` must pass across the release matrix (pure-Go, `CGO_ENABLED=0`).
 - **Recipe conformance:** `make doctor` — lock-driven cookbook doctors over
-  `.recipes/lock.json` (needs a Cookbook checkout; `COOKBOOK_DIR` points at it). Process
-  infra changes land in the Cookbook repo first, then flow here via `update-recipes`
-  (ADR-0054). Advisory locally, not a CI gate (CI has no Cookbook checkout).
+  `.recipes/lock.json`. The catalog ships in the `cookbook@ori` plugin
+  (`dotts-h/claude-skills`); in a Claude session it's at `$CLAUDE_PLUGIN_ROOT`,
+  otherwise point `RECIPES_DIR` at a checkout of that plugin. Process-infra changes
+  land in the `cookbook` plugin first, then flow here via `/update-recipes`
+  (ADR-0054). Advisory locally, not a CI gate (CI has no plugin/catalog checkout).
 - **Desktop:** `make desktop` (CGO, build tag `desktop`) builds the Wails shell; CI
   (`desktop.yml`) builds it on native runners and runs a boot smoke under xvfb.
 - **CI runs once per change.** `ci.yml`/`e2e.yml` trigger on `pull_request` (the open PR)

@@ -26,7 +26,8 @@ them before acting. One fact, one home: never copy a rule here, link it.
 - **Skills program:** [SKILLS_PLAN.md](SKILLS_PLAN.md).
 
 Process infra is managed by cookbook recipes (`.recipes/lock.json`; conformance
-via `make doctor`); process changes land in the Cookbook repo first — see ADR-0054.
+via `make doctor`); process changes land in the `cookbook@ori` plugin
+(`dotts-h/claude-skills`) first, then flow here via `/update-recipes` — see ADR-0054.
 
 Quick gates (exact in CONVENTIONS): `make lint && make test` before push; coverage
 floor 65%; CI must be green before merge. Branch from `main`; never commit to it
