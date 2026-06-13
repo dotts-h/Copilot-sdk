@@ -12,11 +12,15 @@ Module: `github.com/dotts-h/copilot-sdk` · app *my-orchestra*.
 - **Verify the base before branching.** This repo has a **tag named `main`** colliding with the
   `main` *branch*, and the sandbox git server can serve a **stale `origin/main`** on the first
   fetch. Both have silently put work on the wrong base (a `git switch -c` resolved the *tag*; a
-  pre-foundation `origin/main` made already-merged files "vanish"). Before writing code:
-  `git fetch origin && git switch main && git pull --ff-only`, then **assert the foundation is
-  present** — confirm `git rev-parse origin/main` is the expected SHA and, when building on prior
+  pre-foundation `origin/main` made already-merged files "vanish"). **`git switch main` /
+  `git checkout main` resolve the *tag*, not the branch** — and the follow-up `git pull --ff-only`
+  then fails on the divergent tag lineage (re-confirmed RETROS 0008). So **don't** use bare
+  `git switch main`: prefer `.claude/skills/get-next/scripts/start-fresh.sh <branch>` (it resolves
+  `refs/remotes/origin/main` explicitly), or to re-sync local `main` use
+  `git fetch origin && git checkout -B main refs/remotes/origin/main`. Always **assert the
+  foundation** — confirm `git rev-parse origin/main` is the expected SHA and, when building on prior
   work, `git cat-file -e origin/main:<a-file-that-must-exist>`. A stale remote must fail loud, not
-  silent. — see [RETROS 0002](RETROS/0002-v28-postooluse-governance-close.md)
+  silent. — see [RETROS 0002](RETROS/0002-v28-postooluse-governance-close.md), [0008](RETROS/0008-session-recipes-fix-quality-and-architecture-pass.md)
 - **Waiting on CI/remote without a foreground `sleep`** (which the harness blocks): use a
   background until-loop timer (`until [ $((SECONDS-start)) -ge N ]; do sleep 10; done`) to wake,
   then re-check status via the compact MCP calls (`pull_request_read get_status`/`get_check_runs`,
@@ -105,9 +109,12 @@ Exact commands CI enforces (`.github/workflows/ci.yml`, `Makefile`):
 - **Build matrix:** `make build` must pass across the release matrix (pure-Go, `CGO_ENABLED=0`).
 - **Recipe conformance:** `make doctor` — lock-driven cookbook doctors over
   `.recipes/lock.json`. The catalog ships in the `cookbook@ori` plugin
-  (`dotts-h/claude-skills`); in a Claude session it's at `$CLAUDE_PLUGIN_ROOT`,
-  otherwise point `RECIPES_DIR` at a checkout of that plugin. Process-infra changes
-  land in the `cookbook` plugin first, then flow here via `/update-recipes`
+  (`dotts-h/claude-skills`); the Makefile resolves it `RECIPES_DIR` (CI/manual) >
+  `$CLAUDE_PLUGIN_ROOT` > the **marketplace install dir**
+  (`~/.claude/plugins/marketplaces/*/plugins/cookbook`) > a sibling checkout —
+  `$CLAUDE_PLUGIN_ROOT` is **empty in a plain `make` shell**, so the marketplace
+  fallback is what makes `make doctor` work in a session (REGRESSIONS #23). Process-infra
+  changes land in the `cookbook` plugin first, then flow here via `/update-recipes`
   (ADR-0054). Advisory locally, not a CI gate (CI has no plugin/catalog checkout).
 - **Desktop:** `make desktop` (CGO, build tag `desktop`) builds the Wails shell; CI
   (`desktop.yml`) builds it on native runners and runs a boot smoke under xvfb.
