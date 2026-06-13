@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Horia C. Rădulescu
+// SPDX-License-Identifier: BUSL-1.1
+
 //go:build desktop
 
 // Command my-orchestra-desktop wraps the my-orchestra web UI in a native

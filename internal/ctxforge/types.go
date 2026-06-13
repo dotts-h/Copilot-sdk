@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Horia C. Rădulescu
+// SPDX-License-Identifier: BUSL-1.1
+
 // Package ctxforge is "my-ctx forge": the context-engineering subsystem of
 // my-orchestra. It owns the user's reusable building blocks — skills,
 // instructions, agents, and MCP servers — and compiles a selected subset into a

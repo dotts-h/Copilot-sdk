@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Horia C. Rădulescu
+// SPDX-License-Identifier: BUSL-1.1
+
 package web
 
 // The contrast/structure guard for the token foundation (issue 0063, ADR-0036).

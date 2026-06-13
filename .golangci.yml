@@ -13,6 +13,20 @@ linters:
     - unused
     - misspell
     - unconvert
+    - goheader
+  settings:
+    # Enforce the SPDX license header on every first-party Go file so it can't be
+    # silently stripped (by a human or an agent). — see docs/adr/0055.
+    goheader:
+      # The copyright line is matched as a regexp (ASCII parts pinned, the
+      # accented surname left loose) to avoid a multibyte-rune comparison quirk;
+      # the SPDX identifier — the load-bearing part — is a strict literal.
+      values:
+        regexp:
+          COPYRIGHT_LINE: 'Copyright \(c\) \d{4} Horia C\. .+'
+      template: |-
+        {{ COPYRIGHT_LINE }}
+        SPDX-License-Identifier: BUSL-1.1
   exclusions:
     rules:
       # Test helpers intentionally ignore some errors for brevity.

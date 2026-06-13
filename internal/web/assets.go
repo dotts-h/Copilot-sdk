@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Horia C. Rădulescu
+// SPDX-License-Identifier: BUSL-1.1
+
 // Package web is the server-rendered htmx frontend for my-orchestra. It replaces
 // the Bubble Tea TUI (see docs/WEB_UI_PLAN.md): the non-UI core
 // (internal/copilot, ctxforge, telemetry, config) is reused unchanged, and the

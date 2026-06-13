@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Horia C. Rădulescu
+// SPDX-License-Identifier: BUSL-1.1
+
 // Package copilot wraps the official GitHub Copilot Go SDK
 // (github.com/github/copilot-sdk/go) behind a small interface tailored to
 // my-orchestra's TUI. The interface exists for one reason: testability. The TUI

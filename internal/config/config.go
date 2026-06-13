@@ -1,3 +1,6 @@
+// Copyright (c) 2026 Horia C. Rădulescu
+// SPDX-License-Identifier: BUSL-1.1
+
 // Package config owns my-orchestra's persistent application configuration: the
 // data behind both the Settings page (user-editable knobs) and the Config page
 // (the full, advanced view). It is JSON-backed and dependency-free.
