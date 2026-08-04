@@ -3,13 +3,14 @@ module github.com/dotts-h/copilot-sdk
 go 1.25.0
 
 require (
-	github.com/github/copilot-sdk/go v1.0.5
-	github.com/wailsapp/wails/v3 v3.0.0-alpha2.116
+	github.com/github/copilot-sdk/go v1.0.8
+	github.com/wailsapp/wails/v3 v3.0.0-alpha2.121
 )
 
 require (
 	github.com/adrg/xdg v0.5.3 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
+	github.com/ebitengine/purego v0.10.1 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
