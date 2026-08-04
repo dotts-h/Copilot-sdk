@@ -4,8 +4,10 @@ github.com/coder/websocket v1.8.15 h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNU
 github.com/coder/websocket v1.8.15/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/github/copilot-sdk/go v1.0.5 h1:NeIMkcWZ/YzDETCx26i9HIG8r1j0fYjYxU+pUJXaaQ8=
-github.com/github/copilot-sdk/go v1.0.5/go.mod h1:+Qo8WkaIJEb1aqRwzrO49Z9nHWfQcF39iro4fH+qNYQ=
+github.com/ebitengine/purego v0.10.1 h1:dewVBCBT2GaMu1SrNTYxQhgQBethzfhiwvZiLGP/qyY=
+github.com/ebitengine/purego v0.10.1/go.mod h1:iIjxzd6CiRiOG0UyXP+V1+jWqUXVjPKLAI0mRfJZTmQ=
+github.com/github/copilot-sdk/go v1.0.8 h1:vuGAK8r/biF2tBHF2PaZ9b0i35KQzPY6eja2ESBW+Ms=
+github.com/github/copilot-sdk/go v1.0.8/go.mod h1:U0STg9Jdv9LDwtkUtcUJCzPQ4KTnKakRfP+1LhEx248=
 github.com/go-json-experiment/json v0.0.0-20251027170946-4849db3c2f7e h1:Lf/gRkoycfOBPa42vU2bbgPurFong6zXeFtPoxholzU=
 github.com/go-json-experiment/json v0.0.0-20251027170946-4849db3c2f7e/go.mod h1:uNVvRXArCGbZ508SxYYTC5v1JWoz2voff5pm25jU1Ok=
 github.com/go-logr/logr v1.2.2/go.mod h1:jdQByPbusPIv2/zmleS9BjJVeZ6kBagPoEUsqbVz/1A=
@@ -35,8 +37,8 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
-github.com/wailsapp/wails/v3 v3.0.0-alpha2.116 h1:qPOQ5jvvuWxyiQ82xyfdyElaS4TL1fz/YLDK6acmsx4=
-github.com/wailsapp/wails/v3 v3.0.0-alpha2.116/go.mod h1:74WH2FScMsgucZvHHvv7eOefDXCm/CjuIxqhhZgPhKg=
+github.com/wailsapp/wails/v3 v3.0.0-alpha2.121 h1:atATu/oOCCIluLmUyg4iz1I/BX2JyuQNDAt30ZTPjHY=
+github.com/wailsapp/wails/v3 v3.0.0-alpha2.121/go.mod h1:y445IrI1Wh58ZGCd6IURIM9UWIHIKa+NOcDOih05++8=
 go.opentelemetry.io/auto/sdk v1.1.0 h1:cH53jehLUN6UFLY71z+NDOiNJqDdPRaXzTel0sJySYA=
 go.opentelemetry.io/auto/sdk v1.1.0/go.mod h1:3wSPjt5PWp2RhlCcmmOial7AvC4DQqZb7a7wCow3W8A=
 go.opentelemetry.io/otel v1.35.0 h1:xKWKPxrxB6OtMCbmMY021CqC45J+3Onta9MqjhnusiQ=
